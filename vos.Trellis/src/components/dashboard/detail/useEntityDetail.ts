@@ -67,7 +67,7 @@ function useThrottled(value: number, milliseconds: number): number {
   return throttled;
 }
 
-/** The connections, services and vigils the platform holds, read once when a card opens on a Thing: a dashboard's
+/** The connections and services the platform holds, and the Things waiting for this one, read once when a card opens on a Thing: a dashboard's
  *  index holds the Thing's relationships but none of the wiring. Undefined while the read is out, and null when it
  *  failed, so a card that cannot read it lists no service call rather than failing. */
 function useServiceWiring(thingId: string): ModelIndex | null | undefined {
@@ -75,7 +75,7 @@ function useServiceWiring(thingId: string): ModelIndex | null | undefined {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchServiceWiring(controller.signal)
+    fetchServiceWiring(thingId, controller.signal)
       .then((wiring) => setRead({ thingId, wiring }))
       .catch(() => {
         if (!controller.signal.aborted) setRead({ thingId, wiring: null });

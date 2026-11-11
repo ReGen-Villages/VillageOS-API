@@ -28,17 +28,16 @@ public class StoppingRunsTests
     }
 
     [Fact]
-    public async Task A_waiting_run_stops_at_once_its_vigil_retired_and_every_node_not_finished_recording_the_reason()
+    public async Task A_waiting_run_stops_at_once_its_watch_retracted_in_the_cancelled_write_and_every_node_not_finished_recording_the_reason()
     {
         var (waiting, gateway, executor) = ArrangeWaiting();
         var run = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-        var vigil = gateway.VigilsPlaced.Single().VigilId;
         var request = Guid.NewGuid();
 
         await executor.StopAsync(request, run.RunId, CancellationToken.None);
 
-        gateway.VigilsRetired.Should().Equal(vigil);
-        gateway.Awaited.Should().NotContainKey((run.RunId, waiting.Review.Id));
+        gateway.WatchWrites.Should().Contain(("Review", RunStatus.Cancelled, new Watch(Plot.Id, waiting.Decided.Id)));
+        gateway.Watches.Should().BeEmpty();
         gateway.Records[(run.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Cancelled);
         gateway.Records[(run.RunId, waiting.Publish.Id)].Status.Should().Be(RunStatus.Cancelled);
         gateway.NodeErrorsWritten.Should().Contain((waiting.Publish.Name, RunStatus.Cancelled, "withdrawn by its owner"));
@@ -51,7 +50,7 @@ public class StoppingRunsTests
     }
 
     [Fact]
-    public async Task A_stop_arriving_while_a_waiting_node_is_called_ends_the_run_with_no_vigil_left()
+    public async Task A_stop_arriving_while_a_waiting_node_is_called_ends_the_run_with_no_watch_left()
     {
         var (waiting, gateway, executor) = ArrangeWaiting();
         Task? stopping = null;
@@ -64,7 +63,7 @@ public class StoppingRunsTests
         var run = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
         await stopping!;
 
-        gateway.LiveVigils.Should().BeEmpty();
+        gateway.Watches.Should().BeEmpty();
         gateway.RunStatuses[run.RunId].Should().Be(RunStatus.Cancelled);
     }
 
@@ -90,14 +89,13 @@ public class StoppingRunsTests
     }
 
     [Fact]
-    public async Task The_answer_to_the_vigil_of_a_stopped_run_resumes_nothing()
+    public async Task An_answer_to_the_wait_of_a_stopped_run_resumes_nothing()
     {
         var (waiting, gateway, executor) = ArrangeWaiting();
         var run = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-        var vigil = gateway.VigilsPlaced.Single().VigilId;
         await executor.StopAsync(Guid.NewGuid(), run.RunId, CancellationToken.None);
 
-        await executor.ResumeAsync(vigil, CancellationToken.None);
+        await executor.ResumeAsync(run.RunId, waiting.Review.Id, CancellationToken.None);
 
         gateway.Called.Should().Equal("review");
         gateway.RunStatuses[run.RunId].Should().Be(RunStatus.Cancelled);

@@ -48,7 +48,9 @@ public sealed record NumberedItem(JsonElement Value, ItemNumber Number, string? 
 
 public sealed record AwaitedThing(Guid Id, string Name);
 
-public enum ResumeOutcome { Resumed, AlreadyResumed, NotHeld }
+public enum ResumeOutcome { Resumed, NothingWaiting }
+
+public sealed record RecoveredWaits(int Resumed, int WatchedAgain);
 
 // The synchronous result Phloem returns to whoever spawned the run. Result is the
 // pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has

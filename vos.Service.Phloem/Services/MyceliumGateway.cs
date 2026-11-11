@@ -189,22 +189,22 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     }
 
     public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null, Watch? watch = null)
     {
         var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
-        var terminal = RunStatus.IsFinished(status);
-        var now = DateTime.UtcNow.ToString("o");
+        var (watched, retracted) = await WatchEdgesAsync(nodeRunId, status, watch, cancellationToken);
         if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
             // First status for this NodeRun — create the Thing and wire it into the run, declaring every
             // property a later transition writes.
+            var now = DateTime.UtcNow.ToString("o");
             var properties = new Dictionary<string, string?>
             {
                 [ModelNames.Status] = status,
                 [ModelNames.NodeId] = nodeId.ToString(),
                 [ModelNames.Error] = error,
                 [ModelNames.StartedUtc] = now,
-                [ModelNames.FinishedUtc] = terminal ? now : null,
+                [ModelNames.FinishedUtc] = RunStatus.IsFinished(status) ? now : null,
                 [ModelNames.Outputs] = outputs is null ? null : OutputsText(outputs),
                 [ModelNames.Attempts] = null,
                 [ModelNames.Decision] = decision?.ToString(),
@@ -215,21 +215,78 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 properties[ModelNames.Total] = total.ToString();
             }
             var nodeRunKind = await BoundAsync(PipelineRoles.NodeRun, cancellationToken);
-            await WriteThingInOneFragmentAsync(nodeRunId, NodeRunName(nodeName, index), properties,
+            await WriteFragmentAsync(NodeRunName(nodeName, index), [(nodeRunId, NodeRunName(nodeName, index), properties)],
             [
                 (nodeRunId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), nodeRunKind),
                 (runId, await ResolveByNameAsync(ModelNames.Has, cancellationToken), nodeRunId),
-            ], cancellationToken);
+                .. watched,
+            ], retracted, cancellationToken);
             return;
         }
 
-        // Changed on the same Thing, so the view watching it sees each property change rather than a new node.
+        await WriteFragmentAsync(NodeRunName(nodeName, index), [(nodeRunId, NodeRunName(nodeName, index), ChangedOnANodeRun(status, error, outputs, decision))],
+            watched, retracted, cancellationToken);
+    }
+
+    // Changed on the same Thing, so the view watching it sees each property change rather than a new node.
+    private static Dictionary<string, string?> ChangedOnANodeRun(string status, string? error, IReadOnlyDictionary<string, JsonElement>? outputs, Guid? decision)
+    {
         var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
         if (error != null) changed[ModelNames.Error] = error;
-        if (terminal) changed[ModelNames.FinishedUtc] = now;
+        if (RunStatus.IsFinished(status)) changed[ModelNames.FinishedUtc] = DateTime.UtcNow.ToString("o");
         if (outputs is not null) changed[ModelNames.Outputs] = OutputsText(outputs);
         if (decision is { } decided) changed[ModelNames.Decision] = decided.ToString();
-        await WriteThingInOneFragmentAsync(nodeRunId, NodeRunName(nodeName, index), changed, [], cancellationToken);
+        return changed;
+    }
+
+    private async Task<(IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> Written, IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> Retracted)>
+        WatchEdgesAsync(Guid nodeRunId, string status, Watch? watch, CancellationToken cancellationToken)
+    {
+        if (watch is null) return ([], []);
+        var edges = new List<(Guid Subject, Guid Predicate, Guid Target)>();
+        if (watch.AwaitedId is { } awaited) edges.Add((nodeRunId, await BoundAsync(PipelineRoles.AwaitedThing, cancellationToken), awaited));
+        if (watch.RangeId is { } range) edges.Add((nodeRunId, await BoundAsync(PipelineRoles.StateWatch, cancellationToken), range));
+        return status == RunStatus.Waiting ? (edges, []) : ([], edges);
+    }
+
+    public async Task ResumeFromWaitAsync(Guid runId, Guid nodeId, string nodeName, IReadOnlyDictionary<string, JsonElement> outputs, Guid? decision, Watch watch,
+        CancellationToken cancellationToken)
+    {
+        var nodeRunId = DeterministicGuid(runId, nodeId);
+        var (_, retracted) = await WatchEdgesAsync(nodeRunId, RunStatus.Succeeded, watch, cancellationToken);
+        await WriteFragmentAsync(NodeRunName(nodeName, null),
+        [
+            (nodeRunId, NodeRunName(nodeName, null), ChangedOnANodeRun(RunStatus.Succeeded, null, outputs, decision)),
+            (runId, RunName(runId), new Dictionary<string, string?> { [ModelNames.Status] = RunStatus.Running }),
+        ], await HoldingAsync(runId, cancellationToken), retracted, cancellationToken);
+    }
+
+    public async Task<HeldNodeRun?> NodeRunAsync(Guid thingId, CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { thingId, PipelineRoles.NodeRun.Id },
+            names = new[] { ModelNames.Is, ModelNames.Binds, ModelNames.Has },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Is, direction = "outgoing" },
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicate = ModelNames.Has, direction = "incoming" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(thingId) is not { } nodeRun || !graph.IsOf(nodeRun, PipelineRoles.NodeRun)
+            || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
+            || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
+            return null;
+        return new HeldNodeRun(held.SubjectId, nodeId);
     }
 
     private static string NodeRunName(string nodeName, int? index) =>
@@ -290,7 +347,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     {
         var selector = new
         {
-            ids = new[] { runId, PipelineRoles.RepeatedRun.Id },
+            ids = new[] { runId, PipelineRoles.RepeatedRun.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.StateWatch.Id },
             names = new[] { ModelNames.Has, ModelNames.Of, ModelNames.Binds },
             traverse = new object[]
             {
@@ -307,6 +364,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicate = ModelNames.Of, direction = "outgoing" },
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.RepeatedRun.Id, direction = "incoming" },
+                new { predicateRole = PipelineRoles.AwaitedThing.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing" },
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
@@ -322,7 +381,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             _createdNodeRuns.TryAdd(held.Id, 0);
             var record = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held),
                 held.PropertyString(ModelNames.Error),
-                Decision: Guid.TryParse(held.PropertyString(ModelNames.Decision), out var decision) ? decision : null);
+                Decision: Guid.TryParse(held.PropertyString(ModelNames.Decision), out var decision) ? decision : null,
+                Watching: WatchOf(graph, held) is { AwaitedId: null, RangeId: null } ? null : WatchOf(graph, held));
             if (!int.TryParse(held.PropertyString(ModelNames.Index), out var index))
             {
                 nodes[nodeId] = record;
@@ -404,28 +464,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         catch (JsonException) { return default; }
     }
 
-    public async Task RelateAwaitedAsync(Guid runId, Guid nodeId, Guid awaitedId, CancellationToken cancellationToken) =>
-        await RelateAsync(DeterministicGuid(runId, nodeId), await BoundAsync(PipelineRoles.AwaitedThing, cancellationToken), awaitedId, cancellationToken);
-
-    public Task ForgetAwaitedAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken) =>
-        ForgetAlongAsync(DeterministicGuid(runId, nodeId), PipelineRoles.AwaitedThing, cancellationToken);
-
-    public async Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken cancellationToken)
-    {
-        var connectionId = await BoundAsync(PipelineRoles.RunResumption, cancellationToken);
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.PostAsync($"{MyceliumUrl}/api/vigils",
-            JsonContent.Create(new { subjectId, rangeId, connectionId }), cancellationToken);
-        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-            return new VigilPlacement.Refused(await ErrorOfAsync(response, cancellationToken));
-        response.EnsureSuccessStatusCode();
-
-        var vigil = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        return TryGetPropertyCaseInsensitive(vigil, "Id", out var id) && id.ValueKind == JsonValueKind.String && Guid.TryParse(id.GetString(), out var vigilId)
-            ? new VigilPlacement.Placed(vigilId)
-            : throw new InvalidOperationException("The platform placed a vigil but named no identifier for it.");
-    }
-
     private static async Task<string> ErrorOfAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -441,45 +479,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         return $"HTTP {(int)response.StatusCode}";
     }
 
-    public async Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken cancellationToken)
-    {
-        var nodeRunId = DeterministicGuid(runId, nodeId);
-        await ForgetAlongAsync(nodeRunId, PipelineRoles.HeldVigil, cancellationToken);
-        await RelateAsync(nodeRunId, await BoundAsync(PipelineRoles.HeldVigil, cancellationToken), vigilId, cancellationToken);
-    }
-
-    public async Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken cancellationToken)
-    {
-        var selector = new
-        {
-            ids = new[] { thingId, PipelineRoles.HeldVigil.Id, PipelineRoles.Vigil.Id },
-            names = new[] { ModelNames.Is, ModelNames.Binds, ModelNames.Has },
-            traverse = new object[]
-            {
-                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
-                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "incoming", depth = 1 },
-                new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
-            },
-            includeIsAncestors = false,
-            includeRelationships = true,
-            relationships = new object[]
-            {
-                new { predicate = ModelNames.Is, direction = "outgoing" },
-                new { predicate = ModelNames.Binds, direction = "outgoing" },
-                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "incoming" },
-                new { predicate = ModelNames.Has, direction = "incoming" },
-            },
-        };
-        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        if (graph.Thing(thingId) is not { } thing || !graph.IsOf(thing, PipelineRoles.Vigil))
-            return new VigilLookup(IsVigil: false, Holder: null);
-        if (graph.IncomingAlong(thing, PipelineRoles.HeldVigil).FirstOrDefault() is not { } nodeRun
-            || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
-            || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
-            return new VigilLookup(IsVigil: true, Holder: null);
-        return new VigilLookup(IsVigil: true, new VigilHolder(held.SubjectId, nodeId));
-    }
-
     public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)
     {
         var graph = await HeldRunsAsync(cancellationToken);
@@ -490,18 +489,29 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
                 || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
                 continue;
-            waits.Add(new HeldWait(held.SubjectId, nodeId,
-                graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
-                graph.RelationshipsAlong(nodeRun, PipelineRoles.HeldVigil).Select(rel => (Guid?)rel.TargetId).FirstOrDefault()));
+            waits.Add(new HeldWait(held.SubjectId, nodeId, WatchOf(graph, nodeRun), AnswerOf(graph, nodeRun)));
         }
         return waits;
     }
+
+    private static Watch WatchOf(PipelineGraph graph, GraphThing nodeRun) =>
+        new(graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
+            graph.RelationshipsAlong(nodeRun, PipelineRoles.StateWatch).Select(rel => (Guid?)rel.TargetId).FirstOrDefault());
+
+    // The platform marks its record of calling the node run's connection Done once this orchestrator answered the call.
+    private static WaitAnswer AnswerOf(PipelineGraph graph, GraphThing nodeRun) =>
+        graph.RelationshipsIntoAlong(nodeRun, PipelineRoles.CallRecord).FirstOrDefault() is not { } record ? WaitAnswer.None
+        : record.Properties.TryGetValue(CallStateProperty, out var state) && state.ValueKind == JsonValueKind.String && state.GetString() == CallDone ? WaitAnswer.Done
+        : WaitAnswer.Underway;
+
+    private const string CallStateProperty = "__CallState";
+    private const string CallDone = "Done";
 
     private async Task<PipelineGraph> HeldRunsAsync(CancellationToken cancellationToken)
     {
         var selector = new
         {
-            ids = new[] { PipelineRoles.Orchestrator.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.HeldVigil.Id },
+            ids = new[] { PipelineRoles.Orchestrator.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.StateWatch.Id, PipelineRoles.CallRecord.Id },
             names = new[] { ModelNames.Binds, ModelNames.Has },
             traverse = new object[]
             {
@@ -515,44 +525,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicate = ModelNames.Has, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.AwaitedThing.Id, direction = "outgoing" },
-                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.CallRecord.Id, direction = "incoming" },
             },
         };
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
-    }
-
-    // Anything but a refusal to find it is read as live, so a broker that is unwell is never answered with a second vigil.
-    public async Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken cancellationToken)
-    {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{vigilId}", cancellationToken);
-        return response.StatusCode != HttpStatusCode.NotFound;
-    }
-
-    private async Task ForgetAlongAsync(Guid nodeRunId, Role role, CancellationToken cancellationToken)
-    {
-        var selector = new
-        {
-            ids = new[] { nodeRunId, role.Id },
-            names = new[] { ModelNames.Binds },
-            traverse = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 } },
-            includeIsAncestors = false,
-            includeRelationships = true,
-            relationships = new object[]
-            {
-                new { predicate = ModelNames.Binds, direction = "outgoing" },
-                new { predicateRole = role.Id, direction = "outgoing" },
-            },
-        };
-        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        if (graph.Thing(nodeRunId) is not { } nodeRun) return;
-
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        foreach (var relationship in graph.RelationshipsAlong(nodeRun, role).ToList())
-        {
-            var response = await client.DeleteAsync($"{MyceliumUrl}/api/relationships/{relationship.Id}", cancellationToken);
-            if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
-        }
     }
 
     public async Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken cancellationToken)
@@ -628,13 +605,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     public Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken cancellationToken) =>
         RelateIfBoundAsync(runId, PipelineRoles.StoppedBy, stopRequestId, cancellationToken);
-
-    public async Task RetireVigilAsync(Guid vigilId, CancellationToken cancellationToken)
-    {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.DeleteAsync($"{MyceliumUrl}/api/vigils/{vigilId}", cancellationToken);
-        if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
-    }
 
     public async Task<RunSubject?> SubjectAsync(Guid thingId, CancellationToken cancellationToken)
     {
@@ -851,15 +821,22 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     // Written apart, the `is` of a Thing already holding a value its kind declares is refused; in one fragment the broker stores that value as the kind's override.
     // A fragment naming a Thing that already exists changes its values and leaves its name alone.
-    private async Task WriteThingInOneFragmentAsync(
+    private Task WriteThingInOneFragmentAsync(
         Guid id, string name, IReadOnlyDictionary<string, string?> properties,
-        IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken)
+        IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken) =>
+        WriteFragmentAsync(name, [(id, name, properties)], relationships, [], cancellationToken);
+
+    // A relationship retracted here goes in the same commit as the writes; one already gone is passed over.
+    private async Task WriteFragmentAsync(
+        string name, IReadOnlyList<(Guid Id, string Name, IReadOnlyDictionary<string, string?> Properties)> things,
+        IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships,
+        IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> retractions, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment", JsonContent.Create(new
         {
             name,
-            things = new[] { new { id, name, properties = Envelopes(properties) } },
+            things = things.Select(thing => new { id = thing.Id, name = thing.Name, properties = Envelopes(thing.Properties) }),
             relationships = relationships.Select(edge => new
             {
                 id = DeterministicGuid(DeterministicGuid(edge.Subject, edge.Predicate), edge.Target),
@@ -867,6 +844,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 predicate = edge.Predicate,
                 target = edge.Target,
             }),
+            retractions = retractions.Count == 0 ? null : retractions.Select(edge => new { subject = edge.Subject, predicate = edge.Predicate, target = edge.Target }),
         }), cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"The platform refused '{name}': {await ErrorOfAsync(response, cancellationToken)}");

@@ -53,13 +53,11 @@ public static class PipelineRoles
     // enter that state along awaitsThrough.
     public static readonly Role CompletionRange = new("completionRange", new("8855f3e8-6717-542a-9d49-2d91880d2751"));
     public static readonly Role AwaitsThrough = new("awaitsThrough", new("4dd13e97-1305-566e-a922-7333e514aa64"));
-    // A waiting node run reaches the Thing it waits for and the vigil placed for it; the vigil names the
-    // runResumption connection, so its answer resumes the run.
+    // A waiting node run reaches the Thing it waits for along awaitedThing and the range it waits for along stateWatch,
+    // and the platform answers it through the connection its archetype notifies.
     public static readonly Role AwaitedThing = new("awaitedThing", new("6548fbdd-3474-5043-9864-abb665bb2d4b"));
-    public static readonly Role HeldVigil = new("heldVigil", new("6bd74ab0-4d87-5dd8-be69-6f12cceb80ee"));
-    // The broker's own role: a vigil is a Thing of the type it binds.
-    public static readonly Role Vigil = new("vigil", new("b1cea8ff-7b7e-584d-9f8e-1e7813f52c7e"));
-    public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
+    // The platform's own role: its record of calling a connection for a Thing's entry runs from that Thing to the one called.
+    public static readonly Role CallRecord = new("callRecord", new("dfe02bba-b36e-56ca-9dc3-58ca35c71940"));
     // A run started by another run's end reaches the run that started it.
     public static readonly Role StartingRun = new("startingRun", new("9dd7221e-f438-5ccc-b89d-25c9cd56f45c"));
     // A run a person started again reaches the run it repeats.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
-import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { serviceEdgesOn, serviceCallsFrom } from './serviceHandling';
@@ -25,7 +25,8 @@ function relationship(
  *
  * `measures` is a handled predicate — a relationship on it calls the metering daemon. `spring when
  * dry` is a state connection, reached by the record relationship the platform writes along `answered by`.
- * `watch` is a vigil naming that same connection through `tells`.
+ * `review` is a node run waiting on the well: it is a `Stage`, and `Stage` names that same connection through `tells`,
+ * so the platform answers it there.
  */
 function site() {
   return buildModelIndex(
@@ -35,13 +36,12 @@ function site() {
       thing(ROLE.Connection, 'connection role'),
       thing(ROLE.Service, 'service role'),
       thing('runs', 'runs'),
-      thing(VIGIL_ROLE_ID, 'vigil role'),
       thing(NOTIFIED_CONNECTION_ROLE_ID, 'notified connection role'),
       thing(CALL_RECORD_ROLE_ID, 'call record role'),
       thing('tells', 'tells'),
       thing('wiring', 'Wiring', {}, true),
       thing('daemon', 'Daemon', {}, true),
-      thing('lookout', 'Lookout', {}, true),
+      thing('stage', 'Stage', {}, true),
       thing('record', 'answered by'),
 
       thing('measures', 'measures'),
@@ -49,7 +49,7 @@ function site() {
       thing('springWhenDry', 'spring when dry'),
       thing('springService', 'spring service'),
       thing('unbound', 'nothing is bound here'),
-      thing('watch', 'watch on the spring'),
+      thing('review', 'NodeRun Review'),
 
       thing('catchment', 'CATCHMENT-1'),
       thing('reservoir', 'RESERVOIR-1'),
@@ -59,7 +59,6 @@ function site() {
     [
       relationship('b1', ROLE.Connection, 'binds', 'wiring'),
       relationship('b2', ROLE.Service, 'binds', 'daemon'),
-      relationship('b3', VIGIL_ROLE_ID, 'binds', 'lookout'),
       relationship('b4', NOTIFIED_CONNECTION_ROLE_ID, 'binds', 'tells'),
       relationship('b5', CALL_RECORD_ROLE_ID, 'binds', 'record'),
       relationship('w1', 'measures', 'is', 'wiring'),
@@ -69,8 +68,8 @@ function site() {
       relationship('w5', 'springWhenDry', 'runs', 'springService'),
       relationship('w6', 'springService', 'is', 'daemon'),
       relationship('w7', 'unbound', 'is', 'wiring'),
-      relationship('w8', 'watch', 'is', 'lookout'),
-      relationship('w9', 'watch', 'tells', 'springWhenDry'),
+      relationship('w8', 'review', 'is', 'stage'),
+      relationship('w9', 'stage', 'tells', 'springWhenDry'),
 
       relationship('e1', 'catchment', 'measures', 'reservoir', {
         __CallState: 'Done',
@@ -82,7 +81,7 @@ function site() {
         __CallLastError: 'no reading came back',
       }),
       relationship('e3', 'spring', 'record', 'unbound'),
-      relationship('e4', 'well', 'record', 'watch', {
+      relationship('e4', 'well', 'record', 'review', {
         __CallState: 'Done',
         __CallLastAttemptAt: '2026-08-27T08:11:00Z',
       }),
@@ -116,7 +115,7 @@ describe('serviceEdgesOn', () => {
     expect(found[0].connectionName).toBe('spring when dry');
   });
 
-  it('follows a record edge targeting a vigil to the connection the vigil names', () => {
+  it('follows a record edge targeting a watching Thing to the connection its archetype names', () => {
     const [edge] = serviceEdgesOn('well', site());
 
     expect(edge.serviceName).toBe('spring service');
@@ -143,12 +142,30 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
-  it('follows no vigil where the vigil role binds two archetypes, as neither can be the one', () => {
+  it('follows a record edge to the connection the watching Thing names itself before any its archetype names', () => {
     const base = site();
     const index = buildModelIndex(
-      [...base.byId.values(), thing('rivalLookout', 'Rival lookout', {}, true)],
-      [...base.relationships, relationship('b6', VIGIL_ROLE_ID, 'binds', 'rivalLookout')],
+      [...base.byId.values(), thing('elsewhere', 'elsewhere when dry')],
+      [...base.relationships, relationship('w10', 'elsewhere', 'is', 'wiring'), relationship('w11', 'review', 'tells', 'elsewhere')],
     );
+
+    expect(serviceEdgesOn('well', index).map((edge) => edge.connectionName)).toEqual(['elsewhere when dry']);
+  });
+
+  it('follows an archetype chain to the connection an ancestor names', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('reviewStage', 'Review stage', {}, true)],
+      [...base.relationships.filter((edge) => edge.Id !== 'w8'), relationship('w8', 'review', 'is', 'reviewStage'),
+        relationship('w12', 'reviewStage', 'is', 'stage')],
+    );
+
+    expect(serviceEdgesOn('well', index).map((edge) => edge.connectionName)).toEqual(['spring when dry']);
+  });
+
+  it('lists no row for a record edge whose watching Thing names no connection', () => {
+    const base = site();
+    const index = buildModelIndex([...base.byId.values()], base.relationships.filter((edge) => edge.Id !== 'w9'));
 
     expect(serviceEdgesOn('well', index)).toEqual([]);
   });
@@ -156,11 +173,10 @@ describe('serviceEdgesOn', () => {
   it('reads nothing from the marks the platform once found its service call wiring by', () => {
     const base = site();
     const marked: Record<string, Record<string, unknown>> = {
-      lookout: { __IsVigilArchetype: true },
       tells: { __IsNotifiedConnectionPredicate: true },
       record: { __IsDispatchRecordPredicate: true },
     };
-    const unbound = new Set([VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID]);
+    const unbound = new Set([NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID]);
     const index = buildModelIndex(
       [...base.byId.values()].map((each) => (marked[each.Id] ? { ...each, Properties: marked[each.Id] } : each)),
       base.relationships.filter((edge) => !unbound.has(edge.SubjectId)),

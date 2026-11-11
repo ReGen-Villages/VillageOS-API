@@ -113,15 +113,6 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Dictionary<Guid, (Guid PipelineId, JsonElement Parameters)> Runs { get; } = new();
     public Dictionary<(Guid RunId, Guid NodeId), NodeRecord> Records { get; } = new();
     private readonly Dictionary<(Guid RunId, Guid NodeId), SortedList<int, NodeRecord>> _itemRecords = new();
-    public Dictionary<(Guid RunId, Guid NodeId), Guid> Awaited { get; } = new();
-    public Dictionary<(Guid RunId, Guid NodeId), Guid> HeldVigils { get; } = new();
-    public List<(Guid VigilId, Guid SubjectId, Guid RangeId)> VigilsPlaced { get; } = new();
-    public HashSet<Guid> LiveVigils { get; } = new();
-    public string? PlacementRefusal { get; set; }
-    public Exception? PlacementFailure { get; set; }
-    public Action<Guid> OnVigilPlaced { get; set; } = _ => { };
-    public Task PlacementHeldUntil { get; set; } = Task.CompletedTask;
-    public bool PlacementStarted { get; private set; }
     public Exception? RecordReadFailure { get; set; }
 
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
@@ -135,7 +126,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     }
 
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null, Watch? watch = null)
     {
         lock (NodeStatuses)
         {
@@ -143,8 +134,29 @@ internal sealed class FakeGateway : IMyceliumGateway
             NodeRunsPersisted.Add((nodeName, index, status, outputs));
             if (index is int numbered) _itemNumbersWritten.Add((nodeName, numbered, total));
             if (error is not null) NodeErrorsWritten.Add((nodeName, status, error));
+            if (watch is not null) WatchWrites.Add((nodeName, status, watch));
         }
         if (RefuseNodeRunWrite(nodeId, status)) throw new HttpRequestException("the model refused the write");
+        if (status == RunStatus.Waiting && watch is not null && WatchRefusal is { } refusal) throw new InvalidOperationException(refusal);
+        Guid nodeRunId;
+        lock (_model)
+        {
+            nodeRunId = NodeRunIdOf(runId, nodeId);
+            if (index is null && watch is not null)
+            {
+                if (status == RunStatus.Waiting)
+                {
+                    var held = Watches.GetValueOrDefault((runId, nodeId));
+                    Watches[(runId, nodeId)] = new Watch(watch.AwaitedId ?? held?.AwaitedId, watch.RangeId ?? held?.RangeId);
+                }
+                else
+                {
+                    Watches.Remove((runId, nodeId));
+                    Answers.Remove((runId, nodeId));
+                }
+            }
+        }
+        if (index is null && status == RunStatus.Waiting && watch is { IsWhole: true }) OnWatchPlaced(nodeRunId);
         lock (_model)
         {
             if (index is int item)
@@ -230,7 +242,8 @@ internal sealed class FakeGateway : IMyceliumGateway
         {
             if (!Runs.TryGetValue(runId, out var run)) return Task.FromResult<RunRecord?>(null);
             var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId,
-                record => _itemRecords.TryGetValue(record.Key, out var items) ? record.Value with { Items = items.Values.ToList() } : record.Value);
+                record => (_itemRecords.TryGetValue(record.Key, out var items) ? record.Value with { Items = items.Values.ToList() } : record.Value)
+                    with { Watching = Watches.GetValueOrDefault(record.Key) });
             bool rehearsal;
             lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
             Guid? repeatedBy;
@@ -240,53 +253,56 @@ internal sealed class FakeGateway : IMyceliumGateway
         }
     }
 
-    public Task RelateAwaitedAsync(Guid runId, Guid nodeId, Guid awaitedId, CancellationToken ct)
-    {
-        lock (_model) Awaited[(runId, nodeId)] = awaitedId;
-        return Task.CompletedTask;
-    }
+    public Dictionary<(Guid RunId, Guid NodeId), Watch> Watches { get; } = new();
+    public Dictionary<(Guid RunId, Guid NodeId), WaitAnswer> Answers { get; } = new();
+    public List<(string Name, string Status, Watch Watch)> WatchWrites { get; } = new();
+    public string? WatchRefusal { get; set; }
 
-    public Task ForgetAwaitedAsync(Guid runId, Guid nodeId, CancellationToken ct)
-    {
-        lock (_model) Awaited.Remove((runId, nodeId));
-        return Task.CompletedTask;
-    }
+    // Called as a watch's second relationship commits, where the platform answers a Thing already in the range.
+    public Action<Guid> OnWatchPlaced { get; set; } = _ => { };
 
-    public async Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken ct)
+    private readonly Dictionary<Guid, (Guid RunId, Guid NodeId)> _nodeRuns = new();
+
+    public Guid NodeRunIdOf(Guid runId, Guid nodeId)
     {
-        PlacementStarted = true;
-        await PlacementHeldUntil;
-        if (PlacementFailure is { } failure) throw failure;
-        if (PlacementRefusal is { } reason) return new VigilPlacement.Refused(reason);
-        var vigilId = Guid.NewGuid();
         lock (_model)
         {
-            VigilsPlaced.Add((vigilId, subjectId, rangeId));
-            LiveVigils.Add(vigilId);
+            var id = new Guid(System.Security.Cryptography.MD5.HashData([.. runId.ToByteArray(), .. nodeId.ToByteArray()]));
+            _nodeRuns[id] = (runId, nodeId);
+            return id;
         }
-        OnVigilPlaced(vigilId);
-        return new VigilPlacement.Placed(vigilId);
     }
 
-    public Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken ct)
+    public List<(Guid RunId, Guid NodeId)> ResumesWritten { get; } = new();
+
+    public Task ResumeFromWaitAsync(Guid runId, Guid nodeId, string nodeName, IReadOnlyDictionary<string, JsonElement> outputs, Guid? decision, Watch watch,
+        CancellationToken ct)
     {
-        lock (_model) HeldVigils[(runId, nodeId)] = vigilId;
+        lock (NodeStatuses)
+        {
+            NodeStatuses.Add((nodeName, RunStatus.Succeeded));
+            NodeRunsPersisted.Add((nodeName, null, RunStatus.Succeeded, outputs));
+            WatchWrites.Add((nodeName, RunStatus.Succeeded, watch));
+        }
+        StatusUpdates.Add(RunStatus.Running);
+        lock (_model)
+        {
+            ResumesWritten.Add((runId, nodeId));
+            var before = Records.TryGetValue((runId, nodeId), out var kept) ? kept : null;
+            Records[(runId, nodeId)] = new NodeRecord(RunStatus.Succeeded, outputs, before?.Attempts, before?.Error, Decision: decision ?? before?.Decision);
+            Watches.Remove((runId, nodeId));
+            Answers.Remove((runId, nodeId));
+            RunStatuses[runId] = RunStatus.Running;
+        }
         return Task.CompletedTask;
     }
 
-    public Action<Guid> OnVigilLookedUp { get; set; } = _ => { };
-
-    public Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken ct)
+    public Task<HeldNodeRun?> NodeRunAsync(Guid thingId, CancellationToken ct)
     {
-        VigilLookup lookup;
         lock (_model)
         {
-            var held = HeldVigils.Where(entry => entry.Value == thingId).Select(entry => entry.Key).ToList();
-            lookup = new VigilLookup(VigilsPlaced.Any(vigil => vigil.VigilId == thingId),
-                held.Count == 0 ? null : new VigilHolder(held[0].RunId, held[0].NodeId));
+            return Task.FromResult(_nodeRuns.TryGetValue(thingId, out var key) && Records.ContainsKey(key) ? new HeldNodeRun(key.RunId, key.NodeId) : null);
         }
-        OnVigilLookedUp(thingId);
-        return Task.FromResult(lookup);
     }
 
     public Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken ct)
@@ -294,14 +310,8 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model)
             return Task.FromResult<IReadOnlyList<HeldWait>>(Records.Where(record => record.Value.Status == RunStatus.Waiting)
                 .Select(record => new HeldWait(record.Key.RunId, record.Key.NodeId,
-                    Awaited.TryGetValue(record.Key, out var awaited) ? awaited : null,
-                    HeldVigils.TryGetValue(record.Key, out var vigil) ? vigil : null))
+                    Watches.GetValueOrDefault(record.Key) ?? new Watch(null, null), Answers.GetValueOrDefault(record.Key)))
                 .ToList());
-    }
-
-    public Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken ct)
-    {
-        lock (_model) return Task.FromResult(LiveVigils.Contains(vigilId));
     }
 
     public List<(Guid NodeId, int? Index, IReadOnlyList<Guid> Things)> Produced { get; } = new();
@@ -333,7 +343,6 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Guid StopsConnection { get; } = Guid.NewGuid();
     public string StopReason { get; set; } = "withdrawn by its owner";
     public List<(Guid RunId, Guid StopRequestId)> StoppedBy { get; } = new();
-    public List<Guid> VigilsRetired { get; } = new();
 
     public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken ct) =>
         Task.FromResult(PredicatesByRelationship.TryGetValue(relationshipId, out var predicate) && predicate == StopsConnection);
@@ -374,15 +383,6 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task RetireVigilAsync(Guid vigilId, CancellationToken ct)
-    {
-        lock (_model)
-        {
-            VigilsRetired.Add(vigilId);
-            LiveVigils.Remove(vigilId);
-        }
-        return Task.CompletedTask;
-    }
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
 
     public Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken ct)
