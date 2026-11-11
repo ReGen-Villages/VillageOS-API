@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.ModelBridge.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;

@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;

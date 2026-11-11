@@ -1,8 +1,8 @@
 using FluentAssertions;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using Xunit;
 
-namespace vos.Auth.Shared.Tests;
+namespace vos.Service.Auth.Tests;
 
 public class VosClaimsTests
 {

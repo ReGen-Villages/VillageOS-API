@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
 using vos.Service.Tributary.Services;

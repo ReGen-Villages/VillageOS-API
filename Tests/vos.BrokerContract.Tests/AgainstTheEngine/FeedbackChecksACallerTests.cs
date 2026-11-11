@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Feedback;
 using vos.Tests.Shared;
 using Xunit;

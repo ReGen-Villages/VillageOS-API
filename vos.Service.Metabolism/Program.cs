@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
