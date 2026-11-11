@@ -68,6 +68,10 @@ public static class PipelineRoles
     public static readonly Role PipelineTell = new("pipelineTell", new("7fed4d74-0cb1-547d-85d8-bbcfc5992667"));
     public static readonly Role PipelineFollowOn = new("pipelineFollowOn", new("0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"));
     public static readonly Role PipelineStop = new("pipelineStop", new("a5f12016-a3f9-505c-95c7-d211fd84b8f2"));
+    // A wait node calls no service. It reaches the predicate whose targets, from the Thing it waited for, it hands on
+    // along reachedAlong.
+    public static readonly Role PipelineWait = new("pipelineWait", new("b5023bc8-1030-596b-8aa1-0b2f876a786a"));
+    public static readonly Role ReachedAlong = new("reachedAlong", new("ff5b3754-1bf3-5be9-8515-349c20d8192b"));
     public static readonly Role Cadence = new("cadence", new("f3883eaf-4e52-5c0c-887b-1bc696578812"));
     // Holds each run along `has` from its first write until its finish, so a restart reads the runs under way rather
     // than every run ever recorded.

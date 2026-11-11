@@ -145,6 +145,8 @@ public static class PipelineDagBuilder
                     + "so its requests could not name the run that wrote them and would stop that run too.");
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Stop, errorPort, problems);
         }
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineWait))
+            return BuildWaitNode(graph, nodeThing, errorPort, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -282,6 +284,32 @@ public static class PipelineDagBuilder
                     $"Node '{output.Name}' is the Output node and stands for '{stoodFor.Name}'; a follow-on node wired on to it starts a pipeline.");
         }
         return true;
+    }
+
+    private static DagNode BuildWaitNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
+    {
+        var ports = ResolvePortThings(graph, nodeThing).Select(portThing => (Thing: portThing, Port: ToPort(portThing))).ToList();
+        return new DagNode
+        {
+            NodeId = nodeThing.Id,
+            Name = nodeThing.Name,
+            Kind = DagNodeKind.Wait,
+            Subdomain = string.Empty,
+            Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
+            Ports = [.. ports.Select(p => p.Port), errorPort],
+            ParameterBindings = ParseParameterBindings(nodeThing),
+            Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports)
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a wait node but names no state to wait for and no in port whose Thing must enter it."), null),
+            Follows = Judged(problems, () => FollowedBy(graph, nodeThing), null),
+        };
+    }
+
+    private static FollowedPredicate? FollowedBy(PipelineGraph graph, GraphThing nodeThing)
+    {
+        var followed = graph.OutgoingAlong(nodeThing, PipelineRoles.ReachedAlong).ToList();
+        if (followed.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' follows {followed.Count} predicates; a wait node hands on what one reaches.");
+        return followed.Count == 0 ? null : new FollowedPredicate(followed[0].Id, followed[0].Name);
     }
 
     // Its own ports, as a boundary node declares them, and the error port, so a fail it answers can be carried on.

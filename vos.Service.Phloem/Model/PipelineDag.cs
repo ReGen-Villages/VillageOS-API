@@ -16,8 +16,9 @@ public sealed record DagPort(Guid Id, string PortName, string Direction, string 
 // boundary node — an Input source (projects run params onto its output ports) or an
 // Output sink (its collected inputs are the run's published result) — or a node the orchestrator
 // runs itself: Tell sends what reached it to a system, FollowOn starts another pipeline with it, Stop stops the
-// runs about the Things it is given. Only a Service node calls a service.
-public enum DagNodeKind { Service, Input, Output, Tell, FollowOn, Stop }
+// runs about the Things it is given, Wait holds the run until the Thing reaching it enters a state. Only a Service node
+// calls a service.
+public enum DagNodeKind { Service, Input, Output, Tell, FollowOn, Stop, Wait }
 
 // The external system an end node stands for, and the connection that system is told through.
 public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId);
@@ -42,6 +43,8 @@ public sealed record ChosenThing(Guid Id, string Name);
 
 // What a node waits for once its service has answered: the Thing reaching PortName entering the range.
 public sealed record DagWait(Guid RangeId, string RangeName, string PortName);
+
+public sealed record FollowedPredicate(Guid Id, string Name);
 
 public sealed class DagNode
 {
@@ -77,6 +80,8 @@ public sealed class DagNode
     public IReadOnlyList<DagDecisionPath> DecisionPaths { get; init; } = [];
 
     public DagWait? Waits { get; init; }
+
+    public FollowedPredicate? Follows { get; init; }
 
     public bool Rehearses { get; init; }
 

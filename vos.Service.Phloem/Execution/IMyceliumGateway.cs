@@ -20,6 +20,9 @@ public interface IMyceliumGateway
     // Every Thing a Thing relates to, whatever the predicate.
     Task<IReadOnlyList<Guid>> RelatedFromAsync(Guid thingId, CancellationToken cancellationToken);
 
+    // Each Thing a Thing relates to along one predicate.
+    Task<IReadOnlyList<RunSubject>> ReachedAlongAsync(Guid thingId, Guid predicateId, CancellationToken cancellationToken);
+
     // None when the model holds no such Thing.
     Task<RunSubject?> SubjectAsync(Guid thingId, CancellationToken cancellationToken);
 

@@ -145,15 +145,50 @@ public sealed class PipelineExecutor
             return ResumeOutcome.Resumed;
         }
 
-        var resumed = progress.Waiting[nodeId] with { Status = RunStatus.Succeeded, Awaits = null };
-        progress.Waiting.Remove(nodeId);
-        progress.Settle(dag, resumed);
         var watch = progress.Watches.Remove(nodeId, out var watching) ? watching : new Watch(null, null);
-        await BestEffort(() => _gateway.ResumeFromWaitAsync(record.RunId, nodeId, resumed.Name, resumed.Outputs, resumed.Decision, watch, cancellationToken),
-            "resume the node run");
+        var resumed = progress.Waiting[nodeId] with { Status = RunStatus.Succeeded, Awaits = null };
+        if (dag.Node(nodeId) is { Follows: { } followed } waitNode)
+            resumed = await WithWhatItReachesAsync(resumed, followed, watch.AwaitedId ?? AwaitedThroughItsPort(dag, waitNode, record), cancellationToken);
+        progress.Waiting.Remove(nodeId);
+        var carriedOn = progress.Settle(dag, resumed);
+        if (resumed.Status == RunStatus.Succeeded)
+            await BestEffort(() => _gateway.ResumeFromWaitAsync(record.RunId, nodeId, resumed.Name, resumed.Outputs, resumed.Decision, watch, cancellationToken),
+                "resume the node run");
+        else
+        {
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, nodeId, resumed.Name, resumed.Status, resumed.Error, cancellationToken,
+                outputs: resumed.Outputs, watch: watch), "fail the wait");
+            if (!carriedOn && AnswerReachingNoWire(dag, resumed) is { } unhandled)
+            {
+                await FailRunAsync(record.RunId, record.PipelineId, unhandled, cancellationToken);
+                return ResumeOutcome.Resumed;
+            }
+        }
 
         await SweepAsync(record.RunId, dag, record.Parameters, progress, record.Rehearsal, cancellationToken);
         return ResumeOutcome.Resumed;
+    }
+
+    private async Task<NodeRunResult> WithWhatItReachesAsync(NodeRunResult resumed, FollowedPredicate followed, Guid? awaitedId, CancellationToken cancellationToken)
+    {
+        if (awaitedId is not { } awaited)
+            return resumed with { Status = RunStatus.Failed, Error = $"'{resumed.Name}' waited for a Thing the model no longer names, so what it reaches along '{followed.Name}' could not be read." };
+        var awaitedName = resumed.Outputs.Values.Select(ThingNamedBy).FirstOrDefault(named => named?.Id == awaited)?.Name ?? awaited.ToString();
+        try
+        {
+            var reached = await _gateway.ReachedAlongAsync(awaited, followed.Id, cancellationToken);
+            return resumed with
+            {
+                Outputs = new Dictionary<string, JsonElement>(resumed.Outputs)
+                {
+                    [ModelNames.Reached] = JsonSerializer.SerializeToElement(reached.Select(thing => new { id = thing.Id, name = thing.Name })),
+                },
+            };
+        }
+        catch (Exception ex)
+        {
+            return resumed with { Status = RunStatus.Failed, Error = $"'{resumed.Name}' could not read what '{awaitedName}' reaches along '{followed.Name}': {ex.Message}" };
+        }
     }
 
     // True when the Thing is a node run, whose wait the platform answered. Its run resumes once the sweep holding it,
@@ -892,7 +927,25 @@ public sealed class PipelineExecutor
                 $"'{node.Name}' could not write a stop request for {string.Join("; ", unwritten)}.");
     }
 
-    // What would have been sent, started or stopped is kept as the node's outputs, so the page can show it; nothing is
+    private NodeRunResult WaitFor(PipelineDag dag, DagNode node, IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams)
+    {
+        Dictionary<string, JsonElement> reached;
+        try
+        {
+            reached = AssembleInputs(dag, node, deliveries, runParams);
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"What reaches '{node.Name}' could not be put together: {ex.Message}");
+        }
+
+        var wait = node.Waits!;
+        return reached.TryGetValue(wait.PortName, out var reaching) && ThingNamedBy(reaching) is { } awaited
+            ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Waiting, reached, null, Awaits: awaited)
+            : Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
+    }
+
+    // What would have been sent, started, stopped or waited for is kept as the node's outputs, so the page can show it; nothing is
     // written but the record.
     private NodeRunResult Rehearse(
         PipelineDag dag, DagNode node, IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams)
@@ -968,6 +1021,8 @@ public sealed class PipelineExecutor
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+        if (node.Kind == DagNodeKind.Wait)
+            return rehearsal ? Rehearse(dag, node, deliveries, runParams) : WaitFor(dag, node, deliveries, runParams);
         if (node.Kind is DagNodeKind.Tell or DagNodeKind.FollowOn or DagNodeKind.Stop)
             return node switch
             {

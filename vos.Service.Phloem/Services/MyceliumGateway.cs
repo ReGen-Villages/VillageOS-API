@@ -43,7 +43,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
          PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn,
-         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy];
+         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -78,6 +78,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ComparesWith.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.ReachedAlong.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -139,6 +140,26 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
         return graph.Thing(thingId) is { } thing ? graph.TargetIdsFrom(thing).ToList() : [];
+    }
+
+    public async Task<IReadOnlyList<RunSubject>> ReachedAlongAsync(Guid thingId, Guid predicateId, CancellationToken cancellationToken)
+    {
+        var from = await LoadSnapshotAsync(new
+        {
+            ids = new[] { thingId },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[] { new { direction = "outgoing" } },
+        }, TimeSpan.FromSeconds(15), cancellationToken);
+        if (from.Thing(thingId) is not { } thing)
+            throw new InvalidOperationException($"the model holds no Thing {thingId}");
+
+        var reachedIds = from.TargetIdsFromAlong(thing, predicateId).Distinct().ToArray();
+        if (reachedIds.Length == 0) return [];
+
+        var reached = await LoadSnapshotAsync(new { ids = reachedIds, includeIsAncestors = false, includeRelationships = false },
+            TimeSpan.FromSeconds(15), cancellationToken);
+        return reachedIds.Select(id => new RunSubject(id, reached.Thing(id)?.Name ?? string.Empty)).ToList();
     }
 
     public async Task CreateRunAsync(

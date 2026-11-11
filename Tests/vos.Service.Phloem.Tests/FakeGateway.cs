@@ -297,6 +297,16 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
+    public Dictionary<(Guid ThingId, Guid PredicateId), IReadOnlyList<RunSubject>> ReachedAlong { get; } = new();
+    public Exception? ReachedAlongFailure { get; set; }
+
+    public Task<IReadOnlyList<RunSubject>> ReachedAlongAsync(Guid thingId, Guid predicateId, CancellationToken ct)
+    {
+        if (ReachedAlongFailure is not null) throw ReachedAlongFailure;
+        lock (_model)
+            return Task.FromResult(ReachedAlong.GetValueOrDefault((thingId, predicateId)) ?? []);
+    }
+
     public Task<HeldNodeRun?> NodeRunAsync(Guid thingId, CancellationToken ct)
     {
         lock (_model)
