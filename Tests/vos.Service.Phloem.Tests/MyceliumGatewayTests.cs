@@ -356,14 +356,14 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
-                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id]));
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id]));
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
-                PipelineRoles.ComparesWith.Id.ToString());
+                PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString());
         rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
         rules.Should().OnlyContain(rule => rule.GetProperty("direction").GetString() == "outgoing");
     }
@@ -876,6 +876,73 @@ public class MyceliumGatewayTests
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         Rules(selector).Should().Equal([(null, "outgoing")], "relationships into the Thing are what piles up on it after it arrives");
+    }
+
+    [Fact]
+    public async Task ReachedAlongAsync_AnswersTheThingsReachedAlongThePredicate_AndNoneAlongAnother()
+    {
+        var submissionId = Guid.NewGuid();
+        var resolvedAsId = Guid.NewGuid();
+        var promotedId = Guid.NewGuid();
+        var unreadId = Guid.NewGuid();
+        var from = $$"""
+        {
+          "snapshot": {
+            "things": [ { "id": "{{submissionId}}", "name": "Submission 12", "properties": {} } ],
+            "relationships": [
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{promotedId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{unreadId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{Guid.NewGuid()}}", "targetId": "{{Guid.NewGuid()}}", "properties": {} }
+            ]
+          }
+        }
+        """;
+        var reached = $$"""
+        { "snapshot": { "things": [ { "id": "{{promotedId}}", "name": "promoted", "properties": {} } ], "relationships": [] } }
+        """;
+        var answers = new Queue<string>([from, reached]);
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, answers.Dequeue())
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var things = await gateway.ReachedAlongAsync(submissionId, resolvedAsId, CancellationToken.None);
+
+        things.Should().Equal([new RunSubject(promotedId, "promoted"), new RunSubject(unreadId, string.Empty)],
+            "a Thing the second read does not answer is still reached, and is handed on by its identifier alone");
+        var selectors = RequestsTo(handler, "/api/snapshots", HttpMethod.Post).ToList();
+        Rules(await ReadJson(selectors[0])).Should().Equal([(null, "outgoing")]);
+        (await ReadJson(selectors[1])).GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(promotedId, unreadId);
+    }
+
+    [Fact]
+    public async Task ReachedAlongAsync_AThingReachingNothingAlongThePredicate_AnswersNoneInOneRead()
+    {
+        var submissionId = Guid.NewGuid();
+        var alone = $$"""
+        { "snapshot": { "things": [ { "id": "{{submissionId}}", "name": "Submission 12", "properties": {} } ], "relationships": [] } }
+        """;
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, alone)
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        (await gateway.ReachedAlongAsync(submissionId, Guid.NewGuid(), CancellationToken.None)).Should().BeEmpty();
+        RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ReachedAlongAsync_AThingTheModelDoesNotHold_IsAFailureAndNotAnEmptyAnswer()
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+        var missing = Guid.NewGuid();
+
+        var read = () => gateway.ReachedAlongAsync(missing, Guid.NewGuid(), CancellationToken.None);
+
+        (await read.Should().ThrowAsync<InvalidOperationException>()).WithMessage($"the model holds no Thing {missing}");
     }
 
     [Fact]

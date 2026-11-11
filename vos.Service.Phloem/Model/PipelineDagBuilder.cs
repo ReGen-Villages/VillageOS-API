@@ -145,6 +145,8 @@ public static class PipelineDagBuilder
                     + "so its requests could not name the run that wrote them and would stop that run too.");
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Stop, errorPort, problems);
         }
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineWait))
+            return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Wait, errorPort, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -284,6 +286,14 @@ public static class PipelineDagBuilder
         return true;
     }
 
+    private static FollowedPredicate? FollowedBy(PipelineGraph graph, GraphThing nodeThing)
+    {
+        var followed = graph.OutgoingAlong(nodeThing, PipelineRoles.ReachedAlong).ToList();
+        if (followed.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' follows {followed.Count} predicates; a wait node hands on what one reaches.");
+        return followed.Count == 0 ? null : new FollowedPredicate(followed[0].Id, followed[0].Name);
+    }
+
     // Its own ports, as a boundary node declares them, and the error port, so a fail it answers can be carried on.
     private static DagNode BuildOrchestratorNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, DagPort errorPort, List<string> problems) => new()
     {
@@ -302,6 +312,11 @@ public static class PipelineDagBuilder
             ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for")
                 ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a follow-on node but stands for no pipeline."), null)
             : null,
+        Waits = kind == DagNodeKind.Wait
+            ? Judged(problems, () => WaitOf(graph, nodeThing, ResolvePortThings(graph, nodeThing).Select(portThing => (portThing, ToPort(portThing))).ToList())
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a wait node but names no state to wait for and no in port whose Thing must enter it."), null)
+            : null,
+        Follows = kind == DagNodeKind.Wait ? Judged(problems, () => FollowedBy(graph, nodeThing), null) : null,
     };
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.

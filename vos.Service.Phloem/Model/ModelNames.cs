@@ -63,6 +63,7 @@ public static class ModelNames
     // A stop node's ports: the Things whose runs it stops and the reason in, how many requests it wrote out.
     public const string Things = "things";
     public const string Requested = "requested";
+    public const string Reached = "reached";
     // On a cadence: the model minutes between its runs, and the instant the last run it started was due. A run a
     // cadence starts carries that instant as its parameter `due`.
     public const string IntervalMinutes = "intervalMinutes";
