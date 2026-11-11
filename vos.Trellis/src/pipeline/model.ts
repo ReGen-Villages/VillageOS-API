@@ -55,7 +55,7 @@ export const ROLE = {
   ArrivesAt: '79f0afcb-8c66-53dd-8081-43af167fc07a',
   StandsFor: '4277647a-93f8-5860-8717-da2a12673dbf',
   PipelineStart: '871174ab-c8e4-5712-81e1-b95accaea5ce',
-  // The orchestrator's own connection, which a vigil answers through to resume a waiting run; no run starts from it.
+  // The orchestrator's own connection, which a waiting node run is answered through to resume its run; no run starts from it.
   RunResumption: '50c894ed-a33d-56cc-a5a6-92aa82d32f4f',
   // A stop request, and the orchestrator's own connection it is related to a run along; no run starts from it.
   StopRequest: '159ef90f-8089-5055-b5a9-8839d5e28e7a',

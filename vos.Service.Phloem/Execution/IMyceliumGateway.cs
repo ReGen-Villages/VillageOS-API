@@ -43,9 +43,17 @@ public interface IMyceliumGateway
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
     // Things. With index null this is the node's aggregate NodeRun (drives the
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status
-    // carries the outputs, which a resumed run reads back from the model.
+    // carries the outputs, which a resumed run reads back from the model. A waiting status writes the watch's two
+    // relationships in the same commit; any other status retracts them there, so a wait never outlives its node run.
     Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null);
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null, Watch? watch = null);
+
+    // In one commit: the node run succeeds with its outputs, its watch is retracted and its run is running again.
+    Task ResumeFromWaitAsync(Guid runId, Guid nodeId, string nodeName, IReadOnlyDictionary<string, JsonElement> outputs, Guid? decision, Watch watch,
+        CancellationToken cancellationToken);
+
+    // None unless the Thing is a node run a run holds.
+    Task<HeldNodeRun?> NodeRunAsync(Guid thingId, CancellationToken cancellationToken);
 
     // The node run is related to every Thing the node answered under an out port marked as producing one,
     // along the predicate the model marks for it, so a trace is a read of the Thing's own relationships.
@@ -74,32 +82,14 @@ public interface IMyceliumGateway
     // Along the predicate the stoppedBy role binds; a model binding nothing to it records the reason alone.
     Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken cancellationToken);
 
-    // The platform answers a vigil already gone as not found, which is the outcome asked for.
-    Task RetireVigilAsync(Guid vigilId, CancellationToken cancellationToken);
-
     Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
 
     // Null when the model holds no such run. Reading a run's node runs back also tells the gateway they exist,
     // so a later status is written to the same Thing after a restart.
     Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken);
 
-    // Along the predicate the awaitedThing role binds, from the node run to the Thing it waits for.
-    Task RelateAwaitedAsync(Guid runId, Guid nodeId, Guid awaitedId, CancellationToken cancellationToken);
-
-    Task ForgetAwaitedAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken);
-
-    // A vigil over the Thing for the range, naming the connection the runResumption role binds.
-    Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken cancellationToken);
-
-    // Along the predicate the heldVigil role binds, replacing any vigil the node run held before.
-    Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken cancellationToken);
-
-    Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken cancellationToken);
-
+    // Each waiting node run with the watch it holds and the state of the platform's call record answering it.
     Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken);
-
-    // The platform deletes a vigil once it has been answered or its Thing is gone.
-    Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken cancellationToken);
 
     // An attempt is a Thing the node run holds, and the node run's attempts count moves to the attempt's number.
     Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken cancellationToken);

@@ -8,6 +8,8 @@ DEFAULT_MAX_CONCURRENT_READS = 2
 # The most one store ticket may hold, which is written to disk while it is read. A tile or a regional elevation
 # tile is megabytes; this leaves room for a large one without letting a ticket fill the disk.
 DEFAULT_MAX_TICKET_BYTES = 256 * 1024 * 1024
+# The most points one profile may sample. Each is a few microseconds of work and a short line of the answer.
+DEFAULT_MAX_SAMPLES = 10_000
 
 
 @dataclass(frozen=True)
@@ -17,12 +19,13 @@ class Limits:
     max_cells: int = DEFAULT_MAX_CELLS
     max_concurrent_reads: int = DEFAULT_MAX_CONCURRENT_READS
     max_ticket_bytes: int = DEFAULT_MAX_TICKET_BYTES
+    max_samples: int = DEFAULT_MAX_SAMPLES
 
     @classmethod
     def from_args(cls, argv):
         """A flag that is not a positive whole number stops the service from starting, so a typo cannot leave it unlimited."""
         values = {}
-        for flag, name in (("--maxCells", "max_cells"), ("--maxConcurrentReads", "max_concurrent_reads"), ("--maxTicketBytes", "max_ticket_bytes")):
+        for flag, name in (("--maxCells", "max_cells"), ("--maxConcurrentReads", "max_concurrent_reads"), ("--maxTicketBytes", "max_ticket_bytes"), ("--maxSamples", "max_samples")):
             for arg in argv:
                 if arg.split("=", 1)[0] == flag:
                     text = arg.split("=", 1)[1] if "=" in arg else ""

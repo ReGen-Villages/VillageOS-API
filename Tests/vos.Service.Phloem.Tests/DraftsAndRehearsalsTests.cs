@@ -132,7 +132,7 @@ public class DraftsAndRehearsalsTests
     }
 
     [Fact]
-    public async Task A_rehearsal_stops_at_a_waiting_node_and_places_no_vigil()
+    public async Task A_rehearsal_stops_at_a_waiting_node_and_places_no_watch()
     {
         var waiting = TestGraphs.WaitingPipeline();
         EveryServiceRehearses(waiting.Fixture);
@@ -143,7 +143,7 @@ public class DraftsAndRehearsalsTests
         var review = result.Nodes.Single(node => node.NodeId == waiting.Review.Id);
         review.Status.Should().Be(RunStatus.CannotRehearse);
         review.Error.Should().Contain("'decided'");
-        gateway.VigilsPlaced.Should().BeEmpty();
+        gateway.Watches.Should().BeEmpty();
         gateway.Called.Should().NotContain("review");
     }
 

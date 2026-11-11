@@ -72,7 +72,6 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
 
         var stop = await gateway.StopRequestedAsync(request, site, CancellationToken.None);
         await gateway.RelateStoppedByAsync(first, request, CancellationToken.None);
-        await gateway.RetireVigilAsync(Guid.NewGuid(), CancellationToken.None);
 
         stop.Reason.Should().Be("site withdrawn by its owner");
         stop.Runs.Should().Equal(first);

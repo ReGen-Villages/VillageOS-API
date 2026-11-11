@@ -243,12 +243,13 @@ describe('the vocabulary the editor holds', () => {
 
   /** The roles the page reads that the orchestrator does not: the range, trigger and judged-Thing roles are
    *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
-   *  what a system sends, is told, or where a kind of message arrives, and its own prototype's role is how the
-   *  page finds the service to bind a state to. */
+   *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
+   *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
+   *  named by the node run's archetype, so the orchestrator never looks it up. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
-    ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt,
+    ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -260,12 +261,13 @@ describe('the vocabulary the editor holds', () => {
       if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
   });
 
-  // The platform reads these three and Phloem does not, so the check above cannot catch a wrong one.
+  // Phloem reads none of these, so the check above cannot catch a wrong one.
   it.each([
     [ROLE.HttpTrigger, 'httpTrigger'],
     [ROLE.GraphTrigger, 'graphTrigger'],
     [ROLE.StateTrigger, 'stateTrigger'],
-  ])('names the trigger role %s by the version 5 identifier of its word, %s', (roleId, word) => {
+    [ROLE.RunResumption, 'runResumption'],
+  ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });
 });

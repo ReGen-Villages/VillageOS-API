@@ -12,9 +12,9 @@ public class AnswerTimingsTests
         var timings = new AnswerTimings();
 
         await timings.TimeAsync("checking for a stop", () => Task.FromResult(false));
-        await timings.TimeAsync("looking up the vigil", () => Task.FromResult(true));
+        await timings.TimeAsync("looking up the node run", () => Task.FromResult(true));
 
-        timings.Steps.Should().MatchRegex(@"^checking for a stop \d+ ms, looking up the vigil \d+ ms$");
+        timings.Steps.Should().MatchRegex(@"^checking for a stop \d+ ms, looking up the node run \d+ ms$");
     }
 
     [Fact]

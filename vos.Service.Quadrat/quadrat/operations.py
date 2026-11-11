@@ -1,4 +1,5 @@
 from .classes import classify, histogram
+from .profile import profile as sample_line
 from .limits import Limits
 from .metadata import describe
 from .point import RESAMPLINGS, sample_point
@@ -54,7 +55,13 @@ def classification(params, inputs, limits):
     return classify(raster, zone(inputs), classes, limits.max_cells)
 
 
-OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal, "histogram": histogram_of, "classify": classification}
+def profile(params, inputs, limits):
+    return sample_line(
+        required(inputs, "raster"), required(inputs, "line"), setting(params, "resampling", "nearest"),
+        spacing=inputs.get("spacing"), samples=inputs.get("samples"), max_cells=limits.max_cells, max_samples=limits.max_samples)
+
+
+OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal, "histogram": histogram_of, "classify": classification, "profile": profile}
 
 
 def read_tile(tile):

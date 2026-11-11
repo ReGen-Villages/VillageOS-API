@@ -1,10 +1,29 @@
 import asyncio
 import atexit
 import multiprocessing
+import os
+import threading
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
 from .refusal import Refusal
+
+
+def end_with_parent():
+    """Run in each worker as it starts: the worker ends when the process that started it does.
+
+    A worker is not stopped by its parent being killed outright (an operator, Mycelium stopping a daemon, a crash):
+    it keeps waiting for work, and holds the memory a read had taken, until the machine restarts.
+    """
+    parent = multiprocessing.parent_process()
+    if parent is None:
+        return
+
+    def watch():
+        parent.join()
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True, name="end-with-parent").start()
 
 
 class ReadPool:
@@ -24,7 +43,7 @@ class ReadPool:
 
     def _processes(self):
         # Spawned, not forked: the raster library is not safe to fork once the service has threads running.
-        return ProcessPoolExecutor(max_workers=self._workers, mp_context=multiprocessing.get_context("spawn"))
+        return ProcessPoolExecutor(max_workers=self._workers, mp_context=multiprocessing.get_context("spawn"), initializer=end_with_parent)
 
     async def run(self, function, *args):
         if self._executor is None:

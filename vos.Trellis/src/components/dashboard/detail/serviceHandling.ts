@@ -12,11 +12,12 @@
  * carries `at` as absent rather than guessing one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
-import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 
 const BINDS_PREDICATE = 'binds';
+const IS_PREDICATE = 'is';
 
 /** What the platform stamps onto a relationship it called a service through. */
 const CALLED_AT = '__CallLastAttemptAt';
@@ -47,7 +48,9 @@ export interface ServiceCall extends ServiceEdge {
 interface ServiceWiring {
   connectionIds: Set<string>;
   serviceByConnection: Map<string, VosThing>;
-  connectionByVigil: Map<string, string>;
+  /** The connection a Thing names along `notifies`, for itself and every Thing that `is` it. */
+  notifiedConnectionOf: Map<string, string>;
+  archetypesOf: Map<string, string[]>;
   recordPredicateId?: string;
 }
 
@@ -75,31 +78,54 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
   const connectionIds = membersOf(boundBy(modelIndex, ROLE.Connection));
   const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
-  const vigilIds = membersOf(boundBy(modelIndex, VIGIL_ROLE_ID));
   const notifiedConnectionPredicateId = boundBy(modelIndex, NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
   // A connection binds its service through a relation of the model's own choosing, so the service
   // is found by what the edge reaches — never by what the predicate is called.
   const serviceByConnection = new Map<string, VosThing>();
-  const connectionByVigil = new Map<string, string>();
+  const notifiedConnectionOf = new Map<string, string>();
+  const archetypesOf = new Map<string, string[]>();
   for (const edge of modelIndex.relationships) {
     if (connectionIds.has(edge.SubjectId) && serviceIds.has(edge.TargetId) && !serviceByConnection.has(edge.SubjectId)) {
       const service = modelIndex.byId.get(edge.TargetId);
       if (service) serviceByConnection.set(edge.SubjectId, service);
     }
-    if (vigilIds.has(edge.SubjectId) && edge.PredicateId === notifiedConnectionPredicateId && !connectionByVigil.has(edge.SubjectId)) {
-      connectionByVigil.set(edge.SubjectId, edge.TargetId);
+    if (edge.PredicateId === notifiedConnectionPredicateId && !notifiedConnectionOf.has(edge.SubjectId)) {
+      notifiedConnectionOf.set(edge.SubjectId, edge.TargetId);
+    }
+    if (modelIndex.predicateIdToName.get(edge.PredicateId) === IS_PREDICATE) {
+      archetypesOf.set(edge.SubjectId, [...(archetypesOf.get(edge.SubjectId) ?? []), edge.TargetId]);
     }
   }
 
   const wiring: ServiceWiring = {
     connectionIds,
     serviceByConnection,
-    connectionByVigil,
+    notifiedConnectionOf,
+    archetypesOf,
     recordPredicateId: boundBy(modelIndex, CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
+}
+
+/** The connection a call record's target is answered through: the one it names along `notifies`, else the one the
+ *  nearest of its archetypes names, else the target itself, as the platform resolves it. */
+function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
+  const seen = new Set<string>();
+  let frontier = [targetId];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const named = wiring.notifiedConnectionOf.get(id);
+      if (named) return named;
+      next.push(...(wiring.archetypesOf.get(id) ?? []));
+    }
+    frontier = next;
+  }
+  return targetId;
 }
 
 /**
@@ -111,7 +137,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
  * catchments would list a hundred rows naming one service, while nothing was ever run on it.
  * Work done on a related Thing is reached by opening that Thing's own card.
  *
- * The relationships are read from `modelIndex` and the connections, services and vigils from `wiringIndex`,
+ * The relationships are read from `modelIndex` and the connections, services and waiting Things from `wiringIndex`,
  * because a dashboard's index holds the Thing's relationships but none of the wiring.
  */
 export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIndex: ModelIndex = modelIndex): ServiceEdge[] {
@@ -121,13 +147,11 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
   for (const edge of modelIndex.relationships) {
     if (edge.SubjectId !== thingId) continue;
     // A handled relationship carries its connection as the predicate; a record relationship, written when the Thing
-    // entered a watched state, carries it as the target — or a vigil that names it. Either way it
+    // entered a watched state, carries it as the target — or a waiting Thing that names it, or whose archetype does. Either way it
     // has to be a connection: a relationship reaching anything else is somebody's own bookkeeping, and
     // reading it as a service call would put a row on the card naming a Thing that never ran.
     const connectionId =
-      edge.PredicateId === wiring.recordPredicateId
-        ? (wiring.connectionByVigil.get(edge.TargetId) ?? edge.TargetId)
-        : edge.PredicateId;
+      edge.PredicateId === wiring.recordPredicateId ? connectionAnswering(edge.TargetId, wiring) : edge.PredicateId;
     if (!wiring.connectionIds.has(connectionId)) continue;
 
     const connectionName = wiringIndex.byId.get(connectionId)?.Name ?? connectionId;
