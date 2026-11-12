@@ -29,30 +29,31 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
     public readonly record struct MyceliumThing(Guid Id, string Name);
 
-    public async Task<MyceliumThing?> FindThingByNameAsync(string name)
+    public async Task<MyceliumThing?> FindThingByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
+            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
             return TryParseThing(root, out var thing) ? thing : null;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding thing by name {Name}", name);
+            LogFailure(ex, cancellationToken, "Error finding thing by name {Name}", name);
             return null;
         }
     }
 
-    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties)
+    public async Task<MyceliumThing?> CreateThingAsync(
+        string name, Dictionary<string, object?>? properties, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -66,57 +67,59 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                 Properties = TypedProperties.Typed(properties)
             };
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload);
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, response.StatusCode, error);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
             return TryParseThing(root, out var thing) ? thing : null;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error creating thing {ThingName}", name);
+            LogFailure(ex, cancellationToken, "Error creating thing {ThingName}", name);
             return null;
         }
     }
 
-    public async Task<bool> ApplyFragmentAsync(object fragment)
+    public async Task<bool> ApplyFragmentAsync(object fragment, CancellationToken cancellationToken = default)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment",
-                new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"));
+                new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"),
+                cancellationToken);
             if (response.IsSuccessStatusCode)
                 return true;
 
             Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}",
-                response.StatusCode, await response.Content.ReadAsStringAsync());
+                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
             return false;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error applying a fragment");
+            LogFailure(ex, cancellationToken, "Error applying a fragment");
             return false;
         }
     }
 
-    public async Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
+    public async Task<bool> CreateRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var payload = new { subjectId, predicateId, targetId };
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload);
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload, cancellationToken);
             if (response.IsSuccessStatusCode)
                 return true;
 
-            var error = await response.Content.ReadAsStringAsync();
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
             Logger.LogWarning(
                 "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
                 subjectId, predicateId, targetId, response.StatusCode, error);
@@ -124,7 +127,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex,
+            LogFailure(ex, cancellationToken,
                 "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
                 subjectId, predicateId, targetId);
             return false;
@@ -152,11 +155,12 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             // A full readings queue refuses the batch whole, so sending it again queues nothing twice.
             for (var attempt = 1; ; attempt++)
             {
-                var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
+                var response = await client.PostAsJsonAsync(
+                    $"{MyceliumUrl}/api/things/{thingId}/observations", payload, cancellationToken);
                 if (response.IsSuccessStatusCode)
                     return true;
 
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 if (response.StatusCode != HttpStatusCode.ServiceUnavailable
                     || response.Headers.RetryAfter?.Delta is not { } wait
                     || wait > LongestWaitForARefusedBatch)
@@ -202,7 +206,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     // a ticket is whatever the store answered, never computed here, so the two can never disagree
     // about a name. The Content-Type rides with the bytes because the store serves them back
     // verbatim under the same type.
-    public async Task<string?> DepositAssetAsync(byte[] bytes, string contentType)
+    public async Task<string?> DepositAssetAsync(
+        byte[] bytes, string contentType, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -210,16 +215,16 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             using var content = new ByteArrayContent(bytes);
             content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
 
-            var response = await client.PostAsync($"{MyceliumUrl}/api/assets", content);
+            var response = await client.PostAsync($"{MyceliumUrl}/api/assets", content, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 Logger.LogWarning("Failed to deposit {ByteLength} bytes to the asset store. Status: {StatusCode}. Error: {Error}",
                     bytes.Length, response.StatusCode, error);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
             if (root.ValueKind == JsonValueKind.Object
                 && TryGetPropertyCaseInsensitive(root, "hash", out var hash)
                 && hash.ValueKind == JsonValueKind.String
@@ -231,12 +236,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
+            LogFailure(ex, cancellationToken, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
             return null;
         }
     }
 
-    public async Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode, int? sampleSeconds = null)
+    public async Task<bool> SetPropertyModeAsync(
+        Guid thingId, string property, string mode, int? sampleSeconds = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -245,28 +251,29 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             var request = new Dictionary<string, object> { ["Mode"] = mode };
             if (sampleSeconds is { } seconds) request["SampleSeconds"] = seconds;
             var response = await client.PutAsJsonAsync(
-                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", request);
+                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", request, cancellationToken);
             if (response.IsSuccessStatusCode)
                 return true;
 
-            var error = await response.Content.ReadAsStringAsync();
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
             Logger.LogWarning("Failed to set mode {Mode} on {ThingId}.{Property}. Status: {StatusCode}. Error: {Error}",
                 mode, thingId, property, response.StatusCode, error);
             return false;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error setting mode on {ThingId}.{Property}", thingId, property);
+            LogFailure(ex, cancellationToken, "Error setting mode on {ThingId}.{Property}", thingId, property);
             return false;
         }
     }
 
-    public async Task<Dictionary<string, JsonElement>?> GetEffectivePropertiesAsync(Guid thingId)
+    public async Task<Dictionary<string, JsonElement>?> GetEffectivePropertiesAsync(
+        Guid thingId, CancellationToken cancellationToken = default)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
+            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Failed to get effective properties for thing {ThingId}. Status: {StatusCode}",
@@ -274,7 +281,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
             if (root.ValueKind != JsonValueKind.Object)
                 return null;
 
@@ -289,9 +296,18 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error getting effective properties for thing {ThingId}", thingId);
+            LogFailure(ex, cancellationToken, "Error getting effective properties for thing {ThingId}", thingId);
             return null;
         }
+    }
+
+    // A call its caller gave up on is recorded once, by the caller that knows why, so it is not an error here.
+    private void LogFailure(
+        Exception exception, CancellationToken cancellationToken, string message, params object?[] arguments)
+    {
+        if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+            return;
+        Logger.LogError(exception, message, arguments);
     }
 
     private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)

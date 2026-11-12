@@ -1,9 +1,11 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Shared.Configuration;
 
 // The settings every service needs to start: the port it listens on, where the broker is, the token
 // for calling the broker, and the key for checking what the broker sends back.
+// A limit left null means the platform did not say, so the service may set any limit of its own or none.
 public record ServiceLaunchSettings(
     int Port,
     string MyceliumUrl,
@@ -12,7 +14,9 @@ public record ServiceLaunchSettings(
     string? Issuer = null,
     string? Audience = null,
     string? ApiKey = null,
-    string? LogDirectory = null)
+    string? LogDirectory = null,
+    TimeSpan? ServiceCallLimit = null,
+    TimeSpan? PassedOnRequestLimit = null)
 {
     public const int LowestPort = 1;
     public const int HighestPort = 65535;
@@ -38,8 +42,17 @@ public record ServiceLaunchSettings(
             reader.Read("issuer"),
             reader.Read("audience"),
             reader.ReadCredential("apiKey"),
-            reader.Read("logDirectory"));
+            reader.Read("logDirectory"),
+            ReadLimit(reader, "serviceCallLimitSeconds"),
+            ReadLimit(reader, "passedOnRequestLimitSeconds"));
     }
+
+    // An unusable value is read as no limit, the way every other optional setting falls back.
+    private static TimeSpan? ReadLimit(LaunchSettingReader reader, string flagName) =>
+        int.TryParse(reader.Read(flagName), NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
+        && seconds > 0
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
 
     private static bool TryReadPort(LaunchSettingReader reader, out int port)
     {
@@ -51,14 +64,17 @@ public record ServiceLaunchSettings(
     }
 
     private const string CommonFlagSummary =
-        "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>] [--logDirectory=<folder>]";
+        "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>] [--logDirectory=<folder>]" +
+        " [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>]";
 
     private const string CommonFlagDescriptions =
         "  --port          Port number for the service to listen on\n" +
         "  --myceliumUrl   URL of the VOS Mycelium\n" +
         "  --issuer        JWT issuer Mycelium signs with, which must match for /handle authentication\n" +
         "  --audience      This service's own recipient name, which an inbound token must name\n" +
-        "  --logDirectory  Folder the service writes its log file to (default: logs, four folders above the build)";
+        "  --logDirectory  Folder the service writes its log file to (default: logs, four folders above the build)\n" +
+        "  --serviceCallLimitSeconds      How long Mycelium waits for this service to answer a service call\n" +
+        "  --passedOnRequestLimitSeconds  How long Mycelium waits for an answer to a request it passes on";
 
     private const string CredentialDescriptions =
         "\n\nSupplied through configuration or the environment, never the command line:\n" +
