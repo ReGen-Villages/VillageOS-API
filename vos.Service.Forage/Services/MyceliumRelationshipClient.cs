@@ -67,29 +67,9 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         }
     }
 
-    public async Task<bool> CreateRelationshipAsync(
-        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.PostAsJsonAsync(
-                $"{MyceliumUrl}/api/relationships",
-                new { subjectId, predicateId, targetId },
-                cancellationToken);
-            if (response.IsSuccessStatusCode)
-                return true;
-
-            Logger.LogWarning("Refused relating {Subject} to {Target}: {Status} {Reason}", subjectId, targetId,
-                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
-            return false;
-        }
-        catch (Exception exception)
-        {
-            Logger.LogError(exception, "Error relating {Subject} to {Target}", subjectId, targetId);
-            return false;
-        }
-    }
+    public Task<bool> CreateRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
+        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(30), cancellationToken);
 
     public async Task<bool> DeleteRelationshipAsync(Guid relationshipId, CancellationToken cancellationToken)
     {

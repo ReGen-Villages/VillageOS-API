@@ -24,4 +24,7 @@ internal sealed class TestableMyceliumClient : MyceliumClientBase
 
     public Task<HttpClient> CreateAuthenticatedClientPublicAsync(TimeSpan? timeout = null)
         => CreateAuthenticatedClientAsync(timeout);
+
+    public Task<bool> PostRelationshipPublicAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default)
+        => PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(5), cancellationToken);
 }

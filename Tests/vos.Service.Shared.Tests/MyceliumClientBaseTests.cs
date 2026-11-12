@@ -376,6 +376,64 @@ public class MyceliumClientBaseTests
         handler.Requests.Should().BeEmpty();
     }
 
+    private static readonly Guid Subject = Guid.NewGuid();
+    private static readonly Guid Predicate = Guid.NewGuid();
+    private static readonly Guid Target = Guid.NewGuid();
+
+    [Fact]
+    public async Task A_relationship_is_posted_as_its_three_ends_and_answers_true_when_the_broker_accepts_it()
+    {
+        var (client, handler) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Created), serviceToken: TestToken);
+
+        (await client.PostRelationshipPublicAsync(Subject, Predicate, Target)).Should().BeTrue();
+
+        var request = handler.Requests.Should().ContainSingle().Which;
+        request.Method.Should().Be(HttpMethod.Post);
+        request.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/relationships");
+        var body = ReadJsonBody(request);
+        body.GetProperty("subjectId").GetGuid().Should().Be(Subject);
+        body.GetProperty("predicateId").GetGuid().Should().Be(Predicate);
+        body.GetProperty("targetId").GetGuid().Should().Be(Target);
+    }
+
+    [Fact]
+    public async Task A_refused_relationship_answers_false_and_is_logged_with_the_brokers_reason()
+    {
+        var logger = new CapturingLogger<MyceliumClientBaseTests>();
+        var (client, _) = BuildClient(
+            _ => new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent("already related") },
+            serviceToken: TestToken, logger: logger);
+
+        (await client.PostRelationshipPublicAsync(Subject, Predicate, Target)).Should().BeFalse();
+
+        logger.Lines.Should().ContainSingle(line => line.Contains("Failed to create relationship") && line.Contains("already related"));
+        logger.ErrorLines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_relationship_the_call_fails_on_answers_false_and_is_logged_as_an_error()
+    {
+        var logger = new CapturingLogger<MyceliumClientBaseTests>();
+        var (client, _) = BuildClient(_ => throw new HttpRequestException("broker unreachable"), serviceToken: TestToken, logger: logger);
+
+        (await client.PostRelationshipPublicAsync(Subject, Predicate, Target)).Should().BeFalse();
+
+        logger.ErrorLines.Should().ContainSingle(line => line.Contains("Error creating relationship"));
+    }
+
+    [Fact]
+    public async Task A_relationship_call_the_caller_cancels_answers_false_and_logs_no_error()
+    {
+        var logger = new CapturingLogger<MyceliumClientBaseTests>();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Created), serviceToken: TestToken, logger: logger);
+
+        (await client.PostRelationshipPublicAsync(Subject, Predicate, Target, cancellation.Token)).Should().BeFalse();
+
+        logger.ErrorLines.Should().BeEmpty();
+    }
+
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken,
