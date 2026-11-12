@@ -68,11 +68,21 @@ public sealed record NodeRequest(
     JsonElement Params,
     IReadOnlyDictionary<string, JsonElement> Inputs);
 
+// Retry is set only on a failure the orchestrator may try again by the step's retry policy.
 public sealed record NodeResponse(
     [property: JsonPropertyName("result")] string Result,
     [property: JsonPropertyName("outputs")] IReadOnlyDictionary<string, object?> Outputs,
-    [property: JsonPropertyName("error")] string? Error)
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName(NodeResponse.RetryProperty), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RetryAnswer? Retry = null)
 {
     public const string Succeeded = "success";
     public const string Failed = "fail";
+    public const string RetryProperty = "retry";
+}
+
+// The wait is in real seconds, not model time, because it is what an outside provider asked for.
+public sealed record RetryAnswer(
+    [property: JsonPropertyName(RetryAnswer.AfterSecondsProperty), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? AfterSeconds)
+{
+    public const string AfterSecondsProperty = "afterSeconds";
 }

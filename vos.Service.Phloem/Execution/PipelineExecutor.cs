@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Service.Shared.DagNode;
 
 namespace vos.Service.Phloem.Execution;
 
@@ -1117,7 +1118,7 @@ public sealed class PipelineExecutor
                 return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
         }
 
-        var (result, _) = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, rehearsal, cancellationToken);
+        var result = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, rehearsal, cancellationToken);
         if (!rehearsal) await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
         return awaited is not null && result.Status == RunStatus.Succeeded
             ? result with { Status = RunStatus.Waiting, Awaits = awaited }
@@ -1260,8 +1261,8 @@ public sealed class PipelineExecutor
             }
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item.Value };
-            var (attempted, _) = item.ItemTransformError is { } itemTransformError
-                ? (new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {itemTransformError}"), false)
+            var attempted = item.ItemTransformError is { } itemTransformError
+                ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {itemTransformError}")
                 : await AttemptAsync(node, runId, inputs, index, total, attemptsMade, rehearsal, cancellationToken);
             var result = attempted with { Number = item.Number };
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs,
@@ -1319,15 +1320,15 @@ public sealed class PipelineExecutor
     private static JsonArray AsList(JsonNode? value) =>
         value is JsonArray list ? list : new JsonArray { value?.DeepClone() };
 
-    // A node with a retry policy is called again while its calls never reach the service, each attempt written as it
-    // happens, with a pause between them measured on the model clock. Any answer from the service is final, a refusal
-    // among them. GaveUp says the attempts or the trying time ran out, which is what a hand-over acts on.
-    private async Task<(NodeRunResult Result, bool GaveUp)> AttemptAsync(
+    // A node with a retry policy is called again while its calls never reach the service or the service answers that
+    // its failure can be tried again, each attempt written as it happens, with a pause between them measured on the
+    // model clock. Any other answer from the service is final, a refusal among them.
+    private async Task<NodeRunResult> AttemptAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, int total,
         IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
         if (node.Retries is not { } policy)
-            return ((await CallOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken)).Result, false);
+            return (await CallOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken)).Result;
 
         var firstStarted = attemptsMade.Count > 0 ? attemptsMade[0].StartedUtc : _clock.GetUtcNow();
         var number = attemptsMade.Count;
@@ -1337,17 +1338,16 @@ public sealed class PipelineExecutor
         while (true)
         {
             if (StopOf(runId) is { } stop)
-                return (new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason), false);
+                return new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason);
             number++;
             var started = _clock.GetUtcNow();
             var outcome = await CallOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken);
             var attempt = new AttemptRecord(number, started, _clock.GetUtcNow(), outcome.Result.Status, outcome.Result.Error);
             await BestEffort(() => _gateway.RecordAttemptAsync(runId, node.NodeId, index, attempt, cancellationToken), "record attempt");
-            if (outcome.ReachedTheService) return (outcome.Result, false);
-            if (number >= policy.Attempts) return (outcome.Result, true);
+            if (!outcome.CanBeTriedAgain || number >= policy.Attempts) return outcome.Result;
 
-            var pause = policy.PauseBefore(number + 1, Random.Shared.NextDouble());
-            if (attempt.FinishedUtc + pause > firstStarted + policy.TryingTime) return (outcome.Result, true);
+            var pause = policy.PauseBefore(number + 1, Random.Shared.NextDouble(), outcome.AskedWait, _clock.Rate);
+            if (attempt.FinishedUtc + pause > firstStarted + policy.TryingTime) return outcome.Result;
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Trying, null, cancellationToken, index, total), "persist node trying");
             await PauseUntilAsync(runId, attempt.FinishedUtc + pause, cancellationToken);
         }
@@ -1366,10 +1366,11 @@ public sealed class PipelineExecutor
         }
     }
 
-    private sealed record CallOutcome(NodeRunResult Result, bool ReachedTheService);
+    // AskedWait is the real time the service asked to be left before the next attempt.
+    private sealed record CallOutcome(NodeRunResult Result, bool CanBeTriedAgain, TimeSpan? AskedWait = null);
 
-    // A call that threw, or that the broker answered for a service it could not reach, never reached the
-    // service; any other answer came from it.
+    // A call that threw, or that the broker answered for a service it could not reach, never reached the service and
+    // can be tried again. An answer from the service can be tried again only where it says so.
     private async Task<CallOutcome> CallOnceAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, bool rehearsal, CancellationToken cancellationToken)
     {
@@ -1382,25 +1383,27 @@ public sealed class PipelineExecutor
         }
         catch (Exception ex)
         {
-            return new CallOutcome(Failure(node, $"Service call to '{node.Subdomain}' failed: {ex.Message}"), ReachedTheService: false);
+            return new CallOutcome(Failure(node, $"Service call to '{node.Subdomain}' failed: {ex.Message}"), CanBeTriedAgain: true);
         }
 
         if (nodeCall.StatusCode is < 200 or >= 300)
-            return new CallOutcome(Failure(node, $"Node '{node.Name}' returned HTTP {nodeCall.StatusCode}."), ReachedTheService: nodeCall.StatusCode < 500);
+            return new CallOutcome(Failure(node, $"Node '{node.Name}' returned HTTP {nodeCall.StatusCode}."), CanBeTriedAgain: nodeCall.StatusCode >= 500);
 
-        return new CallOutcome(NodeChoices.Choose(node, inputs, ParseNodeResponse(node, nodeCall.Body), _clock), ReachedTheService: true);
+        var (answer, retry) = ParseNodeResponse(node, nodeCall.Body);
+        return new CallOutcome(NodeChoices.Choose(node, inputs, answer, _clock), retry is not null, retry?.AfterSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null);
     }
 
     private static readonly JsonElement NullJson = JsonSerializer.SerializeToElement<object?>(null);
 
-    private static NodeRunResult ParseNodeResponse(DagNode node, string body)
+    // Retry is null unless a fail answer says it can be tried again.
+    private static (NodeRunResult Answer, RetryAnswer? Retry) ParseNodeResponse(DagNode node, string body)
     {
         try
         {
             var root = JsonDocument.Parse(body).RootElement;
             var answered = root.TryGetProperty("result", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
             if (answered is not (ModelNames.ResultSuccess or ModelNames.ResultFail))
-                return Failure(node, $"'{node.Name}' answered no result: an answer says \"result\": \"{ModelNames.ResultSuccess}\" or \"{ModelNames.ResultFail}\".");
+                return (Failure(node, $"'{node.Name}' answered no result: an answer says \"result\": \"{ModelNames.ResultSuccess}\" or \"{ModelNames.ResultFail}\"."), null);
 
             var outputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             if (root.TryGetProperty("outputs", out var o) && o.ValueKind == JsonValueKind.Object)
@@ -1410,15 +1413,25 @@ public sealed class PipelineExecutor
             if (answered == ModelNames.ResultFail)
             {
                 var error = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
-                return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs, error ?? $"'{node.Name}' answered fail.");
+                return (new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs, error ?? $"'{node.Name}' answered fail."), RetryAskedIn(root));
             }
 
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null);
+            return (new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null), null);
         }
         catch (JsonException)
         {
-            return Failure(node, $"Node '{node.Name}' returned a non-JSON response.");
+            return (Failure(node, $"Node '{node.Name}' returned a non-JSON response."), null);
         }
+    }
+
+    // A wait that is not a number of seconds from now is no wait, and the policy's pause stands.
+    private static RetryAnswer? RetryAskedIn(JsonElement answer)
+    {
+        if (!answer.TryGetProperty(NodeResponse.RetryProperty, out var retry) || retry.ValueKind != JsonValueKind.Object) return null;
+        return retry.TryGetProperty(RetryAnswer.AfterSecondsProperty, out var after) && after.ValueKind == JsonValueKind.Number
+               && after.TryGetDouble(out var seconds) && seconds >= 0
+            ? new RetryAnswer(seconds)
+            : new RetryAnswer(null);
     }
 
     private static NodeRunResult Failure(DagNode node, string error) =>
