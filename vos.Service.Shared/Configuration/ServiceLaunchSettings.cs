@@ -30,14 +30,20 @@ public record ServiceLaunchSettings(
         if (!TryReadPort(reader, out var port))
             return null;
 
+        // A service runs on one credential, because a token and a key act as different callers with different reach.
+        var token = reader.ReadCredential("token");
+        var apiKey = reader.ReadCredential("apiKey");
+        if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(apiKey))
+            return null;
+
         return new ServiceLaunchSettings(
             port,
             myceliumUrl,
-            reader.ReadCredential("token"),
+            token,
             reader.ReadCredential("verificationKey"),
             reader.Read("issuer"),
             reader.Read("audience"),
-            reader.ReadCredential("apiKey"),
+            apiKey,
             reader.Read("logDirectory"));
     }
 
@@ -64,6 +70,7 @@ public record ServiceLaunchSettings(
         "\n\nSupplied through configuration or the environment, never the command line:\n" +
         "  Token            Service JWT for authenticating with Mycelium (optional)\n" +
         "  ApiKey           API key exchanged for short-lived tokens, for a service that outlives any JWT (optional)\n" +
+        "                   Give Token or ApiKey, not both: the service refuses to start with the two together\n" +
         "  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound requests (optional)";
 
     public static string UsageMessage => BuildUsageMessage();

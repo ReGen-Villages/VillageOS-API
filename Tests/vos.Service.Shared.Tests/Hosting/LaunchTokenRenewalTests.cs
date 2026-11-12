@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
@@ -37,6 +38,67 @@ public class LaunchTokenRenewalTests
     private static LaunchTokenRenewal Renewal(
         LaunchToken launchToken, IServiceTokenExchange exchange, TimeSpan? checkInterval = null) =>
         new(launchToken, exchange, NullLogger.Instance, checkInterval ?? TimeSpan.FromMinutes(15));
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<(LogLevel Level, string Message)> Lines { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (Lines) Lines.Add((logLevel, formatter(state, exception)));
+        }
+    }
+
+    // The broker mints this for a key: five minutes long, and refused by the exchange.
+    private static string ApiKeyToken(DateTimeOffset expiresAt) => TestTokens.Jwt(new Dictionary<string, object>
+    {
+        ["vos:model_id"] = Model.ToString(),
+        ["vos:token_type"] = "api_key",
+        ["exp"] = expiresAt.ToUnixTimeSeconds(),
+    });
+
+    private static (LaunchTokenRenewal Renewal, RecordingExchange Exchange, RecordingLogger Logger) Started(string launched)
+    {
+        var exchange = new RecordingExchange(() => Issued(DateTimeOffset.UtcNow.AddHours(24)));
+        var logger = new RecordingLogger();
+        return (new LaunchTokenRenewal(new LaunchToken(launched), exchange, logger, TimeSpan.FromMilliseconds(10)), exchange, logger);
+    }
+
+    [Fact]
+    public async Task A_token_minted_for_an_API_key_is_never_offered_for_a_swap_and_its_lapse_is_never_called_a_refusal()
+    {
+        var (renewal, exchange, logger) = Started(ApiKeyToken(DateTimeOffset.UtcNow.AddSeconds(-1)));
+
+        await renewal.StartAsync(CancellationToken.None);
+        await Settle.ForAsync(renewal.ExecuteTask!, "the renewal stops at once for a token it cannot swap");
+
+        exchange.PresentedBearers.Should().BeEmpty();
+        logger.Lines.Should().ContainSingle()
+            .Which.Should().Be((LogLevel.Information,
+                "The token this service was launched with is not a service token, so the broker cannot swap it and it is not renewed"));
+    }
+
+    [Fact]
+    public async Task A_service_token_is_swapped_without_a_warning()
+    {
+        var (renewal, exchange, logger) = Started(TestTokens.For(Model, DateTimeOffset.UtcNow.AddMinutes(30)));
+
+        await renewal.StartAsync(CancellationToken.None);
+        try
+        {
+            await Settle.UntilAsync(() => exchange.PresentedBearers.Count > 0, "the renewal offers a service token for a swap");
+        }
+        finally
+        {
+            await renewal.StopAsync(CancellationToken.None);
+        }
+
+        logger.Lines.Should().NotContain(line => line.Level >= LogLevel.Warning);
+    }
 
     [Fact]
     public async Task A_launch_token_with_two_hours_or_less_left_is_swapped_and_the_new_one_becomes_current()
@@ -144,7 +206,9 @@ public class LaunchTokenRenewalTests
 
         launchToken!.Current.Should().Be(launched);
         using var provider = services.BuildServiceProvider();
-        provider.GetServices<IHostedService>().Should().ContainSingle(service => service is LaunchTokenRenewal);
+        provider.GetServices<IHostedService>().Should().ContainSingle()
+            .Which.Should().BeOfType<LaunchTokenRenewal>()
+            .Which.HoldsAServiceToken().Should().BeTrue();
     }
 
     [Theory]

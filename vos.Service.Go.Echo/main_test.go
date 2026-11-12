@@ -579,15 +579,13 @@ func TestAnAnswerThatIsNotATokenIsNotHeld(t *testing.T) {
 	}
 }
 
-func TestAKeyIsPresentedBeforeATokenGivenBesideIt(t *testing.T) {
-	minted := tokenExpiring(aMoment.Add(5 * time.Minute))
-	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, minted }}
-	srv := exchange.serve(t)
-	defer srv.Close()
-	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example", Token: "a-launch-token"}, client: srv.Client(), now: func() time.Time { return aMoment }}
+func TestParseArgsRefusesAKeyAndATokenTogether(t *testing.T) {
+	both := func(name string) string {
+		return map[string]string{"ApiKey": "vos_ak_example", "Token": "a-launch-token"}[name]
+	}
 
-	if token, _ := s.token(); token != minted {
-		t.Fatalf("token = %q, want the one the key was exchanged for", token)
+	if _, err := parseArgs([]string{"--port=5101", "--myceliumUrl=https://x"}, both); err == nil {
+		t.Fatal("expected an error when both ApiKey and Token were given")
 	}
 }
 
