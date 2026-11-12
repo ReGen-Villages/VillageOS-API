@@ -43,14 +43,6 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
 
-    private sealed class PerCallHttpClientFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallHttpClientFactory(HttpMessageHandler handler) { _handler = handler; }
-        // disposeHandler=false so the per-test MockHttpMessageHandler outlives each HttpClient.
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
