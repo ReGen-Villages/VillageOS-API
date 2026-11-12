@@ -27,68 +27,52 @@ public class MyceliumRelationshipClientTests
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task MintAsync_AnswersTheIdentifierTheBrokerNamedInItsOwnCasing()
+    public async Task WriteCoverageAsync_SendsTheRecordAndItsRelationshipsAsOneFragmentUnderTheIdentifierGiven()
     {
-        var created = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK,
-            $$$"""
-            {"Id":"{{{created}}}","Name":"{{{CoverageName}}}","IsArchetype":false,"Properties":{}}
-            """));
+        var (record, predicate, target) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        HttpRequestMessage? sent = null;
+        string? body = null;
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            sent = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Json(HttpStatusCode.OK, "{}");
+        });
 
-        var minted = await Client(handler).MintAsync(CoverageName, default);
+        var written = await Client(handler).WriteCoverageAsync(record, CoverageName, [(predicate, target)], default);
 
-        minted.Should().Be(created);
+        written.Should().BeTrue();
+        sent!.Method.Should().Be(HttpMethod.Post);
+        sent.RequestUri!.AbsolutePath.Should().Be("/api/model/fragment");
+        using var fragment = System.Text.Json.JsonDocument.Parse(body!);
+        var thing = fragment.RootElement.GetProperty("things").EnumerateArray().Should().ContainSingle().Subject;
+        thing.GetProperty("id").GetGuid().Should().Be(record);
+        thing.GetProperty("name").GetString().Should().Be(CoverageName);
+        var relationship = fragment.RootElement.GetProperty("relationships").EnumerateArray().Should().ContainSingle().Subject;
+        (relationship.GetProperty("subject").GetGuid(), relationship.GetProperty("predicate").GetGuid(), relationship.GetProperty("target").GetGuid())
+            .Should().Be((record, predicate, target));
     }
 
     [Fact]
-    public async Task MintAsync_SaysTheThingIsUnreachableWhenTheCreatedThingNamesNoIdentifier()
+    public async Task WriteCoverageAsync_AnswersFalseAndSaysWhyWhenTheBrokerRefusesTheFragment()
     {
         var logger = new CapturingLogger<MyceliumRelationshipClient>();
-        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK,
-            $$"""
-            {"Name":"{{CoverageName}}"}
-            """));
+        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.BadRequest, """{"error":"no such predicate"}"""));
 
-        var minted = await Client(handler, logger).MintAsync(CoverageName, default);
+        var written = await Client(handler, logger).WriteCoverageAsync(Guid.NewGuid(), CoverageName, [], default);
 
-        minted.Should().BeNull();
-        logger.Lines.Should().ContainSingle().Which.Should().Contain("named no identifier");
+        written.Should().BeFalse();
+        logger.Lines.Should().ContainSingle().Which.Should().Contain("no such predicate");
     }
 
     [Fact]
-    public async Task MintAsync_SaysTheThingIsUnreachableWhenTheAnswerIsNotAThingAtAll()
+    public async Task WriteCoverageAsync_AnswersFalseWhenTheBrokerCannotBeReached()
     {
-        var logger = new CapturingLogger<MyceliumRelationshipClient>();
-        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK, "[]"));
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("the broker is not listening"));
 
-        var minted = await Client(handler, logger).MintAsync(CoverageName, default);
+        var written = await Client(handler).WriteCoverageAsync(Guid.NewGuid(), CoverageName, [], default);
 
-        minted.Should().BeNull();
-        logger.Lines.Should().ContainSingle().Which.Should().Contain("named no identifier");
-    }
-
-    [Fact]
-    public async Task MintAsync_AnswersNothingWhenTheBrokerRefusesTheCreate()
-    {
-        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.Conflict,
-            """
-            {"error":"Thing already exists"}
-            """));
-
-        var minted = await Client(handler).MintAsync(CoverageName, default);
-
-        minted.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task MintAsync_AnswersNothingWhenTheBrokerCannotBeReached()
-    {
-        var handler = new MockHttpMessageHandler(
-            _ => throw new HttpRequestException("the broker is not listening"));
-
-        var minted = await Client(handler).MintAsync(CoverageName, default);
-
-        minted.Should().BeNull();
+        written.Should().BeFalse();
     }
 
     [Fact]
