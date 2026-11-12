@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.IdentityModel.Tokens;
 
-namespace vos.Auth.Shared;
+namespace vos.Service.Auth;
 
 // What a handler requires of an inbound Mycelium call. The key checks a signature and
 // cannot produce one, so a handler holds exactly what its job needs and nothing more.

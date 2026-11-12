@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Shared.Tests.Hosting;
@@ -34,21 +36,34 @@ public class ModelClockFollowerTests
         public void Advance(TimeSpan elapsed) => _now += elapsed;
     }
 
-    private static ModelClockFollower NewFollower(
-        ModelClock clock, Func<CancellationToken, Task<ModelTimeReading?>> read,
-        ILogger? logger = null, string serviceName = "Forage") =>
-        new(clock, read, logger ?? new Captured(), serviceName, TimeSpan.FromSeconds(5));
+    private static async IAsyncEnumerable<ModelTimeReading> Announcing(
+        IEnumerable<ModelTimeReading> readings, [EnumeratorCancellation] CancellationToken cancellation = default)
+    {
+        foreach (var reading in readings)
+        {
+            await Task.Yield();
+            yield return reading;
+        }
+    }
 
-    private static Task FollowOnceAsync(ModelClockFollower follower) =>
-        follower.FollowOnceAsync(CancellationToken.None);
+    private static Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> Broker(params ModelTimeReading[] readings) =>
+        cancellation => Announcing(readings, cancellation);
+
+    private static ModelClockFollower NewFollower(
+        ModelClock clock, Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> listen,
+        ILogger? logger = null, string serviceName = "Forage", TimeSpan? reconnectDelay = null) =>
+        new(clock, listen, logger ?? new Captured(), serviceName, reconnectDelay ?? TimeSpan.FromSeconds(2));
+
+    private static Task ListenOnceAsync(ModelClockFollower follower) =>
+        follower.ListenOnceAsync(CancellationToken.None);
 
     [Fact]
-    public async Task A_Reading_Anchors_The_Clock()
+    public async Task The_Reading_Taken_On_Connecting_Anchors_The_Clock()
     {
         var clock = new ModelClock();
-        var follower = NewFollower(clock, _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 60)));
+        var follower = NewFollower(clock, Broker(new ModelTimeReading(ModelInstant, 60)));
 
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
 
         clock.IsAnchored.Should().BeTrue();
         clock.Rate.Should().Be(60);
@@ -57,12 +72,24 @@ public class ModelClockFollowerTests
     }
 
     [Fact]
-    public async Task A_Broker_That_Cannot_Be_Asked_Leaves_The_Clock_As_It_Was()
+    public async Task An_Announced_Change_Re_Anchors_The_Clock()
     {
         var clock = new ModelClock();
-        var follower = NewFollower(clock, _ => Task.FromResult<ModelTimeReading?>(null));
+        var follower = NewFollower(clock, Broker(new ModelTimeReading(ModelInstant, 60), new ModelTimeReading(ModelInstant.AddHours(1), 300)));
 
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
+
+        clock.Rate.Should().Be(300);
+        clock.GetUtcNow().Should().BeOnOrAfter(ModelInstant.AddHours(1), "the clock runs on from the announced instant");
+    }
+
+    [Fact]
+    public async Task A_Broker_That_Cannot_Be_Reached_Leaves_The_Clock_As_It_Was()
+    {
+        var clock = new ModelClock();
+        var follower = NewFollower(clock, Broker());
+
+        await ListenOnceAsync(follower);
 
         clock.IsAnchored.Should().BeFalse();
     }
@@ -71,10 +98,9 @@ public class ModelClockFollowerTests
     public async Task Anchoring_Says_How_Far_The_Model_Stands_From_This_Machine()
     {
         var captured = new Captured();
-        var follower = NewFollower(
-            new ModelClock(), _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 60)), captured, "Intake");
+        var follower = NewFollower(new ModelClock(), Broker(new ModelTimeReading(ModelInstant, 60)), captured, "Intake");
 
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle()
             .Which.Should().Contain("Intake").And.Contain("60").And.Contain(ModelInstant.Year.ToString())
@@ -86,14 +112,14 @@ public class ModelClockFollowerTests
     {
         var captured = new Captured();
         var answering = false;
-        var follower = NewFollower(new ModelClock(), _ => Task.FromResult(
-            answering ? new ModelTimeReading(ModelInstant, 1) : null), captured);
+        var follower = NewFollower(new ModelClock(),
+            cancellation => Announcing(answering ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation), captured);
 
-        await FollowOnceAsync(follower);
-        await FollowOnceAsync(follower);
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
+        await ListenOnceAsync(follower);
+        await ListenOnceAsync(follower);
         answering = true;
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle(line => line.Contains("cannot read the model clock"));
         captured.Lines.Should().ContainSingle(line => line.Contains("reading the model clock again"));
@@ -103,16 +129,34 @@ public class ModelClockFollowerTests
     public async Task A_Clock_That_Has_Not_Moved_Against_This_Machine_Is_Said_Once()
     {
         var captured = new Captured();
-        // The same reading twice, with this machine's clock held still between them: the follower says
-        // the standing again only where it changed, and whether it changed must not depend on how long
-        // the agent took.
+        // The same reading on two connections, with this machine's clock held still between them: the
+        // follower says the standing again only where it changed, and whether it changed must not depend
+        // on how long the agent took.
         var follower = NewFollower(
-            new ModelClock(new SteppingClock(DateTimeOffset.UtcNow)),
-            _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 1)), captured);
+            new ModelClock(new SteppingClock(DateTimeOffset.UtcNow)), Broker(new ModelTimeReading(ModelInstant, 1)), captured);
 
-        await FollowOnceAsync(follower);
-        await FollowOnceAsync(follower);
+        await ListenOnceAsync(follower);
+        await ListenOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_Stream_That_Ends_Is_Opened_Again_After_The_Reconnect_Delay()
+    {
+        var connections = 0;
+        var follower = NewFollower(new ModelClock(),
+            cancellation => Announcing(Interlocked.Increment(ref connections) > 0 ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation),
+            reconnectDelay: TimeSpan.FromMilliseconds(10));
+
+        await follower.StartAsync(CancellationToken.None);
+        try
+        {
+            await Settle.UntilAsync(() => Volatile.Read(ref connections) >= 3, "the follower listens again each time the stream ends");
+        }
+        finally
+        {
+            await follower.StopAsync(CancellationToken.None);
+        }
     }
 }

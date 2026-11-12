@@ -26,7 +26,7 @@ public class SubscriptionClientTests
         Func<HttpRequestMessage, HttpResponseMessage> respond)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, Token)
+        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, new LaunchToken(Token))
         {
             ReconnectDelay = TimeSpan.FromMilliseconds(5),
         };
@@ -141,6 +141,26 @@ public class SubscriptionClientTests
         sent.Should().Contain($"\"boundTypes\":[\"{members}\"]");
         sent.Should().Contain($"\"boundArchetypes\":[\"{alone}\"]");
         sent.Should().Contain($"\"predicateRole\":\"{predicate}\"");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_the_property_values_under_the_name_the_broker_binds()
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            Types = ["Vessel"],
+            PropertyValues = new Dictionary<string, string> { ["code"] = "A1" },
+        });
+
+        var sent = await captured!.Content!.ReadAsStringAsync();
+        sent.Should().Contain("\"propertyValues\":{\"code\":\"A1\"}");
     }
 
     [Fact]

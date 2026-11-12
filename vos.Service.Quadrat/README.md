@@ -19,11 +19,12 @@ python3 -m venv .venv
 .venv/bin/python -m quadrat zonal samples/tatra-z10-568-350.tif --geometry zone.geojson
 .venv/bin/python -m quadrat histogram land-cover.tif --bbox 19.92 49.24 19.95 49.26
 .venv/bin/python -m quadrat classify land-cover.tif --geometry zone.geojson --classes classes.json
+.venv/bin/python -m quadrat profile samples/tatra-z10-568-350.tif --line path.geojson --spacing 50
 ```
 
 A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}` and exits 2. Codes:
 `outside_raster`, `unreadable_raster`, `no_crs`, `unknown_resampling`, `unsupported_geometry`, `invalid_geometry`,
-`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`.
+`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`, `invalid_sampling`, `ambiguous_sampling`, `too_many_samples`.
 
 ## As a service
 
@@ -47,8 +48,8 @@ for that:
 |---|---|
 | `service` | `Quadrat` |
 | `rehearses` | `true`: Quadrat writes nothing but its answer, so a rehearsal may call it |
-| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry` in; `result` out |
-| `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
+| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples` in; `result` out |
+| `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`, `profile`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` and `profile` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
 
 The settings arrive in `params`, not through ports. A node declared from the manifest carries every setting, empty
 until someone sets it, so an empty `resampling` or `encoding` reads as not set. An empty `operation` is refused. The
@@ -86,19 +87,21 @@ much larger pieces.
 
 | | |
 |---|---|
-| `params.operation` | `metadata`, `point`, `zonal`, `histogram` or `classify` |
-| `params.resampling` | `point` only: `nearest` (default) or `bilinear` |
+| `params.operation` | `metadata`, `point`, `zonal`, `histogram`, `classify` or `profile` |
+| `params.resampling` | `point` and `profile`: `nearest` (default) or `bilinear` |
 | `inputs.raster` | Path to the raster, or to a terrain tile PNG when `inputs.tile` is given. Required |
 | `inputs.tile`, `params.encoding` | A terrain tile: `{"z": n, "x": n, "y": n}` and `terrarium` or `mapbox`. See [Terrain tiles](#terrain-tiles) |
 | `inputs.lon`, `inputs.lat` | `point`: the WGS84 coordinate |
 | `inputs.bbox` or `inputs.geometry` | `zonal`, `histogram`, `classify`: `[west, south, east, north]` or a GeoJSON Polygon or MultiPolygon, not both |
 | `inputs.classes` | `classify`: the class table, `[{"label": "trees", "values": [10, 11]}, {"label": "low", "max": 200}, ...]`. Required |
+| `inputs.line` | `profile`: a GeoJSON LineString in WGS84 degrees. Required |
+| `inputs.spacing` or `inputs.samples` | `profile`: metres between samples, or how many samples (the two ends included). One of them, not both |
 | `outputs.result` | What the command line prints |
 
 The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
 Quadrat will not answer comes back as `{"result": "fail", "outputs": {}, "error": "<code>: <reason>"}` with the codes
 below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
-`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `invalid_classes`, `too_many_values`, `redirected`, `invalid_ticket`, `ticket_not_found`, `ticket_unreadable`, `ticket_too_large`, `too_many_cells` and `read_failed`.
+`encoding_without_tile`, `ambiguous_sampling`, `invalid_sampling`, `too_many_samples`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `invalid_classes`, `too_many_values`, `redirected`, `invalid_ticket`, `ticket_not_found`, `ticket_unreadable`, `ticket_too_large`, `too_many_cells` and `read_failed`.
 
 #### Rasters held in the asset store
 
@@ -121,9 +124,11 @@ before anything is read:
 |---|---|---|
 | `--maxCells=<n>` | `4000000` | The cells of the raster a zonal read must load: the whole cells the zone's bounding box touches, clipped to the raster. A terrain tile image is counted by its size. Point and description reads load no window and are not counted |
 | `--maxConcurrentReads=<n>` | `2` | Reads going at once. The rest wait their turn |
+| `--maxSamples=<n>` | `10000` | The most samples one `profile` may take, counted from the line's length and the spacing before anything is read |
 | `--maxTicketBytes=<n>` | `268435456` | The most one store ticket may hold. It is written to disk while it is read; the store's declared size or the bytes as they arrive stop a larger one, and nothing is left behind |
 
-Over the cell limit is refused as `too_many_cells`, saying how many cells the zone needs and how many are allowed. A flag
+Over the cell limit is refused as `too_many_cells`, saying how many cells the zone (or, for a `profile`, the window the
+line's samples touch) needs and how many are allowed. Over the sample limit is refused as `too_many_samples`. A flag
 that is not a positive whole number stops the service from starting.
 
 **Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global lock for
@@ -151,6 +156,7 @@ a gigabyte (measured: 988 MB for four requests at the default, 1,831 MB with `--
 | `point` | The value at a coordinate; `nearest` or `bilinear`; `null` on a nodata cell |
 | `zonal` | `count`, `mean`, `min`, `max`, `median` over a polygon, weighted by how much of each cell the polygon covers; nodata cells left out and reported as `nodata_cells` |
 | `histogram` | The cells, share and ground area of each distinct value over a polygon, for a raster of class codes. See [Land cover](#land-cover-and-measurements-histogram-and-classify) |
+| `profile` | The values at points along a line, with the distance along it. See [Profile](#profile-values-along-a-line) |
 | `classify` | The same, grouped by a class table the request states, of exact values (land cover) or ranges (elevation, slope, rainfall); cells no class names are reported as `unclassified` |
 
 ### Land cover and measurements: `histogram` and `classify`
@@ -197,6 +203,35 @@ A class table is a list of classes, each one of two kinds, and a table may mix t
 - The cell limit applies as it does to `zonal`. Ranges need each cell's value, which takes about 50 bytes a cell:
   roughly 200 MiB at the default 4,000,000-cell limit for each read in flight (`--maxConcurrentReads`).
 
+### Profile: values along a line
+
+`profile` samples the raster at points along a LineString and answers how far along each one is, which is what an
+elevation profile, a transect or a cross-section needs.
+
+```json
+{"line": {"type": "LineString", "coordinates": [[19.95, 49.24], [19.98, 49.26]]}, "spacing": 50}
+```
+
+- **The line** is followed vertex to vertex along the WGS84 ellipsoid, and `distance_m` is metres along it, so a
+  profile over a bend counts the bend. It needs two different points at least, within -180..180 and -90..90. A
+  MultiLineString, a Polygon or a Point is refused as `unsupported_geometry`, and a line that is not a clear one as
+  `invalid_geometry`.
+- **Sampling** is stated, never defaulted: `spacing` (metres between samples) or `samples` (how many, the two ends
+  included), not both. The first sample is the line's start and the last is its end, so with a `spacing` that does not
+  divide the line the last gap is shorter. A sampling that is not a clear one is `invalid_sampling`, both
+  `ambiguous_sampling` and neither `missing_input`. More than `--maxSamples` is `too_many_samples`, refused before
+  anything is read.
+- **Resampling** is `nearest` (default) or `bilinear`, set with `params.resampling`, and each sample is exactly what
+  `point` gives at the same place.
+- **The answer** is `{"length_m", "resampling", "samples": [{"distance_m", "lon", "lat", "value", "reason"}],
+  "outside_samples", "nodata_samples"}`. A sample off the raster or on a nodata cell has `value: null` and a `reason`
+  (`outside_raster` or `nodata`), so a line that leaves the raster still answers for the part on it, and the gaps are
+  visible. A line wholly off the raster is refused as `outside_raster`.
+- **One read.** The cells the samples touch are read as one window, which `--maxCells` limits as it does a zone
+  (`too_many_cells`). A line across a large raster at a fine resolution can need a big window: use a coarser raster or
+  a shorter line.
+- Distances come from the line's own vertices, not from the raster, so they do not depend on its projection.
+
 ## Terrain tiles
 
 Elevation is often served as PNG map tiles whose red, green and blue bytes hold the height. A PNG has no position of
@@ -225,6 +260,57 @@ tile, and its mean agrees to within 0.5 m.
 curl -o samples/tatra-z10-568-350.tif https://s3.amazonaws.com/elevation-tiles-prod/geotiff/10/568/350.tif
 curl -o samples/tatra-z10-568-350.terrarium.png https://s3.amazonaws.com/elevation-tiles-prod/terrarium/10/568/350.png
 ```
+
+## Contract and smoke tests
+
+Two checks sit above the unit tests, and they answer different questions.
+
+**The contract test** (`tests/test_contract.py`, part of `pytest`) pins what the rest of the platform depends on
+Quadrat being, from the platform's side of [docs/SERVICES.md §16.2](../docs/SERVICES.md): a manifest whose ports and
+settings are in the shape the editor and `declare_service.py` read; every operation answering the envelope Phloem
+parses (`result`, `outputs`, `error`, only the declared output port); a refusal answering `fail` with its code and no
+outputs; a body without both `runId` and `nodeId` not taken for a node call; and every input a request uses declared
+as a port, and every declared port used. It also feeds the real `/manifest` to the playground's `declare_service.py`
+and `validate_fragment.py`, so a manifest the declaration tooling cannot turn into a model Phloem accepts fails here
+rather than at a deployment.
+
+**The smoke test** (`smoke.py`) is pointed at a *running* Quadrat and asks whether it reads a real raster correctly over
+HTTP, as the platform would call it. `smoke_tatra.json` holds the checks for the public Tatra elevation tile (see
+[Sample data](#sample-data)): the tile is described; Kasprowy Wierch reads within a cell of its published height,
+1987 m (the tile has 1962 m under it: its cells are 76 m wide in the tile's projection and the summit is a narrow ridge); a point reads `nearest` and `bilinear`; a box is
+summarised; a line from the summit descends; the terrarium PNG of the same tile agrees with the GeoTIFF to a few
+metres; and a place far from the tile is refused with `outside_raster`. The expected values were measured once from the
+tile, so a change in how Quadrat reads fails them, and the published height is the check that does not depend on
+Quadrat's own reading. `tests/test_smoke.py` runs the script against a real Quadrat process on a grid whose values are
+known, so a script that always said pass would fail the tests.
+
+Run it against a service you started, from this folder:
+
+```powershell
+# Windows. Start-Process keeps the service running after the shell that started it ends; a background shell job may not.
+$svc = "D:\RegenRepos\VillageOS-API\vos.Service.Quadrat"
+$p = Start-Process -FilePath "$svc\.venv\Scripts\python.exe" -WorkingDirectory $svc -WindowStyle Hidden -PassThru `
+  -ArgumentList @("app.py", "--port=5611", "--myceliumUrl=http://127.0.0.1:9", "--rasterDirectory=$svc\samples") `
+  -RedirectStandardOutput "$env:TEMP\quadrat.out.log" -RedirectStandardError "$env:TEMP\quadrat.err.log"
+.venv\Scripts\python.exe smoke.py --url http://127.0.0.1:5611 --checks smoke_tatra.json --rasters samples
+Stop-Process -Id $p.Id -Force      # the worker processes end with it
+```
+
+```bash
+# Linux and macOS
+.venv/bin/python app.py --port=5611 --myceliumUrl=http://127.0.0.1:9 --rasterDirectory=samples &
+.venv/bin/python smoke.py --url http://127.0.0.1:5611 --checks smoke_tatra.json --rasters samples; kill %1
+```
+
+- `--myceliumUrl` is required even for a service that never registers. Without an `ApiKey` or `Token` in the
+  environment it does not try to, and without a `VerificationKey` it does not check tokens, so a local run needs no
+  platform. Pass `--token <jwt>` to `smoke.py` for a service that does verify them.
+- A raster named without a folder in the checks is looked for in `--rasters`, so the run does not depend on the folder
+  the service was started from. The service itself reads only what `--rasterDirectory` allows.
+- `smoke.py` uses the standard library only. It prints `PASS` or `FAIL` for each check with the value it got, and exits
+  1 if any failed.
+- A check that fails on a different machine because the tile was fetched again (the source may regenerate it) is a
+  reason to look at the new values, not to widen the tolerance blindly.
 
 ## Zones: a box or a polygon
 

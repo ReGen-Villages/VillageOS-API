@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Forage.Tests.ModelSnapshotStub;
@@ -22,7 +22,7 @@ public class RunTokenTests
     private const string FetchRoute = "/api/endpoints/tributary";
 
     // Read by the service's clock follower on its own schedule, not by a run.
-    private const string ClockRoute = "/api/time";
+    private static readonly string[] ClockRoutes = ["/api/time", "/api/events/stream"];
 
     private static readonly MyceliumSigner Mycelium = new();
     private static readonly Guid Model = Guid.NewGuid();
@@ -70,7 +70,7 @@ public class RunTokenTests
                 presentedToTheSwap = request.Headers.Authorization?.Parameter;
                 return Json(HttpStatusCode.OK, $$"""{"token":"{{swappedToken}}"}""");
             }
-            if (request.RequestUri.AbsolutePath != ClockRoute)
+            if (!ClockRoutes.Contains(request.RequestUri.AbsolutePath))
                 presentedByTheRun.Add($"{request.RequestUri.AbsolutePath} {request.Headers.Authorization?.Parameter}");
             if (request.RequestUri.AbsolutePath == FetchRoute)
                 return Json(HttpStatusCode.OK, """{"success":true}""");

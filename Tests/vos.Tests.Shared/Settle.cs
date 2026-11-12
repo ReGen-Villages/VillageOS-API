@@ -24,6 +24,19 @@ public static class Settle
         }
     }
 
+    // For a condition that has to be read over the network, such as a Thing the engine holds.
+    public static async Task UntilAsync(Func<Task<bool>> condition, string expectation)
+    {
+        var deadline = Environment.TickCount64 + (long)Ceiling.TotalMilliseconds;
+        while (!await condition())
+        {
+            if (Environment.TickCount64 >= deadline)
+                throw new TimeoutException(
+                    $"Waited {Ceiling.TotalSeconds:0.#} seconds and it never became true: {expectation}");
+            await Task.Delay(BetweenChecks);
+        }
+    }
+
     public static async Task ForAsync(Task work, string expectation)
     {
         try

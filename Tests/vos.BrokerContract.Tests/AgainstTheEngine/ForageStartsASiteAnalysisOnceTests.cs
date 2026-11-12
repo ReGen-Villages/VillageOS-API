@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -39,7 +40,7 @@ public class ForageStartsASiteAnalysisOnceTests : IClassFixture<TheEngine>
 
         var logger = new CapturingLogger<MyceliumRelationshipClient>();
         var spawner = new AnalysisSpawner(
-            new MyceliumRelationshipClient(_engine.ClientFactory, logger, TheEngine.Url, _engine.AdminToken),
+            new MyceliumRelationshipClient(_engine.ClientFactory, logger, TheEngine.Url, new LaunchToken(_engine.AdminToken)),
             NullLogger<AnalysisSpawner>.Instance);
 
         var first = await ReadAnalysisAsync(site);
@@ -58,7 +59,7 @@ public class ForageStartsASiteAnalysisOnceTests : IClassFixture<TheEngine>
     private async Task<SiteAnalysis> ReadAnalysisAsync(Guid site)
     {
         var subscriptions = new SubscriptionClient(
-            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var subscribed = await subscriptions.SubscribeAsync(CoveringSourceResolver.SelectorFor(site));
         await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
         return CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, site)!;

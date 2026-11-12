@@ -19,7 +19,7 @@ public class DemoAnswerTests
     {
         var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
-            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, serviceToken: null);
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, launchToken: null);
 
         var answer = await DemoAnswer.OfAsync(() => new WriteKindsDemo(client).RunAsync(Guid.NewGuid(), DateTime.UtcNow));
 
@@ -33,7 +33,7 @@ public class DemoAnswerTests
     {
         var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.MethodNotAllowed));
         var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
-            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, serviceToken: "svc-jwt-abc");
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, launchToken: new LaunchToken("svc-jwt-abc"));
 
         var answer = await DemoAnswer.OfAsync(() => new WriteKindsDemo(client).RunAsync(Guid.NewGuid(), DateTime.UtcNow));
 
@@ -47,7 +47,7 @@ public class DemoAnswerTests
         var handler = new MockHttpMessageHandler(_ =>
             throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout elapsing."));
         var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
-            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, serviceToken: "svc-jwt-abc");
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, launchToken: new LaunchToken("svc-jwt-abc"));
 
         var answer = await DemoAnswer.OfAsync(() => new WriteKindsDemo(client).RunAsync(Guid.NewGuid(), DateTime.UtcNow));
 
@@ -72,7 +72,7 @@ public class DemoAnswerTests
             Content = new StringContent("""{"error":"no Thing is named Battery"}""", System.Text.Encoding.UTF8, "application/json"),
         });
         var subscriptions = new vos.Service.Shared.Subscriptions.SubscriptionClient(
-            new PerCallHttpClientFactory(handler), NullLogger.Instance, MyceliumUrl, serviceToken: "svc-jwt-abc");
+            new PerCallHttpClientFactory(handler), NullLogger.Instance, MyceliumUrl, launchToken: new LaunchToken("svc-jwt-abc"));
 
         var answer = await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(SelectorDemo.SelectorFor(null)));
 

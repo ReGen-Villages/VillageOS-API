@@ -1,5 +1,5 @@
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Delta.Helpers;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
@@ -23,7 +23,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -55,14 +55,14 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton<EndpointTemplateReader>();
 

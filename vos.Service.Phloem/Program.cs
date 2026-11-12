@@ -1,5 +1,5 @@
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
@@ -19,7 +19,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -47,7 +47,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
@@ -70,8 +70,9 @@ try
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
             var executor = app.Services.GetRequiredService<PipelineExecutor>();
-            var placedAgain = await executor.RecoverWaitsAsync(CancellationToken.None);
-            if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
+            var waits = await executor.RecoverWaitsAsync(CancellationToken.None);
+            if (waits.Resumed > 0) Log.Information("Resumed {Count} run(s) whose wait was answered while the orchestrator was away", waits.Resumed);
+            if (waits.WatchedAgain > 0) Log.Information("Watched again for {Count} waiting node run(s) whose watch was missing a relationship", waits.WatchedAgain);
             var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
             if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
         }
@@ -164,9 +165,9 @@ try
                 });
                 return Results.Ok(new { success = true, accepted = true, stops = stopping });
 
-            case SpawnKind.Relationship when await executor.TakesAsAVigilAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
-                // The answer to a vigil comes as a state entry whose target is the vigil. It is acknowledged before
-                // the run carries on, which can take longer than the broker waits.
+            case SpawnKind.Relationship when await executor.TakesAsAnAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
+                // The answer to a wait comes as a state entry whose target is the waiting node run. It is acknowledged
+                // before the run carries on, which can take longer than the broker waits.
                 return Results.Ok(new { success = true, accepted = true, resumes = trigger.TargetId });
 
             case SpawnKind.Relationship:

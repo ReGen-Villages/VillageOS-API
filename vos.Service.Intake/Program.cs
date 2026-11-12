@@ -34,7 +34,7 @@ var publicFormOrigins = launchSettings.PublicFormOrigins;
 
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
-var serviceToken = launchSettings.Service.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, myceliumUrl);
 // Nothing launches this service, so no token is ever minted for it and none is refreshed when one
 // expires. The key is the credential it runs on, and every client it reaches the broker with holds it.
 var apiKey = launchSettings.Service.ApiKey;
@@ -109,7 +109,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<IntakeMyceliumClient>>(),
             myceliumUrl,
-            serviceToken,
+            launchToken,
             apiKey));
 
     builder.Services.AddSingleton<HeldDeclarations>();
@@ -299,7 +299,7 @@ try
         {
             await mailer.SendAsync(emailAddress, code, context.RequestAborted);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception error) when (!context.RequestAborted.IsCancellationRequested)
         {
             // The address is a stranger's, so a server refusing it says nothing about this deployment
             // being unwell — but neither this service nor the submitter can tell the two apart, and what

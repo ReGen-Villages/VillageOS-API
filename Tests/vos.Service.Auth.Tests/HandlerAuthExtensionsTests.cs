@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Auth.Shared.Tests;
+namespace vos.Service.Auth.Tests;
 
 public class HandlerAuthExtensionsTests
 {

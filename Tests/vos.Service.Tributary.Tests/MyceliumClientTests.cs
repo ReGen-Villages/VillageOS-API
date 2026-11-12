@@ -704,7 +704,7 @@ public class MyceliumClientTests
     {
         var factory = new RecordingFactory(new MockHttpMessageHandler(_ => JsonResponse("{}")));
         var sut = new MyceliumClient(
-            factory, Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", new ClockThatWaitsNoTime(), "test-token");
+            factory, Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", new ClockThatWaitsNoTime(), new LaunchToken("test-token"));
 
         Task made = call switch
         {
@@ -736,7 +736,7 @@ public class MyceliumClientTests
         var factory = new PerCallFactory(handler);
         return new MyceliumClient(
             factory, logger ?? Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
-            clock ?? new ClockThatWaitsNoTime(), "test-token");
+            clock ?? new ClockThatWaitsNoTime(), new LaunchToken("test-token"));
     }
 
     private static ObservationSample[] OneReading() =>

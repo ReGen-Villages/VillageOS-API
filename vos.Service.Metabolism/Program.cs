@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
@@ -23,7 +23,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
 var direction = launchSettings.Direction;
-var serviceToken = launchSettings.Service.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, myceliumUrl);
 var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
@@ -56,7 +56,7 @@ try
         new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
-            myceliumUrl, direction, serviceToken, apiKey: apiKey));
+            myceliumUrl, direction, launchToken, apiKey: apiKey));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
             sp.GetRequiredService<MyceliumClient>(),
@@ -68,7 +68,7 @@ try
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
-            myceliumUrl, serviceToken, apiKey: apiKey));
+            myceliumUrl, launchToken, apiKey: apiKey));
     builder.Services.AddHostedService<MetabolismSubscriptionService>();
 
     var requestCount = 0;

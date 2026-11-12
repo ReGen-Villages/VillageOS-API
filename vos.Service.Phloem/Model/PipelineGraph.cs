@@ -33,6 +33,8 @@ public sealed class GraphRelationship
     public Guid SubjectId { get; init; }
     public Guid PredicateId { get; init; }
     public Guid TargetId { get; init; }
+    public IReadOnlyDictionary<string, JsonElement> Properties { get; init; } =
+        new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 }
 
 // The pipeline subgraph loaded from a Mycelium subscription snapshot: Things + Relationships, with the
@@ -82,6 +84,9 @@ public sealed class PipelineGraph
     // The relationships themselves, for a read that needs their identifiers or an end the snapshot does not hold.
     public IEnumerable<GraphRelationship> RelationshipsAlong(GraphThing subject, Role role) =>
         Bound(role) is { } predicate ? From(subject).Where(rel => rel.PredicateId == predicate.Id) : [];
+
+    public IEnumerable<GraphRelationship> RelationshipsIntoAlong(GraphThing target, Role role) =>
+        Bound(role) is { } predicate ? Into(target).Where(rel => rel.PredicateId == predicate.Id) : [];
 
     public IEnumerable<GraphRelationship> RelationshipsInto(GraphThing target, string predicateName) =>
         Into(target).Where(rel => Thing(rel.PredicateId) is { } predicate
@@ -145,6 +150,9 @@ public sealed class PipelineGraph
 
     // Every Thing the subject relates to, whatever the predicate, including one the snapshot does not hold.
     public IEnumerable<Guid> TargetIdsFrom(GraphThing subject) => From(subject).Select(rel => rel.TargetId);
+
+    public IEnumerable<Guid> TargetIdsFromAlong(GraphThing subject, Guid predicateId) =>
+        From(subject).Where(rel => rel.PredicateId == predicateId).Select(rel => rel.TargetId);
 
     // Subjects reaching the target via a predicate matched by name (use for the built-in is/has).
     public IEnumerable<GraphThing> IncomingSubjects(GraphThing target, string predicateName)

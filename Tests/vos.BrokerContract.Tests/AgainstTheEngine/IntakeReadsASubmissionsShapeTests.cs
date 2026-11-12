@@ -5,6 +5,7 @@ using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -40,7 +41,7 @@ public class IntakeReadsASubmissionsShapeTests : IClassFixture<TheEngine>
             await _engine.RelateAsync(await _engine.DeclareAsync(site), isPredicate, bound[LandIntakeRoles.Site]);
 
         var mycelium = new IntakeMyceliumClient(
-            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, _engine.AdminToken);
+            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var snapshot = await mycelium.ReadSnapshotAsync(SubmissionShapeReader.Selector(), CancellationToken.None);
 
         var shape = SubmissionShapeReader.Read(snapshot);

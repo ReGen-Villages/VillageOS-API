@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
@@ -20,7 +20,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
-var serviceToken = launchSettings.Service.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, myceliumUrl);
 var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
@@ -54,9 +54,9 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
-    builder.Services.AddSourceFetching(launchSettings, myceliumUrl, serviceToken, apiKey);
+    builder.Services.AddSourceFetching(launchSettings, myceliumUrl, launchToken, apiKey);
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
             sp.GetRequiredService<ISourceFetcher>(),
@@ -67,7 +67,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumRelationshipClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<ICoverageWriter>(sp => sp.GetRequiredService<MyceliumRelationshipClient>());
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddModelClock<MyceliumRelationshipClient>("Forage");

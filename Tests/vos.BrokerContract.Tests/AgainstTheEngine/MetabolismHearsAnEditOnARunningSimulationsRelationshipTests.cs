@@ -26,7 +26,7 @@ public class MetabolismHearsAnEditOnARunningSimulationsRelationshipTests : IClas
     {
         public RecordingMetabolism(TheEngine engine)
             : base(new MyceliumClient(engine.ClientFactory, NullLogger<MyceliumClient>.Instance, TheEngine.Url,
-                       ResourceDirection.Consumes, engine.AdminToken),
+                       ResourceDirection.Consumes, new LaunchToken(engine.AdminToken)),
                    NullLogger<Metabolism>.Instance, ResourceDirection.Consumes) { }
 
         public ConcurrentQueue<(string Relationship, string Property)> Heard { get; } = new();
@@ -47,7 +47,7 @@ public class MetabolismHearsAnEditOnARunningSimulationsRelationshipTests : IClas
         var engine = new RecordingMetabolism(_engine);
         var log = new AnnouncingLogger<MetabolismSubscriptionService>();
         var service = new MetabolismSubscriptionService(
-            new SubscriptionClient(_engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken),
+            new SubscriptionClient(_engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken)),
             engine, new DevelopmentEnvironment(), log);
         engine.Register(new SimulationConfig(
             relationshipId.ToString(), building.ToString(), reservoir.ToString(), "Building", 5m, "m3", "quantity", 60,

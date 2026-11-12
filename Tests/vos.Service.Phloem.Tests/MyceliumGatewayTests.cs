@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 using vos.Service.Shared.Roles;
@@ -23,12 +24,12 @@ public class MyceliumGatewayTests
     private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
     private static readonly Guid AttemptArchetypeId = Guid.Parse("99999999-9999-9999-9999-999999999999");
-    private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
     private static readonly Guid StoppedByPredicateId = Guid.Parse("12121212-1212-1212-1212-121212121212");
     private static readonly Guid StopRequestArchetypeId = Guid.Parse("13131313-1313-1313-1313-131313131313");
     private static readonly Guid RequestedByPredicateId = Guid.Parse("14141414-1414-1414-1414-141414141414");
     private static readonly Guid RunStoppingPredicateId = Guid.Parse("15151515-1515-1515-1515-151515151515");
-    private static readonly Guid HeldVigilPredicateId = Guid.Parse("16161616-1616-1616-1616-161616161616");
+    private static readonly Guid WatchesPredicateId = Guid.Parse("16161616-1616-1616-1616-161616161616");
+    private static readonly Guid AwaitsPredicateId = Guid.Parse("19191919-1919-1919-1919-191919191919");
     private static readonly Guid OrchestratorId = Guid.Parse("17171717-1717-1717-1717-171717171717");
     private static readonly Guid HasPredicateId = Guid.Parse("18181818-1818-1818-1818-181818181818");
 
@@ -40,7 +41,7 @@ public class MyceliumGatewayTests
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
             MyceliumUrl,
-            "svc-token")
+            new LaunchToken("svc-token"))
         {
             CadenceStreamRetry = cadenceStreamRetry ?? TimeSpan.FromSeconds(2),
             DisposeWait = disposeWait ?? TimeSpan.FromSeconds(5),
@@ -80,13 +81,13 @@ public class MyceliumGatewayTests
         (PipelineRoles.RunSubject, RunSubjectPredicateId),
         (PipelineRoles.SentMessage, SentMessageArchetypeId),
         (PipelineRoles.ProducedThing, ProducedPredicateId),
-        (PipelineRoles.RunResumption, ResumptionConnectionId),
         (PipelineRoles.Attempt, AttemptArchetypeId),
         (PipelineRoles.StoppedBy, StoppedByPredicateId),
         (PipelineRoles.StopRequest, StopRequestArchetypeId),
         (PipelineRoles.RequestedBy, RequestedByPredicateId),
         (PipelineRoles.RunStopping, RunStoppingPredicateId),
-        (PipelineRoles.HeldVigil, HeldVigilPredicateId),
+        (PipelineRoles.AwaitedThing, AwaitsPredicateId),
+        (PipelineRoles.StateWatch, WatchesPredicateId),
         (PipelineRoles.Orchestrator, OrchestratorId),
     ];
 
@@ -114,17 +115,17 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task RelateHeldVigilAsync_WhenTheBrokerCannotFindAnEnd_FailsWithTheBrokersReason()
+    public async Task RelateStoppedByAsync_WhenTheBrokerCannotFindAnEnd_FailsWithTheBrokersReason()
     {
-        var vigil = Guid.NewGuid();
-        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/relationships" && request.Method == HttpMethod.Post
-            ? Json(HttpStatusCode.NotFound, $$"""{"error":"Target not found: {{vigil}}"}""")
-            : RespondLikeAModelThatBindsItsRoles(request));
+        var request = Guid.NewGuid();
+        var (gateway, _) = NewGateway(message => message.RequestUri!.AbsolutePath == "/api/relationships" && message.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.NotFound, $$"""{"error":"Target not found: {{request}}"}""")
+            : RespondLikeAModelThatBindsItsRoles(message));
 
-        var relating = () => gateway.RelateHeldVigilAsync(Guid.NewGuid(), Guid.NewGuid(), vigil, CancellationToken.None);
+        var relating = () => gateway.RelateStoppedByAsync(Guid.NewGuid(), request, CancellationToken.None);
 
         var refused = await relating.Should().ThrowAsync<HttpRequestException>();
-        refused.WithMessage($"*Target not found: {vigil}*");
+        refused.WithMessage($"*Target not found: {request}*");
         refused.Which.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -356,14 +357,14 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
-                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id]));
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id]));
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
-                PipelineRoles.ComparesWith.Id.ToString());
+                PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString(), ModelNames.Has);
         rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
         rules.Should().OnlyContain(rule => rule.GetProperty("direction").GetString() == "outgoing");
     }
@@ -420,49 +421,54 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task LookUpVigilAsync_AVigilNoNodeRunHoldsYet_IsAVigilWithNoHolder()
+    public async Task NodeRunAsync_ANodeRunARunHolds_NamesTheRunAndTheNode()
     {
-        var vigilArchetype = Guid.NewGuid();
-        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(vigilArchetype, vigilArchetype)));
+        var nodeRunArchetype = Guid.NewGuid();
+        var run = Guid.NewGuid();
+        var node = Guid.NewGuid();
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(nodeRunArchetype, nodeRunArchetype, heldBy: run, nodeId: node)));
 
-        var lookup = await gateway.LookUpVigilAsync(Target, CancellationToken.None);
-
-        lookup.Should().Be(new VigilLookup(IsVigil: true, Holder: null));
+        (await gateway.NodeRunAsync(Target, CancellationToken.None)).Should().Be(new HeldNodeRun(run, node));
     }
 
     [Fact]
-    public async Task LookUpVigilAsync_AThingOfAnotherType_IsNotAVigil()
+    public async Task NodeRunAsync_AThingOfAnotherType_IsNoNodeRun()
     {
-        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(Guid.NewGuid(), Guid.NewGuid())));
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(Guid.NewGuid(), Guid.NewGuid(), heldBy: Guid.NewGuid(), nodeId: Guid.NewGuid())));
 
-        var lookup = await gateway.LookUpVigilAsync(Target, CancellationToken.None);
-
-        lookup.Should().Be(new VigilLookup(IsVigil: false, Holder: null));
+        (await gateway.NodeRunAsync(Target, CancellationToken.None)).Should().BeNull();
     }
 
     private static readonly Guid Target = Guid.NewGuid();
 
-    private static string ThingOfType(Guid type, Guid boundByTheVigilRole)
+    private static string ThingOfType(Guid type, Guid boundByTheNodeRunRole, Guid heldBy, Guid nodeId)
     {
         var isPredicate = Guid.NewGuid();
         var binds = Guid.NewGuid();
+        var has = Guid.NewGuid();
         return JsonSerializer.Serialize(new
         {
             snapshot = new
             {
                 things = new object[]
                 {
-                    new { id = Target, name = "Plot 7 enters decided", properties = new Dictionary<string, object>() },
+                    new { id = Target, name = "NodeRun Review", properties = new Dictionary<string, object>
+                    {
+                        [ModelNames.NodeId] = new { typeInfo = "vos.String", value = nodeId.ToString() },
+                    } },
                     new { id = type, name = "A type", properties = new Dictionary<string, object>() },
-                    new { id = boundByTheVigilRole, name = "Vigil", properties = new Dictionary<string, object>() },
-                    new { id = PipelineRoles.Vigil.Id, name = "vigil role", properties = new Dictionary<string, object>() },
+                    new { id = boundByTheNodeRunRole, name = "NodeRun", properties = new Dictionary<string, object>() },
+                    new { id = PipelineRoles.NodeRun.Id, name = "nodeRun role", properties = new Dictionary<string, object>() },
                     new { id = isPredicate, name = "is", properties = new Dictionary<string, object>() },
                     new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                    new { id = has, name = "has", properties = new Dictionary<string, object>() },
+                    new { id = heldBy, name = "PipelineRun", properties = new Dictionary<string, object>() },
                 },
                 relationships = new[]
                 {
-                    new { id = Guid.NewGuid(), subjectId = PipelineRoles.Vigil.Id, predicateId = binds, targetId = boundByTheVigilRole },
+                    new { id = Guid.NewGuid(), subjectId = PipelineRoles.NodeRun.Id, predicateId = binds, targetId = boundByTheNodeRunRole },
                     new { id = Guid.NewGuid(), subjectId = Target, predicateId = isPredicate, targetId = type },
+                    new { id = Guid.NewGuid(), subjectId = heldBy, predicateId = has, targetId = Target },
                 },
             },
         });
@@ -607,7 +613,7 @@ public class MyceliumGatewayTests
         {
             selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every node run ever recorded is not what a restart needs");
             selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
-                .Should().BeEquivalentTo([PipelineRoles.Orchestrator.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.HeldVigil.Id]);
+                .Should().BeEquivalentTo([PipelineRoles.Orchestrator.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.StateWatch.Id, PipelineRoles.CallRecord.Id]);
             selector.GetProperty("traverse").EnumerateArray()
                 .Select(rule => (rule.GetProperty("predicate").GetString(), rule.GetProperty("direction").GetString(), rule.GetProperty("depth").GetInt32()))
                 .Should().Equal((ModelNames.Binds, "outgoing", 1), (ModelNames.Has, "outgoing", 2));
@@ -874,6 +880,73 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task ReachedAlongAsync_AnswersTheThingsReachedAlongThePredicate_AndNoneAlongAnother()
+    {
+        var submissionId = Guid.NewGuid();
+        var resolvedAsId = Guid.NewGuid();
+        var promotedId = Guid.NewGuid();
+        var unreadId = Guid.NewGuid();
+        var from = $$"""
+        {
+          "snapshot": {
+            "things": [ { "id": "{{submissionId}}", "name": "Submission 12", "properties": {} } ],
+            "relationships": [
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{promotedId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{unreadId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{Guid.NewGuid()}}", "targetId": "{{Guid.NewGuid()}}", "properties": {} }
+            ]
+          }
+        }
+        """;
+        var reached = $$"""
+        { "snapshot": { "things": [ { "id": "{{promotedId}}", "name": "promoted", "properties": {} } ], "relationships": [] } }
+        """;
+        var answers = new Queue<string>([from, reached]);
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, answers.Dequeue())
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var things = await gateway.ReachedAlongAsync(submissionId, resolvedAsId, CancellationToken.None);
+
+        things.Should().Equal([new RunSubject(promotedId, "promoted"), new RunSubject(unreadId, string.Empty)],
+            "a Thing the second read does not answer is still reached, and is handed on by its identifier alone");
+        var selectors = RequestsTo(handler, "/api/snapshots", HttpMethod.Post).ToList();
+        Rules(await ReadJson(selectors[0])).Should().Equal([(null, "outgoing")]);
+        (await ReadJson(selectors[1])).GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(promotedId, unreadId);
+    }
+
+    [Fact]
+    public async Task ReachedAlongAsync_AThingReachingNothingAlongThePredicate_AnswersNoneInOneRead()
+    {
+        var submissionId = Guid.NewGuid();
+        var alone = $$"""
+        { "snapshot": { "things": [ { "id": "{{submissionId}}", "name": "Submission 12", "properties": {} } ], "relationships": [] } }
+        """;
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, alone)
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        (await gateway.ReachedAlongAsync(submissionId, Guid.NewGuid(), CancellationToken.None)).Should().BeEmpty();
+        RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ReachedAlongAsync_AThingTheModelDoesNotHold_IsAFailureAndNotAnEmptyAnswer()
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+        var missing = Guid.NewGuid();
+
+        var read = () => gateway.ReachedAlongAsync(missing, Guid.NewGuid(), CancellationToken.None);
+
+        (await read.Should().ThrowAsync<InvalidOperationException>()).WithMessage($"the model holds no Thing {missing}");
+    }
+
+    [Fact]
     public async Task RelatedFromAsync_AThingTheModelDoesNotHold_RelatesToNothing()
     {
         var (gateway, _) = NewGateway(request =>
@@ -1094,39 +1167,6 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task PlaceVigilAsync_AsksForAVigilNamingTheResumptionConnection_AndAnswersItsIdentifier()
-    {
-        var subjectId = Guid.NewGuid();
-        var rangeId = Guid.NewGuid();
-        var vigilId = Guid.NewGuid();
-        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
-            ? Json(HttpStatusCode.Created, $$"""{"Id":"{{vigilId}}","Name":"Plot 7 enters decided","CallState":null}""")
-            : RespondLikeAModelThatBindsItsRoles(request));
-
-        var placement = await gateway.PlaceVigilAsync(subjectId, rangeId, CancellationToken.None);
-
-        placement.Should().Be(new VigilPlacement.Placed(vigilId));
-        var asked = await ReadJson(RequestsTo(handler, "/api/vigils", HttpMethod.Post).Single());
-        asked.GetProperty("subjectId").GetGuid().Should().Be(subjectId);
-        asked.GetProperty("rangeId").GetGuid().Should().Be(rangeId);
-        asked.GetProperty("connectionId").GetGuid().Should().Be(ResumptionConnectionId);
-    }
-
-    [Theory]
-    [InlineData(HttpStatusCode.BadRequest)]
-    [InlineData(HttpStatusCode.NotFound)]
-    public async Task PlaceVigilAsync_WhenThePlatformRefuses_AnswersItsReason(HttpStatusCode refusal)
-    {
-        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
-            ? Json(refusal, """{"error":"Range 'decided' does not judge 'Plot 7'"}""")
-            : RespondLikeAModelThatBindsItsRoles(request));
-
-        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
-
-        placement.Should().Be(new VigilPlacement.Refused("Range 'decided' does not judge 'Plot 7'"));
-    }
-
-    [Fact]
     public async Task IsStopAsync_IsTrueOnlyForARelationshipWrittenAlongTheConnectionTheRunStoppingRoleBinds()
     {
         var stopsConnection = Guid.NewGuid();
@@ -1203,31 +1243,151 @@ public class MyceliumGatewayTests
         (await gateway.StopRequestedAsync(request, waitingRun, CancellationToken.None)).Runs.Should().Equal(waitingRun);
     }
 
-    [Fact]
-    public async Task RetireVigilAsync_DeletesTheVigil_AndTakesOneAlreadyGoneAsDone()
+    [Theory]
+    [InlineData("""{"error":"Range 'decided' does not judge 'Plot 7'"}""", "Range 'decided' does not judge 'Plot 7'")]
+    [InlineData("not a reason", "HTTP 400")]
+    public async Task SetNodeRunStatusAsync_AWatchThePlatformRefuses_FailsWithItsReasonOrItsStatus(string body, string reason)
     {
-        var vigil = Guid.NewGuid();
-        var gone = Guid.NewGuid();
-        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath.EndsWith(gone.ToString(), StringComparison.Ordinal)
-            ? new HttpResponseMessage(HttpStatusCode.NotFound)
-            : new HttpResponseMessage(HttpStatusCode.NoContent));
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/model/fragment"
+            ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent(body) }
+            : RespondLikeAModelThatBindsItsRoles(request));
 
-        await gateway.RetireVigilAsync(vigil, CancellationToken.None);
-        await gateway.RetireVigilAsync(gone, CancellationToken.None);
+        var waiting = () => gateway.SetNodeRunStatusAsync(Guid.NewGuid(), Guid.NewGuid(), "Review", RunStatus.Waiting, null, CancellationToken.None,
+            watch: new Watch(Guid.NewGuid(), Guid.NewGuid()));
 
-        RequestsTo(handler, $"/api/vigils/{vigil}", HttpMethod.Delete).Should().ContainSingle();
+        (await waiting.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().EndWith(reason);
+    }
+
+    private static async Task<IReadOnlyList<JsonElement>> Fragments(MockHttpMessageHandler handler) =>
+        await Task.WhenAll(RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Select(ReadJson));
+
+    private static IEnumerable<(Guid, Guid, Guid)> Ends(JsonElement fragment, string list) =>
+        fragment.TryGetProperty(list, out var edges) && edges.ValueKind == JsonValueKind.Array
+            ? edges.EnumerateArray().Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            : [];
+
+    [Fact]
+    public async Task SetNodeRunStatusAsync_Waiting_WritesBothRelationshipsOfTheWatchInTheStatusFragment()
+    {
+        var plot = Guid.NewGuid();
+        var decided = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+        await gateway.SetNodeRunStatusAsync(Guid.NewGuid(), Guid.NewGuid(), "Review", RunStatus.Running, null, CancellationToken.None);
+
+        await gateway.SetNodeRunStatusAsync(Guid.NewGuid(), Guid.NewGuid(), "Review", RunStatus.Waiting, null, CancellationToken.None, watch: new Watch(plot, decided));
+
+        var waiting = (await Fragments(handler)).Last();
+        var nodeRun = waiting.GetProperty("things").EnumerateArray().Single().GetProperty("id").GetGuid();
+        Ends(waiting, "relationships").Should().Contain([(nodeRun, AwaitsPredicateId, plot), (nodeRun, WatchesPredicateId, decided)]);
+        Ends(waiting, "retractions").Should().BeEmpty();
     }
 
     [Fact]
-    public async Task PlaceVigilAsync_WhenThePlatformRefusesWithoutAReason_AnswersTheStatus()
+    public async Task SetNodeRunStatusAsync_AnyOtherStatus_RetractsTheWatchInTheSameFragment()
     {
-        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
-            ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("not a reason") }
-            : RespondLikeAModelThatBindsItsRoles(request));
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var plot = Guid.NewGuid();
+        var decided = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
 
-        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Cancelled, "withdrawn", CancellationToken.None, watch: new Watch(plot, decided));
 
-        placement.Should().Be(new VigilPlacement.Refused("HTTP 400"));
+        var cancelled = (await Fragments(handler)).Last();
+        var nodeRun = cancelled.GetProperty("things").EnumerateArray().Single().GetProperty("id").GetGuid();
+        Ends(cancelled, "retractions").Should().Equal((nodeRun, AwaitsPredicateId, plot), (nodeRun, WatchesPredicateId, decided));
+        Ends(cancelled, "relationships").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Done", WaitAnswer.Done)]
+    [InlineData("Pending", WaitAnswer.Underway)]
+    [InlineData("Failed", WaitAnswer.Underway)]
+    [InlineData(null, WaitAnswer.None)]
+    public async Task WaitingNodeRunsAsync_ReadsEachWaitingNodeRunsWatchAndHowFarThePlatformsAnswerGot(string? callState, WaitAnswer answer)
+    {
+        var run = Guid.NewGuid();
+        var nodeRun = Guid.NewGuid();
+        var node = Guid.NewGuid();
+        var plot = Guid.NewGuid();
+        var decided = Guid.NewGuid();
+        var binds = Guid.NewGuid();
+        var has = Guid.NewGuid();
+        var handledBy = Guid.NewGuid();
+        object Thing(Guid id, string name, object properties) => new { id, name, isArchetype = false, properties, states = Array.Empty<string>() };
+        object Edge(Guid subject, Guid predicate, Guid target, object? properties = null) =>
+            new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = properties ?? new { } };
+        var edges = new List<object>
+        {
+            Edge(PipelineRoles.Orchestrator.Id, binds, OrchestratorId),
+            Edge(PipelineRoles.AwaitedThing.Id, binds, AwaitsPredicateId),
+            Edge(PipelineRoles.StateWatch.Id, binds, WatchesPredicateId),
+            Edge(PipelineRoles.CallRecord.Id, binds, handledBy),
+            Edge(OrchestratorId, has, run),
+            Edge(run, has, nodeRun),
+            Edge(nodeRun, AwaitsPredicateId, plot),
+            Edge(nodeRun, WatchesPredicateId, decided),
+        };
+        if (callState is not null)
+            edges.Add(Edge(plot, handledBy, nodeRun, new Dictionary<string, object> { ["__CallState"] = new { value = callState, typeInfo = "vos.String" } }));
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    Thing(PipelineRoles.Orchestrator.Id, "orchestrator role", new { }),
+                    Thing(PipelineRoles.AwaitedThing.Id, "awaitedThing role", new { }),
+                    Thing(PipelineRoles.StateWatch.Id, "stateWatch role", new { }),
+                    Thing(PipelineRoles.CallRecord.Id, "callRecord role", new { }),
+                    Thing(binds, ModelNames.Binds, new { }),
+                    Thing(has, ModelNames.Has, new { }),
+                    Thing(OrchestratorId, "Phloem", new { }),
+                    Thing(AwaitsPredicateId, "awaits", new { }),
+                    Thing(WatchesPredicateId, "watches", new { }),
+                    Thing(handledBy, "handledBy", new { }),
+                    Thing(run, "PipelineRun", new { status = new { value = RunStatus.Waiting, typeInfo = "vos.String" } }),
+                    Thing(nodeRun, "NodeRun Review", new
+                    {
+                        status = new { value = RunStatus.Waiting, typeInfo = "vos.String" },
+                        nodeId = new { value = node.ToString(), typeInfo = "vos.String" },
+                    }),
+                },
+                relationships = edges,
+            },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        var waits = await gateway.WaitingNodeRunsAsync(CancellationToken.None);
+
+        waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided), answer));
+    }
+
+    [Fact]
+    public async Task ResumeFromWaitAsync_EndsTheWaitAndSetsTheRunRunningInOneFragment()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var plot = Guid.NewGuid();
+        var decided = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+        var before = (await Fragments(handler)).Count;
+        var outputs = new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent for review") };
+
+        await gateway.ResumeFromWaitAsync(runId, nodeId, "Review", outputs, null, new Watch(plot, decided), CancellationToken.None);
+
+        var fragments = await Fragments(handler);
+        fragments.Should().HaveCount(before + 1);
+        var resumed = fragments.Last();
+        var things = resumed.GetProperty("things").EnumerateArray().ToDictionary(thing => thing.GetProperty("id").GetGuid(), thing => thing.GetProperty("properties"));
+        var nodeRun = things.Keys.Single(id => id != runId);
+        things[nodeRun].GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Succeeded);
+        things[nodeRun].GetProperty(ModelNames.Outputs).GetProperty("value").GetString().Should().Be("""{"notice":"sent for review"}""");
+        things[runId].GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Running);
+        Ends(resumed, "retractions").Should().Equal((nodeRun, AwaitsPredicateId, plot), (nodeRun, WatchesPredicateId, decided));
+        Ends(resumed, "relationships").Should().Contain((OrchestratorId, PredicateId, runId));
     }
 
     [Fact]
@@ -1319,17 +1479,6 @@ public class MyceliumGatewayTests
         check.Error.Should().Be("1/2 items failed");
         check.Items!.Select(item => (item.Status, item.Error, item.Decision, item.Number))
             .Should().Equal(("succeeded", null, (Guid?)accept, new ItemNumber(0, 3)), ("failed", "east is dry", null, new ItemNumber(2, 3)));
-    }
-
-    [Theory]
-    [InlineData(HttpStatusCode.OK, true)]
-    [InlineData(HttpStatusCode.NotFound, false)]
-    [InlineData(HttpStatusCode.InternalServerError, true)]
-    public async Task IsVigilLiveAsync_IsFalseOnlyWhenThePlatformNoLongerHoldsIt(HttpStatusCode answer, bool live)
-    {
-        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(answer));
-
-        (await gateway.IsVigilLiveAsync(Guid.NewGuid(), CancellationToken.None)).Should().Be(live);
     }
 
     [Fact]

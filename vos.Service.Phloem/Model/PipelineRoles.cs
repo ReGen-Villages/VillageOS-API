@@ -53,13 +53,11 @@ public static class PipelineRoles
     // enter that state along awaitsThrough.
     public static readonly Role CompletionRange = new("completionRange", new("8855f3e8-6717-542a-9d49-2d91880d2751"));
     public static readonly Role AwaitsThrough = new("awaitsThrough", new("4dd13e97-1305-566e-a922-7333e514aa64"));
-    // A waiting node run reaches the Thing it waits for and the vigil placed for it; the vigil names the
-    // runResumption connection, so its answer resumes the run.
+    // A waiting node run reaches the Thing it waits for along awaitedThing and the range it waits for along stateWatch,
+    // and the platform answers it through the connection its archetype notifies.
     public static readonly Role AwaitedThing = new("awaitedThing", new("6548fbdd-3474-5043-9864-abb665bb2d4b"));
-    public static readonly Role HeldVigil = new("heldVigil", new("6bd74ab0-4d87-5dd8-be69-6f12cceb80ee"));
-    // The broker's own role: a vigil is a Thing of the type it binds.
-    public static readonly Role Vigil = new("vigil", new("b1cea8ff-7b7e-584d-9f8e-1e7813f52c7e"));
-    public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
+    // The platform's own role: its record of calling a connection for a Thing's entry runs from that Thing to the one called.
+    public static readonly Role CallRecord = new("callRecord", new("dfe02bba-b36e-56ca-9dc3-58ca35c71940"));
     // A run started by another run's end reaches the run that started it.
     public static readonly Role StartingRun = new("startingRun", new("9dd7221e-f438-5ccc-b89d-25c9cd56f45c"));
     // A run a person started again reaches the run it repeats.
@@ -70,6 +68,11 @@ public static class PipelineRoles
     public static readonly Role PipelineTell = new("pipelineTell", new("7fed4d74-0cb1-547d-85d8-bbcfc5992667"));
     public static readonly Role PipelineFollowOn = new("pipelineFollowOn", new("0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"));
     public static readonly Role PipelineStop = new("pipelineStop", new("a5f12016-a3f9-505c-95c7-d211fd84b8f2"));
+    // A wait node calls no service. Along reachedAlong it names the predicate to follow from the Thing it waited for,
+    // and it hands on the Things that predicate reaches.
+    public static readonly Role PipelineWait = new("pipelineWait", new("b5023bc8-1030-596b-8aa1-0b2f876a786a"));
+    public static readonly Role ReachedAlong = new("reachedAlong", new("ff5b3754-1bf3-5be9-8515-349c20d8192b"));
+    public static readonly Role PipelineRelate = new("pipelineRelate", new("a1066623-6cef-5404-80fc-cc222fceee59"));
     public static readonly Role Cadence = new("cadence", new("f3883eaf-4e52-5c0c-887b-1bc696578812"));
     // Holds each run along `has` from its first write until its finish, so a restart reads the runs under way rather
     // than every run ever recorded.

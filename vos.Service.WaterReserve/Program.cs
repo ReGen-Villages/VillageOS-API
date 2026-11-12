@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
@@ -18,7 +18,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -45,11 +45,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "WaterReserve",
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new WaterReserveNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<WaterReserveNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<WaterReserveNode>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
     builder.Services.AddMyceliumRegistration("WaterReserve", servicePort);
 

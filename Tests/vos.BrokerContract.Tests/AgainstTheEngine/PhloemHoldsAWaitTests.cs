@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -5,24 +6,28 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Phloem's gateway holding a wait in the real engine: what it writes for a waiting node run, the vigil it places,
-// and the reads a resumed or restarted orchestrator makes. Its unit tests answer every snapshot by matching text
-// in the request, so only these show that the engine answers the shapes it asks for.
+// Phloem's gateway holding a wait in the real engine: the watch it writes for a waiting node run, the platform's answer
+// to it, and the reads a resumed or restarted orchestrator makes. Its unit tests answer every snapshot by matching text
+// in the request, so only these show that the engine takes the writes and answers the shapes it asks for.
 public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
 
     public PhloemHoldsAWaitTests(TheEngine engine) => _engine = engine;
 
-    private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+    private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
+        transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
+        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     private sealed record Village(Guid PipelineId, Guid Plot, Guid Decided);
+
+    private const string Moisture = "moisture";
 
     // Every case arranges this and the host is shared by the class, so the vocabulary is written once.
     private async Task<Village> AVillageWithAPlotToWaitForAsync()
@@ -33,15 +38,13 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
-        await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true));
+        var nodeRun = await _engine.DeclareOnceAsync("NodeRun", isArchetype: true);
+        await BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
         await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
         await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
-        await BindOnceAsync(PipelineRoles.HeldVigil, await _engine.DeclareOnceAsync("waitsOn"));
-
-        await BindOnceAsync(PipelineRoles.Vigil, await _engine.DeclareOnceAsync("Vigil", isArchetype: true, Marked("__IsVigilArchetype")));
-        await BindOnceAsync(VigilSubjectRole, await _engine.DeclareOnceAsync("keptOver", properties: Marked("__IsVigilSubjectPredicate")));
-        await BindOnceAsync(NotifiedConnectionRole, await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate")));
-        await BindOnceAsync(CallRecordRole, await _engine.DeclareOnceAsync("handledBy"));
+        var notifies = await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
+        await BindOnceAsync(NotifiedConnectionRole, notifies);
+        await BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
         await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
         await BindOnceAsync(JudgedThingRole, judges);
@@ -60,26 +63,31 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
             await _engine.RelateAsync(resumes, isPredicate, connectionArchetype);
             await _engine.RelateAsync(service, isPredicate, serviceArchetype);
             await _engine.RelateAsync(resumes, has, service);
-            await BindOnceAsync(PipelineRoles.RunResumption, resumes);
+            await _engine.RelateAsync(nodeRun, notifies, resumes);
 
-            var decided = await _engine.DeclareAsync("decided");
+            var decided = await _engine.DeclareAsync("decided", properties: new Dictionary<string, object?> { ["Criteria"] = $"{Moisture} < 20" });
             await _engine.RelateAsync(decided, isPredicate, range);
             await _engine.RelateAsync(decided, judges, plotArchetype);
         }
 
         var plot = await _engine.DeclareAsync($"Plot {Guid.NewGuid():N}");
         await _engine.RelateAsync(plot, isPredicate, plotArchetype);
+        (await _engine.Admin.PostAsJsonAsync($"/api/things/{plot}/properties", new { Name = Moisture, Type = "vos.LongInteger", Value = 50L }))
+            .EnsureSuccessStatusCode();
+        (await _engine.Admin.PostAsJsonAsync($"/api/things/{plot}/ranges", new { Name = "decided", Criteria = $"{Moisture} < 20" }))
+            .EnsureSuccessStatusCode();
         return new Village(await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}"), plot, await _engine.TheOnlyThingNamedAsync("decided"));
     }
 
-    // The marks stay beside the bindings while the platform moves from one to the other, so this runs against both.
+    private async Task EnterTheRangeAsync(Guid plot) =>
+        (await _engine.Admin.PutAsJsonAsync($"/api/things/{plot}/properties", new { Name = Moisture, Type = "vos.LongInteger", Value = 10L }))
+            .EnsureSuccessStatusCode();
+
     private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
 
     private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
     private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-    private static readonly Role VigilSubjectRole = new("vigilSubject", new("30628a44-97c0-55ff-85ba-5d3c7b07380a"));
     private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
-    private static readonly Role CallRecordRole = new("callRecord", new("dfe02bba-b36e-56ca-9dc3-58ca35c71940"));
 
     private async Task BindOnceAsync(Role role, Guid played)
     {
@@ -91,20 +99,31 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     private static readonly IReadOnlyDictionary<string, JsonElement> Noticed =
         new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent for review") };
 
-    private async Task<(Guid RunId, Guid NodeId)> AWaitingNodeRunAsync(MyceliumGateway gateway, Village village)
+    private static async Task<(Guid RunId, Guid NodeId)> AWaitingNodeRunAsync(MyceliumGateway gateway, Village village)
     {
         var runId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();
         await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None,
             parameters: JsonSerializer.SerializeToElement(new { subject = new { id = village.Plot, name = "Plot 7" } }));
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
-        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: Noticed);
-        await gateway.RelateAwaitedAsync(runId, nodeId, village.Plot, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: Noticed,
+            watch: new Watch(village.Plot, village.Decided));
         return (runId, nodeId);
     }
 
+    private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
+        (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
+
+    private async Task<HeldWait> AnsweredWaitOfAsync(Guid runId)
+    {
+        HeldWait? wait = null;
+        await Settle.UntilAsync(async () => (wait = await WaitOfAsync(runId)) is { Answer: not WaitAnswer.None },
+            "the platform answers the waiting node run");
+        return wait!;
+    }
+
     [FactAgainstTheEngine]
-    public async Task A_run_is_read_back_with_its_pipeline_parameters_and_each_node_runs_status_and_outputs()
+    public async Task A_run_is_read_back_with_its_pipeline_parameters_and_each_node_runs_status_outputs_and_watch()
     {
         var village = await AVillageWithAPlotToWaitForAsync();
         var gateway = Gateway();
@@ -117,6 +136,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         record.Parameters.GetProperty("subject").GetProperty("name").GetString().Should().Be("Plot 7");
         record.Nodes[nodeId].Status.Should().Be(RunStatus.Waiting);
         record.Nodes[nodeId].Outputs["notice"].GetString().Should().Be("sent for review");
+        record.Nodes[nodeId].Watching.Should().Be(new Watch(village.Plot, village.Decided));
     }
 
     // A gateway that has read the run back writes the node run's next status onto the same Thing, as one would
@@ -135,55 +155,144 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     }
 
     [FactAgainstTheEngine]
-    public async Task A_vigil_placed_over_the_awaited_Thing_is_found_from_the_node_run_holding_it()
+    public async Task Waiting_is_one_write_and_resuming_is_one_write()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var transport = new RecordingTransport(_engine.Transport);
+        var gateway = Gateway(transport);
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+        var watch = new Watch(village.Plot, village.Decided);
+
+        var beforeWaiting = transport.Writes.Count;
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: Noticed, watch: watch);
+        var waitingWrites = transport.Writes.Count - beforeWaiting;
+        (await WaitOfAsync(runId))!.Watching.Should().Be(watch);
+
+        var beforeResuming = transport.Writes.Count;
+        await gateway.ResumeFromWaitAsync(runId, nodeId, "Review", Noticed, null, watch, CancellationToken.None);
+        var resumingWrites = transport.Writes.Count - beforeResuming;
+
+        waitingWrites.Should().Be(1);
+        resumingWrites.Should().Be(1);
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+        record!.Status.Should().Be(RunStatus.Running);
+        record.Nodes[nodeId].Status.Should().Be(RunStatus.Succeeded);
+        record.Nodes[nodeId].Watching.Should().BeNull();
+    }
+
+    [FactAgainstTheEngine]
+    public async Task The_platform_answers_a_waiting_node_run_when_its_Thing_enters_the_range_and_a_restart_reads_that_answer()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var (runId, nodeId) = await AWaitingNodeRunAsync(Gateway(), village);
+        (await WaitOfAsync(runId))!.Answer.Should().Be(WaitAnswer.None);
+
+        await EnterTheRangeAsync(village.Plot);
+
+        var answered = await AnsweredWaitOfAsync(runId);
+        answered.Should().Be(new HeldWait(runId, nodeId, new Watch(village.Plot, village.Decided), answered.Answer));
+        (await CallRecordsFromAsync(village.Plot)).Should().ContainSingle().Which.TargetId.Should().Be(await NodeRunIdOfAsync(runId),
+            "the platform's record targets the node run itself");
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_Thing_already_in_the_range_is_answered_as_its_watch_is_written()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        await EnterTheRangeAsync(village.Plot);
+
+        var (runId, _) = await AWaitingNodeRunAsync(Gateway(), village);
+
+        (await AnsweredWaitOfAsync(runId)).Answer.Should().NotBe(WaitAnswer.None);
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_wait_ended_by_another_status_retracts_its_watch()
     {
         var village = await AVillageWithAPlotToWaitForAsync();
         var gateway = Gateway();
         var (runId, nodeId) = await AWaitingNodeRunAsync(gateway, village);
+        await EnterTheRangeAsync(village.Plot);
+        await AnsweredWaitOfAsync(runId);
 
-        var placement = await gateway.PlaceVigilAsync(village.Plot, village.Decided, CancellationToken.None);
-        var vigilId = placement.Should().BeOfType<VigilPlacement.Placed>().Subject.VigilId;
-        await gateway.RelateHeldVigilAsync(runId, nodeId, vigilId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Cancelled, "withdrawn", CancellationToken.None,
+            watch: new Watch(village.Plot, village.Decided));
 
-        (await gateway.LookUpVigilAsync(vigilId, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, new VigilHolder(runId, nodeId)));
-        (await gateway.IsVigilLiveAsync(vigilId, CancellationToken.None)).Should().BeTrue();
-        var vigil = await _engine.ReadAsync(vigilId);
-        vigil.GetProperty("Name").GetString().Should().Contain("decided");
+        (await WaitOfAsync(runId)).Should().BeNull();
+        (await gateway.ReadRunRecordAsync(runId, CancellationToken.None))!.Nodes[nodeId].Watching.Should().BeNull();
+        await Settle.UntilAsync(async () => (await CallRecordsFromAsync(village.Plot)).Count == 0,
+            "the record that answered the wait goes with the watch, whatever its call state");
     }
 
     [FactAgainstTheEngine]
-    public async Task The_Thing_a_vigil_is_placed_over_is_not_itself_taken_for_a_vigil()
-    {
-        var village = await AVillageWithAPlotToWaitForAsync();
-
-        var lookup = await Gateway().LookUpVigilAsync(village.Plot, CancellationToken.None);
-
-        lookup.Should().Be(new VigilLookup(IsVigil: false, Holder: null));
-    }
-
-    [FactAgainstTheEngine]
-    public async Task The_platform_refuses_a_vigil_over_a_Thing_the_range_does_not_judge()
-    {
-        var village = await AVillageWithAPlotToWaitForAsync();
-        var stranger = await _engine.DeclareAsync($"Stranger {Guid.NewGuid():N}");
-
-        var placement = await Gateway().PlaceVigilAsync(stranger, village.Decided, CancellationToken.None);
-
-        placement.Should().BeOfType<VigilPlacement.Refused>().Which.Reason.Should().Contain("does not judge");
-    }
-
-    [FactAgainstTheEngine]
-    public async Task A_restarted_orchestrator_finds_each_waiting_node_run_with_its_Thing_and_vigil()
+    public async Task A_node_run_is_found_with_its_run_and_node_and_the_Thing_it_waits_for_is_not_taken_for_one()
     {
         var village = await AVillageWithAPlotToWaitForAsync();
         var gateway = Gateway();
         var (runId, nodeId) = await AWaitingNodeRunAsync(gateway, village);
-        var vigilId = ((VigilPlacement.Placed)await gateway.PlaceVigilAsync(village.Plot, village.Decided, CancellationToken.None)).VigilId;
-        await gateway.RelateHeldVigilAsync(runId, nodeId, vigilId, CancellationToken.None);
+        var nodeRun = (await WaitOfAsync(runId))!;
 
-        var waits = await Gateway().WaitingNodeRunsAsync(CancellationToken.None);
+        var found = await gateway.NodeRunAsync(await NodeRunIdOfAsync(runId), CancellationToken.None);
 
-        waits.Should().ContainSingle(wait => wait.RunId == runId).Which.Should().Be(new HeldWait(runId, nodeId, village.Plot, vigilId));
+        found.Should().Be(new HeldNodeRun(runId, nodeId));
+        nodeRun.NodeId.Should().Be(nodeId);
+        (await gateway.NodeRunAsync(village.Plot, CancellationToken.None)).Should().BeNull();
+    }
+
+    private async Task<IReadOnlyList<GraphRelationship>> CallRecordsFromAsync(Guid thingId)
+    {
+        var read = await _engine.Admin.PostAsJsonAsync("/api/snapshots", new
+        {
+            ids = new[] { thingId, PipelineRoles.CallRecord.Id },
+            names = new[] { ModelNames.Binds },
+            traverse = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 } },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.CallRecord.Id, direction = "outgoing" },
+            },
+        });
+        read.EnsureSuccessStatusCode();
+        var graph = SnapshotParser.Parse(await read.Content.ReadFromJsonAsync<JsonElement>());
+        return graph.RelationshipsAlong(graph.Thing(thingId)!, PipelineRoles.CallRecord).ToList();
+    }
+
+    private async Task<Guid> NodeRunIdOfAsync(Guid runId)
+    {
+        var read = await _engine.Admin.PostAsJsonAsync("/api/snapshots", new
+        {
+            ids = new[] { runId },
+            names = new[] { ModelNames.Has },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[] { new { predicate = ModelNames.Has, direction = "outgoing" } },
+        });
+        read.EnsureSuccessStatusCode();
+        var graph = SnapshotParser.Parse(await read.Content.ReadFromJsonAsync<JsonElement>());
+        return graph.RelationshipsFrom(graph.Thing(runId)!, ModelNames.Has).Single().TargetId;
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_watch_over_a_Thing_the_model_does_not_hold_is_refused_with_the_platforms_reason()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var gateway = Gateway();
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+        var gone = Guid.NewGuid();
+
+        var waiting = () => gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None,
+            watch: new Watch(gone, village.Decided));
+
+        (await waiting.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain(gone.ToString());
+        (await gateway.ReadRunRecordAsync(runId, CancellationToken.None))!.Nodes[nodeId].Status.Should().Be(RunStatus.Running);
     }
 
     [FactAgainstTheEngine]
@@ -204,9 +313,8 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         }
         var (waitingRun, waitingNode) = await AWaitingNodeRunAsync(gateway, village);
         var transport = new RecordingTransport(_engine.Transport);
-        var restarted = new MyceliumGateway(new PerCallHttpClientFactory(transport), NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
 
-        var waits = await restarted.WaitingNodeRunsAsync(CancellationToken.None);
+        var waits = await Gateway(transport).WaitingNodeRunsAsync(CancellationToken.None);
 
         waits.Should().ContainSingle(wait => wait.RunId == waitingRun).Which.NodeId.Should().Be(waitingNode);
         var read = transport.SnapshotBodies.Should().ContainSingle().Subject;
@@ -217,46 +325,20 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     private sealed class RecordingTransport(HttpMessageHandler inner) : DelegatingHandler(inner)
     {
         public List<string> SnapshotBodies { get; } = new();
+        public List<string> Writes { get; } = new();
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var response = await base.SendAsync(request, cancellationToken);
-            if (request.RequestUri!.AbsolutePath == "/api/snapshots")
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/snapshots")
             {
                 await response.Content.LoadIntoBufferAsync(cancellationToken);
                 SnapshotBodies.Add(await response.Content.ReadAsStringAsync(cancellationToken));
             }
+            else if (request.Method != HttpMethod.Get)
+                lock (Writes) Writes.Add($"{request.Method} {path}");
             return response;
         }
-    }
-
-    [FactAgainstTheEngine]
-    public async Task A_resumed_node_run_forgets_its_Thing_and_a_vigil_held_again_replaces_the_one_before()
-    {
-        var village = await AVillageWithAPlotToWaitForAsync();
-        var gateway = Gateway();
-        var (runId, nodeId) = await AWaitingNodeRunAsync(gateway, village);
-        var first = ((VigilPlacement.Placed)await gateway.PlaceVigilAsync(village.Plot, village.Decided, CancellationToken.None)).VigilId;
-        var second = ((VigilPlacement.Placed)await gateway.PlaceVigilAsync(village.Plot, village.Decided, CancellationToken.None)).VigilId;
-        await gateway.RelateHeldVigilAsync(runId, nodeId, first, CancellationToken.None);
-
-        await gateway.RelateHeldVigilAsync(runId, nodeId, second, CancellationToken.None);
-        await gateway.ForgetAwaitedAsync(runId, nodeId, CancellationToken.None);
-
-        (await gateway.LookUpVigilAsync(first, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, Holder: null));
-        (await gateway.LookUpVigilAsync(second, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, new VigilHolder(runId, nodeId)));
-        (await gateway.WaitingNodeRunsAsync(CancellationToken.None)).Single(wait => wait.RunId == runId).AwaitedId.Should().BeNull();
-    }
-
-    [FactAgainstTheEngine]
-    public async Task A_vigil_the_platform_has_retired_is_no_longer_live()
-    {
-        var village = await AVillageWithAPlotToWaitForAsync();
-        var gateway = Gateway();
-        var vigilId = ((VigilPlacement.Placed)await gateway.PlaceVigilAsync(village.Plot, village.Decided, CancellationToken.None)).VigilId;
-
-        (await _engine.Admin.DeleteAsync($"/api/vigils/{vigilId}")).EnsureSuccessStatusCode();
-
-        (await gateway.IsVigilLiveAsync(vigilId, CancellationToken.None)).Should().BeFalse();
     }
 }

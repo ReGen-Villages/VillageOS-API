@@ -93,3 +93,38 @@ def test_a_pool_made_with_another_kind_of_executor_runs_in_it():
     pool = ReadPool(workers=1, executor_factory=lambda: ThreadPoolExecutor(1))
     assert asyncio.run(pool.run(process_id)) == os.getpid()
     pool.close()
+
+
+def test_a_worker_ends_when_the_service_that_started_it_is_killed(tmp_path):
+    """Killing a service outright leaves nothing behind: a worker that outlived it would hold its memory until the machine restarted."""
+    import signal
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    folder = Path(__file__).resolve().parent
+    beat = tmp_path / "beat"
+    parent = subprocess.Popen([sys.executable, str(folder / "pool_parent.py"), str(beat)], stdout=subprocess.PIPE, text=True, cwd=folder.parent)
+    worker = None
+    try:
+        worker = int(parent.stdout.readline().split()[1])
+
+        def stopped():
+            first = beat.stat().st_mtime_ns
+            time.sleep(0.6)
+            return beat.stat().st_mtime_ns == first
+
+        assert not stopped(), "the worker should be running before the service is killed"
+        parent.kill()
+        parent.wait()
+        deadline = time.time() + 20
+        while time.time() < deadline and not stopped():
+            pass
+        assert stopped(), "the worker went on running after its service was killed"
+    finally:
+        parent.kill()
+        if worker is not None:
+            try:
+                os.kill(worker, signal.SIGTERM)
+            except OSError:
+                pass

@@ -5,6 +5,7 @@ using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -164,7 +165,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     private async Task<PipelineGraph> LoadAsync(Guid pipeline)
     {
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         return await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None);
     }
 

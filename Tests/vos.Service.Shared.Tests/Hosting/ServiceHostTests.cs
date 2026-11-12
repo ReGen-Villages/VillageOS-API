@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.IO.Pipelines;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -10,6 +12,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Tests.Shared;
@@ -37,7 +43,7 @@ public class ServiceHostTests
             NullLogger<EndpointServiceMyceliumClient>.Instance,
             ServiceName,
             MyceliumUrl,
-            "svc-token"));
+            new LaunchToken("svc-token")));
 
         if (withMyceliumRegistration)
             builder.Services.AddMyceliumRegistration(ServiceName, port: 7100);
@@ -75,6 +81,36 @@ public class ServiceHostTests
             .And.BeBefore(modelInstant.AddDays(1), "it runs on from that instant, not from this machine's");
         clock.OffsetFromWallClock().Should().BeLessThan(TimeSpan.FromDays(-1),
             "a model anchored a year back stands a year behind this machine");
+    }
+
+    [Fact]
+    public async Task AddModelClock_TakesAChangeTheBrokerAnnouncesOnTheSystemEvents()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var firstReading = "{\"now\":\"" + modelInstant.ToString("o") + "\",\"rate\":60}";
+        var announcements = new Pipe();
+        await using var app = BuildApp(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/time" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(firstReading, Encoding.UTF8, "application/json"),
+            },
+            "/api/events/stream" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(announcements.Reader.AsStream()),
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.OK),
+        }, withModelClock: true);
+        await app.StartAsync();
+        var clock = app.Services.GetRequiredService<ModelClock>();
+        await Settle.UntilAsync(() => clock.Rate == 60, "the first reading anchors the clock at the rate the broker answered");
+
+        var announced = "event: ModelClockChanged\ndata: {\"Now\":\"" + modelInstant.AddHours(1).ToString("o") + "\",\"Rate\":300,\"Simulated\":true}\n\n";
+        await announcements.Writer.WriteAsync(Encoding.UTF8.GetBytes(announced));
+
+        await Settle.UntilAsync(() => clock.Rate == 300, "the announced rate reaches the service's clock");
+        clock.GetUtcNow().Should().BeOnOrAfter(modelInstant.AddHours(1), "the clock runs on from the announced instant");
+        await announcements.Writer.CompleteAsync();
     }
 
     [Fact]
@@ -333,6 +369,41 @@ public class ServiceHostTests
         {
             folder.Delete(recursive: true);
         }
+    }
+
+    // The fault this guards: the HTTP client wrote information lines for every call a service made,
+    // so a service retrying a refused call every few seconds filled its log and the broker's.
+    [Fact]
+    public async Task LevelsAndEnrichment_KeepsTheHttpClientsInformationLinesOutOfTheLog()
+    {
+        var sink = new CollectingSink();
+        using var logger = ServiceHost.LevelsAndEnrichment(ServiceName).WriteTo.Sink(sink).CreateLogger();
+        var services = new ServiceCollection();
+        services.AddLogging(logging => logging.AddSerilog(logger));
+        services.AddHttpClient(Options.DefaultName).ConfigurePrimaryHttpMessageHandler(
+            () => new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+        await using var provider = services.BuildServiceProvider();
+
+        await provider.GetRequiredService<IHttpClientFactory>().CreateClient().GetAsync($"{MyceliumUrl}/api/time");
+        provider.GetRequiredService<ILogger<ServiceHostTests>>().LogInformation("a line of the service's own");
+
+        sink.SourcesWritten().Should().NotContain(source => source.StartsWith("System.Net.Http.HttpClient"),
+            "a routine call is not worth a line; a failing one is logged by the service that made it");
+        sink.MessagesWritten().Should().Contain("a line of the service's own");
+    }
+
+    private sealed class CollectingSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<LogEvent> _events = new();
+
+        public void Emit(LogEvent logEvent) => _events.Enqueue(logEvent);
+
+        public IEnumerable<string> SourcesWritten() => _events
+            .Select(logEvent => logEvent.Properties.TryGetValue(Constants.SourceContextPropertyName, out var source)
+                ? ((ScalarValue)source).Value?.ToString() ?? ""
+                : "");
+
+        public IEnumerable<string> MessagesWritten() => _events.Select(logEvent => logEvent.RenderMessage());
     }
 
     [Fact]

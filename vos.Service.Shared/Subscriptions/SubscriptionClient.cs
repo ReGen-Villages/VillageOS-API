@@ -30,9 +30,9 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     public event Action? Reconnected;
 
     public SubscriptionClient(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider, apiKey)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, tokenProvider, apiKey)
     {
     }
 

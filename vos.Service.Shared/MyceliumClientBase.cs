@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared.Contracts.Validation;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Shared;
 
@@ -47,14 +49,14 @@ public abstract class MyceliumClientBase
     }
 
     protected MyceliumClientBase(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
         _tokenProvider = tokenProvider;
-        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
+        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, launchToken, apiKey);
     }
 
     private const string NoCredential = "neither ApiKey nor Token is set";
@@ -255,24 +257,86 @@ public abstract class MyceliumClientBase
                 return null;
             }
 
-            var answer = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            if (!TryGetPropertyCaseInsensitive(answer, "now", out var now)
-                || !now.TryGetDateTimeOffset(out var instant))
-                return null;
-
-            var rate = TryGetPropertyCaseInsensitive(answer, "rate", out var stated)
-                       && stated.TryGetDouble(out var read) ? read : 1.0;
-            return new ModelTimeReading(instant, rate);
+            return ParseModelTime(await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken));
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             // Judged by the caller's token, not the exception's type: the client's own timeout throws an
             // OperationCanceledException too, and that one is a broker too slow to answer, not a caller stopping.
-            // Said at debug, and by the caller once rather than once an interval: a broker that is
+            // Said at debug, and by the caller once rather than once a reconnect: a broker that is
             // away for an hour would otherwise write the same warning several hundred times.
             Logger.LogDebug(exception, "Could not read the model clock");
             return null;
         }
+    }
+
+    public const string ModelClockChangedEvent = "ModelClockChanged";
+
+    /// <summary>The model clock as the broker tells it: a reading taken when the system-events stream
+    /// opens, then one for each change the broker announces, until the stream ends. Yields nothing where
+    /// the broker could not be reached; the caller reconnects.</summary>
+    public async IAsyncEnumerable<ModelTimeReading> ListenForModelClockAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var events = await OpenSystemEventsAsync(cancellationToken);
+        if (events is null) yield break;
+
+        using (events)
+        {
+            if (await ReadModelTimeAsync(cancellationToken) is { } reading)
+                yield return reading;
+
+            await foreach (var frame in SseEventReader.ReadAsync(await events.Content.ReadAsStreamAsync(cancellationToken), cancellationToken))
+            {
+                if (frame.EventType != ModelClockChangedEvent) continue;
+                if (ParseModelTime(frame.Data) is { } announced) yield return announced;
+            }
+        }
+    }
+
+    private async Task<HttpResponseMessage?> OpenSystemEventsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(Timeout.InfiniteTimeSpan);
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{MyceliumUrl}/api/events/stream");
+            request.Headers.TryAddWithoutValidation("Accept", "text/event-stream");
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.IsSuccessStatusCode) return response;
+
+            Logger.LogDebug("Opening the system-events stream answered {Status}", (int)response.StatusCode);
+            response.Dispose();
+            return null;
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.LogDebug(exception, "Could not open the system-events stream");
+            return null;
+        }
+    }
+
+    private static ModelTimeReading? ParseModelTime(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return ParseModelTime(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static ModelTimeReading? ParseModelTime(JsonElement answer)
+    {
+        if (!TryGetPropertyCaseInsensitive(answer, "now", out var now)
+            || !now.TryGetDateTimeOffset(out var instant))
+            return null;
+
+        var rate = TryGetPropertyCaseInsensitive(answer, "rate", out var stated)
+                   && stated.TryGetDouble(out var read) ? read : 1.0;
+        return new ModelTimeReading(instant, rate);
     }
 
     private static async Task<HttpRequestException> FailureAsync(string op, HttpResponseMessage response)

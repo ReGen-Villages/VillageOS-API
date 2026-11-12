@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -70,7 +71,7 @@ public class AnalysisSpawnerTests
         var spawner = new AnalysisSpawner(
             new MyceliumRelationshipClient(
                 new PerCallHttpClientFactory(handler), NullLogger<MyceliumRelationshipClient>.Instance,
-                "http://localhost", "test-token"),
+                "http://localhost", new LaunchToken("test-token")),
             logger);
         var analysis = new SiteAnalysis(Guid.NewGuid(),
         [

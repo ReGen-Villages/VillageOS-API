@@ -32,11 +32,7 @@ public static class ServiceHost
     {
         LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
         LogDirectory = writeToFile && logDirectory is not null ? Path.GetFullPath(logDirectory) : null;
-        var configuration = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-            .Enrich.FromLogContext()
-            .Enrich.WithProperty("Service", serviceName)
+        var configuration = LevelsAndEnrichment(serviceName)
             .WriteTo.Console(outputTemplate: LogLineTemplate);
 
         // Tests leave the file sink off: writing files from shared build agents invites flakiness.
@@ -53,6 +49,14 @@ public static class ServiceHost
 
         Log.Logger = configuration.CreateLogger();
     }
+
+    internal static LoggerConfiguration LevelsAndEnrichment(string serviceName) =>
+        new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", serviceName);
 
     // Whatever started the service reads its exit code and standard error, not its log file. A test host stops a
     // service by throwing HostAbortedException out of its entry point, which is not a failure.
@@ -79,16 +83,15 @@ public static class ServiceHost
         services.AddSingleton<ModelClock>();
         return services.AddHostedService(provider => new ModelClockFollower(
             provider.GetRequiredService<ModelClock>(),
-            cancellationToken => provider.GetRequiredService<TClient>().ReadModelTimeAsync(cancellationToken),
+            cancellationToken => provider.GetRequiredService<TClient>().ListenForModelClockAsync(cancellationToken),
             provider.GetRequiredService<ILogger<ModelClockFollower>>(),
             serviceName,
-            ModelClockInterval));
+            ModelClockReconnectDelay));
     }
 
-    // Short enough that a service launched before a simulation anchors the clock is stamping model
-    // instants within seconds of the anchor, and one local request either way is nothing beside what
-    // a service does for a single call it handles.
-    public static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
+    // How long a change of the clock can go unheard: the stream carries a change as it happens, and a
+    // dropped stream is opened again, and the clock read again, after this.
+    public static readonly TimeSpan ModelClockReconnectDelay = TimeSpan.FromSeconds(2);
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication. The process id is how the broker

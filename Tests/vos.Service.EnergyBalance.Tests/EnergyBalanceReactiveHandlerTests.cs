@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -20,11 +21,35 @@ public class EnergyBalanceReactiveHandlerTests
           "annualConsumptionMwhPerYear": { "Value": 4000 } }
         """;
 
+    private static readonly DateTime WorkedOut = new(2031, 6, 1, 9, 30, 0, DateTimeKind.Utc);
+
+    private sealed class FixedTime(DateTime now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(now);
+    }
+
     private static EnergyBalanceReactiveHandler NewHandler(
         RecordingHttpMessageHandler http, ILogger<EnergyBalanceReactiveHandler>? logger = null) =>
         new(new TestHttpClientFactory(new HttpClient(http)),
             logger ?? NullLogger<EnergyBalanceReactiveHandler>.Instance,
-            "http://mycelium", serviceToken: "test-token");
+            "http://mycelium", new ModelClock(new FixedTime(WorkedOut)), launchToken: new LaunchToken("test-token"));
+
+    private static IReadOnlyList<RecordedRequest> Writes(RecordingHttpMessageHandler http) =>
+        http.Requests.Where(request => request.Method == HttpMethod.Post).ToList();
+
+    // A relate box waits for the study to reach the state this stamp puts it in, so the stamp is the last write,
+    // after every output it proves worked out.
+    [Fact]
+    public async Task A_recompute_stamps_the_study_worked_out_with_the_model_clock_as_its_last_write()
+    {
+        var http = Serving(AnchorInputs);
+
+        await NewHandler(http).RecomputeAsync(Anchor);
+
+        var last = Writes(http).Last();
+        Assert.Contains($"/api/things/{Anchor}/properties/{EnergyBalanceReactiveHandler.WorkedOutAtOutput}/facts", last.Uri);
+        Assert.Contains("2031-06-01T09:30:00", last.Body);
+    }
 
     private static RecordingHttpMessageHandler Serving(string properties) =>
         new(request => request.Method == HttpMethod.Get
@@ -132,6 +157,8 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Null(answer.Outputs);
         Assert.Contains("solarPvAreaM2", answer.WaitingFor);
         Assert.Contains(logger.Lines, line => line.Contains("EnergyBalance") && line.Contains("solarPvAreaM2"));
-        Assert.DoesNotContain(http.Requests, r => r.Method == HttpMethod.Post);
+        // A study still missing an input is stamped worked out, or what waits on it waits for ever.
+        var stamp = Assert.Single(Writes(http));
+        Assert.Contains($"/properties/{EnergyBalanceReactiveHandler.WorkedOutAtOutput}/facts", stamp.Uri);
     }
 }

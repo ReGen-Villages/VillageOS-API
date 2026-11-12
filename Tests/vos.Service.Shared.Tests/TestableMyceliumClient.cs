@@ -11,9 +11,9 @@ namespace vos.Service.Shared.Tests;
 internal sealed class TestableMyceliumClient : MyceliumClientBase
 {
     public TestableMyceliumClient(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider, apiKey)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, tokenProvider, apiKey)
     {
     }
 

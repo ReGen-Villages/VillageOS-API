@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using FluentAssertions;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Model;
@@ -33,7 +34,7 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
         var interval = await _engine.Admin.PutAsJsonAsync($"/api/things/{cadenceId}/properties",
             new { name = ModelNames.IntervalMinutes, type = "vos.Double", value = "60" });
         interval.EnsureSuccessStatusCode();
-        return (new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken), cadenceId);
+        return (new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken)), cadenceId);
     }
 
     private async Task<Guid> DeclareTheKindAsync()

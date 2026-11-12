@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -58,7 +59,7 @@ public class EchoNodeTests
         // No HTTP is expected: literal inputs need no ref resolution.
         var handler = new MockHttpMessageHandler(_ => throw new InvalidOperationException("no HTTP expected"));
         var factory = new TestHttpClientFactory(new HttpClient(handler));
-        return new EchoNode(factory, NullLogger<EchoNode>.Instance, MyceliumUrl, ServiceToken);
+        return new EchoNode(factory, NullLogger<EchoNode>.Instance, MyceliumUrl, new LaunchToken(ServiceToken));
     }
 
     private static JsonElement Envelope(string inputs) =>

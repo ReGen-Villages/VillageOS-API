@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -51,7 +52,7 @@ public class ForageReadsOneSitesRelationshipsTests : IClassFixture<TheEngine>
     private async Task<SnapshotDocument> ReadAsync(Guid site)
     {
         var subscriptions = new SubscriptionClient(
-            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var subscribed = await subscriptions.SubscribeAsync(CoveringSourceResolver.SelectorFor(site));
         await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
         return subscribed.Snapshot;

@@ -18,6 +18,10 @@ public sealed class SubscriptionSelector
     // follows RoleBindings.FollowBindings.
     public List<Guid>? BoundTypes { get; set; }
     public List<Guid>? BoundArchetypes { get; set; }
+
+    // Property name to the text its value must equal. The broker keeps, of the Things the type fields select, only
+    // those holding every value, compared exactly and case included, and refuses it without a type field.
+    public Dictionary<string, string>? PropertyValues { get; set; }
     public List<TraverseRule>? Traverse { get; set; }
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
