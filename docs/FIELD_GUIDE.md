@@ -883,7 +883,7 @@ property; a derived property refuses every write.
 | **Delta** | http | Checks every registration against the catalogue of data-source templates the model holds, and writes it (chapter 38) |
 | **Tributary** | http | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings as Observations onto the Thing the call was about (chapter 38) |
 | **Forage** | state | Finds every source covering a site, calls Tributary for each, resolves each fetched word to the Thing it names, and starts the analysis (chapter 39) |
-| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves |
+| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves. The last write of every recompute is `energyWorkedOutAt`, the model clock's moment, even when an input is still missing and no verdict is written; the study's `EnergyWorkedOut` state reads it |
 | **WaterReserve** | a pipeline node | Reserve figures for a pipeline run |
 | **ModelBridge** | a pipeline node | Reads a Thing's property into a pipeline, or writes a pipeline value onto one (chapter 44) |
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
@@ -1091,7 +1091,11 @@ stopped by them. Each answers success or fail, passes on what reached it, and ca
 Output node. A **wait node** calls no service: the run stands at *waiting* as soon as it reaches the
 box, until the Thing on its port enters the state the box names, and then gives that Thing on. A wait
 node may follow a predicate from the Thing it waited for and give, on a second port, the Things it
-reaches, so "wait until decided" hands on the decision; a read that fails fails the node.
+reaches, so "wait until decided" hands on the decision; a read that fails fails the node. A
+**relate node** starts a service the way the model does: it stands for a connection, relates the Thing
+reaching it along that connection to the connection's service unless it is related already, so the
+platform calls the service, and waits until the state the connection names for done holds. It then
+gives the Thing on, and says whether this run wrote the relationship.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
 timeout, a server error from the broker — it is called again after a pause in model minutes, and any
@@ -1119,8 +1123,8 @@ runs about a Thing itself, with a stop node.
 
 **Drafts and rehearsals.** Only a published pipeline is started by the model; a draft runs only as a
 rehearsal, in which only services that declare they write nothing but their answer are called. A
-rehearsal stops at a service node that waits; a tell, follow-on, stop or wait node records what it
-would have done instead.
+rehearsal stops at a service node that waits; a tell, follow-on, stop, wait or relate node records
+what it would have done instead.
 
 **Fan-out.** A node whose service declares a **collection** input runs once per item when that
 input receives a list — the other inputs are the same for every item — and each output is gathered

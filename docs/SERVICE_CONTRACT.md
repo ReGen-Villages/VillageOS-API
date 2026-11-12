@@ -55,7 +55,9 @@ the request's model. `VerificationKey` is the public half of Mycelium's pair: it
 and cannot make one. See [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md) § Inbound JWT validation for
 why naming the algorithm matters.
 
-A service that must outlive any JWT — one nobody starts on demand — holds an **API key** (the
+A service the broker launches is handed a `Token` that lasts 24 hours, and outlives it: a .NET service
+swaps it at `POST /api/auth/service-token` once two hours or less are left (`AddLaunchToken`, checked
+every 15 minutes). A service nobody starts on demand holds an **API key** (the
 `ApiKey` setting) instead of a `Token`: `ServiceCredential` exchanges it at `POST /api/auth/token`
 with the `X-API-Key` header, holds the minted token, and exchanges again shortly before it expires.
 A key can be confined to one model, which is what confines the service. Ask `ServiceCredential` for

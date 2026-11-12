@@ -31,7 +31,7 @@ The .NET services:
 | `Tributary` | The runtime fetch side of the same endpoint story (see [`TRIBUTARY.md`](TRIBUTARY.md)). |
 | `Forage` | Resolves a site against every source covering it, calls Tributary for each, relates each fetched vocabulary word to the Thing it names, and then starts the site's analysis by relating its `SiteStudy` to each compute connection the `siteAnalysisConnection` role binds (see [`FORAGE.md`](FORAGE.md)). |
 | `Metabolism` | The consume/produce simulation behind the `consumes` and `produces` predicates (see [`METABOLISM.md`](METABOLISM.md)). |
-| `EnergyBalance` | Computes solar and other generation against consumption: the share of consumption covered, and whether the site is net-positive. It runs two ways: as a pipeline node, and **reactively** — a graph `/handle` whose subject is the `SiteStudy` makes the service read its inputs off the study's effective properties, compute, and write its verdict back as a Fact, so the study's judge ranges re-evaluate. |
+| `EnergyBalance` | Computes solar and other generation against consumption: the share of consumption covered, and whether the site is net-positive. It runs two ways: as a pipeline node, and **reactively** — a graph `/handle` whose subject is the `SiteStudy` makes the service read its inputs off the study's effective properties, compute, and write its verdict back as a Fact, so the study's judge ranges re-evaluate. The last write of every recompute is `energyWorkedOutAt`, the model clock's moment, even when an input is still missing and no verdict is written; the study's `EnergyWorkedOut` state reads it. |
 | `WaterReserve` | Computes the emergency reserve, days of supply and share of annual consumption. It runs as a pipeline node only, with its inputs supplied on wired ports. |
 | `ModelBridge` | A generic **bridge between the model and a pipeline**, as a node. With node param `mode:"read"` it outputs a Thing's property value; with `mode:"write"` it writes its `value` input onto a Thing's property as a Fact. The Thing and the property are named in the node params (`thingId`, `property`). See [`MODELBRIDGE.md`](MODELBRIDGE.md). |
 | `Phloem` | The pipeline orchestrator (§16). |
@@ -1484,9 +1484,9 @@ a run no restart stopped part way through a call, and for a run another run alre
 "Run … was started again as run …".
 
 **Rehearsing a draft.** A rehearsal ends `rehearsed`, or `cannotRehearse` at a node whose service does
-not rehearse, or at a service node that waits; a tell, follow-on, stop or wait node does nothing and is
-recorded `rehearsed` with what it would have sent, started, stopped or waited for as its outputs; the
-run carries `rehearsal`.
+not rehearse, or at a service node that waits; a tell, follow-on, stop, wait or relate node does
+nothing and is recorded `rehearsed` with what it would have sent, started, stopped, waited for or
+related as its outputs; the run carries `rehearsal`.
 
 **A node may wait for a state.** A node that relates a range along `provenBy`, and the in port whose Thing
 must enter that range along `awaitsThrough`, waits for that Thing to enter the range. A service node is
@@ -1512,6 +1512,18 @@ predicate and answers those Things, each with identifier and name, on its `reach
 when it reaches none. A read that fails fails the node, which takes its fail wires or fails the run. A
 wait node naming no state, following two predicates, or with nothing wired into its port refuses the
 run before anything runs.
+
+**A relate node** — of the kind the `pipelineRelate` role binds — starts a service the way the model
+does. It stands for a connection along `standsFor`, and reads from that connection the service it
+`has` and the state it relates along `provenBy`. It relates the Thing on its `thing` port along the
+connection to that service, unless the relationship is there already, so the platform calls the
+service; a write refused because another run's write landed first counts as already related. It then
+waits for the connection's state as a wait node does, and gives the Thing on `thing` and, on
+`written`, whether this run wrote the relationship. A restarted orchestrator may carry it on, because
+running it again writes nothing new. A node standing for no connection, a connection binding no
+service, a connection naming no state or two, and a node with nothing wired into `thing` refuse the
+run before anything runs; a read or write the broker refuses fails the node with the broker's reason
+and places no watch.
 
 **A tell node** — of the kind the `pipelineTell` role binds — stands for an external system and sends it
 what reached the node: it writes a Thing under the archetype the `sentMessage` role binds, holding that
