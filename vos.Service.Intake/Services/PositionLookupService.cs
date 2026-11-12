@@ -14,6 +14,8 @@ public sealed record ParcelLookup(LookupOutcome Outcome, AnsweredParcel? Parcel 
 
 public sealed record PlacesLookup(LookupOutcome Outcome, AnsweredPlaces? Places = null);
 
+public sealed record ElevationLookup(LookupOutcome Outcome, AnsweredElevation? Elevation = null);
+
 // The two lookups a page makes before any site exists, answered from the registrations the model
 // declares. The outbound call goes through the broker's endpoint-forward route to the fetching
 // service, which owns addresses, placeholder filling and outbound identification — a second HTTP path
@@ -34,6 +36,75 @@ public sealed class PositionLookupService(
         "No parcel boundary is available at this position. Draw the boundary instead.";
 
     public const string NoSearchAvailable = "No place search is available here.";
+
+    public const string NoElevationAvailable = "No elevation is available for this border.";
+
+    // The provider takes at most a hundred points a call: the centre, then this many corners.
+    public const int MostElevationCorners = 99;
+
+    public async Task<ElevationLookup> ElevationAsync(
+        IReadOnlyList<BoundaryPoint> border, CancellationToken cancellation)
+    {
+        var lookups = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.BorderElevations, cancellation);
+        if (lookups.Count == 0) return new ElevationLookup(LookupOutcome.NothingAvailable);
+
+        var centre = BoxCentre(border);
+        string Pair(BoundaryPoint point) => string.Create(CultureInfo.InvariantCulture, $"{point.Latitude},{point.Longitude}");
+        var parameters = new Dictionary<string, string>
+        {
+            ["locations"] = string.Join('|', SampledCorners(border).Prepend(centre).Select(Pair)),
+            ["latitude"] = centre.Latitude.ToString(CultureInfo.InvariantCulture),
+            ["longitude"] = centre.Longitude.ToString(CultureInfo.InvariantCulture),
+        };
+
+        var asked = 0;
+        foreach (var lookup in lookups)
+        {
+            var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+            {
+                endpointName = lookup.Name,
+                addressParameters = parameters,
+            }, cancellation);
+            if (body is null) continue;
+            asked++;
+            if (Elevation(lookup, body) is { } answered) return new ElevationLookup(LookupOutcome.Found, answered);
+        }
+
+        return new ElevationLookup(asked == 0 ? LookupOutcome.ProviderUnavailable : LookupOutcome.NothingAvailable);
+    }
+
+    // The centre of the border's box, as the Location page shows it, rather than its centre of area.
+    public static BoundaryPoint BoxCentre(IReadOnlyList<BoundaryPoint> border) => new()
+    {
+        Latitude = (border.Min(point => point.Latitude) + border.Max(point => point.Latitude)) / 2,
+        Longitude = (border.Min(point => point.Longitude) + border.Max(point => point.Longitude)) / 2,
+    };
+
+    public static IReadOnlyList<BoundaryPoint> SampledCorners(IReadOnlyList<BoundaryPoint> border) =>
+        border.Count <= MostElevationCorners
+            ? border
+            : [.. Enumerable.Range(0, MostElevationCorners).Select(index => border[index * border.Count / MostElevationCorners])];
+
+    private AnsweredElevation? Elevation(DeclaredLookup lookup, string body)
+    {
+        if (Reshaped(lookup, body) is not { } answered) return null;
+        using (answered)
+        {
+            if (answered.RootElement.ValueKind != JsonValueKind.Object) return null;
+            double? Metres(string name) =>
+                answered.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+                    ? value.GetDouble()
+                    : null;
+
+            var centre = Metres("elevationMetres");
+            var lowest = Metres("elevationMinimumMetres");
+            var highest = Metres("elevationMaximumMetres");
+            return centre is null && lowest is null && highest is null
+                ? null
+                : new AnsweredElevation(centre, lowest, highest, lookup.Attribution);
+        }
+    }
 
     public async Task<ParcelLookup> ParcelAtAsync(
         double latitude, double longitude, CancellationToken cancellation)

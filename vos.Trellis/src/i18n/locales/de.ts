@@ -1634,6 +1634,7 @@ export const de: PartialResources = {
     noParcel: "An dieser Position ist keine Flurstücksgrenze verfügbar. Zeichnen Sie die Grenze stattdessen selbst.",
     queryMissing: "Geben Sie einen Suchbegriff ein.",
     noSearch: "Hier ist keine Ortssuche verfügbar.",
+    noElevation: "Für diese Grenze ist keine Höhe verfügbar.",
     noBasemap: "Diese Karte wird hier nicht bereitgestellt.",
     emailAddressMissing: "Eine E-Mail-Adresse wird benötigt.",
     codesExhausted: "An diese Adresse wurden vorerst so viele Codes wie möglich gesendet. Versuchen Sie es später erneut.",

@@ -73,7 +73,7 @@ public static class SubmissionLimits
         if (submission.Parcel is { } parcel)
         {
             Text(parcel.BoundarySource, "parcel.boundarySource");
-            Boundary(parcel.Boundary);
+            Boundary(parcel.Boundary, "parcel.boundary");
         }
 
         AtMost(submission.Allocations?.Count, MostAllocations, "allocations", "shares of the land");
@@ -106,15 +106,15 @@ public static class SubmissionLimits
             Refusal.With(("field", "submissionId")));
     }
 
-    private static void Boundary(IReadOnlyList<BoundaryPoint>? boundary)
+    public static void Boundary(IReadOnlyList<BoundaryPoint>? boundary, string field)
     {
         if (boundary is null) return;
 
-        AtMost(boundary.Count, MostBoundaryCorners, "parcel.boundary", "corners");
+        AtMost(boundary.Count, MostBoundaryCorners, field, "corners");
         foreach (var corner in boundary)
         {
-            Between(corner.Latitude, -90, 90, "parcel.boundary", "degrees of latitude");
-            Between(corner.Longitude, -180, 180, "parcel.boundary", "degrees of longitude");
+            Between(corner.Latitude, -90, 90, field, "degrees of latitude");
+            Between(corner.Longitude, -180, 180, field, "degrees of longitude");
         }
     }
 

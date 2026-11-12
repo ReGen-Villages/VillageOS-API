@@ -1632,6 +1632,7 @@ export const en = {
     noParcel: "No parcel boundary is available at this position. Draw the boundary instead.",
     queryMissing: "Type something to search for.",
     noSearch: "No place search is available here.",
+    noElevation: "No elevation is available for this border.",
     noBasemap: "That map is not served here.",
     emailAddressMissing: "An email address is needed.",
     codesExhausted: "That address has been sent as many codes as it can be for now. Try again later.",

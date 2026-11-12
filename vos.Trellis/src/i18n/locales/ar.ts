@@ -1739,6 +1739,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     noParcel: "لا تتوفر حدود قطعة أرض في هذا الموقع. ارسم الحدود بنفسك.",
     queryMissing: "اكتب شيئًا للبحث عنه.",
     noSearch: "البحث عن الأماكن غير متاح هنا.",
+    noElevation: "لا يتوفر ارتفاع لهذه الحدود.",
     noBasemap: "هذه الخريطة غير متاحة هنا.",
     emailAddressMissing: "يلزم عنوان بريد إلكتروني.",
     codesExhausted: "أُرسل إلى هذا العنوان أقصى عدد ممكن من الرموز حاليًا. أعد المحاولة لاحقًا.",

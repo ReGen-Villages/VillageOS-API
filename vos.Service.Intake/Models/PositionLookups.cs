@@ -6,6 +6,12 @@ public sealed record ParcelAsked(double? Latitude, double? Longitude);
 
 public sealed record PlacesAsked(string? Query);
 
+public sealed record ElevationAsked(IReadOnlyList<BoundaryPoint>? Boundary);
+
+// A figure the provider held no height for stays unknown rather than nought.
+public sealed record AnsweredElevation(
+    double? ElevationMetres, double? ElevationMinimumMetres, double? ElevationMaximumMetres, string? Attribution);
+
 // The legal parcel a register holds at a position: its boundary as named pairs, and whose
 // record it is — the register's own credit line, which the page that draws the boundary displays.
 public sealed record AnsweredParcel(IReadOnlyList<BoundaryPoint> Boundary, string? Attribution);

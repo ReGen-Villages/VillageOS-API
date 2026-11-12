@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -268,6 +269,128 @@ public class PositionLookupEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("places").GetArrayLength().Should().Be(0);
+    }
+
+    private const string BorderLookup = "border-elevation";
+    private const string CentreLookup = "centre-elevation";
+    private const string ElevationTransform =
+        "{\"elevationMetres\": centre, \"elevationMinimumMetres\": low, \"elevationMaximumMetres\": high}";
+
+    private static DeclaredModel ElevationFirstThenCentre() =>
+        DeclaredModel.Seeded()
+            .With(FallbackPredicate)
+            .Bound(PositionLookupReader.FallsBackToRole, FallbackPredicate)
+            .Stating(BorderLookup,
+                (PositionLookupReader.TransformProperty, ElevationTransform),
+                (PositionLookupReader.AttributionProperty, "© the border heights"))
+            .Stating(CentreLookup,
+                (PositionLookupReader.TransformProperty, ElevationTransform),
+                (PositionLookupReader.AttributionProperty, "© the centre height"))
+            .Bound(PositionLookupReader.BorderElevationRole, BorderLookup)
+            .Relate(BorderLookup, FallbackPredicate, CentreLookup);
+
+    private static readonly object ASquareBorder = new
+    {
+        boundary = new[]
+        {
+            new { latitude = 25.00, longitude = 55.40 }, new { latitude = 25.00, longitude = 55.44 },
+            new { latitude = 25.04, longitude = 55.44 }, new { latitude = 25.04, longitude = 55.40 },
+        },
+    };
+
+    [Fact]
+    public async Task A_finished_border_answers_its_centre_and_its_lowest_and_highest_point()
+    {
+        var asked = new List<string>();
+        var sent = new List<string>();
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+            {
+                if (request.RequestUri!.AbsolutePath != EndpointForwardPath)
+                    return ModelStub.Json(JsonSerializer.Serialize(new SnapshotReadResult(0, ElevationFirstThenCentre().Build()),
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                sent.Add(body);
+                asked.Add(JsonDocument.Parse(body).RootElement.GetProperty("endpointName").GetString()!);
+                return ModelStub.Json("""{"centre": 100, "low": 84, "high": 112}""");
+            },
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        answered.GetProperty("elevationMetres").GetDouble().Should().Be(100);
+        answered.GetProperty("elevationMinimumMetres").GetDouble().Should().Be(84);
+        answered.GetProperty("elevationMaximumMetres").GetDouble().Should().Be(112);
+        answered.GetProperty("attribution").GetString().Should().Be("© the border heights");
+        asked.Should().Equal(BorderLookup);
+        JsonDocument.Parse(sent.Single()).RootElement.GetProperty("addressParameters").GetProperty("locations").GetString()
+            .Should().Be("25.02,55.42|25,55.4|25,55.44|25.04,55.44|25.04,55.4");
+    }
+
+    [Fact]
+    public async Task A_border_lookup_that_is_refused_hands_the_border_to_the_centre_lookup()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(ElevationFirstThenCentre(),
+            name => name == BorderLookup
+                ? new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                : ModelStub.Json("""{"centre": 37}"""),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(BorderLookup, CentreLookup);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        answered.GetProperty("elevationMetres").GetDouble().Should().Be(37);
+        answered.GetProperty("elevationMinimumMetres").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task A_model_declaring_no_elevation_lookup_answers_that_none_is_available()
+    {
+        await using var factory = Answering(providerBody: """{"centre": 100}""");
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoElevation);
+    }
+
+    [Theory]
+    [InlineData("""{"boundary": [{"latitude": 25, "longitude": 55}, {"latitude": 25.1, "longitude": 55}]}""", "boundaryTooFewCorners")]
+    [InlineData("""{"boundary": [{"latitude": 95, "longitude": 55}, {"latitude": 25.1, "longitude": 55}, {"latitude": 25.1, "longitude": 55.1}]}""", "fieldOutOfRange")]
+    [InlineData("""{}""", "boundaryTooFewCorners")]
+    public async Task A_border_a_submission_would_refuse_is_refused_before_any_provider_is_asked(string body, string code)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(ElevationFirstThenCentre(), providerBody: """{"centre": 1}""", endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/submissions/border-elevation",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(code);
+        calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_border_of_more_corners_than_the_provider_takes_is_sampled_evenly_round_it()
+    {
+        var border = Enumerable.Range(0, 300).Select(index => new BoundaryPoint { Latitude = index, Longitude = 0 }).ToList();
+
+        var sampled = PositionLookupService.SampledCorners(border);
+
+        sampled.Should().HaveCount(PositionLookupService.MostElevationCorners);
+        sampled.Select(point => point.Latitude).Should().BeInAscendingOrder().And.Contain(0);
+        sampled[^1].Latitude.Should().BeGreaterThan(290);
     }
 
     [Fact]

@@ -20,7 +20,8 @@ public static class PositionLookupReader
     public static readonly Role ParcelLookupRole = LandIntakeRoles.ParcelLookup;
     public static readonly Role PlaceSearchRole = LandIntakeRoles.PlaceSearch;
     public static readonly Role FallsBackToRole = LandIntakeRoles.FallsBackTo;
-    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole, FallsBackToRole];
+    public static readonly Role BorderElevationRole = LandIntakeRoles.BorderElevation;
+    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole, FallsBackToRole, BorderElevationRole];
 
     // Deeper than any order a deployment declares; a chain that loops back on itself ends at the first repeat.
     public static readonly TraverseRule FollowFallbacks =
@@ -54,8 +55,12 @@ public static class PositionLookupReader
     // The place searches in the order the model asks them: the one the role binds, then each it falls back
     // to. A search with no reshape is one whose licence is not obtained yet and is left out; two bound to the
     // role leave the first by name to start from, the same shape as a vocabulary bound twice.
-    public static IReadOnlyList<DeclaredLookup> PlaceSearches(SnapshotDocument snapshot) =>
-        snapshot.Bound(PlaceSearchRole).OrderBy(thing => thing.Name, StringComparer.Ordinal).FirstOrDefault() is { } first
+    public static IReadOnlyList<DeclaredLookup> PlaceSearches(SnapshotDocument snapshot) => Ordered(snapshot, PlaceSearchRole);
+
+    public static IReadOnlyList<DeclaredLookup> BorderElevations(SnapshotDocument snapshot) => Ordered(snapshot, BorderElevationRole);
+
+    private static IReadOnlyList<DeclaredLookup> Ordered(SnapshotDocument snapshot, Role role) =>
+        snapshot.Bound(role).OrderBy(thing => thing.Name, StringComparer.Ordinal).FirstOrDefault() is { } first
             ? InFallbackOrder(snapshot, first)
             : [];
 

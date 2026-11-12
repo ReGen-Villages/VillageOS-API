@@ -1634,6 +1634,7 @@ export const fr: PartialResources = {
     noParcel: "Aucune limite de parcelle n’est disponible à cet endroit. Dessinez plutôt la limite.",
     queryMissing: "Saisissez quelque chose à rechercher.",
     noSearch: "Aucune recherche de lieu n’est disponible ici.",
+    noElevation: "Aucune altitude n’est disponible pour cette limite.",
     noBasemap: "Cette carte n’est pas proposée ici.",
     emailAddressMissing: "Une adresse e-mail est nécessaire.",
     codesExhausted: "Cette adresse a reçu autant de codes que possible pour le moment. Réessayez plus tard.",

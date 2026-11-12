@@ -30,6 +30,7 @@ internal static class IntakeEndpoints
         MapForm(app);
         MapParcelAtPosition(app);
         MapPlaceSearch(app);
+        MapBorderElevation(app);
         MapVerification(app);
         MapTicket(app);
         MapSubmission(app);
@@ -141,6 +142,55 @@ internal static class IntakeEndpoints
                                               && !context.RequestAborted.IsCancellationRequested))
             {
                 logger.LogError(error, "A place search could not be answered: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+        }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }
+
+    private static void MapBorderElevation(WebApplication app)
+    {
+        // How high the land inside a finished border sits, before any site exists, so the Location page can
+        // show the same figures the site will keep when it is submitted.
+        app.MapPost("/submissions/border-elevation", async (
+            HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+        {
+            var border = (await ReadAsync<ElevationAsked>(context))?.Boundary;
+            if (border is null || border.Count < 3)
+                return Refused(context, "the border had fewer than three corners",
+                    Results.BadRequest(new Refusal(RefusalCode.BoundaryTooFewCorners,
+                        "A border needs at least three corners.", Refusal.With(("corners", border?.Count ?? 0)))));
+            try
+            {
+                SubmissionLimits.Boundary(border, "boundary");
+            }
+            catch (SubmissionError error)
+            {
+                return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
+            }
+
+            try
+            {
+                var answered = await lookups.ElevationAsync(border, context.RequestAborted);
+                return answered.Outcome switch
+                {
+                    LookupOutcome.Found => Results.Ok(new
+                    {
+                        elevationMetres = answered.Elevation!.ElevationMetres,
+                        elevationMinimumMetres = answered.Elevation.ElevationMinimumMetres,
+                        elevationMaximumMetres = answered.Elevation.ElevationMaximumMetres,
+                        attribution = answered.Elevation.Attribution,
+                    }),
+                    LookupOutcome.NothingAvailable => Results.Json(
+                        new Refusal(RefusalCode.NoElevation, PositionLookupService.NoElevationAvailable),
+                        statusCode: StatusCodes.Status404NotFound),
+                    _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
+                };
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "A border elevation could not be answered: {Reason}", error.Message);
                 return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
             }
         }).RequireRateLimiting(SubmissionRate.PolicyName);

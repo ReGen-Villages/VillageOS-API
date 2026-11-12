@@ -23,6 +23,7 @@ public static class RefusalCode
     public const string NoParcel = "noParcel";
     public const string QueryMissing = "queryMissing";
     public const string NoSearch = "noSearch";
+    public const string NoElevation = "noElevation";
     public const string NoBasemap = "noBasemap";
 
     public const string EmailAddressMissing = "emailAddressMissing";

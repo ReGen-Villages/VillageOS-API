@@ -13,7 +13,11 @@ public class PositionLookupReaderTests
     public void The_read_asks_for_the_lookup_roles_what_each_binds_and_the_order_they_fall_back_in()
     {
         var selector = PositionLookupReader.Selector();
-        Guid[] roles = [PositionLookupReader.ParcelLookupRole.Id, PositionLookupReader.PlaceSearchRole.Id, PositionLookupReader.FallsBackToRole.Id];
+        Guid[] roles =
+        [
+            PositionLookupReader.ParcelLookupRole.Id, PositionLookupReader.PlaceSearchRole.Id,
+            PositionLookupReader.FallsBackToRole.Id, PositionLookupReader.BorderElevationRole.Id,
+        ];
 
         selector.Ids.Should().Equal(roles);
         selector.BoundArchetypes.Should().Equal(roles);

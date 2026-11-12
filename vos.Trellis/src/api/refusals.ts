@@ -6,7 +6,7 @@ import i18n from '../i18n';
  */
 export const REFUSAL_CODES = [
   'tooManyRequests', 'serviceUnavailable', 'codeSendingUnavailable', 'submissionsUnavailable', 'filesUnavailable',
-  'positionMissing', 'noParcel', 'queryMissing', 'noSearch', 'noBasemap',
+  'positionMissing', 'noParcel', 'queryMissing', 'noSearch', 'noElevation', 'noBasemap',
   'emailAddressMissing', 'codesExhausted', 'codeNotAccepted', 'ticketMissing', 'ticketExpired', 'addressNotVerified',
   'submissionTooLarge', 'submissionEmpty', 'submissionUnreadable', 'identifierInvalid', 'emailAddressMalformed',
   'fieldMissing', 'fieldTooLong', 'fieldTooMany', 'fieldOutOfRange', 'termUnknown', 'sharesDisagree',
