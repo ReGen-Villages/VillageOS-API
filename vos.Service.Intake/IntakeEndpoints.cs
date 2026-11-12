@@ -30,6 +30,7 @@ internal static class IntakeEndpoints
         MapForm(app);
         MapParcelAtPosition(app);
         MapPlaceSearch(app);
+        MapPlotsInView(app);
         MapBorderElevation(app);
         MapVerification(app);
         MapTicket(app);
@@ -142,6 +143,47 @@ internal static class IntakeEndpoints
                                               && !context.RequestAborted.IsCancellationRequested))
             {
                 logger.LogError(error, "A place search could not be answered: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+        }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }
+
+    private static void MapPlotsInView(WebApplication app)
+    {
+        // A register's plots inside the map in view, for a page to offer as borders before any site exists.
+        app.MapPost("/submissions/plots-in-view", async (
+            HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+        {
+            var asked = await ReadAsync<PlotsAsked>(context);
+            if (asked is not { SouthLatitude: { } south, WestLongitude: { } west, NorthLatitude: { } north, EastLongitude: { } east }
+                || south is < -90 or > 90 || north is < -90 or > 90 || west is < -180 or > 180 || east is < -180 or > 180
+                || south >= north || west >= east)
+                return Refused(context, "the view was missing or not a box",
+                    Results.BadRequest(new Refusal(RefusalCode.PositionMissing,
+                        "'southLatitude', 'westLongitude', 'northLatitude' and 'eastLongitude' are all needed, in degrees, south below north and west of east.")));
+
+            try
+            {
+                var answered = await lookups.PlotsInViewAsync(
+                    new DeclaredBounds(south, north, west, east), asked.Zoom ?? 0, context.RequestAborted);
+                return answered.Outcome switch
+                {
+                    LookupOutcome.Found => Results.Ok(new
+                    {
+                        plots = answered.Plots!.Plots,
+                        attributions = answered.Plots.Attributions,
+                    }),
+                    LookupOutcome.NothingAvailable => Results.Json(
+                        new Refusal(RefusalCode.NoPlots, PositionLookupService.NoPlotsAvailable),
+                        statusCode: StatusCodes.Status404NotFound),
+                    _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
+                };
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "The plots in view could not be answered: {Reason}", error.Message);
                 return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
             }
         }).RequireRateLimiting(SubmissionRate.PolicyName);

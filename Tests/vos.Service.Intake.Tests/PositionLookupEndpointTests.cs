@@ -381,6 +381,121 @@ public class PositionLookupEndpointTests
         calls.Should().BeEmpty();
     }
 
+    private const string PlotsKind = "PlotsInViewLookup";
+    private const string PlotsRegister = "emirate-plots";
+
+    private static DeclaredModel WithPlotsRegister(bool connected = true) =>
+        DeclaredModel.Seeded()
+            .WithArchetype(PlotsKind)
+            .Bound(PositionLookupReader.PlotsInViewLookupRole, PlotsKind)
+            .Stating(PlotsRegister, [
+                .. connected ? new (string, object)[] { (PositionLookupReader.TransformProperty, "{\"plots\": found}") } : [],
+                (PositionLookupReader.AttributionProperty, "© the emirate's register"),
+                (PositionLookupReader.SouthLatitudeProperty, 24.6),
+                (PositionLookupReader.NorthLatitudeProperty, 25.4),
+                (PositionLookupReader.WestLongitudeProperty, 54.85),
+                (PositionLookupReader.EastLongitudeProperty, 56.25),
+                (PositionLookupReader.MinimumZoomProperty, 15),
+                (PositionLookupReader.MostPlotsProperty, 2)])
+            .Relate(PlotsRegister, "is", PlotsKind);
+
+    private const string ThreePlots =
+        """
+        {"found": [
+          {"identifier": "P-1", "areaHectares": 1.2, "boundary": [{"latitude": 25.01, "longitude": 55.41}, {"latitude": 25.02, "longitude": 55.41}, {"latitude": 25.02, "longitude": 55.42}]},
+          {"identifier": "P-2", "boundary": [{"latitude": 25.03, "longitude": 55.41}, {"latitude": 25.04, "longitude": 55.41}]},
+          {"identifier": "P-3", "areaHectares": 0.8, "boundary": [{"latitude": 25.05, "longitude": 55.41}, {"latitude": 25.06, "longitude": 55.41}, {"latitude": 25.06, "longitude": 55.42}]},
+          {"identifier": "P-4", "areaHectares": 0.5, "boundary": [{"latitude": 25.07, "longitude": 55.41}, {"latitude": 25.08, "longitude": 55.41}, {"latitude": 25.08, "longitude": 55.42}]}]}
+        """;
+
+    private static object ViewOverDubai(int zoom) =>
+        new { southLatitude = 25.0, westLongitude = 55.4, northLatitude = 25.1, eastLongitude = 55.5, zoom };
+
+    [Fact]
+    public async Task A_view_inside_a_registers_box_at_its_zoom_answers_its_plots_up_to_its_cap()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var plots = answered.GetProperty("plots").EnumerateArray().ToArray();
+        plots.Select(plot => plot.GetProperty("identifier").GetString()).Should().Equal("P-1", "P-3");
+        plots[0].GetProperty("areaHectares").GetDouble().Should().Be(1.2);
+        plots[0].GetProperty("boundary").GetArrayLength().Should().Be(3);
+        answered.GetProperty("attributions").EnumerateArray().Select(credit => credit.GetString())
+            .Should().Equal("© the emirate's register");
+        var parameters = JsonDocument.Parse(calls.Single()).RootElement.GetProperty("addressParameters");
+        parameters.GetProperty("southLatitude").GetString().Should().Be("25");
+        parameters.GetProperty("eastLongitude").GetString().Should().Be("55.5");
+    }
+
+    [Theory]
+    [InlineData(14)]
+    [InlineData(null)]
+    public async Task A_view_further_out_than_a_registers_zoom_asks_it_nothing(int? zoom)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view",
+            new { southLatitude = 25.0, westLongitude = 55.4, northLatitude = 25.1, eastLongitude = 55.5, zoom });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoPlots);
+        calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_view_outside_every_registers_box_asks_none()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view",
+            new { southLatitude = 48.8, westLongitude = 2.3, northLatitude = 48.9, eastLongitude = 2.4, zoom = 17 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        calls.Should().BeEmpty();
+    }
+
+    // As shipped, a register whose licence is not obtained carries no reshape, so the page shows "Coming soon".
+    [Fact]
+    public async Task A_register_not_connected_yet_is_left_out()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(connected: false), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("""{"southLatitude": 25.1, "westLongitude": 55.4, "northLatitude": 25.0, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("""{"southLatitude": 25.0, "westLongitude": 55.4, "northLatitude": 95.0, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("""{"zoom": 16}""")]
+    public async Task A_view_that_is_not_a_box_is_refused_before_any_register_is_asked(string body)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/submissions/plots-in-view",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.PositionMissing);
+        calls.Should().BeEmpty();
+    }
+
     [Fact]
     public void A_border_of_more_corners_than_the_provider_takes_is_sampled_evenly_round_it()
     {

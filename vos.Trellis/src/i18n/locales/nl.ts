@@ -1635,6 +1635,7 @@ export const nl: PartialResources = {
     queryMissing: "Typ iets om naar te zoeken.",
     noSearch: "Hier is geen plaatszoekfunctie beschikbaar.",
     noElevation: "Voor deze grens is geen hoogte beschikbaar.",
+    noPlots: "Voor deze weergave zijn geen percelen uit een register beschikbaar.",
     noBasemap: "Die kaart wordt hier niet aangeboden.",
     emailAddressMissing: "Er is een e-mailadres nodig.",
     codesExhausted: "Naar dat adres zijn voorlopig zoveel codes gestuurd als mogelijk is. Probeer het later opnieuw.",

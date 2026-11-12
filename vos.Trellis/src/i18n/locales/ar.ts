@@ -1740,6 +1740,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     queryMissing: "اكتب شيئًا للبحث عنه.",
     noSearch: "البحث عن الأماكن غير متاح هنا.",
     noElevation: "لا يتوفر ارتفاع لهذه الحدود.",
+    noPlots: "لا تتوفر قطع أراضٍ من أي سجل لهذا العرض.",
     noBasemap: "هذه الخريطة غير متاحة هنا.",
     emailAddressMissing: "يلزم عنوان بريد إلكتروني.",
     codesExhausted: "أُرسل إلى هذا العنوان أقصى عدد ممكن من الرموز حاليًا. أعد المحاولة لاحقًا.",

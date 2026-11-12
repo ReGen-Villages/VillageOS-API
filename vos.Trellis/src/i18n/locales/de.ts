@@ -1635,6 +1635,7 @@ export const de: PartialResources = {
     queryMissing: "Geben Sie einen Suchbegriff ein.",
     noSearch: "Hier ist keine Ortssuche verfügbar.",
     noElevation: "Für diese Grenze ist keine Höhe verfügbar.",
+    noPlots: "Für diesen Ausschnitt sind keine Flurstücke eines Registers verfügbar.",
     noBasemap: "Diese Karte wird hier nicht bereitgestellt.",
     emailAddressMissing: "Eine E-Mail-Adresse wird benötigt.",
     codesExhausted: "An diese Adresse wurden vorerst so viele Codes wie möglich gesendet. Versuchen Sie es später erneut.",

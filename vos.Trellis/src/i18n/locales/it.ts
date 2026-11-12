@@ -1635,6 +1635,7 @@ export const it: PartialResources = {
     queryMissing: "Digita qualcosa da cercare.",
     noSearch: "Qui non è disponibile la ricerca di luoghi.",
     noElevation: "Per questo confine non è disponibile alcuna quota.",
+    noPlots: "Per questa vista non sono disponibili particelle di alcun registro.",
     noBasemap: "Quella mappa non è disponibile qui.",
     emailAddressMissing: "Serve un indirizzo email.",
     codesExhausted: "A quell’indirizzo sono già stati inviati tutti i codici possibili per ora. Riprova più tardi.",

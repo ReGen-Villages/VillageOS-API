@@ -34,4 +34,21 @@ public sealed record DeclaredLookup(
 }
 
 public sealed record DeclaredBounds(
-    double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude);
+    double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude)
+{
+    public bool Overlaps(DeclaredBounds view) =>
+        view.SouthLatitude <= NorthLatitude && view.NorthLatitude >= SouthLatitude
+        && view.WestLongitude <= EastLongitude && view.EastLongitude >= WestLongitude;
+}
+
+// A register's plots for the map in view: answered only at its minimum zoom and closer, and for at most
+// its stated number of plots a call.
+public sealed record DeclaredPlotsLookup(DeclaredLookup Lookup, int MinimumZoom, int? MostPlots);
+
+public sealed record PlotsAsked(
+    double? SouthLatitude, double? WestLongitude, double? NorthLatitude, double? EastLongitude, int? Zoom);
+
+// One plot as the register holds it: its outer ring, and the register's own identifier and area.
+public sealed record AnsweredPlot(IReadOnlyList<BoundaryPoint> Boundary, string? Identifier, double? AreaHectares);
+
+public sealed record AnsweredPlots(IReadOnlyList<AnsweredPlot> Plots, IReadOnlyList<string> Attributions);

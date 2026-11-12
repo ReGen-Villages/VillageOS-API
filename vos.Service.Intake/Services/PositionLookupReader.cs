@@ -55,6 +55,40 @@ public static class PositionLookupReader
     // The place searches in the order the model asks them: the one the role binds, then each it falls back
     // to. A search with no reshape is one whose licence is not obtained yet and is left out; two bound to the
     // role leave the first by name to start from, the same shape as a vocabulary bound twice.
+    public static readonly Role PlotsInViewLookupRole = LandIntakeRoles.PlotsInViewLookup;
+    public const string MinimumZoomProperty = "minimumZoom";
+    public const string MostPlotsProperty = "mostPlotsPerRequest";
+
+    // The role binds the kind rather than one register, so the read asks for every Thing of the kind and the
+    // `is` relationships that say which they are.
+    public static SubscriptionSelector PlotsSelector() => new()
+    {
+        Ids = RoleBindings.Identifiers(PlotsInViewLookupRole),
+        Names = [RoleBindings.BindsPredicateName, SubmissionFragmentComposer.IsPredicateName],
+        BoundTypes = RoleBindings.Identifiers(PlotsInViewLookupRole),
+        Traverse = [RoleBindings.FollowBindings],
+        Relationships = [new RelationshipRule { Predicate = SubmissionFragmentComposer.IsPredicateName }],
+    };
+
+    public static IReadOnlyList<DeclaredPlotsLookup> PlotsInViewLookups(SnapshotDocument snapshot)
+    {
+        if (snapshot.Bound(PlotsInViewLookupRole).SingleOrDefault(thing => thing.IsArchetype) is not { } kind) return [];
+        var isPredicate = snapshot.Things
+            .Where(thing => string.Equals(thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+            .Select(thing => thing.Id).ToHashSet();
+        var members = snapshot.Relationships
+            .Where(edge => edge.TargetId == kind.Id && isPredicate.Contains(edge.PredicateId))
+            .Select(edge => edge.SubjectId).ToHashSet();
+
+        return [.. snapshot.Things
+            .Where(thing => !thing.IsArchetype && members.Contains(thing.Id))
+            .Select(thing => Lookup(thing) is { Bounds: not null } usable
+                ? new DeclaredPlotsLookup(usable, (int?)Number(thing, MinimumZoomProperty) ?? 0, (int?)Number(thing, MostPlotsProperty))
+                : null)
+            .OfType<DeclaredPlotsLookup>()
+            .OrderBy(lookup => lookup.Lookup.Name, StringComparer.Ordinal)];
+    }
+
     public static IReadOnlyList<DeclaredLookup> PlaceSearches(SnapshotDocument snapshot) => Ordered(snapshot, PlaceSearchRole);
 
     public static IReadOnlyList<DeclaredLookup> BorderElevations(SnapshotDocument snapshot) => Ordered(snapshot, BorderElevationRole);
