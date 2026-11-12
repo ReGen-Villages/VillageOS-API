@@ -194,6 +194,82 @@ public class PositionLookupEndpointTests
         answered.GetProperty("attribution").GetString().Should().Be(WillowBend.PlaceSearchAttribution);
     }
 
+    private const string FirstSearch = "first-place-search";
+    private const string FallbackPredicate = "triedNext";
+
+    private static DeclaredModel SearchingFirstThen() =>
+        DeclaredModel.Seeded()
+            .With(FallbackPredicate)
+            .Bound(PositionLookupReader.FallsBackToRole, FallbackPredicate)
+            .Stating(FirstSearch,
+                (PositionLookupReader.TransformProperty, WillowBend.PlaceSearchTransform),
+                (PositionLookupReader.AttributionProperty, "© the first gazetteer"))
+            .Unbound(PositionLookupReader.PlaceSearchRole)
+            .Bound(PositionLookupReader.PlaceSearchRole, FirstSearch)
+            .Relate(FirstSearch, FallbackPredicate, WillowBend.PlaceSearchName);
+
+    // Each search answers by its own name, so a test can tell which one the query reached.
+    private static IntakeWebApplicationFactory AnsweringPerSearch(
+        DeclaredModel model, Func<string, HttpResponseMessage> answerFor, List<string> asked) => new()
+    {
+        HandlerCallback = request =>
+        {
+            if (request.RequestUri!.AbsolutePath != EndpointForwardPath)
+                return ModelStub.Json(JsonSerializer.Serialize(
+                    new SnapshotReadResult(0, model.Build()), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            var name = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())
+                .RootElement.GetProperty("endpointName").GetString()!;
+            asked.Add(name);
+            return answerFor(name);
+        },
+    };
+
+    [Fact]
+    public async Task A_refused_search_hands_the_query_to_the_one_it_falls_back_to()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(),
+            name => name == FirstSearch ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : ModelStub.Json(SomePlaces),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(FirstSearch, WillowBend.PlaceSearchName);
+        (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("attribution").GetString().Should().Be(WillowBend.PlaceSearchAttribution);
+    }
+
+    [Fact]
+    public async Task A_search_that_finds_nothing_hands_the_query_on_and_one_that_finds_places_ends_the_order()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(),
+            name => ModelStub.Json(name == FirstSearch ? """{"found": []}""" : SomePlaces),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(FirstSearch, WillowBend.PlaceSearchName);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("places").GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Finding_nothing_in_every_search_is_an_answer_not_an_outage()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(), _ => ModelStub.Json("""{"found": []}"""), asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Nowhere at all" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("places").GetArrayLength().Should().Be(0);
+    }
+
     [Fact]
     public async Task A_model_registering_no_place_search_says_so()
     {

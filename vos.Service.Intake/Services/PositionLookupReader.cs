@@ -19,7 +19,12 @@ public static class PositionLookupReader
 {
     public static readonly Role ParcelLookupRole = LandIntakeRoles.ParcelLookup;
     public static readonly Role PlaceSearchRole = LandIntakeRoles.PlaceSearch;
-    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole];
+    public static readonly Role FallsBackToRole = LandIntakeRoles.FallsBackTo;
+    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole, FallsBackToRole];
+
+    // Deeper than any order a deployment declares; a chain that loops back on itself ends at the first repeat.
+    public static readonly TraverseRule FollowFallbacks =
+        new() { PredicateRole = FallsBackToRole.Id, Direction = "outgoing", Depth = 8 };
 
     public const string TransformProperty = "lookupTransform";
     public const string AttributionProperty = "attribution";
@@ -33,7 +38,8 @@ public static class PositionLookupReader
         Ids = RoleBindings.Identifiers(Roles),
         Names = [RoleBindings.BindsPredicateName],
         BoundArchetypes = RoleBindings.Identifiers(Roles),
-        Traverse = [RoleBindings.FollowBindings],
+        Traverse = [RoleBindings.FollowBindings, FollowFallbacks],
+        Relationships = [new RelationshipRule { PredicateRole = FallsBackToRole.Id }],
     };
 
     // The parcel registers the model declares, in name order so two reads try them the same
@@ -45,15 +51,32 @@ public static class PositionLookupReader
             .OfType<DeclaredLookup>()
             .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)];
 
-    // The one place search the model declares, or null where it declares none. Two would leave
-    // nothing able to say which a query goes to, so the first by name answers and the rest are dead
-    // declarations a deployment should notice — the same shape as a vocabulary bound twice.
-    public static DeclaredLookup? PlaceSearch(SnapshotDocument snapshot) =>
-        snapshot.Bound(PlaceSearchRole)
-            .Select(Lookup)
-            .OfType<DeclaredLookup>()
-            .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)
-            .FirstOrDefault();
+    // The place searches in the order the model asks them: the one the role binds, then each it falls back
+    // to. A search with no reshape is one whose licence is not obtained yet and is left out; two bound to the
+    // role leave the first by name to start from, the same shape as a vocabulary bound twice.
+    public static IReadOnlyList<DeclaredLookup> PlaceSearches(SnapshotDocument snapshot) =>
+        snapshot.Bound(PlaceSearchRole).OrderBy(thing => thing.Name, StringComparer.Ordinal).FirstOrDefault() is { } first
+            ? InFallbackOrder(snapshot, first)
+            : [];
+
+    private static IReadOnlyList<DeclaredLookup> InFallbackOrder(SnapshotDocument snapshot, SnapshotThing first)
+    {
+        var fallsBackTo = snapshot.Bound(FallsBackToRole).Select(thing => thing.Id).ToHashSet();
+        var next = snapshot.Relationships
+            .Where(edge => fallsBackTo.Contains(edge.PredicateId))
+            .GroupBy(edge => edge.SubjectId)
+            .ToDictionary(group => group.Key, group => group.First().TargetId);
+        var things = snapshot.Things.DistinctBy(thing => thing.Id).ToDictionary(thing => thing.Id);
+
+        var ordered = new List<DeclaredLookup>();
+        var visited = new HashSet<Guid>();
+        for (var at = first; at is not null && visited.Add(at.Id);
+             at = next.TryGetValue(at.Id, out var following) ? things.GetValueOrDefault(following) : null)
+        {
+            if (Lookup(at) is { } usable) ordered.Add(usable);
+        }
+        return ordered;
+    }
 
     private static DeclaredLookup? Lookup(SnapshotThing thing)
     {

@@ -74,19 +74,30 @@ public sealed class PositionLookupService(
 
     public async Task<PlacesLookup> PlacesAsync(string query, CancellationToken cancellation)
     {
-        var search = await declarations.ReadAsync(
-            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearch, cancellation);
-        if (search is null) return new PlacesLookup(LookupOutcome.NothingAvailable);
+        var searches = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearches, cancellation);
+        if (searches.Count == 0) return new PlacesLookup(LookupOutcome.NothingAvailable);
 
-        var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+        // A search that is refused, cannot be reached or finds nothing hands the query to the next one in the
+        // model's order; finding nothing anywhere is still an answer, unlike every search being unreachable.
+        AnsweredPlaces? foundNothing = null;
+        foreach (var search in searches)
         {
-            endpointName = search.Name,
-            addressParameters = new Dictionary<string, string> { ["query"] = query },
-        }, cancellation);
-        if (body is null) return new PlacesLookup(LookupOutcome.ProviderUnavailable);
+            var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+            {
+                endpointName = search.Name,
+                addressParameters = new Dictionary<string, string> { ["query"] = query },
+            }, cancellation);
+            if (body is null) continue;
 
-        return new PlacesLookup(
-            LookupOutcome.Found, new AnsweredPlaces(Places(search, body), search.Attribution));
+            var places = Places(search, body);
+            if (places.Count > 0) return new PlacesLookup(LookupOutcome.Found, new AnsweredPlaces(places, search.Attribution));
+            foundNothing ??= new AnsweredPlaces(places, search.Attribution);
+        }
+
+        return foundNothing is null
+            ? new PlacesLookup(LookupOutcome.ProviderUnavailable)
+            : new PlacesLookup(LookupOutcome.Found, foundNothing);
     }
 
     private IReadOnlyList<BoundaryPoint>? Boundary(DeclaredLookup register, string body)

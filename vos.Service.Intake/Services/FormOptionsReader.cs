@@ -47,7 +47,7 @@ public static class FormOptionsReader
         Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
-        Traverse = [RoleBindings.FollowBindings],
+        Traverse = [RoleBindings.FollowBindings, PositionLookupReader.FollowFallbacks],
         IncludeRelationships = true,
     };
 
@@ -67,7 +67,7 @@ public static class FormOptionsReader
             [.. hazardLevels.Select(term => term.Name)],
             DefaultProgramme(snapshot),
             PositionLookupReader.ParcelLookups(snapshot).Count > 0,
-            PositionLookupReader.PlaceSearch(snapshot) is not null,
+            PositionLookupReader.PlaceSearches(snapshot).Count > 0,
             Themes(snapshot),
             Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels]));
     }
