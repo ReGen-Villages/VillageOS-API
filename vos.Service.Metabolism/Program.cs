@@ -1,6 +1,5 @@
 using vos.Service.Auth;
 using vos.Service.Metabolism.Configuration;
-using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared;
