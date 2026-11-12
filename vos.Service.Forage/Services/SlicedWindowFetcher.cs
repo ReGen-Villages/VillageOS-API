@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
 
@@ -16,8 +15,6 @@ namespace vos.Service.Forage.Services;
 // is a fact about this deployment, while the reach is a fact about what the site's analysis needs.
 public sealed class SlicedWindowFetcher : ISourceFetcher
 {
-    private const string DateFormat = "yyyy-MM-dd";
-
     // The wording stays fixed because a scenario run counts these lines to see a slow broker in a run that passed.
     public const string TimedOutSliceAskedAgain = "Asking again for a slice that timed out";
     // A waiting slice holds one of the few sources a run fetches at once, so a longer wait is left to the next pass.
@@ -55,7 +52,7 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         IReadOnlyDictionary<string, string> addressParameters,
         CancellationToken cancellationToken)
     {
-        if (Slices(addressParameters) is not { Count: > 1 } slices)
+        if (WindowSlices.Of(addressParameters, _daysPerSlice) is not { } slices)
             return await _inner.FetchAsync(subjectId, sourceName, endpointName, addressParameters, cancellationToken);
 
         _logger.LogInformation(
@@ -73,8 +70,7 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
             if (!outcome.Resolved)
                 return outcome with
                 {
-                    Reason = $"{start.ToString(DateFormat, CultureInfo.InvariantCulture)} to "
-                             + $"{end.ToString(DateFormat, CultureInfo.InvariantCulture)}: {outcome.Reason}",
+                    Reason = $"{WindowSlices.Text(start)} to {WindowSlices.Text(end)}: {outcome.Reason}",
                 };
 
             if (outcome.Written is { } wrote)
@@ -95,7 +91,7 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         DateOnly end,
         CancellationToken cancellationToken)
     {
-        var sliceParameters = With(addressParameters, start, end);
+        var sliceParameters = WindowSlices.With(addressParameters, start, end);
         for (var attempt = 1; ; attempt++)
         {
             var outcome = await _inner.FetchAsync(subjectId, sourceName, endpointName, sliceParameters, cancellationToken);
@@ -107,8 +103,8 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
                 _logger.LogInformation(
                     TimedOutSliceAskedAgain + ": source {Source}, subject {Subject}, {From} to {To}, attempt {Attempt} of {Attempts}",
                     sourceName, subjectId,
-                    start.ToString(DateFormat, CultureInfo.InvariantCulture),
-                    end.ToString(DateFormat, CultureInfo.InvariantCulture),
+                    WindowSlices.Text(start),
+                    WindowSlices.Text(end),
                     attempt + 1, _attemptsPerSlice);
                 continue;
             }
@@ -122,43 +118,4 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
             await Task.Delay(wait, _clock, cancellationToken);
         }
     }
-
-    // Null where the call carries no window, or one this deployment can take in a single pass.
-    private List<(DateOnly Start, DateOnly End)>? Slices(IReadOnlyDictionary<string, string> addressParameters)
-    {
-        if (!TryReadWindow(addressParameters, out var start, out var end))
-            return null;
-
-        var slices = new List<(DateOnly, DateOnly)>();
-        var from = start;
-        while (from <= end)
-        {
-            // Each slice ends the day before the next begins, so a reading at a boundary belongs to
-            // exactly one of them however the provider treats an inclusive end.
-            var to = from.AddDays(_daysPerSlice - 1);
-            slices.Add((from, to > end ? end : to));
-            from = to.AddDays(1);
-        }
-        return slices;
-    }
-
-    private static bool TryReadWindow(
-        IReadOnlyDictionary<string, string> addressParameters, out DateOnly start, out DateOnly end)
-    {
-        start = default;
-        end = default;
-        return addressParameters.TryGetValue(CoveringSourceResolver.WindowStartPlaceholder, out var from)
-               && addressParameters.TryGetValue(CoveringSourceResolver.WindowEndPlaceholder, out var to)
-               && DateOnly.TryParseExact(from, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out start)
-               && DateOnly.TryParseExact(to, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out end)
-               && start <= end;
-    }
-
-    private static Dictionary<string, string> With(
-        IReadOnlyDictionary<string, string> addressParameters, DateOnly start, DateOnly end) =>
-        new(addressParameters, StringComparer.OrdinalIgnoreCase)
-        {
-            [CoveringSourceResolver.WindowStartPlaceholder] = start.ToString(DateFormat, CultureInfo.InvariantCulture),
-            [CoveringSourceResolver.WindowEndPlaceholder] = end.ToString(DateFormat, CultureInfo.InvariantCulture),
-        };
 }

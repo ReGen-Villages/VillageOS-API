@@ -141,7 +141,7 @@ public sealed class CoverageLedger
 
     // Stamped whatever the run found, including nothing: a Thing no source covers was looked at, and
     // saying so is what tells it apart from one still waiting to be.
-    public Task StampWorkedOutAsync(Guid thingId, CancellationToken cancellationToken)
+    public Task<bool> StampWorkedOutAsync(Guid thingId, CancellationToken cancellationToken)
         => _writer.WriteFactAsync(
             thingId, CoverageMatchedAtProperty, _clock.GetUtcNow().UtcDateTime, cancellationToken);
 

@@ -34,7 +34,7 @@ public sealed class DivisionResolver
     public async Task<SiteCoverage> AddressAsync(
         Guid siteId, SiteCoverage coverage, CancellationToken cancellationToken)
     {
-        if (await ResolveAsync(siteId, coverage, cancellationToken) is not { } resolved) return coverage;
+        if (await RegionAsync(siteId, coverage, cancellationToken) is not { } resolved) return coverage;
 
         return coverage with
         {
@@ -42,7 +42,9 @@ public sealed class DivisionResolver
         };
     }
 
-    private async Task<IReadOnlyDictionary<string, string>?> ResolveAsync(
+    // The division values worked out and written onto the site, or null where there was nothing to work out or
+    // nothing came of it.
+    public async Task<IReadOnlyDictionary<string, string>?> RegionAsync(
         Guid siteId, SiteCoverage coverage, CancellationToken cancellationToken)
     {
         if (coverage.Lookup is not { } lookup)
