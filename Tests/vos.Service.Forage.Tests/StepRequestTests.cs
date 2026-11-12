@@ -20,6 +20,7 @@ public class StepRequestTests
         new[]
         {
             "WillowBend", "Site", "Portugal", "Earth", "isIn", "covers", "resolvedBy", "is", "studies", "has",
+            CoveringSourceResolver.ResolvesOntoPredicate, "Assessment",
             "NationalFloodPortal", "NationalFloodPortalEndpoint", "OpenMeteo", "OpenMeteoEndpoint",
             "SourceCoverage", CoveringSourceResolver.AppliesToPredicate, CoveringSourceResolver.SourcedFromPredicate,
             "WillowBend × OpenMeteo", "WillowBendStudy",
@@ -66,6 +67,8 @@ public class StepRequestTests
         public Archetype[] Archetypes { get; init; } = StepRequestTests.Archetypes();
         public Carrying[] Carrying { get; init; } = [];
         public bool ReadsFail { get; init; }
+        public bool FactsFail { get; init; }
+        public bool RelatingFails { get; init; }
 
         public ConcurrentBag<string> Fetched { get; } = new();
         public ConcurrentBag<(Guid Id, string Name)> Records { get; } = new();
@@ -87,6 +90,10 @@ public class StepRequestTests
                 Records.Add((thing.GetProperty("id").GetGuid(), thing.GetProperty("name").GetString()!));
                 return Json("{}");
             }
+            if (path.EndsWith("/facts", StringComparison.Ordinal) && FactsFail)
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            if (path == "/api/relationships" && RelatingFails)
+                return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") };
             if (path.EndsWith("/facts", StringComparison.Ordinal))
             {
                 var parts = path.Split('/');
@@ -348,6 +355,67 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         MayBeTriedAgain(answer).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Plan_calls_in_a_model_with_no_coverage_archetype_plans_every_call_and_records_none()
+    {
+        var model = new Model { Archetypes = Archetypes(withCoverage: false) };
+
+        var answer = await StepAsync(model, "planCalls", new { site = Site(model) });
+
+        var calls = Output(answer, "calls").EnumerateArray().ToList();
+        calls.Should().HaveCount(2);
+        calls.Single(call => call.GetProperty("source").GetString() == "NationalFloodPortal")
+            .GetProperty("recordId").ValueKind.Should().Be(JsonValueKind.Null, "no record can be written for a call the model has none for");
+        model.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Plan_calls_plans_nothing_for_a_source_that_resolves_onto_things_the_site_holds_none_of()
+    {
+        var model = new Model { Edges = [.. Edges(), new Edge("NationalFloodPortal", CoveringSourceResolver.ResolvesOntoPredicate, "Assessment")] };
+
+        var answer = await StepAsync(model, "planCalls", new { site = Site(model) });
+
+        Output(answer, "calls").EnumerateArray().Select(call => call.GetProperty("endpointName").GetString())
+            .Should().Equal("OpenMeteoEndpoint");
+    }
+
+    [Theory]
+    [InlineData("startAnalysis", "site")]
+    [InlineData("offerSource", "source")]
+    public async Task A_stamp_the_model_refuses_answers_a_failure_that_may_be_tried_again(string step, string port)
+    {
+        var model = new Model { FactsFail = true };
+        var thing = port == "site" ? model["WillowBend"] : model["NationalFloodPortal"];
+
+        var answer = await StepAsync(model, step, new Dictionary<string, object> { [port] = thing.ToString() });
+
+        ResultOf(answer).Should().Be("fail");
+        MayBeTriedAgain(answer).Should().BeTrue();
+        model.Related.Should().BeEmpty("the analysis is started only once the site is stamped");
+    }
+
+    [Fact]
+    public async Task Start_analysis_whose_relationship_the_model_refuses_answers_a_failure_that_may_be_tried_again()
+    {
+        var model = new Model { RelatingFails = true };
+
+        var answer = await StepAsync(model, "startAnalysis", new { site = Site(model) });
+
+        ResultOf(answer).Should().Be("fail");
+        MayBeTriedAgain(answer).Should().BeTrue();
+        answer.GetProperty("error").GetString().Should().Be("Could not start: balancesEnergy.");
+        Output(answer, "started").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_step_handed_something_other_than_a_list_fails_saying_so()
+    {
+        var answer = await StepAsync(new Model(), "recordResults", new { resolved = "everything" });
+
+        answer.GetProperty("error").GetString().Should().Be("A Forage step takes a list on its 'resolved' input.");
     }
 
     [Theory]
