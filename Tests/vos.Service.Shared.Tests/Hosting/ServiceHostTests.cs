@@ -23,6 +23,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests.Hosting;
 
+[Collection(TheGlobalLogger.Name)]
 public class ServiceHostTests
 {
     private const string ServiceName = "Echo";

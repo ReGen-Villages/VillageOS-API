@@ -11,6 +11,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests.Hosting;
 
+[Collection(TheGlobalLogger.Name)]
 public class MyceliumSignInTests
 {
     private static readonly string VerificationKey = new MyceliumSigner().VerificationKey;
