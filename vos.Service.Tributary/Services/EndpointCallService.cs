@@ -266,8 +266,9 @@ public sealed class EndpointCallService
                     _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
 
                 string Words() => Encoding.UTF8.GetString(bytes);
-                if (ProviderRefused(binaryStatus) || unavailability.IsAnswered(binaryStatus, Words))
-                    return EndpointCallResult.Refused(Words(), servedContentType, binaryStatus, binaryRetryAfter);
+                var binaryProviderAway = unavailability.IsAnswered(binaryStatus, Words);
+                if (ProviderRefused(binaryStatus) || binaryProviderAway)
+                    return EndpointCallResult.Refused(Words(), servedContentType, binaryStatus, binaryRetryAfter, binaryProviderAway);
 
                 if (keep != null && binaryStatus is >= 200 and < 300
                     && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, deadline) is { } notKept)
@@ -330,8 +331,9 @@ public sealed class EndpointCallService
                     return notKept;
             }
 
-            if (ProviderRefused(status) || unavailability.IsAnswered(status, () => body))
-                return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter);
+            var providerAway = unavailability.IsAnswered(status, () => body);
+            if (ProviderRefused(status) || providerAway)
+                return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter, providerAway);
 
             if (reshape.Transform is { } transform && status is >= 200 and < 300)
             {

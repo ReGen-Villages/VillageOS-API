@@ -71,6 +71,26 @@ public class DagNodeServiceTests
     }
 
     [Fact]
+    public async Task A_step_throwing_a_final_failure_with_outputs_answers_fail_with_them_and_no_retry()
+    {
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),
+            throwing: new NodeFailedException("400: lat out of range", new Dictionary<string, object?> { ["call"] = "North" }));
+
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+
+        JsonSerializer.Serialize(response).Should().Be("""{"result":"fail","outputs":{"call":"North"},"error":"400: lat out of range"}""");
+    }
+
+    [Fact]
+    public void A_port_says_it_takes_a_collection_only_when_it_does()
+    {
+        JsonSerializer.Serialize(PortDescriptor.Input("call", "object", required: true, collection: true))
+            .Should().Be("""{"portName":"call","direction":"in","type":"object","required":true,"collection":true}""");
+        JsonSerializer.Serialize(PortDescriptor.Input("message", "string"))
+            .Should().Be("""{"portName":"message","direction":"in","type":"string","required":false}""");
+    }
+
+    [Fact]
     public async Task A_step_throwing_that_its_failure_can_be_tried_again_with_no_outputs_answers_none()
     {
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),

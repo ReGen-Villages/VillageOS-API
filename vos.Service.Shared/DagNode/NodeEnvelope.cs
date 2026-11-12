@@ -10,10 +10,12 @@ public sealed record PortDescriptor(
     [property: JsonPropertyName("portName")] string PortName,
     [property: JsonPropertyName("direction")] string Direction,
     [property: JsonPropertyName("type")] string Type,
-    [property: JsonPropertyName("required")] bool Required = false)
+    [property: JsonPropertyName("required")] bool Required = false,
+    [property: JsonPropertyName("collection"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Collection = false)
 {
-    public static PortDescriptor Input(string portName, string type, bool required = false) =>
-        new(portName, "in", type, required);
+    // A collection input handed a list runs the step once per item.
+    public static PortDescriptor Input(string portName, string type, bool required = false, bool collection = false) =>
+        new(portName, "in", type, required, collection);
 
     public static PortDescriptor Output(string portName, string type) =>
         new(portName, "out", type);

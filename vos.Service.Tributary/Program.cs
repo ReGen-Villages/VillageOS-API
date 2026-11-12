@@ -7,6 +7,7 @@ using vos.Service.Tributary.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Validation;
 using Microsoft.Extensions.Configuration.Json;
@@ -97,6 +98,15 @@ try
         sp.GetRequiredService<TimeProvider>(),
         sp.GetRequiredService<ILogger<PassedOnRequestLimit>>()));
     builder.Services.AddSingleton<EndpointCallService>();
+    builder.Services.AddSingleton(sp => new TributaryStep(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<TributaryStep>>(),
+        myceliumUrl,
+        launchToken,
+        apiKey,
+        sp.GetRequiredService<EndpointCallService>(),
+        sp.GetRequiredService<PassedOnRequestLimit>(),
+        sp.GetRequiredService<TimeProvider>()));
 
     var app = builder.Build();
 
@@ -109,12 +119,23 @@ try
         app.UseMyceliumModelToken();
     }
 
+    // The body is read here rather than bound, because a step request and a direct request share the route.
     var handleEndpoint = app.MapPost("/handle", async (
-        EndpointCallRequest request,
         EndpointCallService endpointCallService,
         PassedOnRequestLimit passedOnRequestLimit,
+        TributaryStep step,
         HttpContext httpContext) =>
     {
+        if (!httpContext.Request.HasJsonContentType())
+            return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var body = HandleRequestRouter.Classify(await reader.ReadToEndAsync(httpContext.RequestAborted));
+        if (body.Kind == HandleRequestKind.NodeEnvelope)
+            return Results.Ok(await step.HandleNodeAsync(body.Json, httpContext.RequestAborted));
+        if (DirectRequest(body) is not { } request)
+            return Results.BadRequest();
+
         using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
         var result = await endpointCallService.ExecuteAsync(request, deadline);
         if (result.RetryAfter is { } providersWait)
@@ -122,6 +143,9 @@ try
         return ToHttpResult(result);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
+
+    var manifestEndpoint = app.MapGet("/manifest", (TributaryStep step) => Results.Ok(step.Ports));
+    if (authEnabled) manifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
 
@@ -149,6 +173,19 @@ finally
 }
 
 return 0;
+
+static EndpointCallRequest? DirectRequest(HandleRequest body)
+{
+    if (!body.IsJson) return null;
+    try
+    {
+        return body.Json.Deserialize<EndpointCallRequest>(JsonSerializerOptions.Web);
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
 
 static IResult ToHttpResult(EndpointCallResult result)
 {
