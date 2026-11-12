@@ -43,7 +43,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
          PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn,
-         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong];
+         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong, PipelineRoles.PipelineRelate];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -79,6 +79,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ComparesWith.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ReachedAlong.Id, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Has, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -904,6 +905,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         BitConverter.TryWriteBytes(buffer[32..], index);
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
+
+    public Task WriteRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
+        RelateAsync(subjectId, predicateId, targetId, cancellationToken);
 
     private async Task RelateAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
     {

@@ -944,6 +944,58 @@ public sealed class PipelineExecutor
             : Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
     }
 
+    private async Task<NodeRunResult> RelateAsync(PipelineDag dag, DagNode node, Relating relating,
+        IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams, CancellationToken cancellationToken)
+    {
+        Dictionary<string, JsonElement> reached;
+        try
+        {
+            reached = AssembleInputs(dag, node, deliveries, runParams);
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"What reaches '{node.Name}' could not be put together: {ex.Message}");
+        }
+        if (!reached.TryGetValue(ModelNames.Thing, out var reaching) || ThingNamedBy(reaching) is not { } thing)
+            return Failure(node, $"'{node.Name}' relates the Thing reaching its port '{ModelNames.Thing}', but what reached it names no Thing.");
+
+        async Task<bool> AlreadyRelatedAsync() =>
+            (await _gateway.ReachedAlongAsync(thing.Id, relating.ConnectionId, cancellationToken)).Any(target => target.Id == relating.ServiceId);
+
+        bool written;
+        try
+        {
+            written = !await AlreadyRelatedAsync();
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"'{node.Name}' could not read whether '{thing.Name}' is related along '{relating.ConnectionName}': {ex.Message}");
+        }
+        if (written)
+        {
+            try
+            {
+                await _gateway.WriteRelationshipAsync(thing.Id, relating.ConnectionId, relating.ServiceId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                var landedMeanwhile = false;
+                try { landedMeanwhile = await AlreadyRelatedAsync(); }
+                catch (Exception readAgain) { _logger.LogWarning(readAgain, "Could not read again whether '{Thing}' is related along '{Connection}'", thing.Name, relating.ConnectionName); }
+                if (!landedMeanwhile)
+                    return Failure(node, $"'{node.Name}' could not relate '{thing.Name}' along '{relating.ConnectionName}': {ex.Message}");
+                written = false;
+            }
+        }
+
+        var outputs = new Dictionary<string, JsonElement>
+        {
+            [ModelNames.Thing] = reaching,
+            [ModelNames.Written] = JsonSerializer.SerializeToElement(written),
+        };
+        return new NodeRunResult(node.NodeId, node.Name, RunStatus.Waiting, outputs, null, Awaits: thing);
+    }
+
     // What would have been sent, started, stopped or waited for is kept as the node's outputs, so the page can show it; nothing is
     // written but the record.
     private NodeRunResult Rehearse(
@@ -1022,6 +1074,8 @@ public sealed class PipelineExecutor
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
         if (node.Kind == DagNodeKind.Wait)
             return rehearsal ? Rehearse(dag, node, deliveries, runParams) : WaitFor(dag, node, deliveries, runParams);
+        if (node.Kind == DagNodeKind.Relate)
+            return rehearsal ? Rehearse(dag, node, deliveries, runParams) : await RelateAsync(dag, node, node.Relates!, deliveries, runParams, cancellationToken);
         if (node.Kind is DagNodeKind.Tell or DagNodeKind.FollowOn or DagNodeKind.Stop)
             return node switch
             {

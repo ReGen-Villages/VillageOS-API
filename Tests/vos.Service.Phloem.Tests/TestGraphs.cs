@@ -1164,6 +1164,68 @@ public static class TestGraphs
         return new WaitBoxFixture(fx, pipe.Id, wait, publish, decided, resolvedAs, subjectWire);
     }
 
+    public sealed record RelateBoxFixture(
+        GraphFixture Fixture, Guid PipelineId, GraphThing Relate, GraphThing Connection, GraphThing Service, GraphThing WorkedOut, GraphThing SubjectWire);
+
+    public const string RelateBox = "Balance its energy";
+
+    // A start node hands the run's subject to a relate box standing for the connection `balancesEnergy`, which relates
+    // the subject to the connection's service and waits for the state the connection is proven by; Publish then runs on
+    // what the box hands on. provesByAState false leaves the connection naming no such state.
+    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
+        var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+
+        GraphThing Port(GraphThing holder, string name, string direction)
+        {
+            var port = fx.Thing($"{holder.Name}.{direction}.{name}", ("direction", direction), ("type", "any"), ("portName", name));
+            fx.Rel(port, vocabulary.Is, vocabulary.Port);
+            fx.Rel(holder, vocabulary.Has, port);
+            return port;
+        }
+
+        var relateKind = fx.Playing("PipelineRelate", PipelineRoles.PipelineRelate);
+        fx.Rel(relateKind, vocabulary.Is, vocabulary.PipelineNode);
+        Port(relateKind, ModelNames.Thing, "in");
+        Port(relateKind, ModelNames.Thing, "out");
+        Port(relateKind, ModelNames.Written, "out");
+
+        var service = fx.Thing("balancesEnergy service");
+        fx.Rel(service, vocabulary.Is, vocabulary.Service);
+        var connection = fx.Thing("balancesEnergy");
+        fx.Rel(connection, vocabulary.Is, standsForAConnection ? vocabulary.Connection : vocabulary.Service);
+        fx.Rel(connection, vocabulary.Has, service);
+        var workedOut = fx.Thing("EnergyWorkedOut");
+        if (provesByAState) fx.Rel(connection, provenBy, workedOut);
+
+        var relate = fx.Thing(RelateBox);
+        fx.Rel(relate, vocabulary.Is, relateKind);
+        fx.Rel(relate, standsFor, connection);
+
+        var publish = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "PublishProto"), "Publish", "publish");
+        var start = fx.Thing("Discovery finished");
+        fx.Rel(start, vocabulary.Is, vocabulary.PipelineInput);
+        Port(start, "subject", "out");
+
+        var pipe = fx.Thing("Analyse a study");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        fx.Rel(pipe, vocabulary.Has, start);
+        fx.Rel(pipe, vocabulary.Has, relate);
+        fx.Rel(pipe, vocabulary.Has, publish);
+        var subjectWire = fx.Wire(start, "subject", relate, ModelNames.Thing);
+        fx.Wire(relate, ModelNames.Thing, publish, "in");
+
+        fx.EndEveryPath(pipe);
+        return new RelateBoxFixture(fx, pipe.Id, relate, connection, service, workedOut, subjectWire);
+    }
+
+
     public sealed record ResultPathsFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Check, GraphThing Record, GraphThing Tell, GraphThing End);
 
     // In → Check reading, whose success wire runs to Record level and whose fail wire runs from its error port to Tell
