@@ -71,6 +71,17 @@ public class DagNodeServiceTests
     }
 
     [Fact]
+    public async Task A_step_throwing_that_its_failure_can_be_tried_again_with_no_outputs_answers_none()
+    {
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),
+            throwing: new FailureCanBeTriedAgainException("the provider is down"));
+
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+
+        JsonSerializer.Serialize(response).Should().Be("""{"result":"fail","outputs":{},"error":"the provider is down","retry":{}}""");
+    }
+
+    [Fact]
     public async Task HandleNodeAsync_RefInput_ResolvedFromEffectiveProperties()
     {
         HttpRequestMessage? captured = null;
