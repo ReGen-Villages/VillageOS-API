@@ -10,7 +10,7 @@ namespace vos.Service.Forage.Services;
 // carries the whole of it: the provider's answer, the reshaped readings, and one write holding every
 // reading. At the shipped reach of a decade of hourly readings that is millions of readings in one
 // answer — enough to exhaust the fetching service while it reshapes, and to be refused as one write.
-// A slice bounds all three, and the run's own timeout then bounds each slice rather than the decade.
+// A slice bounds all three, and the time limits on a fetch then bound each slice rather than the decade.
 //
 // Slicing is decided here rather than by the model, because how much a service can hold in one pass
 // is a fact about this deployment, while the reach is a fact about what the site's analysis needs.

@@ -107,6 +107,69 @@ public class ServiceLaunchSettingsTests
         ServiceLaunchSettings.UsageMessage.Should().Contain("Give Token or ApiKey, not both");
 
     [Fact]
+    public void Parse_WithoutThePlatformsLimits_LeavesBothUnset()
+    {
+        var result = ServiceLaunchSettings.Parse(
+            ["--port=7111", "--myceliumUrl=https://localhost:7243"]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().BeNull();
+        result.PassedOnRequestLimit.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_WithThePlatformsLimits_ReadsEachAsSeconds()
+    {
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            "--serviceCallLimitSeconds=15", "--passedOnRequestLimitSeconds=30"
+        ]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().Be(TimeSpan.FromSeconds(15));
+        result.PassedOnRequestLimit.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public void Parse_WhenThePlatformsLimitsComeFromConfiguration_ReadsThem()
+    {
+        var configuration = ConfigurationFrom(
+            ("Port", "7111"), ("MyceliumUrl", "http://mycelium"),
+            ("ServiceCallLimitSeconds", "15"), ("PassedOnRequestLimitSeconds", "30"));
+
+        var result = ServiceLaunchSettings.Parse(Array.Empty<string>(), configuration);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().Be(TimeSpan.FromSeconds(15));
+        result.PassedOnRequestLimit.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-30")]
+    [InlineData("+30")]
+    [InlineData("2.5")]
+    [InlineData("thirty")]
+    [InlineData("٣٠")]
+    [InlineData("")]
+    public void Parse_WithAnUnusableLimit_StartsWithNoLimit(string seconds)
+    {
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            $"--serviceCallLimitSeconds={seconds}", $"--passedOnRequestLimitSeconds={seconds}"
+        ]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().BeNull();
+        result.PassedOnRequestLimit.Should().BeNull();
+    }
+
+    [Fact]
+    public void UsageMessage_NamesThePlatformsLimits() =>
+        ServiceLaunchSettings.UsageMessage.Should()
+            .Contain("--serviceCallLimitSeconds").And.Contain("--passedOnRequestLimitSeconds");
+
+    [Fact]
     public void Parse_WhenPortMissing_ReturnsNull() =>
         ServiceLaunchSettings.Parse(["--myceliumUrl=https://localhost:7243"]).Should().BeNull();
 

@@ -39,9 +39,9 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
         IReadOnlyDictionary<string, string> addressParameters,
         CancellationToken cancellationToken)
     {
-        // The timeout is the run's own, not the fetching service's: a provider that accepts the
-        // connection and then goes quiet is the failure most likely to be met in production, and a
-        // run that waited on it indefinitely would stall for every other source behind the bound.
+        // Mycelium's limit on the passed-on request ends a fetch from a provider that goes quiet, as a 504.
+        // This bound is the backstop for a broker that does not answer at all, which would otherwise keep
+        // one of the few sources a run fetches at once waiting for good.
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         bounded.CancelAfter(_sourceTimeout);
 

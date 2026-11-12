@@ -169,9 +169,9 @@ public class ObservationIngestServiceTests
         var observedId = ObservedEdges.CreatedPredicateId;
         using var call = new CancellationTokenSource();
         var client = Substitute.For<IEndpointMyceliumClient>();
-        client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
-        client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
+        client.FindThingByNameAsync("Sensor-1", call.Token).Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
+        client.ApplyFragmentAsync(Arg.Any<object>(), call.Token).Returns(true);
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId, call.Token).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>(), call.Token).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
 
