@@ -14,11 +14,14 @@ namespace vos.Service.EnergyBalance.Services;
 // service. The node form beside it still answers for the same figures over wired ports.
 public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {
+    private readonly ModelClock _time;
+
     public EnergyBalanceReactiveHandler(
         IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceReactiveHandler> logger,
-        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        string myceliumUrl, ModelClock time, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
+        _time = time;
     }
 
     // Input port names, read off the study by name. solarPvAreaM2 and otherGenerationMwhPerYear are
@@ -36,6 +39,8 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 
     public const string NetPositiveOutput = "netPositive";
 
+    public const string WorkedOutAtOutput = "energyWorkedOutAt";
+
     public async Task<RecomputeAnswer<EnergyBalanceOutputs>> RecomputeAsync(
         Guid studyId, CancellationToken cancellationToken = default)
     {
@@ -43,6 +48,17 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "EnergyBalance");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
+        var answer = await VerdictAsync(properties, studyId, inputs, cancellationToken);
+
+        // Last, and whatever was found: the state that proves the work done reads this stamp, and a study still
+        // missing an input must reach it too, or what waits on the study waits for ever.
+        await properties.WriteAsync(studyId, WorkedOutAtOutput, _time.GetUtcNow().UtcDateTime, cancellationToken);
+        return answer;
+    }
+
+    private async Task<RecomputeAnswer<EnergyBalanceOutputs>> VerdictAsync(
+        StudyProperties properties, Guid studyId, StudyInputs inputs, CancellationToken cancellationToken)
+    {
         if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
         {
             Logger.LogInformation(
