@@ -1,5 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Configuration;
 using vos.Service.Shared;
 

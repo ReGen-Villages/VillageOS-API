@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using vos.Service.Intake;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;

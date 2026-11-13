@@ -1,6 +1,5 @@
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
