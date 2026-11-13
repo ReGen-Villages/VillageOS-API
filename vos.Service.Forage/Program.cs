@@ -2,6 +2,7 @@ using vos.Service.Auth;
 using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Service.Forage.Steps;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Hosting;
@@ -68,6 +69,18 @@ try
     builder.Services.AddSingleton<AnalysisSpawner>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
+    builder.Services.AddSingleton(sp => new ForageSteps(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<ForageSteps>>(),
+        myceliumUrl,
+        launchToken,
+        apiKey,
+        sp.GetRequiredService<CoveringSourceService>(),
+        sp.GetRequiredService<CoverageLedger>(),
+        sp.GetRequiredService<DivisionResolver>(),
+        sp.GetRequiredService<VocabularyEdgeWriter>(),
+        sp.GetRequiredService<AnalysisSpawner>(),
+        launchSettings.SourceWindowDays));
     builder.Services.AddServiceTokenExchange(myceliumUrl);
 
     var app = builder.Build();
@@ -93,6 +106,7 @@ try
         AnalysisSpawner analysis,
         VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
+        ForageSteps steps,
         IServiceTokenExchange tokenExchange,
         ILogger<HeldModelToken> tokenLogger,
         HttpContext httpContext) =>
@@ -100,6 +114,8 @@ try
         using var reader = new StreamReader(httpContext.Request.Body);
         var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
+        if (request.Kind == HandleRequestKind.NodeEnvelope)
+            return Results.Ok(await steps.HandleNodeAsync(request.Json, httpContext.RequestAborted));
         if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
@@ -120,6 +136,10 @@ try
         return Results.Accepted(value: new { success = true, subjectId });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
+
+    var manifestEndpoint = app.MapGet("/manifest/{step}", (string step) =>
+        ForageSteps.ManifestOf(step) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
+    if (authEnabled) manifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Forage" }));
 
@@ -268,7 +288,7 @@ static async Task DiscoverSite(
 
     // A fetched word becomes the relationship the model declares before the analysis starts, so what the
     // analysis reads is already resolved.
-    await vocabularyEdges.ResolveAsync(siteId, report, cancellationToken);
+    await vocabularyEdges.ResolveAsync(report, cancellationToken);
 
     await ledger.StampWorkedOutAsync(siteId, cancellationToken);
 
