@@ -1,5 +1,4 @@
 using FluentAssertions;
-using vos.Service.Auth;
 using Xunit;
 
 namespace vos.Service.Auth.Tests;

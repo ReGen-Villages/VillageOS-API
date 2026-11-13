@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
 using vos.Service.Shared;
 

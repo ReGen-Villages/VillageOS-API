@@ -1,5 +1,4 @@
 using FluentAssertions;
-using vos.Service.Shared;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 

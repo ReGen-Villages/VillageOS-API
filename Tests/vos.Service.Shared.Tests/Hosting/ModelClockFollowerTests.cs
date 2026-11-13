@@ -1,7 +1,5 @@
-using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Tests.Shared;
 using Microsoft.Extensions.Time.Testing;
@@ -26,8 +24,7 @@ public class ModelClockFollowerTests
             Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, failure));
     }
 
-    private static async IAsyncEnumerable<ModelTimeReading> Announcing(
-        IEnumerable<ModelTimeReading> readings, [EnumeratorCancellation] CancellationToken cancellation = default)
+    private static async IAsyncEnumerable<ModelTimeReading> Announcing(IEnumerable<ModelTimeReading> readings)
     {
         foreach (var reading in readings)
         {
@@ -37,7 +34,7 @@ public class ModelClockFollowerTests
     }
 
     private static Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> Broker(params ModelTimeReading[] readings) =>
-        cancellation => Announcing(readings, cancellation);
+        _ => Announcing(readings);
 
     private static ModelClockFollower NewFollower(
         ModelClock clock, Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> listen,
@@ -103,7 +100,7 @@ public class ModelClockFollowerTests
         var captured = new Captured();
         var answering = false;
         var follower = NewFollower(new ModelClock(),
-            cancellation => Announcing(answering ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation), captured);
+            _ => Announcing(answering ? [new ModelTimeReading(ModelInstant, 1)] : []), captured);
 
         await ListenOnceAsync(follower);
         await ListenOnceAsync(follower);
@@ -136,7 +133,7 @@ public class ModelClockFollowerTests
     {
         var connections = 0;
         var follower = NewFollower(new ModelClock(),
-            cancellation => Announcing(Interlocked.Increment(ref connections) > 0 ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation),
+            _ => Announcing(Interlocked.Increment(ref connections) > 0 ? [new ModelTimeReading(ModelInstant, 1)] : []),
             reconnectDelay: TimeSpan.FromMilliseconds(10));
 
         await follower.StartAsync(CancellationToken.None);
