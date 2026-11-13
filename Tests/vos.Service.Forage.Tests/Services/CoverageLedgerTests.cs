@@ -1,10 +1,11 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 
 namespace vos.Service.Forage.Tests.Services;
 
@@ -23,17 +24,10 @@ public class CoverageLedgerTests
     private static readonly DateTimeOffset Now = new(2026, 8, 27, 9, 0, 0, TimeSpan.Zero);
 
     private readonly RecordingWriter _writer = new();
-    private readonly ModelClock _clock = new(new FixedClock(Now));
+    private readonly ModelClock _clock = new(new FakeTimeProvider(Now));
 
     // The instants a run stamps come from the clock it is given, never from the machine's: a stamp read
     // off DateTime.UtcNow is one no test can pin and no replay can reproduce.
-    private sealed class FixedClock : TimeProvider
-    {
-        private readonly DateTimeOffset _now;
-        public FixedClock(DateTimeOffset now) => _now = now;
-        public override DateTimeOffset GetUtcNow() => _now;
-    }
-
     private CoverageLedger Ledger() => new(_writer, _clock, NullLogger<CoverageLedger>.Instance);
 
     private static readonly Guid SiteId = Guid.NewGuid();
@@ -60,24 +54,24 @@ public class CoverageLedgerTests
     {
         public readonly List<(Guid Subject, Guid Predicate, Guid Target)> Edges = new();
         public readonly List<(Guid Thing, string Property, object? Value)> Facts = new();
-        public readonly List<string> Minted = new();
+        public readonly List<(Guid Id, string Name, IReadOnlyList<(Guid Predicate, Guid Target)> Relationships)> Records = new();
         public readonly List<string> FactsAsked = new();
 
-        public Guid? NextMint { get; set; } = Guid.NewGuid();
-        public bool RelateSucceeds { get; set; } = true;
+        public bool RecordSucceeds { get; set; } = true;
         public string? RefusedProperty { get; set; }
         public int RefusalsLeft { get; set; }
 
-        public Task<Guid?> MintAsync(string name, CancellationToken cancellationToken)
+        public Task<bool> WriteCoverageAsync(Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships,
+            CancellationToken cancellationToken)
         {
-            Minted.Add(name);
-            return Task.FromResult(NextMint);
+            if (RecordSucceeds) Records.Add((coverageId, name, relationships));
+            return Task.FromResult(RecordSucceeds);
         }
 
         public Task<bool> RelateAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken _)
         {
-            if (RelateSucceeds) Edges.Add((subjectId, predicateId, targetId));
-            return Task.FromResult(RelateSucceeds);
+            Edges.Add((subjectId, predicateId, targetId));
+            return Task.FromResult(true);
         }
 
         public Task<bool> WriteFactAsync(Guid thingId, string property, object? value, CancellationToken _)
@@ -93,18 +87,6 @@ public class CoverageLedgerTests
         }
     }
 
-    private sealed class CapturingLogger : ILogger<CoverageLedger>
-    {
-        public readonly List<string> Errors = new();
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel level) => true;
-        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            if (level == LogLevel.Error) Errors.Add(formatter(state, exception));
-        }
-    }
-
     // The whole of "a source that already answered is not called again while its answer stands".
     [Fact]
     public async Task ACallWhoseAnswerAlreadyLandedIsNotOutstanding()
@@ -115,7 +97,7 @@ public class CoverageLedgerTests
             [new RecordedCoverage(Guid.NewGuid(), SiteId, source, Resolved: true, Attempts: 1)]);
 
         (await Ledger().OutstandingAsync(coverage, default)).Should().BeEmpty();
-        _writer.Minted.Should().BeEmpty("a coverage already recorded is not minted a second time");
+        _writer.Records.Should().BeEmpty("a coverage already recorded is not written a second time");
     }
 
     [Fact]
@@ -131,7 +113,7 @@ public class CoverageLedgerTests
 
         outstanding.CoverageId.Should().Be(existing);
         outstanding.Attempts.Should().Be(2);
-        _writer.Minted.Should().BeEmpty();
+        _writer.Records.Should().BeEmpty();
     }
 
     // A source that resolves onto an archetype is called once per Thing the site has of it. One
@@ -155,22 +137,46 @@ public class CoverageLedgerTests
     }
 
     [Fact]
-    public async Task ACallNothingHasRecordedGetsACoverageMintedAndRelatedBothWays()
+    public async Task ACallNothingHasRecordedGetsACoverageWrittenUnderItsSubjectAndSourceAndRelatedBothWaysInOneWrite()
     {
         var source = Guid.NewGuid();
-        var minted = Guid.NewGuid();
-        _writer.NextMint = minted;
 
         var outstanding = (await Ledger().OutstandingAsync(Coverage([SourceCalling(source, SiteId)]), default))
             .Should().ContainSingle().Subject;
 
-        outstanding.CoverageId.Should().Be(minted);
-        _writer.Edges.Should().BeEquivalentTo(new[]
+        var expected = CoverageLedger.RecordIdentifierFor(SiteId, source);
+        outstanding.CoverageId.Should().Be(expected);
+        var record = _writer.Records.Should().ContainSingle().Subject;
+        record.Id.Should().Be(expected);
+        record.Relationships.Should().BeEquivalentTo(new[]
         {
-            (minted, Vocabulary.Is, Vocabulary.Archetype),
-            (minted, Vocabulary.AppliesTo, SiteId),
-            (minted, Vocabulary.SourcedFrom, source),
+            (Vocabulary.Is, Vocabulary.Archetype),
+            (Vocabulary.AppliesTo, SiteId),
+            (Vocabulary.SourcedFrom, source),
         });
+        _writer.Edges.Should().BeEmpty("the relationships go in the record's own write");
+    }
+
+    [Fact]
+    public async Task ACallPlannedTwiceBeforeItsAnswerIsRecordedWritesTheSameRecordBothTimes()
+    {
+        var coverage = Coverage([SourceCalling(Guid.NewGuid(), SiteId)]);
+
+        var first = (await Ledger().OutstandingAsync(coverage, default)).Single().CoverageId;
+        var second = (await Ledger().OutstandingAsync(coverage, default)).Single().CoverageId;
+
+        second.Should().Be(first);
+        _writer.Records.Select(record => record.Id).Distinct().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void ARecordIdentifierBelongsToOneSubjectAndOneSource()
+    {
+        var (subject, source) = (Guid.NewGuid(), Guid.NewGuid());
+
+        CoverageLedger.RecordIdentifierFor(subject, source).Should().Be(CoverageLedger.RecordIdentifierFor(subject, source));
+        CoverageLedger.RecordIdentifierFor(subject, source).Should().NotBe(CoverageLedger.RecordIdentifierFor(source, subject));
+        CoverageLedger.RecordIdentifierFor(subject, source).Should().NotBe(CoverageLedger.RecordIdentifierFor(subject, Guid.NewGuid()));
     }
 
     // A model that never read the template declaring the vocabulary still has sources worth fetching.
@@ -184,27 +190,13 @@ public class CoverageLedgerTests
         var outstanding = (await Ledger().OutstandingAsync(coverage, default)).Should().ContainSingle().Subject;
 
         outstanding.CoverageId.Should().BeNull();
-        _writer.Minted.Should().BeEmpty();
+        _writer.Records.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task AMintTheModelRefusedLeavesTheCallToBeMadeAndUnrecorded()
+    public async Task ARecordTheModelRefusedLeavesTheCallToBeMadeAndUnrecorded()
     {
-        _writer.NextMint = null;
-
-        var outstanding = (await Ledger().OutstandingAsync(Coverage([SourceCalling(Guid.NewGuid(), SiteId)]), default))
-            .Should().ContainSingle().Subject;
-
-        outstanding.CoverageId.Should().BeNull();
-    }
-
-    // A Thing minted and then left unrelated reaches neither its subject nor its source, and no later
-    // run can tell it from one never minted. Recording against it would put the answer somewhere nothing
-    // reads, so the call is treated as unrecorded.
-    [Fact]
-    public async Task ACoverageMintedButNotRelatedIsNotRecordedAgainst()
-    {
-        _writer.RelateSucceeds = false;
+        _writer.RecordSucceeds = false;
 
         var outstanding = (await Ledger().OutstandingAsync(Coverage([SourceCalling(Guid.NewGuid(), SiteId)]), default))
             .Should().ContainSingle().Subject;
@@ -249,14 +241,14 @@ public class CoverageLedgerTests
         var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
         _writer.RefusedProperty = "resolvedAt";
         _writer.RefusalsLeft = 2;
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<CoverageLedger>();
 
         await new CoverageLedger(_writer, _clock, logger)
             .RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
 
         _writer.Facts.Should().NotContain(fact => fact.Property == "resolvedAt");
         _writer.FactsAsked.Count(property => property == "resolvedAt").Should().Be(2);
-        logger.Errors.Should().ContainSingle()
+        logger.ErrorLines.Should().ContainSingle()
             .Which.Should().Contain("resolvedAt").And.Contain("subject by ThinkHazard");
     }
 
@@ -266,7 +258,7 @@ public class CoverageLedgerTests
     public async Task AStampIsTheModelsInstant_NotTheMachinesWallClock()
     {
         var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
-        var clock = new ModelClock(new FixedClock(Now));
+        var clock = new ModelClock(new FakeTimeProvider(Now));
         clock.AnchorTo(modelInstant, rate: 60);
         var coverageId = Guid.NewGuid();
         var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);

@@ -564,6 +564,28 @@ public class PipelineModelTests
     }
 
     [Theory]
+    [InlineData(30.0, 1.0, 2.0)]
+    [InlineData(300.0, 1.0, 5.0)]
+    [InlineData(60.0, 10.0, 10.0)]
+    [InlineData(300.0, 0.0, 5.0)]
+    public void A_wait_the_step_asks_for_is_taken_in_real_time_when_it_is_longer_than_the_pause(
+        double askedSeconds, double clockRate, double expectedModelMinutes)
+    {
+        var policy = new RetryPolicy(Attempts: 3, PauseMinutes: 2, PauseGrowth: 1, PauseSpread: 0, TryingMinutes: 60);
+
+        policy.PauseBefore(2, spreadDraw: 0, TimeSpan.FromSeconds(askedSeconds), clockRate)
+            .Should().Be(TimeSpan.FromMinutes(expectedModelMinutes));
+    }
+
+    [Fact]
+    public void A_step_that_asks_for_no_wait_pauses_by_the_policy()
+    {
+        var policy = new RetryPolicy(Attempts: 3, PauseMinutes: 2, PauseGrowth: 3, PauseSpread: 0, TryingMinutes: 60);
+
+        policy.PauseBefore(3, spreadDraw: 0, asked: null, clockRate: 10).Should().Be(TimeSpan.FromMinutes(6));
+    }
+
+    [Theory]
     [InlineData("attempts", 0, "allows 0 attempts")]
     [InlineData("pauseGrowth", 0.5, "a number out of range")]
     [InlineData("pauseMinutes", -1, "a number out of range")]

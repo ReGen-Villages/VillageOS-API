@@ -172,8 +172,8 @@ public class DivisionResolverTests
         public string? RefusedProperty { get; init; }
         public bool RefusesRelating { get; init; }
 
-        public Task<Guid?> MintAsync(string name, CancellationToken cancellationToken) =>
-            Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> WriteCoverageAsync(Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships,
+            CancellationToken cancellationToken) => Task.FromResult(true);
 
         public Task<bool> RelateAsync(
             Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)

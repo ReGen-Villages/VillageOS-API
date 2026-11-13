@@ -767,20 +767,8 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
     case 'const':
       return binding.value;
 
-    case 'property': {
-      if (binding.thing === SCOPE_REFERENCE) {
-        if (context.scopeId) {
-          const t = context.index.byId.get(context.scopeId);
-          return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
-        }
-        // "All" → average across compare entities.
-        const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
-        const values = entities.map((t) => number(effectiveProperties(t, context.index)[binding.property])).filter((n) => !isNaN(n));
-        return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-      }
-      const t = referencedThing(binding.thing, context);
-      return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
-    }
+    case 'property':
+      return resolveProperty(binding, context);
 
     case 'aggregate':
       return aggregateValue(binding, aggregateMembers(binding, context), context);
@@ -793,174 +781,32 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
       return divide(asNumber(numerator), asNumber(denominator));
     }
 
-    case 'related': {
-      const reached = await thingsReached(binding.thing, binding.via, context);
-      if (!reached.length) return null;
-      const values = reached
-        .map((t) => (binding.property ? effectiveProperties(t, context.index)[binding.property] : t.Name))
-        .filter((v) => v != null && v !== '');
-      if (!values.length) return null;
-      if (values.length === 1 && typeof values[0] === 'number') return values[0];
-      // Sorted so a cell that names several Things reads the same on every refresh, whatever
-      // order the relationship list happened to be in.
-      return [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b)).join(', ');
-    }
+    case 'related':
+      return resolveRelated(binding, context);
 
-    case 'stateOf': {
-      const t = referencedThing(binding.thing, context);
-      if (!t) return null;
-      for (const state of binding.states) {
-        if ((await stateMemberIds(state, context)).has(t.Id)) return state;
-      }
-      return null;
-    }
+    case 'stateOf':
+      return resolveStateOf(binding, context);
 
-    case 'verdict': {
-      const judged = await thingsReached(binding.thing, binding.via, context);
-      if (!judged.length) return [];
-      // Asked all at once rather than in turn: unlike `stateOf` there is no priority order to stop
-      // early on, so asking in turn would cost one round trip per candidate for no answer it changes.
-      // One answer per state serves every judged Thing, so a walk reaching several adds no state reads.
-      const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, context)));
-      const verdictsOf = await Promise.all(judged.map(async (thing) => {
-        const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
-        if (!held.length) return [];
+    case 'verdict':
+      return resolveVerdict(binding, context);
 
-        const ranges = await context.reads.thingRanges(thing.Id);
-        const properties = effectiveProperties(thing, context.index);
-        return held.map((candidate) => {
-          // The first comparison, because a judge-range tests one value; a range that tests none —
-          // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
-          const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
-          const levers = candidate.levers && judgedAgainst
-            ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator, thing, context.index)
-            : [];
-          return {
-            state: candidate.state,
-            reads: candidate.reads,
-            property: judgedAgainst ? judgedAgainst.PropertyName : null,
-            operator: judgedAgainst ? judgedAgainst.Operator : null,
-            target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
-            value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
-            ...(levers.length ? { levers } : {}),
-          };
-        });
-      }));
-      return verdictsOf.flat();
-    }
+    case 'origin':
+      return resolveOrigin(binding, context);
 
-    case 'origin': {
-      const carrying = await thingsReached(binding.thing, binding.via, context);
-      return Promise.all(carrying.map(async (thing) => {
-        const { origin, assumedFrom } = valueOrigin(thing, binding.property, context.index);
-        // An assumption already names its source — the archetype it was inherited from — so it needs
-        // no path to one. Every other origin asks the model what produced the value.
-        const recorded = assumedFrom !== null
-          ? { source: assumedFrom, resolvedAt: null }
-          : await recordedSourceOf(thing, binding.source, context);
-        return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
-      }));
-    }
+    case 'working':
+      return resolveWorking(binding, context);
 
-    case 'working': {
-      const computing = await thingsReached(binding.thing, binding.via, context);
-      return computing.flatMap((thing) => {
-        const definition = effectiveDerivedDefinitions(thing, context.index)[binding.property];
-        if (!definition) return [];
-        const terms = definition.Reads ?? [];
-        const formula = definition.Expression;
-        // A reduction reads its input off each member, so the Thing computing the figure holds no
-        // value for it and a property of that name there is some other property. The row names the
-        // archetype those members are of in place of a value, and carries no formula: a function over
-        // a set put into words here would be Trellis saying what a figure means.
-        if (formula === undefined) {
-          return terms.map((term) => ({
-            formula: null,
-            term,
-            memberArchetype: definition.RelatedType ?? null,
-          }) as Row);
-        }
-        const properties = effectiveProperties(thing, context.index);
-        return terms.map((term) => ({
-          formula,
-          term,
-          value: nullableNumber(properties[term]),
-        }) as Row);
-      });
-    }
+    case 'compareEntities':
+      return resolveCompareEntities(binding, context);
 
-    case 'compareEntities': {
-      const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
-      const rows = entities.map((t) => {
-        const row: Row = { id: t.Id, name: t.Name };
-        for (const p of binding.properties) row[p] = number(effectiveProperties(t, context.index)[p]);
-        return row;
-      });
-      return withComputedColumns(rows, binding.computed, context);
-    }
+    case 'stateCount':
+      return resolveStateCount(binding, context);
 
-    case 'stateCount': {
-      const container = containerFor(binding.scope, context);
-      const narrowing: StateNarrowing = {
-        type: binding.archetype,
-        notIn: binding.excludeState ? [binding.excludeState] : undefined,
-        ...container,
-      };
-      // Only a scope the request cannot carry is narrowed here, and only that path reads the members:
-      // the platform's number would be the one before the local walk.
-      const members = container ? null : scopeMemberIds(binding.scope, context);
-      if (members) {
-        const response = await context.reads.thingsInState(binding.state, narrowing);
-        return (response.Things ?? []).filter((t) => members.has(t.Id)).length;
-      }
-      const response = await context.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
-      if (response.Count === undefined) throw new Error(i18n.t('widgets.stateCountMissing', { state: binding.state }));
-      return response.Count;
-    }
+    case 'stateList':
+      return resolveStateList(binding, context);
 
-    case 'stateList': {
-      const container = containerFor(binding.scope, context);
-      const members = container ? null : scopeMemberIds(binding.scope, context);
-      const response = await context.reads.thingsInState(binding.state, {
-        type: binding.archetype,
-        // The derived statuses nest — a Thing that reached a later stage still holds the earlier
-        // ones — so a plain stateList for an early stage includes every later one. A funnel stage
-        // names the next stage's state as one that disqualifies, leaving the Things that reached
-        // this stage and no further.
-        notIn: binding.excludeState ? [binding.excludeState] : undefined,
-        // A cap the server applies takes the first rows of its answer, which is the wrong subset
-        // when the scope is still narrowed here afterwards. That answer then carries the columns
-        // of every Thing in the state and keeps the few this scope reaches — the price of a scope
-        // the endpoint cannot express, paid on the path that was already reading them all.
-        limit: members ? undefined : binding.limit,
-        properties: binding.properties,
-        ...container,
-      });
-      let list = response.Things ?? [];
-      if (members) {
-        list = list.filter((t) => members.has(t.Id));
-        if (binding.limit) list = list.slice(0, binding.limit);
-      }
-      // The row is what the platform sent, not what a local index could be asked for afterwards.
-      // Reading it here is what made a table of ten rows cost every Thing in the model.
-      const rows = list.map((reference) => ({ id: reference.Id, name: reference.Name, ...(reference.Properties ?? {}) }) as Row);
-      return withComputedColumns(rows, binding.computed, context);
-    }
-
-    case 'thingList': {
-      let list = thingsOfArchetype(binding.archetype, context.index);
-      const members = scopeMemberIds(binding.scope, context);
-      if (members) list = list.filter((t) => members.has(t.Id));
-      if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, context.index));
-      if (binding.inState && list.length) {
-        const inState = new Set(((await context.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
-        list = list.filter((t) => inState.has(t.Id));
-      }
-      list.sort((a, b) => a.Name.localeCompare(b.Name));
-      if (binding.limit) list = list.slice(0, binding.limit);
-      const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, context.index) }) as Row);
-      return withComputedColumns(rows, binding.computed, context);
-    }
+    case 'thingList':
+      return resolveThingList(binding, context);
 
     case 'timeseries':
       return resolveTimeseries(binding, context);
@@ -970,18 +816,189 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
       return points?.length ? points[points.length - 1] : null;
     }
 
-    case 'service': {
-      try {
-        const response = await context.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, context.scopeId));
-        const picked = selectPath(response, binding.select);
-        return (picked ?? null) as BindingResult;
-      } catch {
-        return null;
-      }
-    }
+    case 'service':
+      return resolveService(binding, context);
 
     case 'history':
       return resolveHistory(binding, context);
+  }
+}
+
+function resolveProperty(binding: Extract<Binding, { kind: 'property' }>, context: ResolveContext): BindingResult {
+  if (binding.thing === SCOPE_REFERENCE) {
+    if (context.scopeId) {
+      const t = context.index.byId.get(context.scopeId);
+      return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
+    }
+    // With no Thing chosen, the figure is the average over every compared Thing.
+    const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+    const values = entities.map((t) => number(effectiveProperties(t, context.index)[binding.property])).filter((n) => !isNaN(n));
+    return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  }
+  const t = referencedThing(binding.thing, context);
+  return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
+}
+
+async function resolveRelated(binding: Extract<Binding, { kind: 'related' }>, context: ResolveContext): Promise<BindingResult> {
+  const reached = await thingsReached(binding.thing, binding.via, context);
+  if (!reached.length) return null;
+  const values = reached
+    .map((t) => (binding.property ? effectiveProperties(t, context.index)[binding.property] : t.Name))
+    .filter((v) => v != null && v !== '');
+  if (!values.length) return null;
+  if (values.length === 1 && typeof values[0] === 'number') return values[0];
+  // Sorted so a cell naming several Things reads the same on every refresh, whatever order the relationships arrive in.
+  return [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b)).join(', ');
+}
+
+async function resolveStateOf(binding: Extract<Binding, { kind: 'stateOf' }>, context: ResolveContext): Promise<BindingResult> {
+  const t = referencedThing(binding.thing, context);
+  if (!t) return null;
+  for (const state of binding.states) {
+    if ((await stateMemberIds(state, context)).has(t.Id)) return state;
+  }
+  return null;
+}
+
+async function resolveVerdict(binding: Extract<Binding, { kind: 'verdict' }>, context: ResolveContext): Promise<BindingResult> {
+  const judged = await thingsReached(binding.thing, binding.via, context);
+  if (!judged.length) return [];
+  // Every state is asked at once, and once for all judged Things, because unlike `stateOf` no state comes first.
+  const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, context)));
+  const verdictsOf = await Promise.all(judged.map(async (thing) => {
+    const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
+    if (!held.length) return [];
+
+    const ranges = await context.reads.thingRanges(thing.Id);
+    const properties = effectiveProperties(thing, context.index);
+    return held.map((candidate) => {
+      // A judging range tests one value, so its first comparison is the one shown; a range with none leaves the verdict without a figure.
+      const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
+      const levers = candidate.levers && judgedAgainst
+        ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator, thing, context.index)
+        : [];
+      return {
+        state: candidate.state,
+        reads: candidate.reads,
+        property: judgedAgainst ? judgedAgainst.PropertyName : null,
+        operator: judgedAgainst ? judgedAgainst.Operator : null,
+        target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
+        value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
+        ...(levers.length ? { levers } : {}),
+      };
+    });
+  }));
+  return verdictsOf.flat();
+}
+
+async function resolveOrigin(binding: Extract<Binding, { kind: 'origin' }>, context: ResolveContext): Promise<BindingResult> {
+  const carrying = await thingsReached(binding.thing, binding.via, context);
+  return Promise.all(carrying.map(async (thing) => {
+    const { origin, assumedFrom } = valueOrigin(thing, binding.property, context.index);
+    // An assumed value already names the archetype it was inherited from, so only other origins ask the model for a source.
+    const recorded = assumedFrom !== null
+      ? { source: assumedFrom, resolvedAt: null }
+      : await recordedSourceOf(thing, binding.source, context);
+    return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
+  }));
+}
+
+async function resolveWorking(binding: Extract<Binding, { kind: 'working' }>, context: ResolveContext): Promise<BindingResult> {
+  const computing = await thingsReached(binding.thing, binding.via, context);
+  return computing.flatMap((thing) => {
+    const definition = effectiveDerivedDefinitions(thing, context.index)[binding.property];
+    if (!definition) return [];
+    const terms = definition.Reads ?? [];
+    const formula = definition.Expression;
+    // A reduction reads each member rather than this Thing, so its row names the members' archetype and gives no value or formula.
+    if (formula === undefined) {
+      return terms.map((term) => ({
+        formula: null,
+        term,
+        memberArchetype: definition.RelatedType ?? null,
+      }) as Row);
+    }
+    const properties = effectiveProperties(thing, context.index);
+    return terms.map((term) => ({
+      formula,
+      term,
+      value: nullableNumber(properties[term]),
+    }) as Row);
+  });
+}
+
+function resolveCompareEntities(binding: Extract<Binding, { kind: 'compareEntities' }>, context: ResolveContext) {
+  const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+  const rows = entities.map((t) => {
+    const row: Row = { id: t.Id, name: t.Name };
+    for (const p of binding.properties) row[p] = number(effectiveProperties(t, context.index)[p]);
+    return row;
+  });
+  return withComputedColumns(rows, binding.computed, context);
+}
+
+async function resolveStateCount(binding: Extract<Binding, { kind: 'stateCount' }>, context: ResolveContext): Promise<BindingResult> {
+  const container = containerFor(binding.scope, context);
+  const narrowing: StateNarrowing = {
+    type: binding.archetype,
+    notIn: binding.excludeState ? [binding.excludeState] : undefined,
+    ...container,
+  };
+  // The platform counts before any narrowing done here, so a scope the request cannot carry reads the members and counts them here.
+  const members = container ? null : scopeMemberIds(binding.scope, context);
+  if (members) {
+    const response = await context.reads.thingsInState(binding.state, narrowing);
+    return (response.Things ?? []).filter((t) => members.has(t.Id)).length;
+  }
+  const response = await context.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
+  if (response.Count === undefined) throw new Error(i18n.t('widgets.stateCountMissing', { state: binding.state }));
+  return response.Count;
+}
+
+async function resolveStateList(binding: Extract<Binding, { kind: 'stateList' }>, context: ResolveContext) {
+  const container = containerFor(binding.scope, context);
+  const members = container ? null : scopeMemberIds(binding.scope, context);
+  const response = await context.reads.thingsInState(binding.state, {
+    type: binding.archetype,
+    // A Thing in a later stage still holds every earlier stage's state, so excluding the next stage's state keeps only the Things that reached this stage and no further.
+    notIn: binding.excludeState ? [binding.excludeState] : undefined,
+    // A cap the server applied would keep its first rows before the scope is narrowed here, so the cap is applied after narrowing.
+    limit: members ? undefined : binding.limit,
+    properties: binding.properties,
+    ...container,
+  });
+  let list = response.Things ?? [];
+  if (members) {
+    list = list.filter((t) => members.has(t.Id));
+    if (binding.limit) list = list.slice(0, binding.limit);
+  }
+  // Rows are what the platform sent, because looking each one up locally made a table of ten rows read every Thing in the model.
+  const rows = list.map((reference) => ({ id: reference.Id, name: reference.Name, ...(reference.Properties ?? {}) }) as Row);
+  return withComputedColumns(rows, binding.computed, context);
+}
+
+async function resolveThingList(binding: Extract<Binding, { kind: 'thingList' }>, context: ResolveContext) {
+  let list = thingsOfArchetype(binding.archetype, context.index);
+  const members = scopeMemberIds(binding.scope, context);
+  if (members) list = list.filter((t) => members.has(t.Id));
+  if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, context.index));
+  if (binding.inState && list.length) {
+    const inState = new Set(((await context.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
+    list = list.filter((t) => inState.has(t.Id));
+  }
+  list.sort((a, b) => a.Name.localeCompare(b.Name));
+  if (binding.limit) list = list.slice(0, binding.limit);
+  const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, context.index) }) as Row);
+  return withComputedColumns(rows, binding.computed, context);
+}
+
+async function resolveService(binding: Extract<Binding, { kind: 'service' }>, context: ResolveContext): Promise<BindingResult> {
+  try {
+    const response = await context.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, context.scopeId));
+    const picked = selectPath(response, binding.select);
+    return (picked ?? null) as BindingResult;
+  } catch {
+    return null;
   }
 }
 
