@@ -1,6 +1,5 @@
 using vos.Service.Auth;
 using vos.Service.Metabolism.Configuration;
-using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared;
@@ -40,17 +39,8 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddContractValidation();
 
-    // Validate with the issuer/audience Mycelium passes via CLI, not library defaults —
-    // defaults diverged from Mycelium config and silently accepted nothing in production.
-    if (!string.IsNullOrEmpty(verificationKey))
-    {
-        builder.AddMyceliumTokenAuth(
-            verificationKey,
-            issuer: launchSettings.Service.Issuer,
-            audience: launchSettings.Service.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Service.Issuer, launchSettings.Service.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(
+        verificationKey, launchSettings.Service.Issuer, launchSettings.Service.Audience);
 
     builder.Services.AddSingleton(sp =>
         new MyceliumClient(
@@ -77,7 +67,7 @@ try
     // Must precede RequestContractValidationMiddleware, which reads endpoint metadata via context.GetEndpoint().
     app.UseRouting();
 
-    if (!string.IsNullOrEmpty(verificationKey))
+    if (authEnabled)
     {
         app.UseAuthentication();
         app.UseAuthorization();
@@ -109,7 +99,7 @@ try
     app.MapMetabolismEndpoints(
         direction,
         () => requestCount, () => requestCount++,
-        authEnabled: !string.IsNullOrEmpty(verificationKey));
+        authEnabled: authEnabled);
 
     app.Run();
 }

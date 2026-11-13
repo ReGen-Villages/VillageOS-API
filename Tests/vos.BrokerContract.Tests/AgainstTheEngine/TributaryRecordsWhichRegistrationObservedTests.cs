@@ -28,7 +28,7 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
         launchToken: new LaunchToken(_engine.AdminToken));
 
     private Task<string?> ObserveAsync(Guid endpoint, Guid site, ObservedEdges edges) =>
-        new ObservationIngestService(Tributary(), NullLogger<ObservationIngestService>.Instance, new ModelClock())
+        new ObservationIngestService(Tributary(), new ModelClock())
             .ObserveValueAsync(endpoint, site, "flowRegime", "steady", observedAt: null, edges);
 
     private async Task<(ObservedEdges Edges, SnapshotDocument Snapshot)> ReadAsync(Guid endpoint)

@@ -1,7 +1,4 @@
-using System.Globalization;
-using System.Text.Json;
 using vos.Service.Auth;
-using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
 using vos.Service.Tributary.Services;
 using vos.Service.Shared;
@@ -9,7 +6,6 @@ using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Subscriptions;
-using vos.Service.Shared.Validation;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.FileProviders;
 using Serilog;
@@ -51,18 +47,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Validate with the issuer and audience Mycelium passes on the command line, so validation
-    // matches what Mycelium signed.
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(
-            verificationKey!,
-            issuer: launchSettings.Issuer,
-            audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new MyceliumClient(

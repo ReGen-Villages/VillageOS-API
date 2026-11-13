@@ -1260,6 +1260,13 @@ offers a term in the reader's language and still submits it by its name. A model
 seeded is answered `503` carrying the code `serviceUnavailable` and nothing else, as a submission into
 one is.
 
+**What the form is drawn with is held for ten seconds.** The form's options, the submission's shape,
+the vocabularies and the shared-document declarations are held in the service for ten seconds and
+read from the model again after that, so an edit to the model reaches the public form within ten
+seconds. They are held for a short while rather than until a change is heard, because the model's
+change stream goes quiet while the broker replaces its model. The read of one submission's contact is
+never held.
+
 **Nothing but the email address reaches the service before the address is verified.** The page holds what
 was collected in the browser; asking for a code sends the address alone; the answers go with the ticket
 that answering the code bought. So a submission is written into the model only for an address somebody
