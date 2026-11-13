@@ -18,7 +18,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     public static readonly Guid DispositionPredicateRoleId = new("92e4581a-4936-58b1-a783-36a051aa0a43");
 
     private const string ProposedSiteRoleWord = "proposedSite";
-    private const string DispositionArchetypeRoleWord = "submissionDisposition";
     private const string DispositionPredicateRoleWord = "resolvedAs";
 
     // The period after which a submission resolved to this disposition goes. Which disposition is

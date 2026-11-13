@@ -113,7 +113,10 @@ no relationship reaches because neither covers a Place, and every Place, asked f
 Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
-see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
+see [`TRIBUTARY.md`](TRIBUTARY.md). A site's read carries only the relationships the selected Things
+hold outgoing — one rule naming no predicate, because a study holds its analysis relationships through
+whichever connection the model declares — so the `isIn` every other site writes into a shared Place no
+longer travels with it; the source read and the kind read name their predicates one by one. **A source's read** is the same walk from the other end: the Places
 it `covers`, then `isIn` walked *downwards* through their nesting, then what each site there `has` —
 see [A source added to the catalogue](#a-source-added-to-the-catalogue).
 
@@ -307,14 +310,21 @@ than per source, so a site covered by many sources — or a source called once p
 open a burst of connections that reads as abuse. Any one call is bounded by
 `--sourceTimeoutSeconds` — a sliced source, and a slice asked again, can take longer in total: a
 provider that accepts the connection and then goes quiet is more common than one that refuses
-outright, and it must not hold up the run. A run cancelled by its caller is
-never reported as a timeout — that would put a fabricated outage in front of a planner.
+outright, and it must not hold up the run. `--attemptsPerSlice=<n>` is the most times one slice is
+asked for when it times out or is refused for too many requests, a positive whole number, with
+anything else falling back to 3. A source that times out on every slice therefore holds its place
+for up to `--attemptsPerSlice` × `--sourceTimeoutSeconds` before it is reported unresolved. A run
+cancelled by its caller is never reported as a timeout — that would put a fabricated outage in front
+of a planner.
 
 **A source reaching back years is asked for a slice of that reach at a time**, `--sourceWindowDays`
 of it per call, and the outcome is reported when every slice has answered. A slice refused with 429
-is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, up to
-three attempts; a wait over five minutes is left to the next pass, and any other refusal ends the
-fetch at once. The reach is the model's
+is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, and a
+wait over five minutes is left to the next pass. A slice that timed out — no answer within
+`--sourceTimeoutSeconds`, or a 504 from Mycelium when it cut off the forwarded call — is asked again
+at once, and each such retry logs one Information line starting "Asking again for a slice that timed
+out". Both kinds of retry share one limit, `--attemptsPerSlice` (3 by default). Any other refusal
+ends the fetch at once. The reach is the model's
 to declare and a long one is legitimate; what one pass can carry is a fact about the deployment. A
 whole reach in one call makes the provider's answer, the reshape that follows it and the write it
 becomes each as large as the reach — at a decade of hourly readings, millions of readings in each,

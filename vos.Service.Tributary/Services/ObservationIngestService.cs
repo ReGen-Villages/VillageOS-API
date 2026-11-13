@@ -38,16 +38,11 @@ public class ObservationIngestService
     public const int DefaultObservationSampleSeconds = 60;
 
     private readonly IEndpointMyceliumClient _myceliumClient;
-    private readonly ILogger<ObservationIngestService> _logger;
     private readonly ModelClock _clock;
 
-    public ObservationIngestService(
-        IEndpointMyceliumClient myceliumClient,
-        ILogger<ObservationIngestService> logger,
-        ModelClock clock)
+    public ObservationIngestService(IEndpointMyceliumClient myceliumClient, ModelClock clock)
     {
         _myceliumClient = myceliumClient;
-        _logger = logger;
         _clock = clock;
     }
 

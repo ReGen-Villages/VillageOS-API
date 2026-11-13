@@ -1,5 +1,4 @@
 using System.Text.Json;
-using vos.Taproot;
 using Xunit;
 
 namespace vos.Taproot.Tests;
@@ -281,26 +280,5 @@ public class JsonElementExtensionsTests
         var result = json.FormatPropertyValue();
 
         Assert.Equal("", result);
-    }
-
-    [Fact]
-    public void GetPropertyOrNull_WhenPropertyExists_ReturnsElement()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>("{\"Child\":{\"Value\":123}}");
-
-        var result = json.GetPropertyOrNull("Child");
-
-        Assert.NotNull(result);
-        Assert.Equal(123, result.Value.GetProperty("Value").GetInt32());
-    }
-
-    [Fact]
-    public void GetPropertyOrNull_WhenPropertyMissing_ReturnsNull()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>("{}");
-
-        var result = json.GetPropertyOrNull("Child");
-
-        Assert.Null(result);
     }
 }

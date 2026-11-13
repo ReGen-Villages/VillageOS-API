@@ -45,7 +45,7 @@ is, binds                                   ← built in; in-process, not Platfo
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
-- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to along the predicate the `trigger` role binds (`triggeredBy` above), never a word on the connection — a seed that declares the `trigger` role and still carries a `trigger` property is refused. The trigger is the Thing one of three roles binds, whatever it is named: `graphTrigger` (`graph` above: a predicate, fired when a relationship is created), `httpTrigger` (`http`: a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `stateTrigger` (`state`: fired when a Thing enters a state — the connection relates to the range Thing it watches along the predicate the `stateWatch` role binds, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A predicate that calls a service, like `consumes`, `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to along the predicate the `trigger` role binds (`triggeredBy` above), never a word on the connection — a seed that declares the `trigger` role and still carries a `trigger` property is refused. The trigger is the Thing one of three roles binds, whatever it is named: `graphTrigger` (`graph` above: a predicate, fired when a relationship is created), `httpTrigger` (`http`: a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `stateTrigger` (`state`: fired when a Thing enters a state — the connection relates to the range Thing it watches along the predicate the `stateWatch` role binds, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A predicate that calls a service, like `consumes`, `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, writes a **watching Thing** instead — see [Being told once: a watching Thing](SERVICE_CONTRACT.md#being-told-once-a-watching-thing).
 - **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart`, and reaches its **run mode** along the predicate the `runMode` role binds (`runsAs` above) — a Thing, not a word, and the one the platform implements is the Thing the `daemonRunMode` role binds (`daemon` above).
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
@@ -422,16 +422,16 @@ GET https://localhost:7243/api/things/{VillageElectricityPool-Id}
 
 Predicate handlers enable powerful range definitions for simulation monitoring. Ranges evaluate criteria across the graph, and handler-modified properties participate in those evaluations automatically. A criterion is written in the criteria language — the platform Field Guide has the grammar on one page.
 
-### Low Reserve Alert
+### Low Level Alert
 
 ```json
 {
-  "Name": "LowReserve",
-  "Criteria": "quantity IS KNOWN AND quantity < reorderPoint"
+  "Name": "LowLevel",
+  "Criteria": "levelPercent IS KNOWN AND levelPercent < lowLevelPercent"
 }
 ```
 
-On the pool, creates an alert state when the reserve drops below its reorder threshold.
+On the reservoir, creates an alert state when its level drops below its low-level mark.
 
 ### Supply Check
 
@@ -716,7 +716,7 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 
 ## Security
 
-1. **Bidirectional Auth**: Handler → Mycelium presents a JWT (see [Authentication](#authentication)); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
+1. **Bidirectional Auth**: Handler → Mycelium presents a JWT (see [Authentication](#authentication)); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Service.Auth`
 2. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumModelToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used for the daemon's own registration, and as the model of last resort for work that begins outside any request.
 3. **Localhost Only**: Handlers bind to `localhost:{port}` — over `https` when Mycelium runs with `Https:Only` — and are not exposed externally
 4. **Checked callers**: With a `VerificationKey` set, a handler's `/handle` and `/shutdown` refuse a call that Mycelium did not sign for that service

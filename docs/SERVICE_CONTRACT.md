@@ -25,6 +25,8 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--port` | Port the service listens on |
 | `--myceliumUrl` | Mycelium base URL |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
+| `--serviceCallLimitSeconds` | How long Mycelium waits for the service to answer a service call, in whole seconds (15 by default), so a service can keep its own waits shorter |
+| `--passedOnRequestLimitSeconds` | The same for a request Mycelium passes on to the service from another (30 by default) |
 | `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
@@ -53,7 +55,9 @@ the request's model. `VerificationKey` is the public half of Mycelium's pair: it
 and cannot make one. See [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md) § Inbound JWT validation for
 why naming the algorithm matters.
 
-A service that must outlive any JWT — one nobody starts on demand — holds an **API key** (the
+A service the broker launches is handed a `Token` that lasts 24 hours, and outlives it: a .NET service
+swaps it at `POST /api/auth/service-token` once two hours or less are left (`AddLaunchToken`, checked
+every 15 minutes). A service nobody starts on demand holds an **API key** (the
 `ApiKey` setting) instead of a `Token`: `ServiceCredential` exchanges it at `POST /api/auth/token`
 with the `X-API-Key` header, holds the minted token, and exchanges again shortly before it expires.
 A key can be confined to one model, which is what confines the service. Ask `ServiceCredential` for
@@ -109,7 +113,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 
 ## Registration
 
-- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`
+- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`. It answers `{ Service, ModelTime }`: the registration, and the model clock as `GET /api/time` would answer it
 - There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
@@ -138,6 +142,7 @@ Body is a selector:
   "typeIds": ["<archetype guid>"],    // the same, by the archetype's identifier, because names are not unique
   "boundTypes": ["<role thing guid>"],        // the archetype a role Thing binds, and every Thing that is it
   "boundArchetypes": ["<role thing guid>"],   // the one Thing a role binds, alone
+  "propertyValues": { "<property>": "<text>" }, // with a type field: only the members whose property holds exactly that text
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateRole
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
@@ -231,6 +236,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
 | An archetype and its members by identifier, including ones made later | `{ "typeIds": ["<archetype guid>"], "includeLaterMatches": true }` |
 | Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
+| The members of a type whose property holds a given value, compared exactly and case included | `{ "typeIds": ["<archetype guid>"], "propertyValues": { "status": "open" } }`; refused without `typeIds`, `markedTypes` or `boundTypes`, or for a property no named type declares |
 | A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
@@ -389,7 +395,8 @@ you depend on.
 A separate stream for non-object events: `ActivityEvent`, `ModelChanged`, `ModelCleared`,
 `ServiceHealthChanged`, `DaemonStatusChanged`, `EndpointServiceRequestCompleted`,
 `ServiceRequestCompleted`, `StatesChanged`, `RelationshipStatesChanged`,
-`EngineConfigurationChanged`. Fire-and-forget (no resume); refetch on reconnect.
+`EngineConfigurationChanged`, and `ModelClockChanged`, carrying `{ Now, Rate, Simulated }` when the
+model clock is anchored or the anchor dropped. Fire-and-forget (no resume); refetch on reconnect.
 
 > Field casing: **a Thing or a relationship is PascalCase wherever it appears** — in a snapshot
 > (`Id`, `Name`, `IsArchetype`, `Properties`; `SubjectId`, `PredicateId`, `TargetId`), in an SSE
@@ -671,35 +678,33 @@ let res = deposit_sediment(cfg, &http,
         value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
 ```
 
-## Being told once: vigils
+## Being told once: a watching Thing
 
 A `state` connection's service is called for every Thing of an archetype entering the range it watches.
 A service whose work is finished later by somebody else — a step that waits on one particular Thing
 reaching one particular state — needs to be told once, about that Thing, without following every
-state change in the model. It places a **vigil**, a Bearer-authed POST:
+state change in the model. It writes two relationships on a Thing of its own, in one fragment: the
+Thing **awaits** the subject along the predicate the `awaitedThing` role binds, and **watches** the
+range Thing along the predicate the `stateWatch` role binds. No route places a wait; any Thing holding
+both relationships is a watching Thing.
 
-| Route | Body | Success |
-|---|---|---|
-| `POST /api/vigils` | `{ "SubjectId", "RangeId", "ConnectionId" }` — the Thing, the range Thing whose entry answers the vigil, and the connection to call | `201` with the vigil: `Id`, `Name`, the three Things it names, `State` (the range's name) and `CallState` — `null` while it waits, the call record's state once it has been answered |
-| `GET /api/vigils` | — | `200` every live vigil the caller may read, in the same shape |
-| `DELETE /api/vigils/{id}` | — | `200`; retires a vigil whose wait is over for the service's own reasons, taking any record on it with it |
+When the subject enters the range, the platform calls **once** the connection the watching Thing names
+along the predicate the `notifiedConnection` role binds (`notifies` in the shipped template), on itself
+or on an archetype it `is`. The call is the same `POST /handle` a `state` connection's call makes:
+`subjectId` is the subject, `targetId` is the watching Thing, and `properties.__CallRecordState` is the
+state's name. A Thing naming no connection is called itself, so the call fails saying so rather than
+going nowhere. A subject already standing in the range is answered as the write completing the watch
+commits. The call is a record the platform owns, driven by the same reconciler and completing under
+the connection's own completion rules, so delivery is at-least-once exactly as for a `state`
+connection: handle a repeat of the same `relationshipId` as done.
 
-When the subject enters the range, the platform calls the connection's service **once**, with the
-same `POST /handle` a `state` connection's call makes: `subjectId` is the Thing, `targetId` is the
-vigil, and `properties.__CallRecordState` is the state's name. A subject already standing in the
-range is answered at once — the placement's `CallState` is then non-null. The call is a
-record the platform owns, driven by the same reconciler and completing under the connection's own
-completion rules, so delivery is at-least-once exactly as for a `state` connection: handle a repeat of
-the same `relationshipId` as done. The vigil survives a restart; it is retired by the platform once its
-call has resolved, or once the Thing it was kept over is deleted, and it is never answered a second
-time. Two vigils on one Thing for one state are two answers, even to one connection, so a service
-waiting twice on one Thing places two.
+An answered watch is not answered again. Its record stays until the wait ends — the `awaits` or
+`watches` relationship retracted, or the watching Thing deleted — and goes with it, whatever became of
+its call. Two watching Things on one Thing for one state are two answers, even to one connection, so a
+service waiting twice on one Thing writes two. A service with no Thing of its own to wait with watches
+through its own connection, which `awaits` the subject and `watches` the range and, naming no
+`notifies`, is called itself.
 
-The range is named as a Thing, not as a state's name: a vigil watches a range declared as a Thing of
+The range is named as a Thing, not as a state's name: a watch reaches a range declared as a Thing of
 its own — one that `is` the archetype the `range` role binds and relates to the archetype it judges —
-which is the form a range takes whenever something needs a relationship to it. Refusals name what
-cannot serve: `400` for a range that is not a Thing of that kind, one that judges no archetype the
-subject `is`, or a connection with no bound service; `404` for a Thing the caller may not read; `400`
-naming each missing role for a model that does not bind the vigil vocabulary (an archetype the
-`vigil` role binds, and predicates the `vigilSubject`, `stateWatch` and `notifiedConnection` roles
-bind). The platform's shipped archetype set declares all four.
+which is the form a range takes whenever something needs a relationship to it.

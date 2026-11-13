@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using JsonataTransform = vos.Service.Shared.JsonataTransform;
-using Microsoft.Extensions.Logging;
 using NSubstitute;
 using vos.Service.Shared;
 using vos.Service.Tributary.Helpers;
@@ -23,7 +22,7 @@ public class WrittenValuesTests
     private static ObservationIngestService Ingest(out IEndpointMyceliumClient client)
     {
         client = Substitute.For<IEndpointMyceliumClient>();
-        return new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        return new ObservationIngestService(client, new ModelClock());
     }
 
     private static void SubjectPathAnswers(IEndpointMyceliumClient client, Guid subjectId)
