@@ -119,31 +119,9 @@ public class MyceliumClient : MyceliumClientBase
         }
     }
 
-    public async Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var payload = new { subjectId, predicateId, targetId };
-
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload);
-            if (response.IsSuccessStatusCode)
-                return true;
-
-            var error = await response.Content.ReadAsStringAsync();
-            Logger.LogWarning(
-                "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
-                subjectId, predicateId, targetId, response.StatusCode, error);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex,
-                "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
-                subjectId, predicateId, targetId);
-            return false;
-        }
-    }
+    public Task<bool> CreateRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default) =>
+        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(10), cancellationToken);
 
     private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
     {
