@@ -14,7 +14,7 @@ This document is the language-agnostic contract. Working reference implementatio
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
-A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Auth.Shared` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Service.Auth` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
 
 ## A note on `is`
 
@@ -92,7 +92,7 @@ child's environment, not in its arguments. Xylem hands the IFC ingest tool its `
 
 | Setting | Meaning |
 |---------|---------|
-| `Token` | Pre-minted service JWT for outbound calls |
+| `Token` | Pre-minted service JWT for outbound calls. It lasts 24 hours; a service that runs longer swaps it at `POST /api/auth/service-token` before it expires |
 | `ApiKey` | For a service nobody launches on demand, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
 | `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
@@ -250,6 +250,7 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Read `Token` (or `ApiKey`) and `VerificationKey` from configuration or the environment, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
 - [ ] Get a token (the `Token` setting, or an `ApiKey` exchanged at `/api/auth/token`) and `POST /api/mycelium/register`
+- [ ] Swap the `Token` at `POST /api/auth/service-token` before it expires (C# services: `builder.Services.AddLaunchToken`)
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
 - [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
