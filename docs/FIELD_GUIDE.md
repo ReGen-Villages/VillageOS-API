@@ -513,7 +513,7 @@ bounds a value should stay inside, with an optional guard saying when the bounds
 **deviations**: how far the actual value sits from what was expected. Guards may read states but
 never produce them, which is what keeps the two steps from feeding each other.
 
-**Everyone is told.** Every state that changed is recorded in the Thing's state history, published
+**Everyone is told.** Every state that changed is recorded in the Thing's state history where its range keeps one, published
 on the live stream, and — where a connection watches that state — its service is called (chapter
 28).
 
@@ -725,9 +725,11 @@ service by hand; what started a run is a fact in the model afterwards.
   kind's connection overrides its parent's.
 
 A service that needs to be told once, about one particular Thing reaching one particular state,
-places a **vigil**: a Thing the platform writes naming the subject, the range and the connection to
-call. When the subject enters the range the connection's service is called once, the vigil is
-answered, and the platform retires it.
+writes a **watch**: a Thing of its own that relates to the subject along the predicate the
+`awaitedThing` role binds and to the range along the one the `stateWatch` role binds. When the subject
+enters the range, the platform calls once the connection the watching Thing or its archetype names
+along `notifies`, with the watching Thing as the call's `targetId`. The record stays until the wait
+ends — either relationship retracted, or the watching Thing deleted — and goes with it.
 
 ### 29. The clock
 Everything that judges time reads the **model clock**: `elapsed()` and `Now()` in a criterion, the
@@ -747,7 +749,7 @@ costs.
 | What is true now: a value, a relationship, who is in state S | The live model, at once |
 | What was true at instant T; how did X change between T1 and T2 | Rings, the store of every value over time, reading only the layers that hold the span asked for |
 | The model, or one Thing, as it stood at T | The live model's recent versions, and Rings for a value memory has let go of; a Thing not yet created, or already deleted, at T is answered as absent. One Thing asked about by itself is also read back after the server has let go of it entirely, from the record of its lifetime kept on disk |
-| Which states a Thing held, and when; how long it spent in one | The engine's state history, which says how far back it reaches |
+| Which states a Thing held, and when; how long it spent in one | The state records the platform keeps for each range that keeps state history, with the ranges that keep none named |
 | How much happened per slice of time across a kind: litres pumped per quarter hour over the last eight hours | A bucketed reduction over the live model's members and the instant each carries |
 | What one property's readings come to by calendar: the monthly mean of the daily high, the frost days a year, the share of hours inside a comfort band | A reduction over the property's retained readings, folded in steps — by day, then by month, then across the years |
 
@@ -881,7 +883,7 @@ property; a derived property refuses every write.
 | **Delta** | http | Checks every registration against the catalogue of data-source templates the model holds, and writes it (chapter 38) |
 | **Tributary** | http | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings as Observations onto the Thing the call was about (chapter 38) |
 | **Forage** | state | Finds every source covering a site, calls Tributary for each, resolves each fetched word to the Thing it names, and starts the analysis (chapter 39) |
-| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves |
+| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves. The last write of every recompute is `energyWorkedOutAt`, the model clock's moment, even when an input is still missing and no verdict is written; the study's `EnergyWorkedOut` state reads it |
 | **WaterReserve** | a pipeline node | Reserve figures for a pipeline run |
 | **ModelBridge** | a pipeline node | Reads a Thing's property into a pipeline, or writes a pipeline value onto one (chapter 44) |
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
@@ -1005,7 +1007,7 @@ The **Pipelines** page in the console is the editor.
 - **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
   listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
   each saying what it starts or what happens to it; the one connection left out is the orchestrator's
-  own, which a vigil answers through to resume a waiting run, because no run starts from it. A state
+  own, which a waiting node run is answered through to resume its run, because no run starts from it. A state
   row says it starts its drawing only when
   the orchestrator receives the state's entries; otherwise it names the drawing and the service that
   receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection.
@@ -1014,13 +1016,14 @@ The **Pipelines** page in the console is the editor.
   the model, so a run whose subject names no Thing is refused. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
-- **The outputs**, in the rail on the right, offer the answer, the other pipelines and the external
-  systems; clicking one places an **end node**. The answer places the **Output node**, where every
-  path ends, and the value wired into it becomes the run's published result. An end standing for
-  another pipeline or a system is refused by the orchestrator when the pipeline is read: what tells a
-  system and what starts another pipeline are the tell and follow-on nodes (chapter 42), and the canvas
-  does not place those. The **services** stand under the outputs: clicking one drops a node bound to
-  its connection, with the typed ports the service declares.
+- **The outputs**, in the rail on the right, offer the answer, the other pipelines, the external
+  systems told through a connection, and a stop. The answer places the **Output node**, where every
+  path ends, and the value wired into it becomes the run's published result. A pipeline row places a
+  **follow-on node**, a system row a **tell node**, and the stop row a **stop node** (chapter 42); each
+  is offered only where the model binds its kind. The **services** stand under the outputs: clicking
+  one drops a node bound to its connection, with the typed ports the service declares. Only a service
+  that declares at least one port is listed, so the platform's own connections (the orchestrator,
+  Tributary and Delta), which declare none, are not.
 - **A boundary node stands for its catalyst or its outcome**, read through roles, never by name. The
   **findings** under the canvas list what stops a run, including an end standing for the wrong kind of
   Thing. On a screen narrower than a tablet's the rails sit above the canvas rather than beside it.
@@ -1037,8 +1040,12 @@ The **Pipelines** page in the console is the editor.
   as `$count(failures) = 0`, and removing it returns the node to failing the run on any fail wire.
 - **Field mapping** on a wire picks a part of the upstream value and places it at a named part of
   the downstream input, so several wires into one input merge into one composed object.
-- **A transform** on a wire reshapes the value in flight, in the same expression language Tributary
-  uses. An invalid expression is caught before the run.
+- **Transforms** on a wire reshape the value in flight, in the same expression language Tributary
+  uses. The wire's inspector has two fields, each saying what it sees: an **item transform** sees one
+  item, which goes on by itself, and a **list transform** sees every item at once, so the items meet on
+  that wire. An invalid expression is caught before the run.
+- **A tell or follow-on node** chooses what it stands for, and edits each value it passes on as one in
+  and one out port. A **stop node** binds its in ports to run parameters.
 - **Parameters.** An unwired input can be bound to a run parameter by name; the parameters appear
   in a bar above the canvas where values are typed at run time.
 - **Validation** runs before every run: a required input neither wired nor bound, or a wire with a
@@ -1081,36 +1088,53 @@ through; a system naming no such connection refuses the run. A **follow-on node*
 pipeline and starts a run of it, the new run related to this one. A **stop node** takes one Thing or a
 list and a reason, writes a stop request for each, and answers how many it wrote; its own run is never
 stopped by them. Each answers success or fail, passes on what reached it, and carries on towards the
-Output node.
+Output node. A **wait node** calls no service: the run stands at *waiting* as soon as it reaches the
+box, until the Thing on its port enters the state the box names, and then gives that Thing on. A wait
+node may follow a predicate from the Thing it waited for and give, on a second port, the Things it
+reaches, so "wait until decided" hands on the decision; a read that fails fails the node. A
+**relate node** starts a service the way the model does: it stands for a connection, relates the Thing
+reaching it along that connection to the connection's service unless it is related already, so the
+platform calls the service, and waits until the state the connection names for done holds. It then
+gives the Thing on, and says whether this run wrote the relationship.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
-timeout, a server error from the door — it is called again after a pause in model minutes, and any
+timeout, a server error from the broker — it is called again after a pause in model minutes, and any
 answer from the service is final, a refusal among them. Each attempt is recorded as an attempt Thing
 the node run holds, and the node run stands at *trying* between attempts. A node that gives up fails
 like any other.
 
+**After a restart of the orchestrator** a run carries on from its record. A node or item caught in
+the middle of a call is called again only when its service says it may be called again; otherwise the
+run fails with the reason and the caught node is recorded *interrupted*. The Dashboard lists such a
+run (chapter 52), where a person allowed to change data can **start it again**, as a fresh run related
+to the one it repeats, or **carry it on**, calling the interrupted node again and keeping everything
+that answered.
+
 A run and each node's run are recorded as Things, written *running* before the node's service is
 called and their final status after, so the console animates a run from the ordinary live stream and
 history is a read of the model. A node may wait for a state: it names the range and the port whose
-Thing must enter it, the run records its answer as *waiting* — shown on the page with a ring and
-colour of its own — and resumes from its record when the vigil the orchestrator placed answers.
+Thing must enter it, and the run records a service node's answer, or a wait node as soon as the run
+reaches it, as *waiting* — shown on the page with a ring and
+colour of its own — and resumes from its record when the platform answers the waiting node run.
 **Cancel** writes a stop request for the run, with an optional reason, and is offered on a run that
 is running, waiting or trying: a run under way stops at its next node, a waiting run stops at once,
 and the reason is recorded on the run and on each node not finished. A pipeline can also stop the
 runs about a Thing itself, with a stop node.
 
 **Drafts and rehearsals.** Only a published pipeline is started by the model; a draft runs only as a
-rehearsal, in which only services that declare they write nothing but their answer are called, and
-a tell, follow-on or stop node records what it would have done instead.
+rehearsal, in which only services that declare they write nothing but their answer are called. A
+rehearsal stops at a service node that waits; a tell, follow-on, stop, wait or relate node records
+what it would have done instead.
 
 **Fan-out.** A node whose service declares a **collection** input runs once per item when that
 input receives a list — the other inputs are the same for every item — and each output is gathered
 into a list for downstream, an output marked as a collection into one flat list. The node may
 continue past a failed item, marking the node partial, its failed items taking the fail wires and
 dropped where there are none; or it fails as a whole. From a node set to continue, each item goes on
-to the next once-per-item node as soon as it answers, without waiting for the others, where a plain
-wire with no transform alone fills that node's list input; the item keeps its place and count from
-where the items were first spread out. A stop starts no more items.
+to the next once-per-item node as soon as it answers, without waiting for the others, where a wire
+with no list transform alone fills that node's list input; the item keeps its place and count from
+where the items were first spread out. An item transform reshapes each item on the way; one that
+fails fails that item without a call, and fails a node fed items that meet. A stop starts no more items.
 
 A pipeline can also be started **from the model**. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
@@ -1424,6 +1448,11 @@ graph goes blank on Safari, resize the window, or reload the page.
 ### 52. The Dashboard page
 The landing page after sign-in.
 
+**Runs a restart stopped.** When there is such a run, a panel at the top lists every run a restart of
+the orchestrator failed while a node was in the middle of a call, with its pipeline, start time and
+reason. An admin or editor account gets **Start again** and **Carry on** on each row. A run someone
+started again leaves the list.
+
 **Model statistics.** Counts of Things, relationships, distinct predicates, properties and
 registered services, and the most-used predicates. The counts are drawn only once the console holds
 the whole model; until then each reads as a dash and the card says *Reading the model…*, so a part
@@ -1735,7 +1764,7 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `range validate <criterion>` | Whether a criterion parses, and where it went wrong |
 | `state <thing>` | The states a Thing holds and every range's evaluation |
 | `state query <state> [--type=] [--within=] [--limit=] [--properties=] [--name=] [--also-in=a,b] [--not-in=c] [--include-archetypes] [--count]` | Every Thing in a state, narrowed as `list things` is, and further to those also in or not in other states; kinds left out unless asked for; `--count` prints how many alone |
-| `state history <thing> [start] [end]`, `state occurrences <thing> <state> [start] [end]` | Each change of state the platform holds in memory — when, what was entered and left, and the property change that caused it — and each spell spent in one state, an open one named as such; the history reaches back to model load |
+| `state history <thing> [start] [end]`, `state occurrences <thing> <state> [start] [end]` | Each change of state the platform records for a range that keeps state history — when, what was entered and left, and the property change that caused it — and each spell spent in one state, an open one named as such. `state history` prints the window, then `Keeps no history: <ranges>.` when any range of the Thing keeps none, then each change; with no change it says `No state changes in the window.`, or `No range on <thing> keeps state history.` when none does. `state occurrences` answers `'<state>' keeps no history on <thing>.` for a range keeping none, and `<thing> has no range '<state>'.` for a name that is no range of the Thing |
 | `engines [ranges \| derived]` | What the two engines carry, and each reactor in detail |
 | `snapshots` | What subscription snapshots have cost against the writers |
 | `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its running state, endpoint, health, request statistics (count, average milliseconds, errors, last request) and, while running, its process id, whether it was started outside the Mycelium and its last contact; a failure count when not zero |
@@ -2490,8 +2519,13 @@ covers, and that snapshot is its load. A page that asks for the whole model decl
 and parsed twice. The declaration follows the
 page: a page declares what it needs while it is shown and takes the declaration back when it leaves,
 and the innermost declaration is the one in force. The application shell always asks for the pages
-the navigation lists and the display-settings Thing. The graph, the two searches, the pipeline
-editor, the temporal page and the Dashboard read across the model and ask for the whole of it. A
+the navigation lists and the display-settings Thing. The graph, the two searches, the temporal page
+and the Dashboard read across the model and ask for the whole of it. The pipeline editor asks for the
+Things its pipeline roles reach: every role Thing by identifier, the members of the kinds it reads,
+the Thing every other role binds, the built-in predicates by name, and one step along stands-for,
+offers, compares-with, trigger and judged-kind, and keeps following all of it. While a choice searches
+the wider list, the page adds the kinds the node's in ports offer to its subscription by identifier and
+takes them out again when the search ends. A
 published page asks for what its description implies: the compare entities, the kinds its lists
 draw, the Things it names, the selected entity, the name Things a page offering levers reads and
 `namesPropertyOf` one step on from them, and one traversal rule per relationship its bindings
@@ -2545,7 +2579,7 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `get relationship`, `range list relationship`, `state relationship` | Click a relationship: its panel's properties, and its Ranges tab |
 | `temporal snapshot`, `temporal history`, `temporal mutations` | The Temporal page |
 | `range list`, `range get`, `state` | The Ranges tab |
-| `state history` | The transitions timeline in a Thing's detail window |
+| `state history` | The transitions timeline in a Thing's detail window, which names the ranges that keep no history under the list and says "No range of this Thing keeps state history." when that is why the list is empty |
 | `list services`, `start service`, `stop service`, `shutdown` | The Dashboard page's services |
 | `call endpoint` | What a page's writing widgets — an action on a row, a form — post to an endpoint |
 | `pipeline list`, `pipeline run`, `pipeline cancel`, `pipeline history` | The Pipelines page: the palette, **Run**, **Cancel** and the history panel |
@@ -2793,8 +2827,10 @@ translated. No request: the definition travels with the Thing.
 **Who the platform ran on a Thing.** The detail window's *Handled by* section lists every service
 called on a Thing — the connection, when the platform last tried, how it ended, and what the
 service said — read from the handled relationships and call records the platform leaves in the
-model. The connections, services, vigils and the call-record predicate are the Things the
-`connection`, `service`, `vigil`, `notifiedConnection` and `callRecord` roles bind. A page's
+model. The connections, services, the call-record predicate and the `notifies` predicate are the
+Things the `connection`, `service`, `callRecord` and `notifiedConnection` roles bind. The window also
+reads the Things waiting for this one, along the predicate the `awaitedThing` role binds, with what
+they are, because a waiting Thing or its archetype names the connection it is answered through. A page's
 subscription carries none of them, so the window reads them once when it opens on a Thing, in one
 request, and keeps reading the Thing's relationships from the page. Only the subject of a
 relationship counts as handled. The platform announces no change to a call's state on the live
@@ -2954,7 +2990,7 @@ runs it during a play and keeps the file with its readings.
 | **Template** | A seed a model is created from; also a seed that declares how to recognise the elements of a building model |
 | **Thing** | A node in the graph. Everything is one |
 | **Trellis**, **Taproot** | The web console and the command line |
-| **Vigil** | A one-time watch a service places over one Thing for one state |
+| **Watch** | A Thing that awaits one subject and watches one range, so its connection is called once when the subject enters the range |
 | **Write kind** | Which kinds of write a property accepts: both, Facts only, Observations only |
 
 ## Appendix B — The criteria language on one page

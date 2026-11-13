@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
-using vos.Service.Shared.Subscriptions;
 using Xunit;
 using vos.Service.Shared;
 
