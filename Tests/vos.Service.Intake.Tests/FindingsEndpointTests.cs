@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using vos.Service.Intake.Services;
 using Xunit;
 
@@ -17,7 +16,6 @@ public class FindingsEndpointTests
     private const string TicketHeader = "X-Submission-Ticket";
 
     private static readonly string ThisAddress = BrokerSnapshot.AddressOn("Willow Bend");
-    private static readonly string OtherAddress = BrokerSnapshot.AddressOn("Alder Rise");
     private static readonly Guid ThisSite = BrokerSnapshot.SiteOf(WillowBend.SubmissionId);
     private static readonly Guid OtherSite = BrokerSnapshot.SiteOf(BrokerSnapshot.OtherSubmissionId);
 

@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace vos.Service.Feedback.Configuration;
 
 // Where one application's reports are filed: the project and area, and the work-item type a bug and
