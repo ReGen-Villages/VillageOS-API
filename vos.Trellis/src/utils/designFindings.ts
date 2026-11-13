@@ -1,4 +1,4 @@
-import type { Binding, DashboardSpecification } from '../types/dashboard';
+import type { Binding, DashboardSpecification, Widget } from '../types/dashboard';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
@@ -142,60 +142,79 @@ export function checkDesign(specification: DashboardSpecification, name: string,
   if (name.includes(WORD_THE_NAVIGATION_DROPS) || specification.title.includes(WORD_THE_NAVIGATION_DROPS)) refuse('nameCarriesDashboard', {}, name);
   if (specification.compare && !context.isKind(specification.compare.archetype)) refuse('namesAnUnknownKind', {}, specification.compare.archetype);
 
+  const report: Report = { refuse, warn };
   specification.sections.forEach((section, sectionIndex) => {
     section.widgets.forEach((widget, widgetIndex) => {
       const where = { section: sectionIndex, widget: widgetIndex };
       const rows = rowsBindingOf(widget);
       const rowKind = rowKindOf(rows, context.compareKind);
-      const rowProperties = rowKind ? context.propertiesOf(rowKind) : undefined;
 
       if (unboundSlots(widget).length > 0) warn('widgetBoundToNothing', where);
-
-      if (widget.type === 'table') {
-        if (widget.visibleRows === undefined) refuse('tableWithoutARowCap', where);
-        const carried = new Set([
-          ...widget.columns.map((column) => column.key),
-          ...(rows && 'computed' in rows ? (rows.computed ?? []).map((column) => column.key) : []),
-        ]);
-        if (widget.sortKey && !carried.has(widget.sortKey)) refuse('sortKeyNoColumnCarries', where, widget.sortKey);
-        if (rowProperties) {
-          for (const key of widget.searchKeys ?? [])
-            if (!carried.has(key) && !rowProperties.some((property) => property.name === key)) refuse('searchKeyNoRowCarries', where, key);
-          for (const column of widget.columns) {
-            const property = rowProperties.find((candidate) => candidate.name === column.key);
-            if (typeof property?.example === 'string' && property.example.length > UNBOUNDED_TEXT) warn('columnOnAnUnboundedValue', where, column.key);
-          }
-        }
-      }
-
-      if (widget.type === 'leaderboard' && widget.entities?.kind === 'compareEntities' && context.compareKind) {
-        const compared = context.propertiesOf(context.compareKind);
-        for (const key of widget.entities.properties) {
-          const property = compared?.find((candidate) => candidate.name === key);
-          if (property && !property.numeric && typeof property.example === 'string') refuse('comparedPropertyIsText', where, key);
-        }
-      }
+      if (widget.type === 'table') checkTable(widget, rows, rowKind ? context.propertiesOf(rowKind) : undefined, where, report);
+      if (widget.type === 'leaderboard') checkLeaderboard(widget, context, where, report);
 
       const bindings: HeldBinding[] = [];
       bindingsOf(widget, rowKind, false, bindings);
-      for (const { binding, rowKind: kindOfRow, underOptions } of bindings) {
-        if ('archetype' in binding && binding.archetype && !context.isKind(binding.archetype)) refuse('namesAnUnknownKind', where, binding.archetype);
-        if ('scope' in binding && binding.scope && !context.isPredicate(binding.scope.viaPredicate)) refuse('namesAnUnknownPredicate', where, binding.scope.viaPredicate);
-        if ('via' in binding) {
-          for (const step of binding.via ?? []) {
-            if (step.predicate && !context.isPredicate(step.predicate)) refuse('namesAnUnknownPredicate', where, step.predicate);
-            if (step.archetype && !context.isKind(step.archetype)) refuse('namesAnUnknownKind', where, step.archetype);
-          }
-        }
-        const kind = kindOf(binding, context, kindOfRow);
-        const holdingStates = kindHoldingTheStates(binding, kind);
-        const states = holdingStates ? context.statesOf(holdingStates) : undefined;
-        if (states) for (const state of namedStatesOf(binding)) if (!states.includes(state)) refuse('namesAnUnknownState', where, state);
-        const declared = kind ? context.propertiesOf(kind) : undefined;
-        if (declared) for (const property of namedPropertiesOf(binding)) if (!declared.some((candidate) => candidate.name === property)) warn('namesAnUnknownProperty', where, property);
-        if (context.compareKind && !underOptions && (binding.kind === 'stateCount' || binding.kind === 'stateList') && !binding.scope) warn('stateBindingWithoutScope', where);
+      for (const held of bindings) {
+        checkTheKindsAndPredicatesNamed(held.binding, context, where, report);
+        checkTheStatesAndPropertiesNamed(held, context, where, report);
       }
     });
   });
   return findings;
+}
+
+interface Report {
+  refuse: (code: DesignFindingCode, where: Where, named?: string) => void;
+  warn: (code: DesignFindingCode, where: Where, named?: string) => void;
+}
+
+function checkTable(
+  widget: Extract<Widget, { type: 'table' }>, rows: ReturnType<typeof rowsBindingOf>,
+  rowProperties: PropertyCandidate[] | undefined, where: Where, { refuse, warn }: Report,
+) {
+  if (widget.visibleRows === undefined) refuse('tableWithoutARowCap', where);
+  const carried = new Set([
+    ...widget.columns.map((column) => column.key),
+    ...(rows && 'computed' in rows ? (rows.computed ?? []).map((column) => column.key) : []),
+  ]);
+  if (widget.sortKey && !carried.has(widget.sortKey)) refuse('sortKeyNoColumnCarries', where, widget.sortKey);
+  if (!rowProperties) return;
+  for (const key of widget.searchKeys ?? [])
+    if (!carried.has(key) && !rowProperties.some((property) => property.name === key)) refuse('searchKeyNoRowCarries', where, key);
+  for (const column of widget.columns) {
+    const property = rowProperties.find((candidate) => candidate.name === column.key);
+    if (typeof property?.example === 'string' && property.example.length > UNBOUNDED_TEXT) warn('columnOnAnUnboundedValue', where, column.key);
+  }
+}
+
+function checkLeaderboard(widget: Extract<Widget, { type: 'leaderboard' }>, context: DesignCheckContext, where: Where, { refuse }: Report) {
+  if (widget.entities?.kind !== 'compareEntities' || !context.compareKind) return;
+  const compared = context.propertiesOf(context.compareKind);
+  for (const key of widget.entities.properties) {
+    const property = compared?.find((candidate) => candidate.name === key);
+    if (property && !property.numeric && typeof property.example === 'string') refuse('comparedPropertyIsText', where, key);
+  }
+}
+
+function checkTheKindsAndPredicatesNamed(binding: Binding, context: DesignCheckContext, where: Where, { refuse }: Report) {
+  if ('archetype' in binding && binding.archetype && !context.isKind(binding.archetype)) refuse('namesAnUnknownKind', where, binding.archetype);
+  if ('scope' in binding && binding.scope && !context.isPredicate(binding.scope.viaPredicate)) refuse('namesAnUnknownPredicate', where, binding.scope.viaPredicate);
+  if (!('via' in binding)) return;
+  for (const step of binding.via ?? []) {
+    if (step.predicate && !context.isPredicate(step.predicate)) refuse('namesAnUnknownPredicate', where, step.predicate);
+    if (step.archetype && !context.isKind(step.archetype)) refuse('namesAnUnknownKind', where, step.archetype);
+  }
+}
+
+function checkTheStatesAndPropertiesNamed(
+  { binding, rowKind, underOptions }: HeldBinding, context: DesignCheckContext, where: Where, { refuse, warn }: Report,
+) {
+  const kind = kindOf(binding, context, rowKind);
+  const holdingStates = kindHoldingTheStates(binding, kind);
+  const states = holdingStates ? context.statesOf(holdingStates) : undefined;
+  if (states) for (const state of namedStatesOf(binding)) if (!states.includes(state)) refuse('namesAnUnknownState', where, state);
+  const declared = kind ? context.propertiesOf(kind) : undefined;
+  if (declared) for (const property of namedPropertiesOf(binding)) if (!declared.some((candidate) => candidate.name === property)) warn('namesAnUnknownProperty', where, property);
+  if (context.compareKind && !underOptions && (binding.kind === 'stateCount' || binding.kind === 'stateList') && !binding.scope) warn('stateBindingWithoutScope', where);
 }
