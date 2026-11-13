@@ -162,6 +162,109 @@ public class RetryTests
         result.Nodes.Single(node => node.Name == "Echo").Error.Should().Be("could not");
     }
 
+    private static NodeCallResult FailureThatCanBeTriedAgain(double? afterSeconds = null) =>
+        new(200, JsonSerializer.Serialize(new
+        {
+            result = "fail",
+            error = "the provider is down",
+            retry = afterSeconds is { } seconds ? (object)new { afterSeconds = seconds } : new { },
+        }));
+
+    [Fact]
+    public async Task A_step_answering_that_its_failure_can_be_tried_again_is_called_again_and_each_attempt_is_recorded()
+    {
+        var (retry, gateway, executor) = Arrange(call => call < 3 ? FailureThatCanBeTriedAgain() : Answer(), policy: [("attempts", 3), ("pauseMinutes", 1)]);
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Called.Should().HaveCount(3);
+        var attempts = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt).ToList();
+        attempts.Select(attempt => attempt.Status).Should().Equal(RunStatus.Failed, RunStatus.Failed, RunStatus.Succeeded);
+        attempts[0].Error.Should().Be("the provider is down");
+        gateway.NodeStatuses.Count(status => status == ("Echo", RunStatus.Trying)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_step_answering_that_it_can_be_tried_again_every_time_fails_with_its_last_words_once_its_attempts_run_out()
+    {
+        var (retry, gateway, executor) = Arrange(_ => FailureThatCanBeTriedAgain(), policy: [("attempts", 3), ("pauseMinutes", 0)]);
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Called.Should().HaveCount(3);
+        result.Nodes.Single(node => node.Name == "Echo").Error.Should().Be("the provider is down");
+    }
+
+    // A model minute is a tenth of a real second here; only a lower bound is asserted, since a busy machine can only lengthen a pause.
+    [Fact]
+    public async Task A_wait_the_step_asks_for_is_taken_when_it_is_longer_than_the_policy_pause()
+    {
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? FailureThatCanBeTriedAgain(afterSeconds: 0.3) : Answer(), clockRate: 600,
+            policy: [("attempts", 2), ("pauseMinutes", 1)]);
+
+        await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        var attempts = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt).ToList();
+        (attempts[1].StartedUtc - attempts[0].FinishedUtc).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(3));
+    }
+
+    [Theory]
+    [InlineData("""{"afterSeconds":-5}""")]
+    [InlineData("""{"afterSeconds":"soon"}""")]
+    public async Task A_wait_that_is_not_a_number_of_seconds_is_ignored_and_the_step_is_still_tried_again(string retryAnswer)
+    {
+        var (retry, gateway, executor) = Arrange(
+            call => call < 2 ? new NodeCallResult(200, $$"""{"result":"fail","error":"down","retry":{{retryAnswer}}}""") : Answer(),
+            policy: [("attempts", 2), ("pauseMinutes", 0)]);
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Called.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task A_wait_the_step_asks_for_that_runs_past_the_trying_time_ends_the_trying()
+    {
+        var (retry, gateway, executor) = Arrange(_ => FailureThatCanBeTriedAgain(afterSeconds: 120), policy: [("attempts", 5), ("pauseMinutes", 0), ("tryingMinutes", 60)]);
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Called.Should().HaveCount(1, "two real minutes on a clock 6000 times faster is 200 model hours, past the hour of trying");
+    }
+
+    [Fact]
+    public async Task A_step_with_no_retry_policy_answering_that_it_can_be_tried_again_fails_at_once()
+    {
+        var (retry, gateway, executor) = Arrange(_ => FailureThatCanBeTriedAgain());
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Called.Should().HaveCount(1);
+        result.Nodes.Single(node => node.Name == "Echo").Error.Should().Be("the provider is down");
+    }
+
+    [Fact]
+    public async Task A_step_run_once_per_item_calls_again_only_the_item_whose_failure_can_be_tried_again()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer(), perItem: true, policy: [("attempts", 3), ("pauseMinutes", 0)]);
+        var southCalls = 0;
+        gateway.OnCall = (_, envelope) => envelope.GetProperty("inputs").GetProperty("in").GetString() == "South" && Interlocked.Increment(ref southCalls) == 1
+            ? FailureThatCanBeTriedAgain()
+            : Answer();
+
+        var result = await executor.RunAsync(retry.PipelineId,
+            JsonSerializer.SerializeToElement(new { seed = new[] { "North", "South", "East" } }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        ReadingsCalled(gateway).Should().BeEquivalentTo("North", "South", "South", "East");
+        gateway.AttemptsRecorded.Where(made => made.Index == 1).Select(made => made.Attempt.Status).Should().Equal(RunStatus.Failed, RunStatus.Succeeded);
+    }
+
     [Fact]
     public async Task The_broker_answering_for_a_service_it_cannot_reach_is_retried()
     {

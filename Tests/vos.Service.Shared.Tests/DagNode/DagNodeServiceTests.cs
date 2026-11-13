@@ -55,6 +55,32 @@ public class DagNodeServiceTests
         JsonSerializer.Serialize(response).Should().Be(answer);
     }
 
+    [Theory]
+    [InlineData(30.0, """{"result":"fail","outputs":{"call":"North"},"error":"the provider is down","retry":{"afterSeconds":30}}""")]
+    [InlineData(null, """{"result":"fail","outputs":{"call":"North"},"error":"the provider is down","retry":{}}""")]
+    public async Task A_step_throwing_that_its_failure_can_be_tried_again_answers_so_with_the_wait_it_asks_for(double? afterSeconds, string answer)
+    {
+        var failure = new FailureCanBeTriedAgainException("the provider is down",
+            afterSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
+            new Dictionary<string, object?> { ["call"] = "North" });
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), throwing: failure);
+
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+
+        JsonSerializer.Serialize(response).Should().Be(answer);
+    }
+
+    [Fact]
+    public async Task A_step_throwing_that_its_failure_can_be_tried_again_with_no_outputs_answers_none()
+    {
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),
+            throwing: new FailureCanBeTriedAgainException("the provider is down"));
+
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+
+        JsonSerializer.Serialize(response).Should().Be("""{"result":"fail","outputs":{},"error":"the provider is down","retry":{}}""");
+    }
+
     [Fact]
     public async Task HandleNodeAsync_RefInput_ResolvedFromEffectiveProperties()
     {
@@ -117,12 +143,12 @@ public class DagNodeServiceTests
         JsonSerializer.Serialize(new { message = new { @ref = new { thingId, property } } });
 
     private static (EchoNode node, MockHttpMessageHandler handler) BuildNode(
-        Func<HttpRequestMessage, HttpResponseMessage> respond, bool alwaysThrow = false)
+        Func<HttpRequestMessage, HttpResponseMessage> respond, bool alwaysThrow = false, Exception? throwing = null)
     {
         var handler = new MockHttpMessageHandler(respond);
         var http = new HttpClient(handler);
         var factory = new TestHttpClientFactory(http);
-        return (new EchoNode(factory, alwaysThrow), handler);
+        return (new EchoNode(factory, throwing ?? (alwaysThrow ? new InvalidOperationException("boom") : null)), handler);
     }
 
     private static HttpResponseMessage Json(HttpStatusCode code, string json) =>
@@ -131,10 +157,10 @@ public class DagNodeServiceTests
     // Minimal node: echoes its "message" input to an "echo" output.
     private sealed class EchoNode : DagNodeService
     {
-        private readonly bool _throw;
+        private readonly Exception? _failure;
 
-        public EchoNode(IHttpClientFactory httpClientFactory, bool @throw)
-            : base(httpClientFactory, NullLogger.Instance, DagNodeServiceTests.MyceliumUrl, new LaunchToken(DagNodeServiceTests.ServiceToken)) => _throw = @throw;
+        public EchoNode(IHttpClientFactory httpClientFactory, Exception? failure)
+            : base(httpClientFactory, NullLogger.Instance, DagNodeServiceTests.MyceliumUrl, new LaunchToken(DagNodeServiceTests.ServiceToken)) => _failure = failure;
 
         public override IReadOnlyList<PortDescriptor> Ports { get; } = new[]
         {
@@ -144,7 +170,7 @@ public class DagNodeServiceTests
 
         protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken)
         {
-            if (_throw) throw new InvalidOperationException("boom");
+            if (_failure is not null) throw _failure;
             var message = context.Input("message")?.GetString()
                 ?? throw new InvalidOperationException("required input 'message' missing");
             return Task.FromResult(NodeResult.Ok(("echo", message)));
