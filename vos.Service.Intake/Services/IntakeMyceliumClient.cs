@@ -150,6 +150,20 @@ public sealed class IntakeMyceliumClient(
         return true;
     }
 
+    // A property the Thing no longer states is answered 404, which leaves it as asked.
+    public async Task RetractPropertyAsync(Guid thingId, string property, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync(
+            $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{property}' from '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
+    }
+
     public async Task ApplyFragmentAsync(ModelFragment fragment, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));

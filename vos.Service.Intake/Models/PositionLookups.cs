@@ -10,7 +10,16 @@ public sealed record ElevationAsked(IReadOnlyList<BoundaryPoint>? Boundary);
 
 // A figure the provider held no height for stays unknown rather than nought.
 public sealed record AnsweredElevation(
-    double? ElevationMetres, double? ElevationMinimumMetres, double? ElevationMaximumMetres, string? Attribution);
+    double? ElevationMetres, double? ElevationMinimumMetres, double? ElevationMaximumMetres, string? Attribution)
+{
+    public ElevationRange? Range =>
+        ElevationMinimumMetres is { } lowest && ElevationMaximumMetres is { } highest
+            ? new ElevationRange(lowest, highest)
+            : null;
+}
+
+// A site keeps its lowest and highest point as a pair, because one without the other describes no border.
+public sealed record ElevationRange(double MinimumMetres, double MaximumMetres);
 
 // The legal parcel a register holds at a position: its boundary as named pairs, and whose
 // record it is — the register's own credit line, which the page that draws the boundary displays.
