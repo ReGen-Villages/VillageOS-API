@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Services;
 using vos.Tests.Shared;
 using Xunit;
@@ -21,26 +20,12 @@ public class DiscoveryRunStarterTests
         public void StopApplication() => Stopping.Cancel();
     }
 
-    private sealed class CapturingLogger : ILogger<DiscoveryRunStarter>
-    {
-        public readonly List<string> Errors = new();
-        public readonly List<string> Information = new();
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel level) => true;
-        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            if (level == LogLevel.Error) lock (Errors) Errors.Add(formatter(state, exception));
-            if (level == LogLevel.Information) lock (Information) Information.Add(formatter(state, exception));
-        }
-    }
-
     [Fact]
     public async Task TheRunIsGivenATokenThatOutlivesTheRequestThatStartedIt()
     {
         var lifetime = new FakeLifetime();
         var ran = new TaskCompletionSource<bool>();
-        var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger());
+        var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger<DiscoveryRunStarter>());
 
         starter.Start(Guid.NewGuid(), token =>
         {
@@ -56,7 +41,7 @@ public class DiscoveryRunStarterTests
     {
         var lifetime = new FakeLifetime();
         var observed = new TaskCompletionSource<bool>();
-        var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger());
+        var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger<DiscoveryRunStarter>());
         starter.Start(Guid.NewGuid(), async token =>
         {
             using var registration = token.Register(() => observed.TrySetResult(true));
@@ -73,7 +58,7 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task ARunThatThrows_IsReportedRatherThanEscaping()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<DiscoveryRunStarter>();
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var second = new TaskCompletionSource<bool>();
 
@@ -81,9 +66,8 @@ public class DiscoveryRunStarterTests
         starter.Start(Guid.NewGuid(), _ => { second.SetResult(true); return Task.CompletedTask; });
 
         (await second.Task).Should().BeTrue("one run failing does not stop the starter");
-        await Settle.UntilAsync(() => { lock (logger.Errors) return logger.Errors.Count > 0; },
-            "the run that threw is reported");
-        logger.Errors.Should().ContainSingle().Which.Should().Contain("after its service call had been accepted");
+        await Settle.UntilAsync(() => logger.ErrorLines.Count > 0, "the run that threw is reported");
+        logger.ErrorLines.Should().ContainSingle().Which.Should().Contain("after its service call had been accepted");
     }
 
     // Time for a held run to start, if the hold let it, before a test asserts that it did not.
@@ -92,7 +76,7 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task ASecondRunForTheSameSubject_WaitsForTheFirstToEndAndSaysSo()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<DiscoveryRunStarter>();
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var site = Guid.NewGuid();
         var firstStarted = new TaskCompletionSource();
@@ -106,7 +90,7 @@ public class DiscoveryRunStarterTests
         await Settle.BeforeAssertingAbsenceAsync(HeldLongEnough);
         secondStarted.Task.IsCompleted.Should().BeFalse(
             "two runs for one site would each mint a coverage for the same call");
-        logger.Information.Should().ContainSingle().Which.Should().Contain(site.ToString()).And.Contain("in flight");
+        logger.Lines.Should().ContainSingle().Which.Should().Contain(site.ToString()).And.Contain("in flight");
         releaseFirst.SetResult();
         await Settle.ForAsync(secondStarted.Task, "the held run starts once the first ends");
     }
@@ -114,20 +98,20 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task ARunForASubjectWithNothingInFlight_SaysNothingAboutWaiting()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<DiscoveryRunStarter>();
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var ran = new TaskCompletionSource();
 
         starter.Start(Guid.NewGuid(), _ => { ran.SetResult(); return Task.CompletedTask; });
         await Settle.ForAsync(ran.Task, "the run starts");
 
-        logger.Information.Should().BeEmpty();
+        logger.Lines.Should().BeEmpty();
     }
 
     [Fact]
     public async Task AServiceCallWhileOneRunIsInFlightAndAnotherWaits_IsDroppedAndSaysSo()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<DiscoveryRunStarter>();
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var site = Guid.NewGuid();
         var releaseFirst = new TaskCompletionSource();
@@ -143,13 +127,13 @@ public class DiscoveryRunStarterTests
 
         thirdRan.Should().BeFalse(
             "the waiting run reads the model only once the first ends, so it finds whatever the third would have");
-        logger.Information.Should().HaveCount(2).And.Contain(line => line.Contains("already waiting"));
+        logger.Lines.Should().HaveCount(2).And.Contain(line => line.Contains("already waiting"));
     }
 
     [Fact]
     public async Task ARunStartedAfterTheFirstEnded_StillWaitsForOneQueuedBehindIt()
     {
-        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger<DiscoveryRunStarter>());
         var site = Guid.NewGuid();
         var releaseFirst = new TaskCompletionSource();
         var secondStarted = new TaskCompletionSource();
@@ -173,7 +157,7 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task RunsForDifferentSubjects_RunAtTheSameTime()
     {
-        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger<DiscoveryRunStarter>());
         var releaseFirst = new TaskCompletionSource();
         var secondStarted = new TaskCompletionSource();
 
@@ -188,7 +172,7 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task ARunThatThrows_DoesNotHoldTheNextRunForItsSubject()
     {
-        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger<DiscoveryRunStarter>());
         var site = Guid.NewGuid();
         var secondStarted = new TaskCompletionSource();
 
@@ -201,7 +185,7 @@ public class DiscoveryRunStarterTests
     [Fact]
     public async Task ASubjectWhoseRunsHaveAllEnded_IsNoLongerHeld()
     {
-        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger<DiscoveryRunStarter>());
         var site = Guid.NewGuid();
         var ended = new TaskCompletionSource();
 

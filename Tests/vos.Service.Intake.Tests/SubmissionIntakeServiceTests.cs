@@ -8,6 +8,7 @@ using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
 using vos.Service.Shared;
@@ -66,13 +67,7 @@ public class SubmissionIntakeServiceTests
         return new SubmissionIntakeService(
             mycelium,
             new HeldDeclarations(mycelium, TimeProvider.System),
-            new ModelClock(new FakeTimeProvider(WillowBend.ArrivedAt)));
-    }
-
-    // A clock that does not move, so an arrival time can be asserted rather than bounded.
-    private sealed class FakeTimeProvider(DateTime now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
+            new ModelClock(new FakeTimeProvider(new DateTimeOffset(WillowBend.ArrivedAt, TimeSpan.Zero))));
     }
 
     // A broker answering every declaration read with the model a test built, recording what it was asked

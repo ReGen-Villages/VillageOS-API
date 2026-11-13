@@ -5,6 +5,7 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -236,12 +237,17 @@ public class CadenceTests
     [Fact]
     public async Task Once_started_the_keeper_looks_by_itself_and_starts_what_is_due()
     {
-        var (_, gateway, keeper, _, _) = Arrange(1, lastDue: null);
+        var (_, gateway, keeper, real, _) = Arrange(1, lastDue: null);
 
         await keeper.StartAsync(CancellationToken.None);
         try
         {
-            await Settle.UntilAsync(() => gateway.RunsCreated.Count == 1, "the first look starts the cadence's run");
+            // The loop starts on a thread of its own, so the clock keeps moving until its first wait has been set and passed.
+            await Settle.UntilAsync(() =>
+            {
+                real.Advance(CadenceKeeper.WaitBeforeLook(failuresInARow: 0));
+                return gateway.RunsCreated.Count == 1;
+            }, "the first look starts the cadence's run");
         }
         finally
         {
@@ -264,26 +270,17 @@ public class CadenceTests
     private static List<DateTimeOffset> DuesOfRunsStarted(FakeGateway gateway) =>
         gateway.Runs.Values.Select(run => DateTimeOffset.Parse(run.Parameters.GetProperty(ModelNames.Due).GetString()!)).Order().ToList();
 
-    private static (TestGraphs.CadenceFixture Fixture, FakeGateway Gateway, CadenceKeeper Keeper, MovableClock Real, ModelClock Clock) Arrange(
+    private static (TestGraphs.CadenceFixture Fixture, FakeGateway Gateway, CadenceKeeper Keeper, FakeTimeProvider Real, ModelClock Clock) Arrange(
         double rate, DateTimeOffset? lastDue, ILogger<CadenceKeeper>? logger = null)
     {
         var fixture = TestGraphs.CadencePipeline();
         var gateway = new FakeGateway(fixture.Fixture.Build()) { FreshGraph = fixture.Fixture.Build };
         gateway.Cadences.Add(new Cadence(fixture.CadenceId, "Every hour", 60, lastDue));
-        var real = new MovableClock(new DateTimeOffset(2026, 10, 15, 20, 0, 0, TimeSpan.Zero));
+        var real = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 20, 0, 0, TimeSpan.Zero));
         var clock = new ModelClock(real);
         clock.AnchorTo(Nine, rate);
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, clock);
         var keeper = new CadenceKeeper(gateway, new PipelineStarter(gateway), executor, clock, logger ?? NullLogger<CadenceKeeper>.Instance, real);
         return (fixture, gateway, keeper, real, clock);
-    }
-
-    private sealed class MovableClock(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset _now = now;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
     }
 }
