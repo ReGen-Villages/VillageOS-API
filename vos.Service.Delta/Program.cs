@@ -38,17 +38,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Issuer/audience must match what Mycelium signed, hence taken from CLI.
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(
-            verificationKey!,
-            issuer: launchSettings.Issuer,
-            audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new MyceliumClient(
