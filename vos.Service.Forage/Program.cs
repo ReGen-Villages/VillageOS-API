@@ -37,16 +37,8 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(
-            verificationKey!,
-            issuer: launchSettings.Service.Issuer,
-            audience: launchSettings.Service.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Service.Issuer, launchSettings.Service.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(
+        verificationKey, launchSettings.Service.Issuer, launchSettings.Service.Audience);
 
     // Coverage is relationships, so the only read this service makes is a scoped snapshot.
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>

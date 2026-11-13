@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using vos.Service.Shared;
 
@@ -107,32 +106,9 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<bool> CreateRelationshipAsync(
-        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var payload = new { subjectId, predicateId, targetId };
-
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload, cancellationToken);
-            if (response.IsSuccessStatusCode)
-                return true;
-
-            var error = await response.Content.ReadAsStringAsync(cancellationToken);
-            Logger.LogWarning(
-                "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
-                subjectId, predicateId, targetId, response.StatusCode, error);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            LogFailure(ex, cancellationToken,
-                "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
-                subjectId, predicateId, targetId);
-            return false;
-        }
-    }
+    public Task<bool> CreateRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default) =>
+        PostRelationshipAsync(subjectId, predicateId, targetId, BrokerPatience, cancellationToken);
 
     public async Task<bool> SubmitObservationsAsync(
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)

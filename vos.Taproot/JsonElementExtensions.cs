@@ -35,11 +35,6 @@ namespace vos.Taproot
                 : null;
         }
 
-        public static JsonElement? GetPropertyOrNull(this JsonElement element, string propertyName)
-        {
-            return element.TryGetProperty(propertyName, out var prop) ? prop : null;
-        }
-
         public static bool HasObjectProperty(this JsonElement element, string propertyName)
         {
             return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.Object;

@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using vos.Service.Intake;
 using vos.Service.Intake.Services;
 using Xunit;
 

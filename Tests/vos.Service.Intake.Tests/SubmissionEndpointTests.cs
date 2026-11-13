@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using vos.Service.Intake.Models;
 using vos.Tests.Shared;
 using Xunit;
