@@ -1,10 +1,11 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 
 namespace vos.Service.Forage.Tests.Services;
 
@@ -23,17 +24,10 @@ public class CoverageLedgerTests
     private static readonly DateTimeOffset Now = new(2026, 8, 27, 9, 0, 0, TimeSpan.Zero);
 
     private readonly RecordingWriter _writer = new();
-    private readonly ModelClock _clock = new(new FixedClock(Now));
+    private readonly ModelClock _clock = new(new FakeTimeProvider(Now));
 
     // The instants a run stamps come from the clock it is given, never from the machine's: a stamp read
     // off DateTime.UtcNow is one no test can pin and no replay can reproduce.
-    private sealed class FixedClock : TimeProvider
-    {
-        private readonly DateTimeOffset _now;
-        public FixedClock(DateTimeOffset now) => _now = now;
-        public override DateTimeOffset GetUtcNow() => _now;
-    }
-
     private CoverageLedger Ledger() => new(_writer, _clock, NullLogger<CoverageLedger>.Instance);
 
     private static readonly Guid SiteId = Guid.NewGuid();
@@ -90,18 +84,6 @@ public class CoverageLedgerTests
             }
             Facts.Add((thingId, property, value));
             return Task.FromResult(true);
-        }
-    }
-
-    private sealed class CapturingLogger : ILogger<CoverageLedger>
-    {
-        public readonly List<string> Errors = new();
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel level) => true;
-        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            if (level == LogLevel.Error) Errors.Add(formatter(state, exception));
         }
     }
 
@@ -249,14 +231,14 @@ public class CoverageLedgerTests
         var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
         _writer.RefusedProperty = "resolvedAt";
         _writer.RefusalsLeft = 2;
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<CoverageLedger>();
 
         await new CoverageLedger(_writer, _clock, logger)
             .RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
 
         _writer.Facts.Should().NotContain(fact => fact.Property == "resolvedAt");
         _writer.FactsAsked.Count(property => property == "resolvedAt").Should().Be(2);
-        logger.Errors.Should().ContainSingle()
+        logger.ErrorLines.Should().ContainSingle()
             .Which.Should().Contain("resolvedAt").And.Contain("subject by ThinkHazard");
     }
 
@@ -266,7 +248,7 @@ public class CoverageLedgerTests
     public async Task AStampIsTheModelsInstant_NotTheMachinesWallClock()
     {
         var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
-        var clock = new ModelClock(new FixedClock(Now));
+        var clock = new ModelClock(new FakeTimeProvider(Now));
         clock.AnchorTo(modelInstant, rate: 60);
         var coverageId = Guid.NewGuid();
         var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
