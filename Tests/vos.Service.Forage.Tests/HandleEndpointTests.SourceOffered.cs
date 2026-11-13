@@ -23,7 +23,7 @@ namespace vos.Service.Forage.Tests;
 public class HandleEndpointSourceOfferedTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
-    private const string MintRoute = "/api/things";
+    private const string RecordRoute = "/api/model/fragment";
     private const string RelateRoute = "/api/relationships";
     private const string SubscribeRoute = "/api/subscriptions";
 
@@ -88,12 +88,11 @@ public class HandleEndpointSourceOfferedTests
                 Fetched.Add(body);
                 return Json(HttpStatusCode.OK, """{"success":true}""");
             }
-            if (path == MintRoute && request.Method == HttpMethod.Post)
+            if (path == RecordRoute && request.Method == HttpMethod.Post)
             {
-                Minted.Add(JsonDocument.Parse(body).RootElement.EnumerateObject()
-                    .Single(property => property.Name.Equals("name", StringComparison.OrdinalIgnoreCase))
-                    .Value.GetString()!);
-                return Json(HttpStatusCode.Created, "{\"id\":\"" + Guid.NewGuid() + "\"}");
+                Minted.Add(JsonDocument.Parse(body).RootElement.GetProperty("things")[0].GetProperty("name").GetString()!);
+                Related.Add(body);
+                return Json(HttpStatusCode.OK, "{}");
             }
             if (path == RelateRoute && request.Method == HttpMethod.Post)
             {
