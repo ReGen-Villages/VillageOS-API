@@ -149,6 +149,33 @@ public abstract class MyceliumClientBase
     private const string ObservationBatchRequestSchemaId = "https://villageos/contracts/observation-batch-request.schema.json";
     private const string SedimentDepositRequestSchemaId = "https://villageos/contracts/sediment-deposit-request.schema.json";
 
+    // A cancellation the caller asked for is not a fault, so it is not logged as one.
+    protected async Task<bool> PostRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(timeout);
+            var response = await client.PostAsJsonAsync(
+                $"{MyceliumUrl}/api/relationships", new { subjectId, predicateId, targetId }, cancellationToken);
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            Logger.LogWarning(
+                "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
+                subjectId, predicateId, targetId, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            if (!(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+                Logger.LogError(exception, "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
+                    subjectId, predicateId, targetId);
+            return false;
+        }
+    }
+
     // Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
     // number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).
     public async Task<long> SetFactAsync(Guid thingId, string property, object? value)
