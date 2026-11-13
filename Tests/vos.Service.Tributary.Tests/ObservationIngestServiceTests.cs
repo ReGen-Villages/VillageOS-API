@@ -4,7 +4,6 @@ using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Services;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -103,7 +102,7 @@ public class ObservationIngestServiceTests
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}");
         var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}");
@@ -129,7 +128,7 @@ public class ObservationIngestServiceTests
         client.ApplyFragmentAsync(Arg.Do<object>(fragment => applied = fragment)).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(endpointThingId,
             new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}"), "{\"x\":1}",
@@ -151,7 +150,7 @@ public class ObservationIngestServiceTests
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.CreateRelationshipAsync(endpointThingId, seenBy, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(endpointThingId,
             new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}"), "{\"x\":1}",
@@ -173,7 +172,7 @@ public class ObservationIngestServiceTests
         client.ApplyFragmentAsync(Arg.Any<object>(), call.Token).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId, call.Token).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>(), call.Token).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}");
         var result = await sut.CreateObservationsAsync(
@@ -194,7 +193,7 @@ public class ObservationIngestServiceTests
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"properties\":{\"v\":1}}");
         var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}", subjectId);
@@ -214,7 +213,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(
             endpointThingId, new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}", subjectId,
@@ -235,7 +234,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(
             Guid.NewGuid(), new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}", subjectId);
@@ -255,7 +254,7 @@ public class ObservationIngestServiceTests
         var subjectId = Guid.NewGuid();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"properties\":{\"v\":1}}");
         var result = await sut.CreateObservationsAsync(
@@ -273,7 +272,7 @@ public class ObservationIngestServiceTests
         // A source can answer for a site it holds nothing about. A relationship here would say the source
         // produced a value for the site when it produced none.
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(
             Guid.NewGuid(), new JsonataTransform("{\"properties\":{}}"), "{\"x\":1}", Guid.NewGuid());
@@ -291,7 +290,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp},\"observedAt\":at}");
         var upstream = """{"readings":[{"temp":5.8,"at":"2026-03-03T00:00:00Z"},{"temp":6.1,"at":"2026-03-03T01:00:00Z"}]}""";
@@ -321,7 +320,7 @@ public class ObservationIngestServiceTests
         client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp}}");
         var upstream = """{"readings":[{"temp":5.8},{"temp":6.1}]}""";
@@ -351,7 +350,7 @@ public class ObservationIngestServiceTests
         client.SetPropertyModeAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
         client.SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("items.{\"name\":name,\"properties\":{\"v\":value}}");
         var upstream = """{"items":[{"name":"A","value":1},{"name":"B","value":2},{"name":"A","value":3}]}""";
@@ -374,7 +373,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
         client.SubmitObservationsAsync(entityId, Arg.Do<IReadOnlyList<ObservationSample>>(s => captured = s)).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1},\"observedAt\":\"2026-03-03T12:00:00Z\"}");
         var result = await sut.CreateObservationsAsync(
@@ -393,7 +392,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
         client.SubmitObservationsAsync(entityId, Arg.Do<IReadOnlyList<ObservationSample>>(s => captured = s)).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}");
         var result = await sut.CreateObservationsAsync(
@@ -410,7 +409,7 @@ public class ObservationIngestServiceTests
     public async Task TransformFails_ReturnsFailure_AndTouchesNothing()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("$"), "not-json");
 
@@ -424,7 +423,7 @@ public class ObservationIngestServiceTests
     public async Task TransformedOutputNotObjectOrArray_ReturnsFailure()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("$"), "42");
 
@@ -436,7 +435,7 @@ public class ObservationIngestServiceTests
     public async Task ReadingMissingName_ReturnsFailure()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
@@ -448,7 +447,7 @@ public class ObservationIngestServiceTests
     public async Task ReadingMissingProperties_ReturnsFailure()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("{\"name\":\"X\"}"), "{\"x\":1}");
 
@@ -460,7 +459,7 @@ public class ObservationIngestServiceTests
     public async Task ReadingNotAnObject_ReturnsFailure()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("[\"not-an-object\"]"), "{\"x\":1}");
 
@@ -474,7 +473,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("X").Returns((MyceliumClient.MyceliumThing?)null);
         client.CreateThingAsync("X", Arg.Any<Dictionary<string, object?>>()).Returns((MyceliumClient.MyceliumThing?)null);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
             new JsonataTransform("{\"name\":\"X\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
@@ -493,7 +492,7 @@ public class ObservationIngestServiceTests
             .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
         client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
             new JsonataTransform("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
@@ -514,7 +513,7 @@ public class ObservationIngestServiceTests
             .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
         client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
             new JsonataTransform("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
@@ -530,7 +529,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
             new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}",
@@ -549,7 +548,7 @@ public class ObservationIngestServiceTests
         var entityId = Guid.NewGuid();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
             new JsonataTransform("{\"name\":\"S\",\"properties\":{}}"), "{\"x\":1}");
@@ -575,7 +574,7 @@ public class ObservationIngestServiceTests
         client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => written = s))
             .Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(
             endpointThingId, subjectId, "surfaceMap", "sha256:abc", depicted,
@@ -594,7 +593,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => written = s))
             .Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", observedAt: null, Already(subjectId));
@@ -609,7 +608,7 @@ public class ObservationIngestServiceTests
         var subjectId = Guid.NewGuid();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
@@ -626,7 +625,7 @@ public class ObservationIngestServiceTests
         var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null,
@@ -642,7 +641,7 @@ public class ObservationIngestServiceTests
         var subjectId = Guid.NewGuid();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(false);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+        var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
@@ -664,7 +663,7 @@ public class ObservationIngestServiceTests
         IReadOnlyList<ObservationSample>? submitted = null;
         client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => submitted = s))
             .Returns(true);
-        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), clock);
+        var sut = new ObservationIngestService(client,clock);
 
         var result = await sut.CreateObservationsAsync(
             Guid.NewGuid(),
@@ -681,8 +680,7 @@ public class ObservationIngestServiceTests
     private static ObservationIngestService CreateService()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
-        var logger = Substitute.For<ILogger<ObservationIngestService>>();
-        return new ObservationIngestService(client, logger, new ModelClock());
+        return new ObservationIngestService(client, new ModelClock());
     }
 
     // The endpoint is already related to these Things — the ordinary state of every run after the

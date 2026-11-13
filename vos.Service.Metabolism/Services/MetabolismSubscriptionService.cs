@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Hosting;
 using vos.Service.Metabolism.Models;
 using vos.Service.Shared.Subscriptions;
 

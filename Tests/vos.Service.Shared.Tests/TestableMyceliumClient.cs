@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using vos.Service.Shared;
 using vos.Service.Shared.Contracts.Validation;
 
 namespace vos.Service.Shared.Tests;
