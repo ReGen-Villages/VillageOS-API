@@ -74,10 +74,11 @@ describe('a widget', () => {
     each('columnOnAnUnboundedValue', page({ type: 'table', title: 't', columns: [{ key: 'note', label: 'Note' }], rows: { kind: 'thingList', archetype: 'Spring' }, visibleRows: 5 }));
   });
 
-  it('refuses a compared property that reads as text', () => {
-    const text: DesignCheckContext = { ...context, propertiesOf: (kind) => (kind === 'Reservoir' ? [{ name: 'name', declaredBy: 'Reservoir', example: 'RES-1', numeric: false }] : undefined) };
+  it('refuses a compared property that reads as text, but only on a page that compares', () => {
+    const text: DesignCheckContext = { ...context, propertiesOf: () => [{ name: 'name', declaredBy: 'Reservoir', example: 'RES-1', numeric: false }] };
     const board: Widget = { type: 'leaderboard', title: 'l', entities: { kind: 'compareEntities', properties: ['name'] }, metrics: [] };
     expect(checkDesign(page(board), 'Springs', text).map((finding) => finding.code)).toContain('comparedPropertyIsText');
+    expect(checkDesign(page(board), 'Springs', { ...text, compareKind: undefined }).map((finding) => finding.code)).not.toContain('comparedPropertyIsText');
   });
 
   it('warns about a state binding on a comparing page that names no scope, but not for a roster a field picks from', () => {
