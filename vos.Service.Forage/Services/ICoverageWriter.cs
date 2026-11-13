@@ -6,9 +6,10 @@ namespace vos.Service.Forage.Services;
 // without a gateway in the way.
 public interface ICoverageWriter
 {
-    // The new Thing's identifier, or null where the model refused it. A refusal is not a coverage that
-    // resolved to nothing: nothing was recorded at all, so the call stays outstanding.
-    Task<Guid?> MintAsync(string name, CancellationToken cancellationToken);
+    // The record and its relationships go in one write, so a record is never left reaching nothing. False where the
+    // model refused it: nothing was recorded at all, so the call stays outstanding.
+    Task<bool> WriteCoverageAsync(Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships,
+        CancellationToken cancellationToken);
 
     Task<bool> RelateAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken);
 
