@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-
 namespace vos.ContinuousIntegration.Tests;
 
 // The services in a checkout, whatever language each is written in.

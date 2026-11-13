@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 

@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Taproot;
 using vos.Tests.Shared;
 using Xunit;
 
