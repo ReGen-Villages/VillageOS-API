@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { PredicateFilterPanel } from './PredicateFilterPanel';
 import { useUiStore } from '../../stores/uiStore';
 import { stubScreenWidth } from '../../testScreenWidth';
@@ -37,6 +37,29 @@ describe('PredicateFilterPanel layout', () => {
     expect(root.className).toContain('flex-col');
     expect(root.className).toContain('flex-1');
     expect(root.className).toContain('min-h-0');
+  });
+
+  it('narrows the list to the predicates the search names, and shows every one again once it is cleared', () => {
+    render(<PredicateFilterPanel />);
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'prod' } });
+    expect(screen.queryByText('consumes')).toBeNull();
+    expect(screen.getByText('produces')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByText('consumes')).toBeInTheDocument();
+  });
+
+  it('hides every predicate with None, says how many edges that hides, and shows them all again with All', () => {
+    render(<PredicateFilterPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'None' }));
+    expect(useUiStore.getState().hiddenPredicateIds).toEqual(new Set(['p1', 'p2']));
+    expect(screen.getByText('63 hidden')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(useUiStore.getState().hiddenPredicateIds.size).toBe(0);
+    expect(screen.queryByText('63 hidden')).toBeNull();
   });
 
   describe('on a screen narrower than a tablet', () => {
