@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 

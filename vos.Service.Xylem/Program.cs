@@ -1,7 +1,6 @@
 using vos.Service.Auth;
 using vos.Service.Xylem.Configuration;
 using vos.Service.Shared;
-using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Hosting;
 using vos.Service.Xylem.Services;
 using Serilog;
