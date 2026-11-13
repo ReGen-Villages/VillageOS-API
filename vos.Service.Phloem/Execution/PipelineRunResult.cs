@@ -14,7 +14,8 @@ public static class RunStatus
     public const string NotTaken = "notTaken";
     // The run waits for the Thing the node names to enter the node's state; a service node's service has answered by then.
     public const string Waiting = "waiting";
-    // A call never reached the node's service and the node pauses before the next attempt.
+    // A call never reached the node's service, or its service answered that the failure can be tried again, and the
+    // node pauses before the next attempt.
     public const string Trying = "trying";
     // The orchestrator stopped while the node was in the middle of a call, and the run could not be carried on
     // without calling it again; a person may carry the run on.
