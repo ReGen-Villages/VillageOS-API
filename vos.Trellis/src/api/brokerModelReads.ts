@@ -6,12 +6,12 @@
  * generation — a map outliving it would serve a membership the model has since moved past.
  */
 import { apiClient } from './client';
-import type { ModelReads } from './modelReads';
+import type { ModelReads } from '@villageos/tendril';
 import { stateApi } from './stateApi';
-import { thingsInStatePath, type StateNarrowing } from './stateQuery';
+import { thingsInStatePath, type StateNarrowing } from '@villageos/tendril';
 import { rangeApi } from './rangeApi';
 import { temporalApi } from './temporalApi';
-import type { TemporalReduceResponse, ThingRangesResponse, ThingsInStateResponse } from '../types/vos';
+import type { TemporalReduceResponse, ThingRangesResponse, ThingsInStateResponse } from '@villageos/tendril';
 
 export function brokerModelReads(): ModelReads {
   const states = new Map<string, Promise<ThingsInStateResponse>>();

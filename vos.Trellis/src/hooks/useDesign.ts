@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { DashboardDescriptor, DashboardSpecification } from '../types/dashboard';
+import type { DashboardDescriptor, DashboardSpecification } from '@villageos/tendril';
 import { isKeptPage, newPage, openedForDesign } from '../utils/designSpec';
 import type { DesignSelection } from '../utils/designEdits';
 

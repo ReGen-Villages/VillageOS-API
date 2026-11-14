@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RelationshipList } from './RelationshipList';
-import type { VosRelationship, VosThing } from '../../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 const things = new Map<string, VosThing>([
   ['s1', { Id: 's1', Name: 'Subject', Properties: {} }],

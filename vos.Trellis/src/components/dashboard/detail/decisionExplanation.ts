@@ -10,9 +10,9 @@
  * Nothing here names a predicate, an archetype or a kind. What a model calls them is its own; what is
  * fixed is the role each one is bound by.
  */
-import { thingIdBoundBy, type ModelIndex } from '../../../api/dashboardApi';
+import { thingIdBoundBy, type ModelIndex } from '@villageos/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
-import type { VosThing } from '../../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 /** The role binding each predicate of the vocabulary, whatever this model calls them. */
 const PREDICATE_ROLES = {

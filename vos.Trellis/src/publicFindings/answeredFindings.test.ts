@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveBinding } from '../api/dashboardApi';
-import type { ResolveContext } from '../api/dashboardApi';
+import { resolveBinding } from '@villageos/tendril';
+import type { ResolveContext } from '@villageos/tendril';
 import { findingsFrom, type FindingsAnswer } from './answeredFindings';
-import type { VosRelationship, VosThing } from '../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 /**
  * What the intake service answers, read as the resolver reads it. The four questions a loaded model

@@ -5,8 +5,8 @@
  * submitter opens holding no credential. One definition, so a section that lays out one way for a
  * planner cannot lay out another way for the person whose land it is about.
  */
-import type { ResolveContext } from '../../api/dashboardApi';
-import type { DashboardSection } from '../../types/dashboard';
+import type { ResolveContext } from '@villageos/tendril';
+import type { DashboardSection } from '@villageos/tendril';
 import { sectionGrid } from '../../utils/gridLayout';
 import { WidgetRenderer } from './widgets/WidgetRenderer';
 

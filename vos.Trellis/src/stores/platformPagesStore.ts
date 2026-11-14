@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DashboardDescriptor } from '../types/dashboard';
+import type { DashboardDescriptor } from '@villageos/tendril';
 
 /**
  * The pages the platform declares for the signed-in account, beside the ones the loaded model

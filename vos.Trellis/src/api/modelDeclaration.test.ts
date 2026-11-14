@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
-import { buildModelIndex } from './dashboardApi';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
+import { buildModelIndex } from '@villageos/tendril';
 import { edgesFrom, kindsOffered, propertiesOf, statesOf } from './modelDeclaration';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NodeInspector } from './NodeInspector';
 import type { PipelineNodeData } from './PipelineNodeView';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 import type { PortInformation } from '../../pipeline/model';
 
 const port = (portId: string, portName: string, direction: 'in' | 'out') =>

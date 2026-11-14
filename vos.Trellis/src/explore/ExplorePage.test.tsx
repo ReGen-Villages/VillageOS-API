@@ -42,6 +42,9 @@ vi.mock('../components/dashboard/DashboardSections', () => ({
 }));
 vi.mock('../hooks/useDashboard', () => ({
   useResolveContext: () => ({}),
+}));
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBinding: (binding?: { value?: unknown }) => ({ loading: false, error: false, value: binding?.value ?? null }),
   useBindings: (bindings: { value?: unknown }[]) =>
     bindings.map((binding) => ({ loading: false, error: false, value: binding?.value ?? null })),

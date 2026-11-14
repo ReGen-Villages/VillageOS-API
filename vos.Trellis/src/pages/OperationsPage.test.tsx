@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import type { ConnectionState } from '../types/connection';
 
 const stream: { connection: ConnectionState } = { connection: 'live' };
@@ -30,9 +30,9 @@ import { apiClient } from '../api/client';
 import { stateApi } from '../api/stateApi';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { subscriptionForSpecification } from '../api/dashboardSubscription';
-import type { DashboardSpecification } from '../types/dashboard';
+import type { DashboardSpecification } from '@villageos/tendril';
 import { useModelStore } from '../stores/modelStore';
-import { PAGE_ROLE_ID } from '../api/platformRoles';
+import { PAGE_ROLE_ID } from '@villageos/tendril';
 
 const PAGE_ROLE_BINDS: VosRelationship = { Id: 'page-binds', Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: 'arch-dash', Properties: {} };
 import { useUiStore } from '../stores/uiStore';

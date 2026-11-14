@@ -11,10 +11,10 @@
  * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceCall}
  * carries `at` as absent rather than guessing one.
  */
-import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
-import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '../../../api/platformRoles';
+import { type ModelIndex, thingIdsOfArchetype } from '@villageos/tendril';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@villageos/tendril';
 import { ROLE } from '../../../pipeline/model';
-import type { VosRelationship, VosThing } from '../../../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 const BINDS_PREDICATE = 'binds';
 const IS_PREDICATE = 'is';

@@ -1,5 +1,5 @@
-import type { ModelIndex } from '../../api/dashboardApi';
-import type { RelationStep } from '../../types/dashboard';
+import type { ModelIndex } from '@villageos/tendril';
+import type { RelationStep } from '@villageos/tendril';
 import { edgesFrom, kindsOffered, propertiesOf, type EdgeCandidate, type PropertyCandidate } from '../../api/modelDeclaration';
 
 /**

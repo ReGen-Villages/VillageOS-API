@@ -1,10 +1,10 @@
 import { useMemo, useState, type UIEvent } from 'react';
 import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { Binding, TableColumn } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows, filterRows } from '../../../api/dashboardApi';
-import { useBinding } from '../../../hooks/useDashboard';
+import type { Binding, TableColumn } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
+import { asRows, filterRows } from '@villageos/tendril';
+import { useBinding } from '@villageos/tendril';
 import { useElementHeight } from '../../../hooks/useElementHeight';
 import { triggerDownload } from '../../../utils/logDownload';
 import { formatNumber, badgeTone, columnMaxima } from './format';

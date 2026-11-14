@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import type { BulletWidget, BulletRow } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { asNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { BulletWidget, BulletRow } from '@villageos/tendril';
+import type { ResolveContext } from '@villageos/tendril';
+import { asNumber } from '@villageos/tendril';
+import { useBindings } from '@villageos/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 

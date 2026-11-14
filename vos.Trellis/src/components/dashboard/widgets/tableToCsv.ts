@@ -1,5 +1,5 @@
-import type { TableColumn } from '../../../types/dashboard';
-import type { Row } from '../../../api/dashboardApi';
+import type { TableColumn } from '@villageos/tendril';
+import type { Row } from '@villageos/tendril';
 
 /** The rows a table shows, as comma-separated text a spreadsheet opens.
  *

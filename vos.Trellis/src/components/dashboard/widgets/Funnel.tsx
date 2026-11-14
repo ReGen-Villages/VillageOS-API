@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { FunnelWidget, TableColumn } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asNumber, asRows } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { FunnelWidget, TableColumn } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
+import { asNumber, asRows } from '@villageos/tendril';
+import { useBindings } from '@villageos/tendril';
 import { WidgetCard } from './WidgetCard';
 import { DataTable } from './DataTable';
 import { formatNumber } from './format';

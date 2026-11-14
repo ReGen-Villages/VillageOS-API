@@ -4,7 +4,7 @@ import { Info, Expand, Unplug, Box, Copy, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { toast } from '../common/toastStore';
 import { canSupport3D } from '../../utils/browserDetect';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 
 interface Props {
   things: VosThing[];

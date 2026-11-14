@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { StackedSharesWidget } from '../../../types/dashboard';
-import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { StackedSharesWidget } from '@villageos/tendril';
+import type { BindingResult, ResolveContext } from '@villageos/tendril';
+import { useBindings } from '@villageos/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';

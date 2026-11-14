@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { PipelineNamed, PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
 import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 import { ThingPicker } from '../common/ThingPicker';
 import type { PipelineNodeData } from './PipelineNodeView';
 

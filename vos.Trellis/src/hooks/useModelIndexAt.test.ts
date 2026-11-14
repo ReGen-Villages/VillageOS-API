@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import type { TemporalSnapshot, VosThing, VosRelationship } from '../types/vos';
+import type { TemporalSnapshot, VosThing, VosRelationship } from '@villageos/tendril';
 
 vi.mock('../api/modelApi', () => ({ modelApi: { getAtTime: vi.fn() } }));
 
 import { modelApi } from '../api/modelApi';
-import { buildModelIndex, thingIdsOfArchetype } from '../api/dashboardApi';
+import { buildModelIndex, thingIdsOfArchetype } from '@villageos/tendril';
 import { useModelIndexAt } from './useModelIndexAt';
 
 const INSTANT = '2026-09-01T09:00:00.000Z';

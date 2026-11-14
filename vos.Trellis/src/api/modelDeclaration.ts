@@ -3,11 +3,11 @@
  * declare, which links they carry, and which states it derives. They are what lets a table be
  * composed from the model's own words rather than typed blind.
  */
-import { IS_PREDICATE } from '../types/dashboard';
-import type { ModelIndex } from './dashboardApi';
-import { thingIdsOfArchetype, thingsOfArchetype } from './dashboardApi';
-import type { ThingRangesResponse, InheritedRangeSetDto } from '../types/vos';
-import { effectiveProperties } from '../utils/propertyMapper';
+import { IS_PREDICATE } from '@villageos/tendril';
+import type { ModelIndex } from '@villageos/tendril';
+import { thingIdsOfArchetype, thingsOfArchetype } from '@villageos/tendril';
+import type { ThingRangesResponse, InheritedRangeSetDto } from '@villageos/tendril';
+import { effectiveProperties } from '@villageos/tendril';
 
 export interface PropertyCandidate {
   name: string;

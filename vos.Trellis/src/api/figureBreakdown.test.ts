@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
-import type { Binding } from '../types/dashboard';
-import type { ModelReads } from './modelReads';
-import { buildModelIndex, type ResolveContext, type Row } from './dashboardApi';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { Binding } from '@villageos/tendril';
+import type { ModelReads } from '@villageos/tendril';
+import { buildModelIndex, type ResolveContext, type Row } from '@villageos/tendril';
 import { breakdownOf, hasBreakdown } from './figureBreakdown';
 
 /** Stamp the archetype declaration a real model carries on everything something `is`. */

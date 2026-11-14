@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Binding, Widget } from '../types/dashboard';
+import type { Binding, Widget } from '@villageos/tendril';
 import { needsOneEntity, widgetNeedsOneEntity } from './selectedEntity';
 
 const walkFromTheSite: Binding = { kind: 'related', via: [{ predicate: 'studies', direction: 'in' }], property: 'peopleWatered' };

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterGraph } from './searchFilter';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import type { SearchOptions } from './searchFilter';
 
 function makeThing(id: string, name: string): VosThing {

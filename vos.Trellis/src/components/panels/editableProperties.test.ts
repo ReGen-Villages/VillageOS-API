@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { withDeclaredTypes } from './editableProperties';
-import type { EffectiveProperty } from '../../types/vos';
+import type { EffectiveProperty } from '@villageos/tendril';
 
 const resolved =(entries: Record<string, string>): Record<string, EffectiveProperty> =>
   Object.fromEntries(

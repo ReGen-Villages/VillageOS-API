@@ -25,9 +25,9 @@ vi.mock('../../../api/relationshipApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '../../../api/dashboardApi';
+import { buildModelIndex } from '@villageos/tendril';
 import { ROLE } from '../../../pipeline/model';
-import type { VosThing, VosRelationship } from '../../../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import { useModelStore } from '../../../stores/modelStore';
 import { useEntityDetail } from './useEntityDetail';
 

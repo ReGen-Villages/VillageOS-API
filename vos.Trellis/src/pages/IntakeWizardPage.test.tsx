@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import i18n from '../i18n';
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@villageos/tendril';
 import type { BasemapSource } from '../types/basemap';
 import { ALLOCATION_CATEGORY_ROLE, HAZARD_LEVEL_ROLE, HAZARD_TYPE_ROLE } from './modelVocabulary';
 import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';

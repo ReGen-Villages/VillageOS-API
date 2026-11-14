@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ModelIndex } from '../api/dashboardApi';
+import type { ModelIndex } from '@villageos/tendril';
 import { rangeApi } from '../api/rangeApi';
 import { statesOf } from '../api/modelDeclaration';
 

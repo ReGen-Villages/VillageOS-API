@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Binding, LeaderMetric, LeaderboardWidget } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import type { Binding, LeaderMetric, LeaderboardWidget } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
 
 let rows: Row[] = [];
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBinding: () => ({ loading: false, error: false, value: rows }),
 }));
 

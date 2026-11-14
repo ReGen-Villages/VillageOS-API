@@ -92,7 +92,7 @@ import { apiClient } from '../api/client';
 import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@villageos/tendril';
 import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
 import type { SceneVisibility } from '../components/model/sceneVisibility';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
@@ -102,7 +102,7 @@ function seedThings(things: VosThing[]) {
   useModelStore.setState({ things, relationships: [] });
 }
 
-function seedModel(things: VosThing[], relationships: import('../types/vos').VosRelationship[]) {
+function seedModel(things: VosThing[], relationships: import('@villageos/tendril').VosRelationship[]) {
   useModelStore.setState({ things, relationships });
 }
 

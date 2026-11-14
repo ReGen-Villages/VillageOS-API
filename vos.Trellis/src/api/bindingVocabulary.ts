@@ -11,7 +11,7 @@
  * So a binding is judged against the vocabulary before anything tries to resolve it, and a widget
  * asking for a word this build has no answer for says so instead of drawing.
  */
-import type { Binding, Widget } from '../types/dashboard';
+import type { Binding, Widget } from '@villageos/tendril';
 import { bindingsOf } from './dashboardSubscription';
 
 /**

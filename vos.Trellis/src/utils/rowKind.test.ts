@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Widget } from '../types/dashboard';
+import type { Widget } from '@villageos/tendril';
 import { rowKindOf, rowsBindingOf } from './rowKind';
 
 const rows = { kind: 'thingList' as const, archetype: 'Spring' };

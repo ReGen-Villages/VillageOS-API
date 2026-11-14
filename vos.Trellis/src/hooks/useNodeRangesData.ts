@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ThingRangesResponse, ThingStates } from '../types/vos';
+import type { ThingRangesResponse, ThingStates } from '@villageos/tendril';
 import type { RelationshipRangesEntry } from '../components/panels/RangesTabContent';
 import { rangeApi } from '../api/rangeApi';
 

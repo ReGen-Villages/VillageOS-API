@@ -1,4 +1,4 @@
-import type { VosRelationship } from '../types/vos';
+import type { VosRelationship } from '@villageos/tendril';
 import { formatGuid } from './formatters';
 
 /**

@@ -1,6 +1,6 @@
-import type { VosThing, VosRelationship } from '../types/vos';
-import { DISPLAY_SETTINGS_ROLE_ID, thingBoundBy } from '../api/platformRoles';
-import { IS_PREDICATE } from '../types/dashboard';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID, thingBoundBy } from '@villageos/tendril';
+import { IS_PREDICATE } from '@villageos/tendril';
 
 /** Flash-effect settings extracted from the GUI_Settings type Thing. */
 export interface FlashSettings {

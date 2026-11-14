@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { GRID_COLUMNS, type DashboardSection, type Placement, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSection, type Placement, type Widget } from '@villageos/tendril';
 
 /**
  * Where each widget of a section stands.

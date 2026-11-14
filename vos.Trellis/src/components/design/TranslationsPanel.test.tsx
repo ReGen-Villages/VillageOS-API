@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { DashboardSpecification } from '../../types/dashboard';
+import type { DashboardSpecification } from '@villageos/tendril';
 import { TranslationsPanel } from './TranslationsPanel';
 
 const specification: DashboardSpecification = {

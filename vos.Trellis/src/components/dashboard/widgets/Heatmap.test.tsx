@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { Binding, HeatmapWidget } from '../../../types/dashboard';
-import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
+import type { Binding, HeatmapWidget } from '@villageos/tendril';
+import type { BindingResult, ResolveContext } from '@villageos/tendril';
 
 const values = new Map<string, BindingResult>();
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBindings: (bindings: (Binding | undefined)[]) =>
     bindings.map((binding) => ({
       loading: false,

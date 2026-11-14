@@ -1,6 +1,6 @@
-import type { VosRelationship, VosThing } from '../types/vos';
-import { CONTAINMENT_ROLE_ID, thingBoundBy } from '../api/platformRoles';
-import { IS_PREDICATE } from '../types/dashboard';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
+import { CONTAINMENT_ROLE_ID, thingBoundBy } from '@villageos/tendril';
+import { IS_PREDICATE } from '@villageos/tendril';
 
 function containmentPredicateIds(things: readonly VosThing[], relationships: readonly VosRelationship[]): Set<string> {
   const kind = thingBoundBy(CONTAINMENT_ROLE_ID, things, relationships);

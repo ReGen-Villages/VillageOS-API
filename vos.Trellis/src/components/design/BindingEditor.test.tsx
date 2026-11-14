@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { Binding } from '../../types/dashboard';
+import type { Binding } from '@villageos/tendril';
 import { BindingEditor } from './BindingEditor';
 import { catchmentContext } from './testOffers';
 

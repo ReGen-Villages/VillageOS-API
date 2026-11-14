@@ -1,5 +1,5 @@
-import type { TableColumn } from '../../../types/dashboard';
-import type { Row } from '../../../api/dashboardApi';
+import type { TableColumn } from '@villageos/tendril';
+import type { Row } from '@villageos/tendril';
 
 /** Property columns a breakdown table draws beside the name and the measure. A Thing can hold
  *  dozens, and a table wide enough for all of them is a table nobody reads; the card behind a row

@@ -22,7 +22,7 @@ import { ToastContainer } from '../components/common/Toast';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
-import type { TemporalReduceQuery } from '../types/vos';
+import type { TemporalReduceQuery } from '@villageos/tendril';
 import { findingsFrom, type Findings } from './answeredFindings';
 
 /** The width above which a section lays its widgets out in tracks, as the signed-in page uses. */

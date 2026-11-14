@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { ActionWidget, Binding } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
+import type { ActionWidget, Binding } from '../types/dashboard';
+import type { ResolveContext } from '../api/dashboardApi';
 
 const mockRows = vi.fn();
 const mockOptions = vi.fn();
 // The rows a widget acts on are a state's members; what it asks for a row is chosen from a
 // roster. Told apart by the binding, so one mock serves both reads.
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('../hooks/useBinding', () => ({
   useBindings: (bindings: (Binding | undefined)[]) =>
     bindings.map((binding) => ({
       loading: false,
@@ -16,7 +16,6 @@ vi.mock('../../../hooks/useDashboard', () => ({
     })),
 }));
 
-import { ApiError } from '../../../api/client';
 import { ActionList } from './ActionList';
 
 const JUDGE: ActionWidget = {
@@ -126,7 +125,7 @@ describe('ActionList', () => {
   });
 
   it('shows a refusal in the words the endpoint used, whether it refused with a status or with an answer', async () => {
-    mockPost.mockRejectedValueOnce(new ApiError(409, JSON.stringify({ error: 'SPRING-1 was judged an hour ago' })));
+    mockPost.mockRejectedValueOnce(new Error('SPRING-1 was judged an hour ago'));
     render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
     expect(await screen.findByText('SPRING-1 was judged an hour ago')).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import type { DashboardSection, DashboardSpecification, Placement, Widget } from '../types/dashboard';
+import type { DashboardSection, DashboardSpecification, Placement, Widget } from '@villageos/tendril';
 
 /**
  * Every edit the Design page makes, as a function over the specification.

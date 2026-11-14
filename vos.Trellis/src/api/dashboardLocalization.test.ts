@@ -16,7 +16,7 @@ import type {
   SmallMultiplesWidget,
   ActionWidget,
   FormWidget,
-} from '../types/dashboard';
+} from '@villageos/tendril';
 
 /** A specification exercising every widget type plus a detail card. The base strings are
  *  deliberately plain English; `translations.es` renders them in Spanish. One

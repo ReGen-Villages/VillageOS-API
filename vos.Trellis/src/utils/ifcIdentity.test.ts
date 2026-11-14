@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ifcGlobalIdOf, storedPropertyOf, storedTextOf } from './ifcIdentity';
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 function thing(partial: Partial<VosThing>): VosThing {
   return { Id: 'id', Name: 'name', Properties: {}, ...partial };

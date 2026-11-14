@@ -4,17 +4,17 @@ import { relationshipApi } from '../api/relationshipApi';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { NAVIGATION_AND_SETTINGS } from '../api/dashboardSubscription';
-import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY } from '@villageos/tendril';
 import type { SubscriptionOpened, SubscriptionSelector } from '../types/subscription';
 import { SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
 import i18n from '../i18n';
-import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
+import { unwrapRelationship, unwrapThing } from '@villageos/tendril';
 import { readModelLoadProperties } from '../utils/guiSettings';
-import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
-import type { VosRelationship, VosThing } from '../types/vos';
+import { DISPLAY_SETTINGS_ROLE_ID } from '@villageos/tendril';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 /** Coalesce a burst of SSE structural events into one store write. A high-throughput
  *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as

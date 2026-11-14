@@ -1,4 +1,4 @@
-import type { DashboardSpecification, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Widget } from '@villageos/tendril';
 
 /**
  * What a state-driven list asks the platform to send beside each row.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph, getThingType, getLogicalChildren, countLogicalChildren, buildRelationshipIndex } from './graphologyMapper';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 
 function makeThing(id: string, name: string, props: Record<string, unknown> = {}): VosThing {
   return { Id: id, Name: name, Properties: props };

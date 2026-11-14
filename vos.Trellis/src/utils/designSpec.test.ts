@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRID_COLUMNS, type DashboardSpecification, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSpecification, type Widget } from '@villageos/tendril';
 import { WIDGET_KINDS } from './gridLayout';
 import { emptyWidget, isKeptPage, newPage, nextPlacement, openedForDesign, unboundSlots } from './designSpec';
 

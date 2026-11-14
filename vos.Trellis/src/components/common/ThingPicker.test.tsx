@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThingPicker } from './ThingPicker';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 const things = (count: number, prefix = 'Thing'): VosThing[] =>
   Array.from({ length: count }, (_, at) => ({ Id: `${prefix}-${at}`, Name: `${prefix} ${at}`, Properties: {} }));

@@ -1,4 +1,4 @@
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 export interface Position {
   latitude: number;

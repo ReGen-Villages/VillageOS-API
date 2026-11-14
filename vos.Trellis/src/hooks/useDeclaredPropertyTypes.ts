@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { thingApi } from '../api/thingApi';
 import { useModelStore } from '../stores/modelStore';
-import type { EffectiveProperty } from '../types/vos';
+import type { EffectiveProperty } from '@villageos/tendril';
 
 export type DeclaredPropertyTypes = Record<string, Record<string, EffectiveProperty>>;
 

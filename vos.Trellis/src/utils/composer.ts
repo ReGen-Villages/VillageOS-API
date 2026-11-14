@@ -1,7 +1,7 @@
 import type {
   Binding, ComposedColumn, Composition, ComputedColumn, DashboardSpecification, RelationStep, TableColumn, TableWidget,
-} from '../types/dashboard';
-import type { ModelIndex } from '../api/dashboardApi';
+} from '@villageos/tendril';
+import type { ModelIndex } from '@villageos/tendril';
 
 /**
  * A table a person composed, and the roster it becomes.

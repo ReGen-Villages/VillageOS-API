@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, fireEvent } from '@testing-library/react';
-import type { TableColumn } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import type { TableColumn } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
 import { installResizeObserverDouble } from '../../../testResizeObserver';
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBinding: () => ({ loading: false, error: false, value: null }),
 }));
 vi.mock('../../../utils/logDownload', () => ({ triggerDownload: vi.fn() }));

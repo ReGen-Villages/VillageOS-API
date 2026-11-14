@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import type { DashboardSection, Widget } from '../../types/dashboard';
-import type { ResolveContext } from '../../api/dashboardApi';
+import type { DashboardSection, Widget } from '@villageos/tendril';
+import type { ResolveContext } from '@villageos/tendril';
 
 vi.mock('./widgets/WidgetRenderer', () => ({
   WidgetRenderer: ({ widget }: { widget: Widget }) => <div data-testid="widget">{widget.title}</div>,

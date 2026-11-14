@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { Binding, LineSeriesWidget } from '../../../types/dashboard';
-import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
-import type { HistoryStep } from '../../../types/vos';
+import type { Binding, LineSeriesWidget } from '@villageos/tendril';
+import type { BindingResult, ResolveContext } from '@villageos/tendril';
+import type { HistoryStep } from '@villageos/tendril';
 
 const values = new Map<string, BindingResult>();
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBindings: (bindings: (Binding | undefined)[]) =>
     bindings.map((binding) => ({
       loading: false,

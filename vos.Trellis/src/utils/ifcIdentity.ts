@@ -11,7 +11,7 @@
 // Thing merely inherits without overriding — that resolves live from the type
 // and needs the server-resolved view (GET /api/things/{id}/properties).
 
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 /** The Thing's value for `name` — its own, else the one it overrides. Null when it has neither. */
 export function storedPropertyOf(thing: VosThing, name: string): unknown {

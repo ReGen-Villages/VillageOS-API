@@ -359,7 +359,6 @@ export const en = {
     signIn: 'Sign In',
   },
   widgets: {
-    stateCountMissing: "The number of things in “{{state}}” could not be read.",
     chooseOneEntity: "Shown for one choice of “{{label}}” at a time: choose one above.",
     funnel: {
       rows: "rows",

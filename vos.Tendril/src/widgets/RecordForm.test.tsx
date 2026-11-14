@@ -1,15 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { FormWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
+import type { FormWidget } from '../types/dashboard';
+import type { ResolveContext } from '../api/dashboardApi';
 
 const mockOptions = vi.fn();
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('../hooks/useBinding', () => ({
   useBindings: (bindings: unknown[]) =>
     bindings.map((binding) => ({ loading: false, error: false, value: binding ? mockOptions() : null })),
 }));
 
-import { ApiError } from '../../../api/client';
 import { RecordForm } from './RecordForm';
 
 const BOOK: FormWidget = {
@@ -98,7 +97,7 @@ describe('RecordForm', () => {
   });
 
   it('shows a refusal in the words the endpoint used and keeps what was typed', async () => {
-    mockPost.mockRejectedValueOnce(new ApiError(400, JSON.stringify({ error: 'SPRING-1 is dry this month' })));
+    mockPost.mockRejectedValueOnce(new Error('SPRING-1 is dry this month'));
     render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));

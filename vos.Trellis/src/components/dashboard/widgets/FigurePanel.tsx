@@ -9,8 +9,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import type { Binding, NumberFormat } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import type { Binding, NumberFormat } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
 import type { BehindTheFigure, FigureBreakdown, FigureTerms } from '../../../api/figureBreakdown';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { useFigureBreakdown } from '../../../hooks/useFigureBreakdown';

@@ -1,4 +1,4 @@
-import { GRID_COLUMNS, type DashboardSection, type DashboardSpecification, type Placement, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSection, type DashboardSpecification, type Placement, type Widget } from '@villageos/tendril';
 import { placementsOf } from './gridLayout';
 
 /**

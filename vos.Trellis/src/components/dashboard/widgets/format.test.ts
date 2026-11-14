@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import i18n from '../../../i18n';
-import type { TableColumn } from '../../../types/dashboard';
-import type { Row } from '../../../api/dashboardApi';
+import type { TableColumn } from '@villageos/tendril';
+import type { Row } from '@villageos/tendril';
 import { columnMaxima, deltaTone, formatNumber } from './format';
 
 describe('columnMaxima', () => {

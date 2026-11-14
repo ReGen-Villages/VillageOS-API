@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { ArrowDown, ArrowUp, Trash2, X } from 'lucide-react';
-import type { Binding, CompareConfiguration, DashboardSpecification, Widget } from '../../types/dashboard';
+import type { Binding, CompareConfiguration, DashboardSpecification, Widget } from '@villageos/tendril';
 import { nextPlacement } from '../../utils/designSpec';
 import { WIDGET_SCHEMAS } from '../../utils/widgetSchema';
 import { rowKindOf, rowsBindingOf } from '../../utils/rowKind';

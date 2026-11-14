@@ -1,12 +1,13 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import i18n from '../../../i18n';
-import type { Binding, VerdictWidget } from '../../../types/dashboard';
-import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
+import type { Binding, VerdictWidget } from '@villageos/tendril';
+import type { BindingResult, ResolveContext } from '@villageos/tendril';
 
 const values = new Map<string, BindingResult>();
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBindings: (bindings: (Binding | undefined)[]) =>
     bindings.map((binding) => ({
       loading: false,

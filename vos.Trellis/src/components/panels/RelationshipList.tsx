@@ -5,7 +5,7 @@ import { EditablePropertyList } from './EditablePropertyList';
 import { withDeclaredTypes } from './editableProperties';
 import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
 import { AddRelationshipRow } from './AddRelationshipRow';
-import type { VosRelationship, VosThing } from '../../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 import { formatGuid } from '../../utils/formatters';
 
 interface Props {

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { Binding } from '../../../types/dashboard';
-import { buildModelIndex, type ResolveContext } from '../../../api/dashboardApi';
+import type { Binding } from '@villageos/tendril';
+import { buildModelIndex, type ResolveContext } from '@villageos/tendril';
 import type { FigureBreakdown } from '../../../api/figureBreakdown';
 
 let answer: { loading: boolean; breakdown: FigureBreakdown | null } = { loading: false, breakdown: null };
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@villageos/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@villageos/tendril')>()),
   useBinding: () => ({ loading: false, error: false, value: null }),
 }));
 vi.mock('../../../hooks/useFigureBreakdown', () => ({

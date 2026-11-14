@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import { PipelineModel, ROLE } from './model';
 import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 

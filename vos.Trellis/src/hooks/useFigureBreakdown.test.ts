@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { Binding } from '../types/dashboard';
-import { buildModelIndex, type ResolveContext } from '../api/dashboardApi';
+import type { Binding } from '@villageos/tendril';
+import { buildModelIndex, type ResolveContext } from '@villageos/tendril';
 import type { FigureBreakdown } from '../api/figureBreakdown';
 
 const mockBreakdownOf = vi.fn();

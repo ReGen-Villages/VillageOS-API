@@ -10,7 +10,7 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { create: vi.fn().mockResolvedValue({ Id: 'new-rel' }) },
 }));
 
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@villageos/tendril';
 import { PipelineModel, ROLE } from './model';
 import { playing, withRoles } from './roles.test.fixture';
 import { stopRun } from './stop';

@@ -10,7 +10,7 @@ import { intakeApi, intakeServiceAddress, TICKET_HEADER } from './intakeApi';
 import { refusalFrom, refusalIn } from './refusals';
 import type { SharedSurvey } from '../explore/sharedSurveys';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
-import type { TemporalReduceQuery, TemporalReduceResponse } from '../types/vos';
+import type { TemporalReduceQuery, TemporalReduceResponse } from '@villageos/tendril';
 import i18n from '../i18n';
 
 /** The history reduction as the page asks it: the platform's question without the Thing, which the

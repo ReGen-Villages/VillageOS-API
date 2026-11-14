@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { subscriptionForSpecification } from '../../src/api/dashboardSubscription';
-import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification } from '../../src/types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type VosThing } from '@villageos/tendril';
 import type { SubscriptionSelector } from '../../src/types/subscription';
-import type { VosThing } from '../../src/types/vos';
 
 // A dashboard now says what it is about and the platform answers with that and no more, which is
 // only true if the selector the client writes is one the platform reads. Nothing in the offline

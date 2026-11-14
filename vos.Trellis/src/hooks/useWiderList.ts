@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useModelStore } from '../stores/modelStore';
 import type { CoveredObjects } from '../types/subscription';
-import type { VosRelationship } from '../types/vos';
+import type { VosRelationship } from '@villageos/tendril';
 import { SUBSCRIPTION_OPENED, addToSubscription, removeFromSubscription, useSse } from './useSse';
 
 /** What one widening brought to the page that it did not already hold, to take away again. */

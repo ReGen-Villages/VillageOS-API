@@ -16,10 +16,11 @@ import {
   type RelationStep,
   type ScopeReference,
   type Widget,
-} from '../types/dashboard';
-import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
-import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from './landIntakeRoles';
+} from '@villageos/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@villageos/tendril';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@villageos/tendril';
+import { BINDS_PREDICATE_NAME } from '@villageos/tendril';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 
 /** A detail card explains the decisions about the Thing it opens on, so every dashboard is sent the roles

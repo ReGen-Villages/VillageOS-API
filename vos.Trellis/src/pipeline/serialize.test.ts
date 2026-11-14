@@ -16,7 +16,7 @@ vi.mock('../api/relationshipApi', () => ({
   },
 }));
 
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import { PipelineModel, ROLE } from './model';
 import { playing, withRoles } from './roles.test.fixture';
 import { savePipeline, loadPipeline, type EditorNode } from './serialize';

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 
 vi.mock('../hooks/useSse', () => ({
   useSse: () => ({ connection: 'live', on: () => () => {} }),
@@ -23,10 +23,10 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
 import { useModelStore } from '../stores/modelStore';
-import { PAGE_ROLE_ID } from '../api/platformRoles';
+import { PAGE_ROLE_ID } from '@villageos/tendril';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { en } from '../i18n/locales/en';
-import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY } from '@villageos/tendril';
 import { DesignPage } from './DesignPage';
 
 const SEEDED = {

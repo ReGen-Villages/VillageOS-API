@@ -11,13 +11,13 @@
  * dashboard's snapshot and are read.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ModelIndex } from '../../../api/dashboardApi';
+import type { ModelIndex } from '@villageos/tendril';
 import { relationshipApi } from '../../../api/relationshipApi';
 import { fetchServiceWiring } from '../../../api/serviceWiringApi';
 import { stateApi } from '../../../api/stateApi';
 import { useThingStates } from '../../../stores/modelStore';
-import type { DetailSpecification } from '../../../types/dashboard';
-import type { StateHistoryCoverage, VosRelationship, VosThing } from '../../../types/vos';
+import type { DetailSpecification } from '@villageos/tendril';
+import type { StateHistoryCoverage, VosRelationship, VosThing } from '@villageos/tendril';
 import {
   resolveRelations,
   buildStateChanges,

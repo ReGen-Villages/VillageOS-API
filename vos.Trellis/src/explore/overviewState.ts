@@ -3,7 +3,7 @@
  * declares as tabs, and the basemap the view opens on.
  */
 import type { BasemapSource } from '../types/basemap';
-import type { DashboardSection, DashboardSpecification } from '../types/dashboard';
+import type { DashboardSection, DashboardSpecification } from '@villageos/tendril';
 
 /** The sections carrying a `tab`, in the order the specification lists them — the order the sheet draws them. */
 export function tabSections(specification: Pick<DashboardSpecification, 'sections'>): DashboardSection[] {

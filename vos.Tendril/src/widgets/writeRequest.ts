@@ -1,5 +1,5 @@
-import type { ActionChoice, ActionWidget, AskedValue, FormWidget } from '../../../types/dashboard';
-import type { Row } from '../../../api/dashboardApi';
+import type { ActionChoice, ActionWidget, AskedValue, FormWidget } from '../types/dashboard';
+import type { Row } from '../api/dashboardApi';
 
 /** What a person has entered so far, by the key each value is sent under. A field taking several
  *  names at once holds them as a list; every other field holds what was typed or chosen. */

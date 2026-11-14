@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import type { WorkingRow, WorkingWidget } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows, asNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { WorkingRow, WorkingWidget } from '@villageos/tendril';
+import type { ResolveContext, Row } from '@villageos/tendril';
+import { asRows, asNumber } from '@villageos/tendril';
+import { useBindings } from '@villageos/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 

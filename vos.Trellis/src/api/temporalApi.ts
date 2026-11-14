@@ -8,7 +8,7 @@ import type {
   TemporalAggregateResponse,
   TemporalReduceQuery,
   TemporalReduceResponse,
-} from '../types/vos';
+} from '@villageos/tendril';
 
 function timeParameters(start?: string, end?: string): string {
   const parameters = new URLSearchParams();

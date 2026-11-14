@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLoadGraph, useSigma } from '@react-sigma/core';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@villageos/tendril';
 import { buildGraph } from '../../utils/graphologyMapper';
 import { reconcileGraph } from '../../utils/graphReconcile';
 import { extractAllGuiSettings } from '../../utils/guiSettings';

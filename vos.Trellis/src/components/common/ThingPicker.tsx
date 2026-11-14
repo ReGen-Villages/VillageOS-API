@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 interface PickerItem {
   Id: string;

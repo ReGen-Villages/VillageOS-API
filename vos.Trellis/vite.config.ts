@@ -3,9 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolveOutDir } from './build/resolveOutDir'
 import { pickChunk } from './build/manualChunks'
+import { TENDRIL_SHARES } from './build/tendrilShares'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: { dedupe: TENDRIL_SHARES },
   build: {
     // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
     // The sibling auto-detect keeps `npm run build` from silently
@@ -52,6 +54,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    fs: { allow: ['.', '../vos.Tendril'] },
     proxy: {
       '/api': {
         target: 'https://localhost:7243',

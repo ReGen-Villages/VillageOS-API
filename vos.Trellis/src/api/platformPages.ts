@@ -1,5 +1,5 @@
 import { myceliumApi } from './myceliumApi';
-import { declaredPageDescriptor } from './dashboardApi';
+import { declaredPageDescriptor } from '@villageos/tendril';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
 
 /** Reads the pages the platform declares for the signed-in account into the store, once per

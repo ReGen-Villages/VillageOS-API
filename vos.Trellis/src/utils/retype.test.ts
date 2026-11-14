@@ -6,7 +6,7 @@ vi.mock('../api/relationshipApi', () => ({
 
 import { declaredTypes, retypeThing } from './retype';
 import { relationshipApi } from '../api/relationshipApi';
-import type { VosRelationship, VosThing } from '../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 const relationship = (Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship =>
   ({ Id, Name: '', SubjectId, PredicateId, TargetId, Properties: {} } as unknown as VosRelationship);

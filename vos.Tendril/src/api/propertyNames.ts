@@ -4,9 +4,7 @@
  * hold that property through the predicate. The platform's seed validation states the same predicate name,
  * and nothing else keeps the two in step.
  */
-import { LAND_INTAKE_ROLE } from './landIntakeRoles';
-
-export const PROPERTY_NAME_ROLE = LAND_INTAKE_ROLE.PropertyName;
+export const PROPERTY_NAME_ROLE = 'a44ad23e-44ed-5992-8360-1fdabc1a6240';
 export const NAMED_PROPERTY = 'namedProperty';
 export const PROPERTY_NAME_WORDING = 'wording';
 export const NAMES_PROPERTY_OF_PREDICATE = 'namesPropertyOf';

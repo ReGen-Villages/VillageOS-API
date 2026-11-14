@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import Graph from 'graphology';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@villageos/tendril';
 
 // A real graphology graph stands in for Sigma's internal graph so reconcileGraph
 // actually mutates it; loadGraph is simulated as clear + import (as Sigma does).

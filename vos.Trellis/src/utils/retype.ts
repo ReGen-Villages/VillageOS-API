@@ -1,5 +1,5 @@
 import { relationshipApi } from '../api/relationshipApi';
-import type { VosRelationship, VosThing } from '../types/vos';
+import type { VosRelationship, VosThing } from '@villageos/tendril';
 
 // What a Thing can be retyped to. The platform refuses a Thing typed by one that was not declared a
 // type, so nothing else is worth offering.

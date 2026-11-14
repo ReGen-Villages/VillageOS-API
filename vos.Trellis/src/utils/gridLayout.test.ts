@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRID_COLUMNS, type DashboardSection, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSection, type Widget } from '@villageos/tendril';
 import {
   DEFAULT_SIZE,
   GRID_ROW_HEIGHT,

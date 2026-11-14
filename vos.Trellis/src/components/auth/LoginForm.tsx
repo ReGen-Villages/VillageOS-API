@@ -1,7 +1,7 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { numberIn } from '../../i18n/numbers';
-import type { ModelSummary } from '../../types/vos';
+import type { ModelSummary } from '@villageos/tendril';
 import type { StartupProgress } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
 import { SignInScreenControls } from './SignInScreenControls';
