@@ -13,6 +13,8 @@ public class SubscriptionClientTests
 {
     private const string Url = "http://localhost:7243";
     private const string Token = "service-token";
+    private static readonly Guid MeterRole = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid PumpRole = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     // Mirrors real IHttpClientFactory: a fresh HttpClient per call (so the base class can set
     // Timeout each time) sharing one mock handler.
@@ -212,20 +214,17 @@ public class SubscriptionClientTests
     [Fact]
     public async Task SubscribeAsync_sends_a_far_end_role_as_one_identifier_or_a_list_of_identifiers()
     {
-        var meters = Guid.Parse("44444444-4444-4444-4444-444444444444");
-        var pumps = Guid.Parse("55555555-5555-5555-5555-555555555555");
-
         var sent = await SentSelectorAsync(new SubscriptionSelector
         {
             Relationships =
             [
-                new RelationshipRule { Predicate = "feeds", FarEndRole = meters },
-                new RelationshipRule { Predicate = "feeds", FarEndRole = [meters, pumps] },
+                new RelationshipRule { Predicate = "feeds", FarEndRole = MeterRole },
+                new RelationshipRule { Predicate = "feeds", FarEndRole = [MeterRole, PumpRole] },
             ],
         });
 
-        sent.Should().Contain($"\"farEndRole\":\"{meters}\"");
-        sent.Should().Contain($"\"farEndRole\":[\"{meters}\",\"{pumps}\"]");
+        sent.Should().Contain($"\"farEndRole\":\"{MeterRole}\"");
+        sent.Should().Contain($"\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]");
     }
 
     [Fact]
@@ -244,17 +243,14 @@ public class SubscriptionClientTests
     [Fact]
     public void A_rule_read_back_from_the_wire_keeps_the_form_each_far_end_field_was_sent_in()
     {
-        var meters = Guid.Parse("44444444-4444-4444-4444-444444444444");
-        var pumps = Guid.Parse("55555555-5555-5555-5555-555555555555");
-
         var rule = JsonSerializer.Deserialize<RelationshipRule>(
-            $"{{\"farEndType\":\"FlowMeter\",\"farEndRole\":[\"{meters}\",\"{pumps}\"]}}",
+            $"{{\"farEndType\":\"FlowMeter\",\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]}}",
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
         rule.FarEndType!.IsList.Should().BeFalse();
         rule.FarEndType.Should().Equal("FlowMeter");
         rule.FarEndRole!.IsList.Should().BeTrue();
-        rule.FarEndRole.Should().Equal(meters, pumps);
+        rule.FarEndRole.Should().Equal(MeterRole, PumpRole);
     }
 
     private static async Task<string> SentSelectorAsync(SubscriptionSelector selector)
