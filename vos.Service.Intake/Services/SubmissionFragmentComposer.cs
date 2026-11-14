@@ -42,11 +42,11 @@ public static class SubmissionFragmentComposer
 
     // arrivedAt: When this submission reached the service, or null when the model already
     // holds its record and its arrival is already recorded.
-    // elevationRange: null when the border was not looked up again or no lookup answered a range,
-    // which leaves whatever the site holds as it is.
+    // elevation: null when the border was not looked up again; a figure it does not hold is left as the site
+    // holds it.
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
-        DeclaredVocabulary vocabulary, DateTime? arrivedAt, ElevationRange? elevationRange)
+        DeclaredVocabulary vocabulary, DateTime? arrivedAt, AnsweredElevation? elevation)
     {
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
@@ -60,7 +60,7 @@ public static class SubmissionFragmentComposer
 
         var things = new List<FragmentThing>
         {
-            new(siteThing.Id, siteThing.Name, SiteProperties(site, elevationRange)),
+            new(siteThing.Id, siteThing.Name, SiteProperties(site, elevation)),
             new(studyThing.Id, studyThing.Name, StudyProperties()),
         };
         var relationships = new List<FragmentRelationship>();
@@ -303,7 +303,7 @@ public static class SubmissionFragmentComposer
 
     private readonly record struct NamedThing(Guid Id, string Name);
 
-    private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site, ElevationRange? elevationRange)
+    private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site, AnsweredElevation? elevation)
     {
         var properties = new Dictionary<string, TypedValue>();
         Write(properties, "latitude", VosTypeNames.Double, site.Latitude);
@@ -311,8 +311,9 @@ public static class SubmissionFragmentComposer
         Write(properties, "statedAreaHectares", VosTypeNames.Double, site.StatedAreaHectares);
         Write(properties, "population", VosTypeNames.LongInteger, site.Population);
         Write(properties, "householdSize", VosTypeNames.Double, site.HouseholdSize);
-        Write(properties, "elevationMinimumMetres", VosTypeNames.Double, elevationRange?.MinimumMetres);
-        Write(properties, "elevationMaximumMetres", VosTypeNames.Double, elevationRange?.MaximumMetres);
+        Write(properties, SiteElevationReader.CentreFigure, VosTypeNames.Double, elevation?.ElevationMetres);
+        Write(properties, SiteElevationReader.LowestFigure, VosTypeNames.Double, elevation?.Range?.MinimumMetres);
+        Write(properties, SiteElevationReader.HighestFigure, VosTypeNames.Double, elevation?.Range?.MaximumMetres);
         return properties;
     }
 

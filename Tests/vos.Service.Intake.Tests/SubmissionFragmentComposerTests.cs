@@ -17,17 +17,17 @@ public class SubmissionFragmentComposerTests
     private static ComposedSubmission Compose(Submission submission, DeclaredVocabulary vocabulary) =>
         SubmissionFragmentComposer.Compose(
             submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary, WillowBend.ArrivedAt,
-            elevationRange: null);
+            elevation: null);
 
     private static ComposedSubmission Compose(Submission submission, DateTime? arrivedAt) =>
         SubmissionFragmentComposer.Compose(
             submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, WillowBend.KnownVocabulary,
-            arrivedAt, elevationRange: null);
+            arrivedAt, elevation: null);
 
-    private static ComposedSubmission Compose(Submission submission, ElevationRange? elevationRange) =>
+    private static ComposedSubmission Compose(Submission submission, AnsweredElevation? elevation) =>
         SubmissionFragmentComposer.Compose(
             submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, WillowBend.KnownVocabulary,
-            WillowBend.ArrivedAt, elevationRange);
+            WillowBend.ArrivedAt, elevation);
 
     private static FragmentThing Record(ComposedSubmission composed) => Named(composed, "Willow Bend Submission");
 
@@ -528,7 +528,7 @@ public class SubmissionFragmentComposerTests
         var composed = SubmissionFragmentComposer.Compose(
             WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = "volcano" }] },
             WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt,
-            elevationRange: null);
+            elevation: null);
 
         Relates(composed, HazardOf(composed, "volcano").Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("volcano")).Should().BeTrue();
@@ -878,7 +878,7 @@ public class SubmissionFragmentComposerTests
             WillowBend.KnownArchetypes,
             WillowBend.KnownVocabulary,
             WillowBend.ArrivedAt,
-            elevationRange: null);
+            elevation: null);
 
         composed.Fragment.Things.Should().Contain(thing => thing.Id == minted.Id && thing.Name == "studies");
     }
@@ -892,7 +892,7 @@ public class SubmissionFragmentComposerTests
             WillowBend.KnownArchetypes with { Site = new DeclaredTerm("Locus", WillowBend.SiteArchetypeId) },
             WillowBend.KnownVocabulary,
             WillowBend.ArrivedAt,
-            elevationRange: null);
+            elevation: null);
 
         composed.Fragment.Relationships.Single(edge => edge.Target == WillowBend.SiteArchetypeId)
             .Name.Should().EndWith(" is Locus");
@@ -1018,20 +1018,30 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
-    public void A_looked_up_range_is_written_onto_the_site()
+    public void A_looked_up_centre_and_range_are_written_onto_the_site()
     {
-        var composed = Compose(WillowBend.Submission(), new ElevationRange(21.0, 43.0));
+        var composed = Compose(WillowBend.Submission(), new AnsweredElevation(32.0, 21.0, 43.0, null));
         var site = Named(composed, "Willow Bend");
 
+        site.Properties["elevationMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 32.0));
         site.Properties["elevationMinimumMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 21.0));
         site.Properties["elevationMaximumMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 43.0));
     }
 
+    [Fact]
+    public void A_centre_answered_without_a_range_is_written_alone()
+    {
+        var site = Named(Compose(WillowBend.Submission(), new AnsweredElevation(32.0, null, null, null)), "Willow Bend");
+
+        site.Properties["elevationMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 32.0));
+        site.Properties.Keys.Should().NotContain(["elevationMinimumMetres", "elevationMaximumMetres"]);
+    }
+
     // A fragment upserts, so leaving the figures out keeps whatever the site already holds.
     [Fact]
-    public void No_range_writes_no_elevation_figure()
+    public void No_answer_writes_no_elevation_figure()
     {
-        var composed = Compose(WillowBend.Submission(), elevationRange: null);
+        var composed = Compose(WillowBend.Submission(), elevation: null);
         var site = Named(composed, "Willow Bend");
 
         site.Properties.Keys.Should().NotContain(SiteElevationReader.Figures);
@@ -1040,7 +1050,7 @@ public class SubmissionFragmentComposerTests
     [Fact]
     public void The_figures_written_are_the_ones_read_back_to_decide_whether_to_look_up_again()
     {
-        var composed = Compose(WillowBend.Submission(), new ElevationRange(21.0, 43.0));
+        var composed = Compose(WillowBend.Submission(), new AnsweredElevation(32.0, 21.0, 43.0, null));
         var site = Named(composed, "Willow Bend");
 
         site.Properties.Keys.Should().Contain(SiteElevationReader.Figures);
