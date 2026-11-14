@@ -447,6 +447,25 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_OutputResultThatCannotBePutTogether_StillSucceedsAndPublishesNoResult()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        fx.State(fx.WireInto(fx.Get("Out")), ModelNames.ListTransform, "$error(\"no shape for the result\")");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue(result.Error);
+        result.Result.Should().BeNull();
+        gateway.RunResult.Should().BeNull();
+        gateway.StatusUpdates.Should().Contain(RunStatus.Succeeded);
+    }
+
+    [Fact]
     public async Task RunAsync_ReachingATellNode_SendsWhatReachedItAlongTheSystemsConnection_AndCarriesOnToTheOutputNode()
     {
         var telling = TestGraphs.TellingPipeline();
