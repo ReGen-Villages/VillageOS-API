@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.Subscriptions;
@@ -12,6 +13,8 @@ public class SubscriptionClientTests
 {
     private const string Url = "http://localhost:7243";
     private const string Token = "service-token";
+    private static readonly Guid MeterRole = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid PumpRole = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     // Mirrors real IHttpClientFactory: a fresh HttpClient per call (so the base class can set
     // Timeout each time) sharing one mock handler.
@@ -190,6 +193,78 @@ public class SubscriptionClientTests
         sent.Should().Contain("\"direction\":\"outgoing\"");
         sent.Should().Contain("\"predicateFlag\":\"__IsStandsAtPredicate\"");
         sent.Should().Contain("\"direction\":\"incoming\"");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_a_far_end_kind_as_one_name_or_a_list_of_names()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships =
+            [
+                new RelationshipRule { Predicate = "feeds", FarEndType = "FlowMeter" },
+                new RelationshipRule { Predicate = "feeds", FarEndType = ["FlowMeter", "Pump"] },
+            ],
+        });
+
+        sent.Should().Contain("\"farEndType\":\"FlowMeter\"");
+        sent.Should().Contain("\"farEndType\":[\"FlowMeter\",\"Pump\"]");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_a_far_end_role_as_one_identifier_or_a_list_of_identifiers()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships =
+            [
+                new RelationshipRule { Predicate = "feeds", FarEndRole = MeterRole },
+                new RelationshipRule { Predicate = "feeds", FarEndRole = [MeterRole, PumpRole] },
+            ],
+        });
+
+        sent.Should().Contain($"\"farEndRole\":\"{MeterRole}\"");
+        sent.Should().Contain($"\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_a_rule_without_a_far_end_exactly_as_before_the_far_end_existed()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships = [new RelationshipRule { Predicate = "holds" }],
+        });
+
+        JsonDocument.Parse(sent).RootElement.GetProperty("relationships")[0].GetRawText()
+            .Should().Be("{\"predicate\":\"holds\",\"predicateFlag\":null,\"predicateRole\":null,\"direction\":\"outgoing\"}");
+    }
+
+    // A test stub reads a service's selector back from the request it was sent.
+    [Fact]
+    public void A_rule_read_back_from_the_wire_keeps_the_form_each_far_end_field_was_sent_in()
+    {
+        var rule = JsonSerializer.Deserialize<RelationshipRule>(
+            $"{{\"farEndType\":\"FlowMeter\",\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]}}",
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        rule.FarEndType!.IsList.Should().BeFalse();
+        rule.FarEndType.Should().Equal("FlowMeter");
+        rule.FarEndRole!.IsList.Should().BeTrue();
+        rule.FarEndRole.Should().Equal(MeterRole, PumpRole);
+    }
+
+    private static async Task<string> SentSelectorAsync(SubscriptionSelector selector)
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(request => { captured = request; return Json(body); });
+
+        await client.SubscribeAsync(selector);
+
+        return await captured!.Content!.ReadAsStringAsync();
     }
 
     [Fact]
