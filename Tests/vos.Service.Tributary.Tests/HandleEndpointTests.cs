@@ -592,6 +592,41 @@ public class HandleEndpointTests
     }
 
     [Theory]
+    [InlineData(HttpStatusCode.OK)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Handle_ProviderAnswersWithoutAContentType_AnsweredAsJson(HttpStatusCode answered)
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+                return new HttpResponseMessage(answered)
+                {
+                    Content = new ByteArrayContent(Encoding.UTF8.GetBytes("{\"ok\":true}"))
+                };
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(answered);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        (await response.Content.ReadAsStringAsync()).Should().Be("{\"ok\":true}");
+    }
+
+    [Theory]
     [InlineData("30")]
     [InlineData("Mon, 12 Oct 2026 21:00:30 GMT")]
     public async Task Handle_ProviderRefusesWithAWait_PassesTheWaitBack(string providersWait)
