@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
@@ -624,6 +625,39 @@ public class HandleEndpointTests
         response.StatusCode.Should().Be(answered);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
         (await response.Content.ReadAsStringAsync()).Should().Be("{\"ok\":true}");
+    }
+
+    [Fact]
+    public async Task Handle_ProviderAnswersInTheCharacterSetItDeclares_KeepsItsAccentedLetters()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+            {
+                var latin1 = new ByteArrayContent(Encoding.Latin1.GetBytes("{\"place\":\"Zürich, Genève\"}"));
+                latin1.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "iso-8859-1" };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = latin1 };
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("{\"place\":\"Zürich, Genève\"}");
     }
 
     [Theory]
