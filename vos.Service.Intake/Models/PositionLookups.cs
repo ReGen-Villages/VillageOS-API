@@ -57,7 +57,6 @@ public sealed record DeclaredPlotsLookup(DeclaredLookup Lookup, int MinimumZoom,
 public sealed record PlotsAsked(
     double? SouthLatitude, double? WestLongitude, double? NorthLatitude, double? EastLongitude, int? Zoom);
 
-// One plot as the register holds it: its outer ring, and the register's own identifier and area.
 public sealed record AnsweredPlot(IReadOnlyList<BoundaryPoint> Boundary, string? Identifier, double? AreaHectares);
 
 public sealed record AnsweredPlots(IReadOnlyList<AnsweredPlot> Plots, IReadOnlyList<string> Attributions);
