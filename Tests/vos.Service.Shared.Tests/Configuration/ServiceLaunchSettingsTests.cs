@@ -71,8 +71,7 @@ public class ServiceLaunchSettingsTests
     [Fact]
     public void Parse_WhenACredentialIsOnTheCommandLineAndInConfiguration_TakesTheConfiguredOne()
     {
-        var configuration = ConfigurationFrom(
-            ("Token", "configured-token"), ("VerificationKey", "configured-key"), ("ApiKey", "configured-api-key"));
+        var configuration = ConfigurationFrom(("Token", "configured-token"), ("VerificationKey", "configured-key"));
 
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
@@ -82,8 +81,30 @@ public class ServiceLaunchSettingsTests
         result.Should().NotBeNull();
         result!.Token.Should().Be("configured-token");
         result.VerificationKey.Should().Be("configured-key");
-        result.ApiKey.Should().Be("configured-api-key");
+        result.ApiKey.Should().BeNull();
     }
+
+    [Fact]
+    public void Parse_WhenOnlyAnApiKeyIsConfigured_ReadsIt()
+    {
+        var result = ServiceLaunchSettings.Parse(
+            ["--port=7111", "--myceliumUrl=https://localhost:7243"], ConfigurationFrom(("ApiKey", "configured-api-key")));
+
+        result.Should().NotBeNull();
+        result!.ApiKey.Should().Be("configured-api-key");
+        result.Token.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_WhenBothATokenAndAnApiKeyAreConfigured_ReturnsNull() =>
+        ServiceLaunchSettings.Parse(
+                ["--port=7111", "--myceliumUrl=https://localhost:7243"],
+                ConfigurationFrom(("Token", "configured-token"), ("ApiKey", "configured-api-key")))
+            .Should().BeNull("a service runs on one credential");
+
+    [Fact]
+    public void The_usage_message_says_a_service_takes_a_token_or_an_api_key_but_not_both() =>
+        ServiceLaunchSettings.UsageMessage.Should().Contain("Give Token or ApiKey, not both");
 
     [Fact]
     public void Parse_WithoutThePlatformsLimits_LeavesBothUnset()

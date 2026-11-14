@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using vos.Service.Auth;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Shared.Hosting;
@@ -29,6 +30,9 @@ internal sealed class LaunchTokenRenewal : BackgroundService
     private readonly ILogger _logger;
     private readonly TimeSpan _checkInterval;
 
+    // The value the broker writes into a token it issues to a service; the exchange route refuses every other kind.
+    private const string ServiceTokenType = "service";
+
     public LaunchTokenRenewal(
         LaunchToken launchToken, IServiceTokenExchange exchange, ILogger logger, TimeSpan checkInterval)
     {
@@ -38,8 +42,20 @@ internal sealed class LaunchTokenRenewal : BackgroundService
         _checkInterval = checkInterval;
     }
 
+    internal bool HoldsAServiceToken() =>
+        JwtPayload.Read(_launchToken.Current) is { } payload
+        && payload.TryGetProperty(VosClaims.TokenType, out var type)
+        && type.GetString() == ServiceTokenType;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!HoldsAServiceToken())
+        {
+            _logger.LogInformation(
+                "The token this service was launched with is not a service token, so the broker cannot swap it and it is not renewed");
+            return;
+        }
+
         var renewable = true;
         while (renewable)
         {

@@ -48,7 +48,7 @@ type config struct {
 	Port            int
 	MyceliumURL     string
 	APIKey          string // exchanged with Mycelium for a short-lived JWT, and exchanged again before that runs out
-	Token           string // pre-minted service JWT, used when no key is given
+	Token           string // pre-minted service JWT, given in place of a key
 	VerificationKey string // base64 of Mycelium's public signing key, for checking inbound JWTs
 	Issuer          string
 	Audience        string // this service's own name; a token addressed elsewhere is refused
@@ -90,6 +90,10 @@ func parseArgs(args []string, environment func(string) string) (config, error) {
 	if !portSet || !urlSet {
 		return c, errors.New("missing required --port and/or --myceliumUrl")
 	}
+	// A token and a key act as different callers with different reach, so a service runs on one.
+	if c.APIKey != "" && c.Token != "" {
+		return c, errors.New("give ApiKey or Token, not both")
+	}
 	// No default issuer or recipient name to fall back on. Each handler is addressed by its own
 	// name, so a shared default could not be correct for anyone and would refuse every call.
 	if c.VerificationKey != "" && (c.Issuer == "" || c.Audience == "") {
@@ -106,7 +110,7 @@ const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--
 
 Credentials come from the environment, never the command line:
   ApiKey           API key, exchanged with Mycelium for a short-lived JWT and exchanged again before that runs out
-  Token            Service JWT for authenticating to Mycelium, used when no ApiKey is set
+  Token            Service JWT for authenticating to Mycelium; give ApiKey or Token, not both
   VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)
 
 With neither ApiKey nor Token the service answers its own routes and makes no call to Mycelium.`
