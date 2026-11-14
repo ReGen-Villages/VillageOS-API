@@ -14,6 +14,7 @@ vi.mock('../api/pipelineApi', () => ({ pipelineApi: { spawnAsync: vi.fn(), cance
 vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn().mockResolvedValue({}) } }));
 vi.mock('../api/thingApi', () => ({ thingApi: { create: vi.fn(), addProperty: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 vi.mock('../api/relationshipApi', () => ({ relationshipApi: { create: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
+vi.mock('../pipeline/stop', () => ({ stopRun: vi.fn().mockResolvedValue(undefined) }));
 
 import { MemoryRouter } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
@@ -258,5 +259,233 @@ describe('PipelinePage', () => {
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Night watch');
     expect(screen.getByText('Start a new pipeline')).toBeInTheDocument();
+  });
+
+  describe('what the toolbar, the canvas and the panels under it do', () => {
+    const canvasNodes = () => [...document.querySelectorAll('.react-flow__node')] as HTMLElement[];
+    const canvasNode = (label: RegExp) => canvasNodes().filter((node) => label.test(node.textContent ?? '')).at(-1)!;
+    const placeTheIntakeService = () =>
+      fireEvent.click(within(screen.getByRole('list', { name: 'Services' })).getByRole('button', { name: /intake/ }));
+
+    async function openReadingsArrive() {
+      render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+      fireEvent.click(within(screen.getByRole('complementary', { name: 'Pipelines' })).getByRole('button', { name: /Readings arrive/ }));
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Readings arrive'));
+      await waitFor(() => expect(canvasNodes()).toHaveLength(2));
+    }
+
+    it('takes back the last change with Undo, and the canvas stays unsaved', async () => {
+      await openReadingsArrive();
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+      expect(screen.getByText('saved')).toBeInTheDocument();
+
+      placeTheIntakeService();
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+      expect(screen.getByText('unsaved changes')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      await waitFor(() => expect(canvasNodes()).toHaveLength(2));
+      expect(screen.getByText('unsaved changes')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    });
+
+    it('undoes on Ctrl or Cmd+Z, but not inside a text box, with Shift held, or for another key', async () => {
+      await openReadingsArrive();
+      placeTheIntakeService();
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+
+      fireEvent.keyDown(screen.getByRole('textbox', { name: 'Pipeline name' }), { key: 'z', ctrlKey: true });
+      fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'y', ctrlKey: true });
+      fireEvent.keyDown(window, { key: 'z' });
+      expect(canvasNodes()).toHaveLength(3);
+
+      fireEvent.keyDown(window, { key: 'Z', metaKey: true });
+      await waitFor(() => expect(canvasNodes()).toHaveLength(2));
+    });
+
+    it('rolls the canvas back to the last save when a save is refused, and says why', async () => {
+      const { modelApi } = await import('../api/modelApi');
+      await openReadingsArrive();
+      placeTheIntakeService();
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+      vi.mocked(modelApi.applyFragment).mockRejectedValueOnce(new Error('The broker refused the fragment'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(screen.getByText('The broker refused the fragment')).toBeInTheDocument());
+      expect(canvasNodes()).toHaveLength(2);
+      expect(screen.getByText('saved')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    });
+
+    it('says a save failed when the refusal carries no message', async () => {
+      const { modelApi } = await import('../api/modelApi');
+      await openReadingsArrive();
+      placeTheIntakeService();
+      vi.mocked(modelApi.applyFragment).mockRejectedValueOnce('refused');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(screen.getByText('Save failed.')).toBeInTheDocument());
+    });
+
+    it('offers a box for each run parameter a node is bound to, and runs with what was typed, read as JSON when it is', async () => {
+      const { pipelineApi } = await import('../api/pipelineApi');
+      vi.mocked(pipelineApi.spawnAsync).mockResolvedValueOnce({ runId: 'run-from-the-page' } as never);
+      const { id } = catalystFixture();
+      await openReadingsArrive();
+      placeTheIntakeService();
+      fireEvent.click(canvasNode(/intake/));
+      fireEvent.change(screen.getByPlaceholderText('from param…'), { target: { value: ' rhythms ' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(screen.getByText('saved')).toBeInTheDocument());
+
+      const parameter = within(screen.getByText('rhythms').closest('label')!).getByRole('textbox');
+      fireEvent.change(parameter, { target: { value: '["daily","hourly"]' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
+      await waitFor(() => expect(vi.mocked(pipelineApi.spawnAsync)).toHaveBeenCalledWith(id.readingsArrive, { rhythms: ['daily', 'hourly'] }));
+      expect(await screen.findByText('Run starting…')).toBeInTheDocument();
+      expect(screen.getByText('intake: pending')).toBeInTheDocument();
+    });
+
+    it('drops a binding whose parameter is cleared', async () => {
+      await openReadingsArrive();
+      placeTheIntakeService();
+      fireEvent.click(canvasNode(/intake/));
+      fireEvent.change(screen.getByPlaceholderText('from param…'), { target: { value: 'rhythms' } });
+      expect(screen.getByText('rhythms')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByPlaceholderText('from param…'), { target: { value: '  ' } });
+
+      expect(screen.queryByText('Params')).toBeNull();
+    });
+
+    it('says why a run could not start', async () => {
+      const { pipelineApi } = await import('../api/pipelineApi');
+      await openReadingsArrive();
+      vi.mocked(pipelineApi.spawnAsync).mockRejectedValueOnce(new Error('No orchestrator is running'));
+      fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+      await waitFor(() => expect(screen.getByText('No orchestrator is running')).toBeInTheDocument());
+
+      vi.mocked(pipelineApi.spawnAsync).mockRejectedValueOnce('refused');
+      fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+      await waitFor(() => expect(screen.getByText('Run failed.')).toBeInTheDocument());
+    });
+
+    it('opens a node in the inspector and closes it with the close button or a click on the empty canvas', async () => {
+      await openReadingsArrive();
+      fireEvent.click(canvasNode(/The answer/));
+      expect(screen.getByRole('button', { name: 'Close inspector' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Close inspector' }));
+      expect(screen.queryByRole('button', { name: 'Close inspector' })).toBeNull();
+
+      fireEvent.click(canvasNode(/The answer/));
+      fireEvent.click(document.querySelector('.react-flow__pane')!);
+      expect(screen.queryByRole('button', { name: 'Close inspector' })).toBeNull();
+    });
+
+    it('places a start by hand with a payload port, and one standing for a state with a subject port', async () => {
+      await openReadingsArrive();
+      fireEvent.click(screen.getByRole('button', { name: 'Place a start by hand' }));
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+      expect(within(canvasNodes().at(-1)!).getByText('Input')).toBeInTheDocument();
+      expect(within(canvasNodes().at(-1)!).getByText('payload')).toBeInTheDocument();
+
+      fireEvent.click(screen.getAllByRole('button', { name: /Place a start node standing for .*running low/ })[0]);
+      await waitFor(() => expect(canvasNodes()).toHaveLength(4));
+      expect(within(canvasNodes().at(-1)!).getByText('subject')).toBeInTheDocument();
+    });
+
+    it('places an Output node from the answer row', async () => {
+      await openReadingsArrive();
+      fireEvent.click(screen.getByRole('button', { name: /Place an end node standing for/ }));
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+      expect(within(canvasNodes().at(-1)!).getByText('Output')).toBeInTheDocument();
+      expect(within(canvasNodes().at(-1)!).getByText('value')).toBeInTheDocument();
+    });
+
+    it('says why a state could not be handed to the orchestrator', async () => {
+      const { relationshipApi } = await import('../api/relationshipApi');
+      vi.mocked(relationshipApi.create).mockRejectedValueOnce(new Error('The broker refused the relationship'));
+      vi.mocked(relationshipApi.remove).mockRejectedValueOnce(new Error('The broker refused the relationship'));
+      await openReadingsArrive();
+
+      fireEvent.click(screen.getAllByRole('button', { name: /with the orchestrator/ })[0]);
+
+      await waitFor(() => expect(screen.getByText('The broker refused the relationship')).toBeInTheDocument());
+    });
+
+    it('says a hand-over failed when the refusal carries no message', async () => {
+      const { relationshipApi } = await import('../api/relationshipApi');
+      vi.mocked(relationshipApi.create).mockRejectedValueOnce('refused');
+      vi.mocked(relationshipApi.remove).mockRejectedValueOnce('refused');
+      await openReadingsArrive();
+
+      fireEvent.click(screen.getAllByRole('button', { name: /with the orchestrator/ })[0]);
+
+      await waitFor(() => expect(screen.getByText('The state could not be handed to the orchestrator')).toBeInTheDocument());
+    });
+
+    it('renames the pipeline started by a follow-on node and adds a port it passes on', async () => {
+      await openReadingsArrive();
+      fireEvent.click(screen.getByRole('button', { name: 'Place a follow-on node starting Refill' }));
+      await waitFor(() => expect(canvasNodes()).toHaveLength(3));
+      fireEvent.click(canvasNodes().at(-1)!);
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Starts' }), { target: { value: catalystFixture().id.storeSurplus } });
+      fireEvent.click(screen.getByText('+ add port'));
+
+      expect(screen.getByRole('combobox', { name: 'Starts' })).toHaveValue(catalystFixture().id.storeSurplus);
+      expect(screen.getByRole('textbox', { name: 'Port 2 name' })).toHaveValue('port2');
+      expect(screen.getByText('unsaved changes')).toBeInTheDocument();
+    });
+
+    it('starts an empty canvas from New, and takes a new name from the name box', async () => {
+      await openReadingsArrive();
+      fireEvent.click(screen.getByRole('button', { name: 'New' }));
+      expect(canvasNodes()).toHaveLength(0);
+      expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('New Pipeline');
+      expect(screen.getByText('Start a new pipeline')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Pipeline name' }), { target: { value: 'Overflow' } });
+      expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Overflow');
+    });
+
+    it('says there are no services when the model holds no connection', () => {
+      useModelStore.setState({ things: [], relationships: [], loaded: true });
+      render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+      expect(screen.getByText('No services available')).toBeInTheDocument();
+    });
+
+    it('says why a run could not be cancelled', async () => {
+      const { stopRun } = await import('../pipeline/stop');
+      const { things, relationships, id } = catalystFixture();
+      const relate = (subject: string, predicate: string, target: string) =>
+        relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
+      things.push(
+        { Id: 'of', Name: 'of', Properties: {} },
+        { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: {} },
+        { Id: ROLE.PipelineRun, Name: 'pipelineRun role', Properties: {} },
+        { Id: 'held-up', Name: 'run 3', Properties: { status: 'waiting', startedUtc: '2026-10-15T09:00:00Z' } },
+      );
+      relate(ROLE.PipelineRun, id.binds, 'run-kind');
+      relate('held-up', id.is, 'run-kind');
+      relate('held-up', 'of', id.digest);
+      useModelStore.setState({ things, relationships, loaded: true });
+      render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+      fireEvent.change(await screen.findByRole('combobox', { name: 'Run history' }), { target: { value: 'held-up' } });
+
+      vi.mocked(stopRun).mockRejectedValueOnce(new Error('The run had already ended'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.getByText('The run had already ended')).toBeInTheDocument());
+      expect(vi.mocked(stopRun)).toHaveBeenCalledWith('held-up', 'Cancelled from the Pipelines page.', expect.anything());
+
+      vi.mocked(stopRun).mockRejectedValueOnce('refused');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.getByText('Cancel failed.')).toBeInTheDocument());
+    });
   });
 });
