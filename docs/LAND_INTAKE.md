@@ -1277,8 +1277,10 @@ The categories are found through the role that binds their archetype; the basema
 Things of the archetype the `basemapSource` role binds, whatever that archetype is called (see
 [the Field Guide's map chapter](FIELD_GUIDE.md#95-the-map-and-its-basemap-sources));
 the themes a report's tiles are faced with are the members of the archetype the `theme` role binds, each with its colour, icon
-and order as the model states them, and none where the model declares no themes. Each category and
-hazard carries its `wording` — its words in every language the model states them in — so the form
+and order as the model states them, and none where the model declares no themes. The kinds a layer
+file's shapes may be given are the members of the archetype the `siteLayerKind` role binds, each with its
+colour, and none where the model declares no site layer. Each category, hazard and layer kind carries its
+`wording` — its words in every language the model states them in — so the form
 offers a term in the reader's language and still submits it by its name. A model that was never
 seeded is answered `503` carrying the code `serviceUnavailable` and nothing else, as a submission into
 one is.
@@ -1379,7 +1381,8 @@ keeping bytes nothing can list.
 
 **A layer file is a shared file with the kind chosen for each named shape.** The upload carries a
 `features` field beside `file`: a JSON object from each feature's name to the word of the kind chosen
-for it, such as `{"Mill Brook": "brook-or-wadi"}`. The service reads the file itself — KML, KMZ (the first
+for it, such as `{"Mill Brook": "brook-or-wadi"}`; a page offers the kinds `GET /submissions/form`
+answers. The service reads the file itself — KML, KMZ (the first
 KML inside), GeoJSON or GPX — and keeps its named outlines and lines; points and unnamed shapes are left
 out. In the one write that stores the document it adds one Thing of the archetype the `siteLayerFeature`
 role binds for every shape bearing a chosen name: its outline as `geometry`, related from the site along

@@ -84,6 +84,7 @@ beforeEach(() => {
     placeSearch: true,
     wording: {},
     themes: [{ name: 'Temperature', colour: '#F0A840', icon: 'thermometer', order: 1 }],
+    layerKinds: [],
   });
   vi.mocked(localizeSpecification).mockReturnValue({ title: 'Site submission', sections: [] });
   vi.mocked(intakeApi.parcelAt).mockResolvedValue({ boundary: aRing, attribution: '© the register' });

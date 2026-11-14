@@ -224,6 +224,25 @@ describe('what the form draws itself with', () => {
     expect((await intakeApi.formOptions()).themes).toEqual([]);
   });
 
+  it('carries the layer kinds the model declares, and none where the service names none', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          allocationCategories: [],
+          layerKinds: [{ name: 'brook-or-wadi', colour: '#2F80ED' }, { name: 'other-layer' }],
+        }),
+    });
+
+    expect((await intakeApi.formOptions()).layerKinds).toEqual([
+      { name: 'brook-or-wadi', colour: '#2F80ED' },
+      { name: 'other-layer', colour: null },
+    ]);
+
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ allocationCategories: [] }) });
+    expect((await intakeApi.formOptions()).layerKinds).toEqual([]);
+  });
+
   // A deployment whose model is not seeded answers this route with a problem document, and a form that
   // read the absent fields as an empty model would offer a programme step with nothing in it and no
   // explanation.

@@ -50,6 +50,9 @@ export interface FormOptions {
   /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
    *  report. Empty where the model declares none, which draws every section as a list. */
   themes: DeclaredTheme[];
+  /** The kinds a planner may give each named shape of a layer file, as the model declares them, with
+   *  the colour a map draws that kind in. Empty where the model declares no site layer. */
+  layerKinds: { name: string; colour: string | null }[];
   /** Each offered term's words by language, under the name the lists above offer. A term the model
    *  words in no language is absent, and is shown by its name. */
   wording: TermWording;
@@ -86,6 +89,7 @@ export const intakeApi = {
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];
+      layerKinds?: { name?: string; colour?: string | null }[];
       wording?: TermWording;
     };
     return {
@@ -103,6 +107,7 @@ export const intakeApi = {
         icon: theme.icon ?? null,
         order: theme.order ?? null,
       })),
+      layerKinds: (answered.layerKinds ?? []).map((kind) => ({ name: kind.name ?? '', colour: kind.colour ?? null })),
     };
   },
 

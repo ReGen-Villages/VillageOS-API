@@ -207,6 +207,24 @@ public class FormOptionsEndpointTests
         water.GetProperty("order").GetInt64().Should().Be(2);
     }
 
+    [Fact]
+    public async Task It_answers_the_kinds_a_layer_file_s_shapes_may_be_given_with_their_wording()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("SiteLayerKind").Bound(LandIntakeRoles.SiteLayerKind, "SiteLayerKind")
+            .Stating("brook-or-wadi", ("colour", "#2F80ED"), (FormOptionsReader.WordingProperty, """{"en": "Brook or wadi"}"""))
+            .Relate("brook-or-wadi", "is", "SiteLayerKind");
+        await using var factory = AnsweringWith(model.Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        var brook = answered.GetProperty("layerKinds").EnumerateArray().Single();
+        brook.GetProperty("name").GetString().Should().Be("brook-or-wadi");
+        brook.GetProperty("colour").GetString().Should().Be("#2F80ED");
+        answered.GetProperty("wording").GetProperty("brook-or-wadi").GetProperty("en").GetString().Should().Be("Brook or wadi");
+    }
+
     // The split a page offers before anybody has stated a programme, and whether the position lookups
     // are registered — both the model's answer, so a page draws only what the model can honour.
     [Fact]
