@@ -508,7 +508,7 @@ public class SubmissionIntakeServiceTests
     private static IReadOnlyList<BoundaryPoint> PostedBorder => Document.Parcel!.Boundary!;
 
     [Fact]
-    public async Task A_first_submission_writes_the_range_its_border_was_looked_up_for()
+    public async Task A_first_submission_writes_the_centre_and_range_its_border_was_looked_up_for()
     {
         var (service, calls, fragment) = ServiceLookingUp(heldSite: null, BorderHeights);
 
@@ -516,6 +516,7 @@ public class SubmissionIntakeServiceTests
 
         calls.Should().Equal("lookup", "fragment");
         var site = PostedSite(fragment()!);
+        site.GetProperty("elevationMetres").GetProperty("value").GetDouble().Should().Be(100);
         site.GetProperty("elevationMinimumMetres").GetProperty("value").GetDouble().Should().Be(84);
         site.GetProperty("elevationMaximumMetres").GetProperty("value").GetDouble().Should().Be(112);
     }
@@ -533,7 +534,7 @@ public class SubmissionIntakeServiceTests
     }
 
     [Fact]
-    public async Task A_moved_border_with_no_range_found_loses_the_old_figures_before_the_submission_is_written()
+    public async Task A_moved_border_with_no_range_found_loses_the_old_range_and_keeps_the_new_centre()
     {
         var (service, calls, fragment) = ServiceLookingUp(
             SiteHolding(AnotherBorder, [.. SiteElevationReader.Figures]), CentreHeightOnly);
@@ -542,7 +543,21 @@ public class SubmissionIntakeServiceTests
 
         calls.Should().Equal(
             "lookup", "remove elevationMinimumMetres", "remove elevationMaximumMetres", "fragment");
-        PostedSite(fragment()!).TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
+        var site = PostedSite(fragment()!);
+        site.TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
+        site.GetProperty("elevationMetres").GetProperty("value").GetDouble().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task A_border_looked_up_again_for_a_missing_figure_keeps_the_figures_it_holds()
+    {
+        var (service, calls, fragment) = ServiceLookingUp(
+            SiteHolding(PostedBorder, "elevationMinimumMetres", "elevationMaximumMetres"), CentreHeightOnly);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("lookup", "fragment");
+        PostedSite(fragment()!).GetProperty("elevationMetres").GetProperty("value").GetDouble().Should().Be(100);
     }
 
     // Asking to remove a figure the site never stated would still write a removal into the model's history.

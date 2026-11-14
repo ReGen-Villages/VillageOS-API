@@ -43,30 +43,47 @@ public class SiteElevationReaderTests
         Stating(SiteId, SiteArchetypeId, figures.ToDictionary(figure => figure, _ => Value(30.0)));
 
     [Fact]
-    public void A_site_holding_both_figures_for_the_posted_border_is_not_looked_up_again()
+    public void A_site_holding_every_figure_for_the_posted_border_is_not_looked_up_again()
     {
         var held = SiteElevationReader.Read(
-            Holding(ParcelWith(Border), SiteWith("elevationMinimumMetres", "elevationMaximumMetres")), SiteId, ParcelId);
+            Holding(ParcelWith(Border), SiteWith("elevationMetres", "elevationMinimumMetres", "elevationMaximumMetres")),
+            SiteId, ParcelId);
 
         held.NeedsLookupFor(Border).Should().BeFalse();
+        held.BorderMovedFrom(Border).Should().BeFalse();
     }
 
     [Fact]
     public void A_moved_border_is_looked_up_again()
     {
         var held = SiteElevationReader.Read(
-            Holding(ParcelWith(Border), SiteWith("elevationMinimumMetres", "elevationMaximumMetres")), SiteId, ParcelId);
+            Holding(ParcelWith(Border), SiteWith("elevationMetres", "elevationMinimumMetres", "elevationMaximumMetres")),
+            SiteId, ParcelId);
 
         held.NeedsLookupFor(MovedBorder).Should().BeTrue();
+        held.BorderMovedFrom(MovedBorder).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("elevationMinimumMetres", "elevationMaximumMetres")]
+    [InlineData("elevationMetres", "elevationMaximumMetres")]
+    public void A_site_missing_any_figure_is_looked_up_again(params string[] stated)
+    {
+        var held = SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith(stated)), SiteId, ParcelId);
+
+        held.NeedsLookupFor(Border).Should().BeTrue();
+        held.FiguresStated.Should().Equal(stated);
     }
 
     [Fact]
-    public void A_site_missing_either_figure_is_looked_up_again()
+    public void An_answer_gives_its_centre_and_its_range_only_where_it_holds_them()
     {
-        var held = SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith("elevationMaximumMetres")), SiteId, ParcelId);
-
-        held.NeedsLookupFor(Border).Should().BeTrue();
-        held.FiguresStated.Should().Equal("elevationMaximumMetres");
+        SiteElevationReader.FiguresIn(new AnsweredElevation(100, 84, 112, null))
+            .Should().Equal("elevationMetres", "elevationMinimumMetres", "elevationMaximumMetres");
+        SiteElevationReader.FiguresIn(new AnsweredElevation(100, null, 112, null)).Should().Equal("elevationMetres");
+        SiteElevationReader.FiguresIn(new AnsweredElevation(null, 84, 112, null))
+            .Should().Equal("elevationMinimumMetres", "elevationMaximumMetres");
+        SiteElevationReader.FiguresIn(null).Should().BeEmpty();
     }
 
     [Fact]

@@ -384,14 +384,15 @@ figure the planner saw and the figure the model holds cannot drift apart. Coordi
 `latitude` / `longitude` pairs, because a coordinate pair read in the wrong order is a mistake nothing
 downstream can catch; the boundary is stored as a GeoJSON polygon, which is longitude-first.
 
-**A border's lowest and highest point are looked up by the service, never taken from the page.** When a
-submission arrives with a boundary, the service asks the registration the `borderElevation` role binds
-and writes `elevationMinimumMetres` and `elevationMaximumMetres` onto the site as facts. What a page sends
-is a claim; what the lookup answered is what the site keeps. The explore page posts the whole submission
-again each time a dial settles, so the boundary is looked up only when it differs from the one the parcel
-holds or a figure is missing. A lookup that answers no range still lets the submission be accepted,
-without the figures: any figures the site held for an earlier boundary are removed first, and the next
-save asks again.
+**A site's elevation is looked up by the service, never taken from the page.** When a submission arrives
+with a boundary, the service asks the registration the `borderElevation` role binds, in its fallback
+order, and writes the centre, lowest and highest point (`elevationMetres`, `elevationMinimumMetres`,
+`elevationMaximumMetres`) onto the site as facts. What a page sends is a claim; what the lookup answered
+is what the site keeps. The explore page posts the whole submission again each time a dial settles, so
+the boundary is looked up only when it differs from the one the parcel holds or a figure is missing. A
+lookup that answers only some figures, such as a fallback that knows the centre alone, still lets the
+submission be accepted with those: for a moved boundary, any figure the new answer lacks is removed
+first, and the next save asks again.
 
 The body is **capped at a few hundred kilobytes** — far above a form's worth of answers and a drawn
 boundary, and low enough that a body cannot cost the service its memory before anything has looked at
@@ -1466,7 +1467,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
 | The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
 | The parcel boundary at a clicked position, a place search, the plots in a map view and a border's elevation, answered to a page with no credential | `POST /submissions/parcel-at-position`, `POST /submissions/place-search`, `POST /submissions/plots-in-view` and `POST /submissions/border-elevation`, from the registrations the `parcelLookup`, `placeSearch`, `plotsInViewLookup` and `borderElevation` roles bind |
-| A site's lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
+| A site's centre, lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
 | The features of a shared layer file, kept under the site and removed with the file | `POST` and `DELETE` on `/submissions/{submissionId}/documents`, under the ticket |
 | Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
 
