@@ -162,7 +162,7 @@ public sealed class EndpointCallService
                 return await CallBinaryAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
             if (outbound.Cached is { } cachedText)
                 return await AnswerTextAsync(request, plan, thing.Value.Id, endpoint.Observed,
-                    (200, Encoding.UTF8.GetString(cachedText.Bytes), cachedText.ContentType, null), deadline);
+                    new ProviderAnswer<string>(200, Encoding.UTF8.GetString(cachedText.Bytes), cachedText.ContentType, null), deadline);
             if (plan.Paging != null)
                 return await CallPagedAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
             return await CallOnceAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
@@ -322,9 +322,7 @@ public sealed class EndpointCallService
         // application/json so the result flows through existing proxying unchanged.
         var (status, bytes, upstreamContentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
-            token => CallEndpointBinaryAsync(
-                _httpClientFactory, plan.Address.Uri, plan.Address.Method, request.Body, outbound.Headers,
-                outbound.QueryParameters, plan.RequestContentType, plan.AcceptHeader, plan.Timeout, token),
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadBytes, token),
             answered => answered.StatusCode,
             answered => Encoding.UTF8.GetString(answered.Body),
             deadline.Token);
@@ -363,12 +361,10 @@ public sealed class EndpointCallService
                     if (paging.PageSizeParameter != null && paging.PageSize is > 0)
                         pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                    var (pageStatus, pageBody, pageContentType, pageRetryAfter) = await CallEndpointAsync(
-                        _httpClientFactory, plan.Address.Uri, plan.Address.Method, request.Body, outbound.Headers,
-                        pageParams, plan.RequestContentType, plan.AcceptHeader, plan.Timeout, ct);
-                    if (pageStatus is < 200 or >= 300)
-                        throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, pageRetryAfter, offset);
-                    return pageBody;
+                    var page = await SendAsync(plan, outbound.Headers, pageParams, request.Body, ReadText, ct);
+                    if (page.StatusCode is < 200 or >= 300)
+                        throw new PageNotAnsweredException(page.StatusCode, page.Body, page.ContentType, page.RetryAfter, offset);
+                    return page.Body;
                 },
                 paging,
                 deadline.Token);
@@ -384,7 +380,8 @@ public sealed class EndpointCallService
                 unanswered.RetryAfter);
         }
 
-        return await AnswerTextAsync(request, plan, endpointThingId, observed, (200, body, "application/json", null), deadline);
+        return await AnswerTextAsync(request, plan, endpointThingId, observed,
+            new ProviderAnswer<string>(200, body, "application/json", null), deadline);
     }
 
     // Any page outside 2xx ends the walk, 404 included — which a single call takes for "holds
@@ -406,9 +403,7 @@ public sealed class EndpointCallService
     {
         var answered = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
-            token => CallEndpointAsync(
-                _httpClientFactory, plan.Address.Uri, plan.Address.Method, request.Body, outbound.Headers,
-                outbound.QueryParameters, plan.RequestContentType, plan.AcceptHeader, plan.Timeout, token),
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadText, token),
             answer => answer.StatusCode,
             answer => answer.Body,
             deadline.Token);
@@ -430,7 +425,7 @@ public sealed class EndpointCallService
         EndpointCallPlan plan,
         Guid endpointThingId,
         ObservedEdges observed,
-        (int StatusCode, string Body, string? ContentType, RetryConditionHeaderValue? RetryAfter) answered,
+        ProviderAnswer<string> answered,
         PassedOnRequestDeadline deadline)
     {
         var (status, body, contentType, retryAfter) = answered;
@@ -516,49 +511,33 @@ public sealed class EndpointCallService
         return await ask(cancellationToken);
     }
 
-    private static async Task<(int StatusCode, string Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointAsync(
-        IHttpClientFactory httpClientFactory,
-        Uri endpointUri,
-        string method,
+    private async Task<ProviderAnswer<TBody>> SendAsync<TBody>(
+        EndpointCallPlan plan,
+        IReadOnlyDictionary<string, string> headers,
+        IReadOnlyDictionary<string, string> queryParameters,
         JsonElement body,
-        IReadOnlyDictionary<string, string>? headers,
-        IReadOnlyDictionary<string, string>? queryParameters,
-        string requestContentType,
-        string? acceptHeader,
-        TimeSpan timeout,
+        Func<HttpContent, CancellationToken, Task<TBody>> readBody,
         CancellationToken cancellationToken)
     {
-        var client = httpClientFactory.CreateClient();
-        client.Timeout = timeout;
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = plan.Timeout;
 
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
-    }
-
-    private static async Task<(int StatusCode, byte[] Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointBinaryAsync(
-        IHttpClientFactory httpClientFactory,
-        Uri endpointUri,
-        string method,
-        JsonElement body,
-        IReadOnlyDictionary<string, string>? headers,
-        IReadOnlyDictionary<string, string>? queryParameters,
-        string requestContentType,
-        string? acceptHeader,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        var client = httpClientFactory.CreateClient();
-        client.Timeout = timeout;
-
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
+        using var request = OutboundRequest.Build(
+            plan.Address.Method, plan.Address.Uri, body, headers, queryParameters, plan.RequestContentType, plan.AcceptHeader);
 
         using var response = await client.SendAsync(request, cancellationToken);
-        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        var content = await readBody(response.Content, cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
+        return new ProviderAnswer<TBody>((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
     }
+
+    // Text is read as text so it is decoded in the character set the provider declares, not assumed to be UTF-8.
+    private static readonly Func<HttpContent, CancellationToken, Task<string>> ReadText =
+        (content, cancellationToken) => content.ReadAsStringAsync(cancellationToken);
+
+    private static readonly Func<HttpContent, CancellationToken, Task<byte[]>> ReadBytes =
+        (content, cancellationToken) => content.ReadAsByteArrayAsync(cancellationToken);
+
+    private sealed record ProviderAnswer<TBody>(
+        int StatusCode, TBody Body, string? ContentType, RetryConditionHeaderValue? RetryAfter);
 }
