@@ -13,6 +13,7 @@ export const REFUSAL_CODES = [
   'hazardsDisagree', 'sourceDescribedTwice', 'boundaryTooFewCorners', 'modelRefused',
   'referenceAndAddressNeeded', 'notYourSubmission', 'reductionMalformed',
   'fileNotAForm', 'noFile', 'fileTooLarge', 'descriptionTooLong', 'filesNotTaken',
+  'layerFileUnreadable', 'featuresUnreadable', 'featureNotInFile', 'documentNotShared',
 ] as const;
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number];

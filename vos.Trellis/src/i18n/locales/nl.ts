@@ -1666,5 +1666,9 @@ export const nl: PartialResources = {
     fileTooLarge: "Een bestand mag hoogstens {{megabytes}} MB groot zijn.",
     descriptionTooLong: "Een beschrijving mag hoogstens {{characters}} tekens lang zijn.",
     filesNotTaken: "Hier worden geen bestanden aangenomen.",
+    layerFileUnreadable: "Dit bestand kon niet als kaartlaag worden gelezen. Een laag is een KML-, KMZ-, GeoJSON- of GPX-bestand.",
+    featuresUnreadable: "De soorten die voor de onderdelen van deze laag zijn gekozen, konden niet worden gelezen.",
+    featureNotInFile: "‘{{value}}’ is geen onderdeel van dit bestand.",
+    documentNotShared: "Dit bestand hoort niet bij deze inzending.",
   },
 };

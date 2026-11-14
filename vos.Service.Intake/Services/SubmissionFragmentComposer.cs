@@ -407,7 +407,7 @@ public static class SubmissionFragmentComposer
     // A word the model does not declare is refused by naming what the model does declare, so a planner is
     // corrected by the vocabulary the analysis will actually read rather than by whatever list this service
     // was compiled with. A term added to the model needs no change here.
-    private static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
+    internal static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
     {
         var byKey = new Dictionary<string, DeclaredTerm>();
         foreach (var term in declared.Terms)

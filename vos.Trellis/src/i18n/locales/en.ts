@@ -1664,6 +1664,10 @@ export const en = {
     fileTooLarge: "A file may be at most {{megabytes}} MB.",
     descriptionTooLong: "A description is at most {{characters}} characters.",
     filesNotTaken: "Files are not taken here.",
+    layerFileUnreadable: "This file could not be read as a map layer. A layer is a KML, KMZ, GeoJSON or GPX file.",
+    featuresUnreadable: "The kinds chosen for this layer's features could not be read.",
+    featureNotInFile: "“{{value}}” is not a feature this file holds.",
+    documentNotShared: "This file is not one this submission shares.",
   },
 };
 

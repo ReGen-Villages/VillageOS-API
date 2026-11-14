@@ -27,6 +27,7 @@ public static class SubmissionLimits
 
     public const int MostAllocations = 50;
     public const int MostHazards = 50;
+    public const int MostLayerFeatures = 50;
 
     // Generous against a hand-drawn parcel and against a boundary imported from a survey file,
     // which is where a corner count of any size would come from.

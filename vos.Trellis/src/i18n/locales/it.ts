@@ -1666,5 +1666,9 @@ export const it: PartialResources = {
     fileTooLarge: "Un file può essere al massimo di {{megabytes}} MB.",
     descriptionTooLong: "Una descrizione può avere al massimo {{characters}} caratteri.",
     filesNotTaken: "Qui non si accettano file.",
+    layerFileUnreadable: "Questo file non può essere letto come livello di mappa. Un livello è un file KML, KMZ, GeoJSON o GPX.",
+    featuresUnreadable: "Non è stato possibile leggere i tipi scelti per gli elementi di questo livello.",
+    featureNotInFile: "«{{value}}» non è un elemento di questo file.",
+    documentNotShared: "Questo file non fa parte di questo invio.",
   },
 };

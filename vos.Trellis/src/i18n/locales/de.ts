@@ -1666,5 +1666,9 @@ export const de: PartialResources = {
     fileTooLarge: "Eine Datei darf höchstens {{megabytes}} MB groß sein.",
     descriptionTooLong: "Eine Beschreibung darf höchstens {{characters}} Zeichen lang sein.",
     filesNotTaken: "Hier werden keine Dateien angenommen.",
+    layerFileUnreadable: "Diese Datei konnte nicht als Kartenebene gelesen werden. Eine Ebene ist eine KML-, KMZ-, GeoJSON- oder GPX-Datei.",
+    featuresUnreadable: "Die für die Elemente dieser Ebene gewählten Arten konnten nicht gelesen werden.",
+    featureNotInFile: "„{{value}}“ ist kein Element dieser Datei.",
+    documentNotShared: "Diese Datei gehört nicht zu dieser Einreichung.",
   },
 };

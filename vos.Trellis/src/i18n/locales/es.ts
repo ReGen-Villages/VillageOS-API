@@ -1666,5 +1666,9 @@ export const es: PartialResources = {
     fileTooLarge: "Un archivo puede ocupar como máximo {{megabytes}} MB.",
     descriptionTooLong: "Una descripción puede tener como máximo {{characters}} caracteres.",
     filesNotTaken: "Aquí no se admiten archivos.",
+    layerFileUnreadable: "Este archivo no se pudo leer como capa de mapa. Una capa es un archivo KML, KMZ, GeoJSON o GPX.",
+    featuresUnreadable: "No se pudieron leer los tipos elegidos para los elementos de esta capa.",
+    featureNotInFile: "«{{value}}» no es un elemento de este archivo.",
+    documentNotShared: "Este archivo no pertenece a esta solicitud.",
   },
 };

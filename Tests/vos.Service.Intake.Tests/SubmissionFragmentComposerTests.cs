@@ -196,6 +196,17 @@ public class SubmissionFragmentComposerTests
             WillowBend.TermId("drawn-by-hand")).Should().BeTrue();
     }
 
+    [Fact]
+    public void A_border_imported_from_a_file_reaches_that_way_of_obtaining_it()
+    {
+        var submission = WillowBend.Submission();
+
+        var composed = Compose(submission with { Parcel = submission.Parcel! with { BoundarySource = "imported-from-file" } });
+
+        Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
+            WillowBend.TermId("imported-from-file")).Should().BeTrue();
+    }
+
     // A term reached by a relationship and copied into a property beside it says the same thing twice, and the
     // copy is the half no reader can walk from and no range can judge. Two readings of one value can also
     // come to disagree, which nothing would notice.

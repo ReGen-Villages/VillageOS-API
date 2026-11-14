@@ -1666,5 +1666,9 @@ export const fr: PartialResources = {
     fileTooLarge: "Un fichier peut faire au plus {{megabytes}} Mo.",
     descriptionTooLong: "Une description compte au plus {{characters}} caractères.",
     filesNotTaken: "Les fichiers ne sont pas acceptés ici.",
+    layerFileUnreadable: "Ce fichier n’a pas pu être lu comme couche cartographique. Une couche est un fichier KML, KMZ, GeoJSON ou GPX.",
+    featuresUnreadable: "Les types choisis pour les éléments de cette couche n’ont pas pu être lus.",
+    featureNotInFile: "« {{value}} » n’est pas un élément de ce fichier.",
+    documentNotShared: "Ce fichier ne fait pas partie de cette soumission.",
   },
 };

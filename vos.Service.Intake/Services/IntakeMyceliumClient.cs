@@ -164,6 +164,20 @@ public sealed class IntakeMyceliumClient(
             null, response.StatusCode);
     }
 
+    // A Thing the model no longer holds is answered 404, which leaves it as asked, so a removal that failed part
+    // way can be asked again.
+    public async Task DeleteThingAsync(Guid thingId, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
+    }
+
     public async Task ApplyFragmentAsync(ModelFragment fragment, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
