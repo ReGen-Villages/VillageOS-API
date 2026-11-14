@@ -95,7 +95,7 @@ try
     {
         builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
             .WithOrigins(publicFormOrigins)
-            .WithMethods("GET", "POST")
+            .WithMethods("GET", "POST", "DELETE")
             .WithHeaders("Content-Type", SubmissionTicket.HeaderName)
             // The renewed ticket travels back in a response header, which a cross-origin page cannot
             // read unless it is named here — unnamed, renewal would work everywhere but from the form.

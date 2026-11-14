@@ -1634,6 +1634,8 @@ export const it: PartialResources = {
     noParcel: "In questa posizione non è disponibile alcun confine di particella. Disegna tu il confine.",
     queryMissing: "Digita qualcosa da cercare.",
     noSearch: "Qui non è disponibile la ricerca di luoghi.",
+    noElevation: "Per questo confine non è disponibile alcuna quota.",
+    noPlots: "Per questa vista non sono disponibili particelle di alcun registro.",
     noBasemap: "Quella mappa non è disponibile qui.",
     emailAddressMissing: "Serve un indirizzo email.",
     codesExhausted: "A quell’indirizzo sono già stati inviati tutti i codici possibili per ora. Riprova più tardi.",
@@ -1664,5 +1666,9 @@ export const it: PartialResources = {
     fileTooLarge: "Un file può essere al massimo di {{megabytes}} MB.",
     descriptionTooLong: "Una descrizione può avere al massimo {{characters}} caratteri.",
     filesNotTaken: "Qui non si accettano file.",
+    layerFileUnreadable: "Questo file non può essere letto come livello di mappa. Un livello è un file KML, KMZ, GeoJSON o GPX.",
+    featuresUnreadable: "Non è stato possibile leggere i tipi scelti per gli elementi di questo livello.",
+    featureNotInFile: "«{{value}}» non è un elemento di questo file.",
+    documentNotShared: "Questo file non fa parte di questo invio.",
   },
 };

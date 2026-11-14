@@ -1634,6 +1634,8 @@ export const es: PartialResources = {
     noParcel: "No hay ningún límite de parcela disponible en esta posición. Dibuja el límite tú mismo.",
     queryMissing: "Escribe algo que buscar.",
     noSearch: "Aquí no hay búsqueda de lugares disponible.",
+    noElevation: "No hay altitud disponible para este límite.",
+    noPlots: "No hay parcelas de ningún registro disponibles para esta vista.",
     noBasemap: "Ese mapa no está disponible aquí.",
     emailAddressMissing: "Se necesita una dirección de correo.",
     codesExhausted: "Ya se han enviado a esa dirección todos los códigos posibles por ahora. Vuelve a intentarlo más tarde.",
@@ -1664,5 +1666,9 @@ export const es: PartialResources = {
     fileTooLarge: "Un archivo puede ocupar como máximo {{megabytes}} MB.",
     descriptionTooLong: "Una descripción puede tener como máximo {{characters}} caracteres.",
     filesNotTaken: "Aquí no se admiten archivos.",
+    layerFileUnreadable: "Este archivo no se pudo leer como capa de mapa. Una capa es un archivo KML, KMZ, GeoJSON o GPX.",
+    featuresUnreadable: "No se pudieron leer los tipos elegidos para los elementos de esta capa.",
+    featureNotInFile: "«{{value}}» no es un elemento de este archivo.",
+    documentNotShared: "Este archivo no pertenece a esta solicitud.",
   },
 };

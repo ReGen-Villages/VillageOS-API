@@ -33,6 +33,7 @@ public static class FormOptionsReader
     private static readonly Role[] TermArchetypeRoles =
     [
         LandIntakeRoles.AllocationCategory, LandIntakeRoles.HazardType, LandIntakeRoles.HazardLevel, ThemeRole,
+        LandIntakeRoles.SiteLayerKind,
     ];
 
     private static readonly Role[] PredicateRoles =
@@ -47,7 +48,7 @@ public static class FormOptionsReader
         Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
-        Traverse = [RoleBindings.FollowBindings],
+        Traverse = [RoleBindings.FollowBindings, PositionLookupReader.FollowFallbacks],
         IncludeRelationships = true,
     };
 
@@ -59,6 +60,9 @@ public static class FormOptionsReader
         // the person who typed it is the last to find out.
         var hazardTypes = DeclaredVocabularyReader.HazardTypesOrNone(snapshot);
         var hazardLevels = DeclaredVocabularyReader.HazardLevelsOrNone(snapshot);
+        var layerKinds = snapshot.Bound(LandIntakeRoles.SiteLayerKind).FirstOrDefault() is { } layerKind
+            ? DeclaredVocabularyReader.TermsUnder(snapshot, layerKind.Id)
+            : [];
 
         return new FormOptions(
             [.. categories.Select(term => term.Name)],
@@ -67,9 +71,20 @@ public static class FormOptionsReader
             [.. hazardLevels.Select(term => term.Name)],
             DefaultProgramme(snapshot),
             PositionLookupReader.ParcelLookups(snapshot).Count > 0,
-            PositionLookupReader.PlaceSearch(snapshot) is not null,
+            PositionLookupReader.PlaceSearches(snapshot).Count > 0,
             Themes(snapshot),
-            Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels]));
+            LayerKinds(snapshot, layerKinds),
+            Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels, .. layerKinds]));
+    }
+
+    private static List<DeclaredLayerKind> LayerKinds(SnapshotDocument snapshot, IReadOnlyList<DeclaredTerm> kinds)
+    {
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        return
+        [
+            .. kinds.Where(kind => thingsById.ContainsKey(kind.Id))
+                .Select(kind => new DeclaredLayerKind(kind.Name, Text(thingsById[kind.Id], ColourProperty))),
+        ];
     }
 
     // What each offered term is called in each language, as the term Thing states it: a JSON object from

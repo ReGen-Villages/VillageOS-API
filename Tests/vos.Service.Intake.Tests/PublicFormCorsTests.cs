@@ -42,6 +42,22 @@ public class PublicFormCorsTests
     }
 
     [Fact]
+    public async Task APreflightToRemoveASharedFile_IsAllowed()
+    {
+        await using var factory = Factory(FormOrigin);
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, $"/submissions/{Guid.NewGuid()}/documents/{Guid.NewGuid()}");
+        request.Headers.Add("Origin", FormOrigin);
+        request.Headers.Add("Access-Control-Request-Method", "DELETE");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response.Headers.GetValues("Access-Control-Allow-Methods").Should().ContainSingle()
+            .Which.Should().Contain("DELETE");
+    }
+
+    [Fact]
     public async Task ASubmissionFromTheConfiguredOrigin_CarriesTheAllowHeader()
     {
         await using var factory = Factory(FormOrigin);

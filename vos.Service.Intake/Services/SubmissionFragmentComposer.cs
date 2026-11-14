@@ -37,12 +37,16 @@ public static class SubmissionFragmentComposer
     // What the submission record's identifier is derived under. Public because the service derives
     // the same identifier to ask whether the record is already there.
     public const string SubmissionRole = "submission";
+    public const string SiteRole = "site";
+    public const string ParcelRole = "parcel";
 
     // arrivedAt: When this submission reached the service, or null when the model already
     // holds its record and its arrival is already recorded.
+    // elevationRange: null when the border was not looked up again or no lookup answered a range,
+    // which leaves whatever the site holds as it is.
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
-        DeclaredVocabulary vocabulary, DateTime? arrivedAt)
+        DeclaredVocabulary vocabulary, DateTime? arrivedAt, ElevationRange? elevationRange)
     {
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
@@ -51,12 +55,12 @@ public static class SubmissionFragmentComposer
                 "'site' is missing: a submission is a site and what is known about it.", Refusal.With(("field", "site")));
         var siteName = Required(site.Name, "site.name", "a Thing is created under a name");
 
-        var siteThing = new NamedThing(StableIdentity.Derive(submissionId, "site"), siteName);
+        var siteThing = new NamedThing(StableIdentity.Derive(submissionId, SiteRole), siteName);
         var studyThing = new NamedThing(StableIdentity.Derive(submissionId, "study"), $"{siteName} Site Study");
 
         var things = new List<FragmentThing>
         {
-            new(siteThing.Id, siteThing.Name, SiteProperties(site)),
+            new(siteThing.Id, siteThing.Name, SiteProperties(site, elevationRange)),
             new(studyThing.Id, studyThing.Name, StudyProperties()),
         };
         var relationships = new List<FragmentRelationship>();
@@ -174,7 +178,7 @@ public static class SubmissionFragmentComposer
             Required(parcel.BoundarySource, "parcel.boundarySource",
                 "a square generated from a stated area is not evidence and must not read as a surveyed boundary"));
 
-        var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
+        var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, ParcelRole), $"{siteName} Parcel-01");
         var parcelId = parcelThing.Id;
         things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
         Relate(siteThing, predicates.Has, parcelThing);
@@ -299,7 +303,7 @@ public static class SubmissionFragmentComposer
 
     private readonly record struct NamedThing(Guid Id, string Name);
 
-    private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site)
+    private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site, ElevationRange? elevationRange)
     {
         var properties = new Dictionary<string, TypedValue>();
         Write(properties, "latitude", VosTypeNames.Double, site.Latitude);
@@ -307,6 +311,8 @@ public static class SubmissionFragmentComposer
         Write(properties, "statedAreaHectares", VosTypeNames.Double, site.StatedAreaHectares);
         Write(properties, "population", VosTypeNames.LongInteger, site.Population);
         Write(properties, "householdSize", VosTypeNames.Double, site.HouseholdSize);
+        Write(properties, "elevationMinimumMetres", VosTypeNames.Double, elevationRange?.MinimumMetres);
+        Write(properties, "elevationMaximumMetres", VosTypeNames.Double, elevationRange?.MaximumMetres);
         return properties;
     }
 
@@ -401,7 +407,7 @@ public static class SubmissionFragmentComposer
     // A word the model does not declare is refused by naming what the model does declare, so a planner is
     // corrected by the vocabulary the analysis will actually read rather than by whatever list this service
     // was compiled with. A term added to the model needs no change here.
-    private static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
+    internal static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
     {
         var byKey = new Dictionary<string, DeclaredTerm>();
         foreach (var term in declared.Terms)
