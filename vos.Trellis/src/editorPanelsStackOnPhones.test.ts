@@ -42,6 +42,6 @@ describe('the editors on a screen narrower than a tablet', () => {
   });
 
   it('wraps the pipeline toolbar, so the name box is not pushed past the edge', () => {
-    expect(read('pages/PipelinePage.tsx')).toContain('<div className="flex flex-wrap items-center gap-2 p-2 border-b');
+    expect(read('components/pipeline/PipelineToolbar.tsx')).toContain('<div className="flex flex-wrap items-center gap-2 p-2 border-b');
   });
 });
