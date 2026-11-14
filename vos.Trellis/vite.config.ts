@@ -43,9 +43,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'cobertura'],
       reportsDirectory: './coverage',
-      include: ['src/**/*.{ts,tsx}'],
+      // The binding reader's own tests run here, against the console's broker reads.
+      allowExternal: true,
+      include: ['src/**/*.{ts,tsx}', '../vos.Tendril/src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.{ts,tsx}',
+        '../vos.Tendril/src/**/*.test.{ts,tsx}',
+        '../vos.Tendril/src/setupTests.ts',
         'src/main.tsx',
         'src/publicForm/main.tsx',
         'src/setupTests.ts',
