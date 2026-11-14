@@ -28,10 +28,10 @@ public sealed class SubmissionIntakeService(
         // run together the one that answered first would decide which of the two refusals the planner saw.
         // The study's archetype comes with it, found through its role rather than by a name.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
-        var elevationRange = await ElevationRangeAsync(submission, await held, cancellation);
+        var elevation = await ElevationAsync(submission, await held, cancellation);
 
         var composed = SubmissionFragmentComposer.Compose(
-            submission, predicates, archetypes, vocabulary, await arrival, elevationRange);
+            submission, predicates, archetypes, vocabulary, await arrival, elevation);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
     }
@@ -47,23 +47,24 @@ public sealed class SubmissionIntakeService(
         return SiteElevationReader.Read(snapshot, siteId, parcelId);
     }
 
-    // The figures go before the submission is written: should that write fail, the site is left with its old
-    // border and no figures, which the next save looks up again.
-    private async Task<ElevationRange?> ElevationRangeAsync(
+    // A figure the new answer lacks goes before the submission is written: should that write fail, the site is
+    // left with its old border and fewer figures, which the next save looks up again. A figure for an unmoved
+    // border is still true of it, so only a moved border loses one.
+    private async Task<AnsweredElevation?> ElevationAsync(
         Submission submission, HeldElevation? held, CancellationToken cancellation)
     {
         var border = submission.Parcel?.Boundary;
         if (held is null || border is null || !held.NeedsLookupFor(border))
             return null;
 
-        var answered = await lookups.ElevationAsync(border, cancellation);
-        if (answered.Elevation?.Range is { } range)
-            return range;
-
-        var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
-        foreach (var figure in held.FiguresStated)
-            await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
-        return null;
+        var answered = (await lookups.ElevationAsync(border, cancellation)).Elevation;
+        if (held.BorderMovedFrom(border))
+        {
+            var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
+            foreach (var figure in held.FiguresStated.Except(SiteElevationReader.FiguresIn(answered)))
+                await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
+        }
+        return answered;
     }
 
     private static (Guid Site, Guid Parcel) SiteAndParcel(string submissionId) =>
