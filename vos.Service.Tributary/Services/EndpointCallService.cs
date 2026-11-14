@@ -361,11 +361,10 @@ public sealed class EndpointCallService
                     if (paging.PageSizeParameter != null && paging.PageSize is > 0)
                         pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                    var (pageStatus, pageBody, pageContentType, pageRetryAfter) = await SendAsync(
-                        plan, outbound.Headers, pageParams, request.Body, ReadText, ct);
-                    if (pageStatus is < 200 or >= 300)
-                        throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, pageRetryAfter, offset);
-                    return pageBody;
+                    var page = await SendAsync(plan, outbound.Headers, pageParams, request.Body, ReadText, ct);
+                    if (page.StatusCode is < 200 or >= 300)
+                        throw new PageNotAnsweredException(page.StatusCode, page.Body, page.ContentType, page.RetryAfter, offset);
+                    return page.Body;
                 },
                 paging,
                 deadline.Token);
@@ -533,11 +532,11 @@ public sealed class EndpointCallService
     }
 
     // Text is read as text so it is decoded in the character set the provider declares, not assumed to be UTF-8.
-    private static Task<string> ReadText(HttpContent content, CancellationToken cancellationToken) =>
-        content.ReadAsStringAsync(cancellationToken);
+    private static readonly Func<HttpContent, CancellationToken, Task<string>> ReadText =
+        (content, cancellationToken) => content.ReadAsStringAsync(cancellationToken);
 
-    private static Task<byte[]> ReadBytes(HttpContent content, CancellationToken cancellationToken) =>
-        content.ReadAsByteArrayAsync(cancellationToken);
+    private static readonly Func<HttpContent, CancellationToken, Task<byte[]>> ReadBytes =
+        (content, cancellationToken) => content.ReadAsByteArrayAsync(cancellationToken);
 
     private sealed record ProviderAnswer<TBody>(
         int StatusCode, TBody Body, string? ContentType, RetryConditionHeaderValue? RetryAfter);
