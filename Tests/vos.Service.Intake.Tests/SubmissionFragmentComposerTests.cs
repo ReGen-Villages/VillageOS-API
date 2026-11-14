@@ -1029,9 +1029,9 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
-    public void A_centre_answered_without_a_range_is_written_alone()
+    public void A_centre_answered_with_half_a_range_is_written_alone()
     {
-        var site = Named(Compose(WillowBend.Submission(), new AnsweredElevation(32.0, null, null, null)), "Willow Bend");
+        var site = Named(Compose(WillowBend.Submission(), new AnsweredElevation(32.0, 21.0, null, null)), "Willow Bend");
 
         site.Properties["elevationMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 32.0));
         site.Properties.Keys.Should().NotContain(["elevationMinimumMetres", "elevationMaximumMetres"]);
