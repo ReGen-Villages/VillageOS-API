@@ -47,6 +47,13 @@ public sealed class RelationshipRule
     public string? PredicateFlag { get; set; }
     public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
+
+    // The broker refuses a rule that names the far end's kind both by name and by role.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OneOrMany<string>? FarEndType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OneOrMany<Guid>? FarEndRole { get; set; }
 }
 
 public sealed class TraverseRule
