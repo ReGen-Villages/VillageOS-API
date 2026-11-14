@@ -214,8 +214,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
-      // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
-      if (rollBack()) setSavedId(editingPipelineId);
+      // Only a pipeline already saved has a server-confirmed state to go back to; a never-saved canvas keeps the user's work.
+      if (editingPipelineId && rollBack()) setSavedId(editingPipelineId);
       return false;
     } finally {
       setBusy(false);

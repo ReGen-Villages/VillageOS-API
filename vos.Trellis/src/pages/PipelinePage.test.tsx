@@ -320,6 +320,22 @@ describe('PipelinePage', () => {
       expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     });
 
+    it('keeps the drawing, its unsaved mark and its undo history when the first save of a new pipeline is refused', async () => {
+      const { modelApi } = await import('../api/modelApi');
+      await openReadingsArrive();
+      fireEvent.click(screen.getByRole('button', { name: 'New' }));
+      placeTheIntakeService();
+      await waitFor(() => expect(canvasNodes()).toHaveLength(1));
+      vi.mocked(modelApi.applyFragment).mockRejectedValueOnce(new Error('The broker refused the fragment'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(screen.getByText('The broker refused the fragment')).toBeInTheDocument());
+      expect(canvasNodes()).toHaveLength(1);
+      expect(screen.getByText('unsaved changes')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled();
+    });
+
     it('says a save failed when the refusal carries no message', async () => {
       const { modelApi } = await import('../api/modelApi');
       await openReadingsArrive();
