@@ -529,7 +529,19 @@ public sealed class PipelineExecutor
     private async Task<PipelineRunResult> SweepUntilSettledAsync(
         Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
     {
-        var pipelineId = dag.PipelineId;
+        var swept = await RunUntilNothingIsReadyAsync(rid, dag, runParams, progress, rehearsal, cancellationToken);
+        var (paused, ended) = await PauseWhileWaitingAsync(rid, dag, progress, swept, cancellationToken);
+        if (paused is not null)
+            return paused;
+        await RecordNeverReachedAsync(rid, dag, progress, ended, cancellationToken);
+        return await CloseRunAsync(rid, dag, runParams, progress, rehearsal, ended, cancellationToken);
+    }
+
+    private sealed record SweepEnd(bool Halted, string? Unhandled, StopRequested? Stopped, List<DagNode> Pending);
+
+    private async Task<SweepEnd> RunUntilNothingIsReadyAsync(
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
+    {
         var results = progress.Results;
         var deliveries = progress.Deliveries;
         var halted = false;
@@ -661,7 +673,14 @@ public sealed class PipelineExecutor
             await ((Task)Task.WhenAll(calling.Keys)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             throw;
         }
-        if (!halted && stopped is null && progress.Waiting.Count > 0)
+        return new SweepEnd(halted, unhandled, stopped, pending);
+    }
+
+    private async Task<(PipelineRunResult? Paused, SweepEnd Ended)> PauseWhileWaitingAsync(
+        Guid rid, PipelineDag dag, Progress progress, SweepEnd ended, CancellationToken cancellationToken)
+    {
+        var results = progress.Results;
+        if (!ended.Halted && ended.Stopped is null && progress.Waiting.Count > 0)
         {
             var failures = await WriteMissingRecordsAsync(rid, progress, cancellationToken);
             foreach (var failure in failures)
@@ -671,16 +690,21 @@ public sealed class PipelineExecutor
                 await BestEffort(() => _gateway.SetRunStatusAsync(rid, RunStatus.Waiting, cancellationToken), "set run waiting");
                 var waits = progress.Waiting.Values.Select(wait =>
                     $"The run waits for {(wait.Awaits is { } thing ? $"'{thing.Name}'" : "its Thing")} to enter '{dag.Node(wait.NodeId)!.Waits!.RangeName}' at '{wait.Name}'.");
-                return new PipelineRunResult(rid, pipelineId, false,
-                    dag.Nodes.Where(node => !Unsettled(node))
+                return (new PipelineRunResult(rid, dag.PipelineId, false,
+                    dag.Nodes.Where(node => results.ContainsKey(node.NodeId) || progress.Waiting.ContainsKey(node.NodeId))
                         .Select(node => results.TryGetValue(node.NodeId, out var settled) ? settled : progress.Waiting[node.NodeId]).ToList(),
-                    string.Join(" ", waits));
+                    string.Join(" ", waits)), ended);
             }
-            halted = true;
-            unhandled = failures[0].Error;
+            return (null, ended with { Halted = true, Unhandled = failures[0].Error });
         }
+        return (null, ended);
+    }
 
-        // Anything still pending, or waiting, was blocked by an upstream failure, or not reached because the run was stopped.
+    // Anything still pending, or waiting, was blocked by an upstream failure, or not reached because the run was stopped.
+    private async Task RecordNeverReachedAsync(Guid rid, PipelineDag dag, Progress progress, SweepEnd ended, CancellationToken cancellationToken)
+    {
+        var results = progress.Results;
+        var (_, _, stopped, pending) = ended;
         var pendingStatus = stopped is not null ? RunStatus.Cancelled : RunStatus.Skipped;
         foreach (var node in pending.Concat(progress.Waiting.Keys.Select(id => dag.Node(id)!)).Where(node => !results.ContainsKey(node.NodeId)))
         {
@@ -688,6 +712,16 @@ public sealed class PipelineExecutor
             results[node.NodeId] = result;
             await PersistStatusAsync(rid, result, cancellationToken, progress.Watches.GetValueOrDefault(node.NodeId));
         }
+    }
+
+    private async Task<PipelineRunResult> CloseRunAsync(
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, SweepEnd ended,
+        CancellationToken cancellationToken)
+    {
+        var pipelineId = dag.PipelineId;
+        var results = progress.Results;
+        var deliveries = progress.Deliveries;
+        var (_, unhandled, stopped, _) = ended;
 
         var outputNode = dag.Nodes.Single(n => n.Kind == DagNodeKind.Output);
         var failuresReachingTheEnd = dag.WiresInto(outputNode.NodeId)
