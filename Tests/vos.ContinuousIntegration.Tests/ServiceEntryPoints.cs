@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-
 namespace vos.ContinuousIntegration.Tests;
 
 // The services in the checkout written in C#, and the entry-point files the guards in this project

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using vos.Service.Intake.Models;
@@ -149,6 +148,34 @@ public sealed class IntakeMyceliumClient(
                 null, response.StatusCode);
 
         return true;
+    }
+
+    // A property the Thing no longer states is answered 404, which leaves it as asked.
+    public async Task RetractPropertyAsync(Guid thingId, string property, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync(
+            $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{property}' from '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
+    }
+
+    // A Thing the model no longer holds is answered 404, which leaves it as asked, so a removal that failed part
+    // way can be asked again.
+    public async Task DeleteThingAsync(Guid thingId, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
     }
 
     public async Task ApplyFragmentAsync(ModelFragment fragment, CancellationToken cancellation)

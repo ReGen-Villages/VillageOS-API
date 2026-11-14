@@ -97,6 +97,57 @@ class KeptById<T extends { Id: string }> {
 const thingsById = new KeptById<VosThing>();
 const relationshipsById = new KeptById<VosRelationship>();
 
+/** True when a removed Thing took its states with it. */
+function applyThingChanges(batch: ModelBatch, s: ModelState, next: Partial<ModelState>): boolean {
+  if (!(batch.thingUpserts?.length || batch.thingRemovals?.length
+    || batch.thingPropertyUpdates?.length || batch.thingPropertyRemovals?.length)) return false;
+
+  let statesMoved = false;
+  const map = thingsById.forThe(s.things);
+  for (const id of batch.thingRemovals ?? []) {
+    map.delete(id);
+    if (s.thingStates.delete(id)) statesMoved = true;
+  }
+  for (const t of batch.thingUpserts ?? []) map.set(t.Id, t);
+  for (const u of batch.thingPropertyUpdates ?? []) {
+    const current = map.get(u.id);
+    if (current) map.set(u.id, applyThingPropertyUpdate(current, u.path, u.value));
+  }
+  for (const r of batch.thingPropertyRemovals ?? []) {
+    const current = map.get(r.id);
+    if (current) map.set(r.id, applyThingPropertyRemoval(current, r.path));
+  }
+  next.things = thingsById.asArray();
+  return statesMoved;
+}
+
+function applyRelationshipChanges(batch: ModelBatch, s: ModelState, next: Partial<ModelState>): void {
+  if (!(batch.relationshipUpserts?.length || batch.relationshipRemovals?.length
+    || batch.relationshipPropertyUpdates?.length || batch.relationshipPropertyRemovals?.length)) return;
+
+  const map = relationshipsById.forThe(s.relationships);
+  for (const id of batch.relationshipRemovals ?? []) map.delete(id);
+  for (const r of batch.relationshipUpserts ?? []) map.set(r.Id, r);
+  for (const u of batch.relationshipPropertyUpdates ?? []) {
+    const current = map.get(u.id);
+    if (current) map.set(u.id, applyRelationshipPropertyUpdate(current, u.name, u.value));
+  }
+  for (const r of batch.relationshipPropertyRemovals ?? []) {
+    const current = map.get(r.id);
+    if (current) map.set(r.id, applyRelationshipPropertyRemoval(current, r.name));
+  }
+  next.relationships = relationshipsById.asArray();
+}
+
+// The events stream carries every Thing's state changes, so a change to a Thing the store does
+// not hold is dropped rather than kept for no reader.
+function applyStateChanges(batch: ModelBatch, s: ModelState, next: Partial<ModelState>): boolean {
+  if (!batch.thingStateUpdates?.length) return false;
+  const held = thingsById.forThe(next.things ?? s.things);
+  for (const u of batch.thingStateUpdates) if (held.has(u.id)) s.thingStates.set(u.id, u.states);
+  return true;
+}
+
 export const useModelStore = create<ModelState>((set) => ({
   things: [],
   relationships: [],
@@ -123,58 +174,10 @@ export const useModelStore = create<ModelState>((set) => ({
     set((s) => ({ thingStates, thingStatesVersion: s.thingStatesVersion + 1 })),
   applyBatch: (batch) => set((s) => {
     const next: Partial<ModelState> = {};
-
-    const touchThings =
-      batch.thingUpserts?.length || batch.thingRemovals?.length ||
-      batch.thingPropertyUpdates?.length || batch.thingPropertyRemovals?.length;
-    let statesMoved = false;
-    if (touchThings) {
-      const map = thingsById.forThe(s.things);
-      for (const id of batch.thingRemovals ?? []) {
-        map.delete(id);
-        if (s.thingStates.delete(id)) statesMoved = true;
-      }
-      for (const t of batch.thingUpserts ?? []) map.set(t.Id, t);
-      for (const u of batch.thingPropertyUpdates ?? []) {
-        const current = map.get(u.id);
-        if (current) map.set(u.id, applyThingPropertyUpdate(current, u.path, u.value));
-      }
-      for (const r of batch.thingPropertyRemovals ?? []) {
-        const current = map.get(r.id);
-        if (current) map.set(r.id, applyThingPropertyRemoval(current, r.path));
-      }
-      next.things = thingsById.asArray();
-    }
-
-    const touchRelationships =
-      batch.relationshipUpserts?.length ||
-      batch.relationshipRemovals?.length ||
-      batch.relationshipPropertyUpdates?.length ||
-      batch.relationshipPropertyRemovals?.length;
-    if (touchRelationships) {
-      const map = relationshipsById.forThe(s.relationships);
-      for (const id of batch.relationshipRemovals ?? []) map.delete(id);
-      for (const r of batch.relationshipUpserts ?? []) map.set(r.Id, r);
-      for (const u of batch.relationshipPropertyUpdates ?? []) {
-        const current = map.get(u.id);
-        if (current) map.set(u.id, applyRelationshipPropertyUpdate(current, u.name, u.value));
-      }
-      for (const r of batch.relationshipPropertyRemovals ?? []) {
-        const current = map.get(r.id);
-        if (current) map.set(r.id, applyRelationshipPropertyRemoval(current, r.name));
-      }
-      next.relationships = relationshipsById.asArray();
-    }
-
-    // The events stream carries every Thing's state changes, so a change to a Thing the store does
-    // not hold is dropped rather than kept for no reader.
-    if (batch.thingStateUpdates?.length) {
-      const held = thingsById.forThe(next.things ?? s.things);
-      for (const u of batch.thingStateUpdates) if (held.has(u.id)) s.thingStates.set(u.id, u.states);
-      statesMoved = true;
-    }
-    if (statesMoved) next.thingStatesVersion = s.thingStatesVersion + 1;
-
+    const removalsMovedStates = applyThingChanges(batch, s, next);
+    applyRelationshipChanges(batch, s, next);
+    const updatesMovedStates = applyStateChanges(batch, s, next);
+    if (removalsMovedStates || updatesMovedStates) next.thingStatesVersion = s.thingStatesVersion + 1;
     return next;
   }),
   markLoaded: ({ wholeModel }) => set({ loaded: true, holdsWholeModel: wholeModel }),

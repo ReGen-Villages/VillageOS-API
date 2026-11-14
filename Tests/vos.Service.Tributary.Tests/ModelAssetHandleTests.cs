@@ -428,4 +428,77 @@ public class ModelAssetHandleTests : IDisposable
         deposits.Should().BeEmpty("the provider served no content to keep");
         tickets.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Handle_ModelAssetWithBinary_ProviderAnswers404_DepositsNothing()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":           {"Value":"https://tiles.test/tile/1/0/1"},
+          "Endpoint.httpMethod":    {"Value":"GET"},
+          "Endpoint.assetProperty": {"Value":"surfaceMap"},
+          "Endpoint.assetSubject":  {"Value":"SiteAlpha"}
+        }
+        """;
+        var deposits = new List<(byte[] Bytes, string? ContentType)>();
+        var tickets = new List<string>();
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "tiles.test")
+                return new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new ByteArrayContent(PngBytes) };
+            return RouteFindThing(req, thingId, "EP") ?? RouteFindThing(req, subjectId, "SiteAlpha")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId, Binary(), ModelAsset())
+                ?? RouteAssetDeposit(req, Ticket, deposits)
+                ?? RouteObservationWrite(req, subjectId, tickets)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        deposits.Should().BeEmpty();
+        tickets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_ModelAssetPlainBody_DepositRefused_FailsTheCall()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":           {"Value":"https://api.test/data"},
+          "Endpoint.httpMethod":    {"Value":"GET"},
+          "Endpoint.assetProperty": {"Value":"sourceDocument"},
+          "Endpoint.assetSubject":  {"Value":"SiteAlpha"}
+        }
+        """;
+        var tickets = new List<string>();
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") return Json("""{"n":1}""");
+            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == "/api/assets")
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            return RouteFindThing(req, thingId, "EP") ?? RouteFindThing(req, subjectId, "SiteAlpha")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId, ModelAsset())
+                ?? RouteObservationWrite(req, subjectId, tickets)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Asset keeping failed");
+        tickets.Should().BeEmpty();
+    }
 }

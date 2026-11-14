@@ -27,6 +27,15 @@ public sealed class DocumentStore(string directory)
             ? [.. System.IO.Directory.EnumerateDirectories(Directory).Select(Path.GetFileName).OfType<string>()]
             : [];
 
+    // The key is read back from the model, so one that is not a plain file name is refused rather than followed.
+    public void Remove(string submissionId, string storedAs)
+    {
+        if (storedAs.Length == 0 || storedAs is "." or ".." || Path.GetFileName(storedAs) != storedAs)
+            throw new ArgumentException("A stored file is named by a key of the store's own.", nameof(storedAs));
+        var path = Path.Combine(FolderOf(submissionId), storedAs);
+        if (File.Exists(path)) File.Delete(path);
+    }
+
     // Takes a submission's files out, whole. Nothing is kept of a submission the model has let go.
     public void Forget(string submissionId)
     {

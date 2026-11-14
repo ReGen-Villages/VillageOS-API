@@ -1,61 +1,29 @@
-import { parseParameterValue } from './parseParamValue';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  addEdge,
-  useNodesState,
-  useEdgesState,
-  type Node,
-  type Edge,
-  type Connection,
-  type NodeTypes,
-} from '@xyflow/react';
+import { ReactFlow, Background, Controls, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import clsx from 'clsx';
-import { Link } from 'react-router-dom';
-import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2, ArrowLeftRight } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
-import { useWiderList } from '../hooks/useWiderList';
+import { usePipelineDrawing } from '../hooks/usePipelineDrawing';
+import { usePipelineRun } from '../hooks/usePipelineRun';
+import { usePipelineSelection } from '../hooks/usePipelineSelection';
 import { PIPELINE_PAGE } from '../pipeline/subscription';
-import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
-import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
-import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
-import { stopRun } from '../pipeline/stop';
-import { validatePipeline, validateEnds } from '../pipeline/validate';
-import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
-import { EditorHistory } from '../pipeline/history';
-import { passedOn } from '../pipeline/passedOn';
-import { handStateToOrchestrator } from '../pipeline/handOver';
-import { pipelineApi } from '../api/pipelineApi';
-import { relationshipApi } from '../api/relationshipApi';
+import { PipelineModel, ROLE } from '../pipeline/model';
+import { takenOnOf } from '../pipeline/serialize';
+import type { WireData } from '../pipeline/wireDrawing';
+import { catalystRail, outputRail } from '../pipeline/catalysts';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { CatalystRail } from '../components/pipeline/CatalystRail';
 import { OutputRail } from '../components/pipeline/OutputRail';
 import { PipelineRoster } from '../components/pipeline/PipelineRoster';
 import { NodeInspector } from '../components/pipeline/NodeInspector';
-import { WireInspector, type WirePaths } from '../components/pipeline/WireInspector';
+import { WireInspector } from '../components/pipeline/WireInspector';
+import { PipelineToolbar } from '../components/pipeline/PipelineToolbar';
+import { RunParametersBar } from '../components/pipeline/RunParametersBar';
+import { EmptyCanvasHint } from '../components/pipeline/EmptyCanvasHint';
+import { FindingsAndRunPanel } from '../components/pipeline/FindingsAndRunPanel';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
-
-const RUN_STATUS_COLOR: Record<string, string> = {
-  running: 'text-blue-600',
-  waiting: 'text-amber-600',
-  succeeded: 'text-green-600',
-  failed: 'text-red-500',
-  refused: 'text-red-500',
-  cancelled: 'text-amber-600',
-  partial: 'text-orange-500',
-};
-
-let nodeSequence = 0;
-
-/** A short edge label for a mapped wire, e.g. `user.id → a` with a trailing `ƒ` when the wire
- * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
 
 /**
  * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
@@ -67,7 +35,6 @@ let nodeSequence = 0;
  */
 export function PipelinePage() {
   useSubscription(PIPELINE_PAGE);
-  const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const loaded = useModelStore((s) => s.loaded);
@@ -86,325 +53,33 @@ export function PipelinePage() {
     [model],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [name, setName] = useState(() => t('pipeline.newPipelineName'));
-  const [savedId, setSavedId] = useState<string | null>(null);
-  // The persistent id of the pipeline being edited — kept across edits (which clear savedId to mark the
-  // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate.
-  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [runId, setRunId] = useState<string | null>(null);
-  const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [runParameterValues, setRunParameterValues] = useState<Record<string, string>>({});
+  const drawing = usePipelineDrawing({ model, connections, setError });
+  const { nodes, edges, setNodes, savedId, editingPipelineId, thingIdByCanvasId, currentNodes, load, save, startNew } = drawing;
+  const run = usePipelineRun({ model, savedId, nodes, setNodes, thingIdByCanvasId, setError });
+  const { forgetRun } = run;
 
   // Everything that sets a run off and everything one may leave behind, read again on every model flush,
   // because each group is a walk of the model.
   const catalysts = useMemo(() => catalystRail(model), [model]);
   const outputs = useMemo(() => outputRail(model, editingPipelineId), [model, editingPipelineId]);
+  const selection = usePipelineSelection({ model, nodes, edges, outputs, currentNodes });
+  const { selectedNode, selectedEdge, clearSelection } = selection;
 
-  // Undo + optimistic rollback. The history records the editor state *before* each mutation (undo),
-  // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
-  // drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
-  type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
-  const historyReference = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
-  const stateReference = useRef<EditorSnapshot>({ nodes, edges });
-  // Mirrored after each commit rather than during render, so a handler that snapshots for undo
-  // reads what is on screen — never values from a render React went on to discard.
-  useEffect(() => { stateReference.current = { nodes, edges }; }, [nodes, edges]);
-  const [canUndo, setCanUndo] = useState(false);
-  const [dirty, setDirty] = useState(false);
-
-  const recordSnapshot = useCallback(() => {
-    historyReference.current.record(structuredClone(stateReference.current));
-    setCanUndo(true);
-    setDirty(true);
-  }, []);
-
-  const applySnapshot = useCallback((s: EditorSnapshot) => {
-    setNodes(structuredClone(s.nodes));
-    setEdges(structuredClone(s.edges));
-  }, [setNodes, setEdges]);
-
-  // Baseline = the last server-confirmed state; also clears the undo stack (a fresh save/load/new is the floor).
-  const commitBaseline = useCallback((s: EditorSnapshot) => {
-    historyReference.current.commit(structuredClone(s));
-    setCanUndo(false);
-    setDirty(false);
-  }, []);
-
-  const onUndo = useCallback(() => {
-    const previous = historyReference.current.undo();
-    if (!previous) return;
-    applySnapshot(previous);
-    setCanUndo(historyReference.current.canUndo());
-    setDirty(true);
-    setSavedId(null); // an undo leaves the canvas out of step with the last save
-  }, [applySnapshot]);
-
-  const parameterKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const n of nodes) {
-      const b = (n.data as unknown as PipelineNodeData).parameterBindings;
-      if (b) for (const k of Object.values(b)) keys.add(k);
-    }
-    return [...keys].sort();
-  }, [nodes]);
-
-  // Checked before a run and shown under the canvas: an input nothing fills, a wire to nowhere, or an end
-  // standing for something a run cannot come from or leave behind. Run stays off until the list is empty,
-  // so a broken pipeline is refused where it is drawn rather than failing once it runs.
-  const validationIssues = useMemo(() => {
-    const validationNodes = nodes.map((n) => {
-      const d = n.data as unknown as PipelineNodeData;
-      const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
-      return {
-        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind,
-        ...(stood ? { standsFor: { name: stood.name, kind: stood.kind, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
-      };
-    });
-    const validationEdges = edges.map((e) => ({
-      source: e.source,
-      sourceHandle: e.sourceHandle ?? '',
-      target: e.target,
-      targetHandle: e.targetHandle ?? '',
-    }));
-    return [...validatePipeline(validationNodes, validationEdges), ...validateEnds(validationNodes, validationEdges)];
-  }, [nodes, edges, model]);
-
-  // The drawing as the canvas paints it: a node says what it stands for, read off the model so a rename reaches
-  // it, and a start node says that placing it is not what starts a run.
-  const canvasNodes = useMemo(() => nodes.map((n) => {
-    const d = n.data as unknown as PipelineNodeData;
-    if (!d.kind || !d.standsForId) return n;
-    const standsFor = model.endInformation(d.standsForId);
-    const note = d.kind === 'input' ? t('pipeline.note.startNotCalled') : undefined;
-    return { ...n, data: { ...n.data, standsFor, note } };
-  }), [nodes, model, t]);
-
-  const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
-  const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
-
-  const setEdgePath = useCallback((edgeId: string, which: keyof WirePaths, value: string) => {
-    recordSnapshot();
-    setEdges((es) => es.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, [which]: value || undefined } } : e)));
-    setSavedId(null);
-  }, [setEdges, recordSnapshot]);
-
-  const setEdgeTakenOn = useCallback((edgeId: string, takenOn: string[]) => {
-    recordSnapshot();
-    setEdges((es) => es.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, takenOn } } : e)));
-    setSavedId(null);
-  }, [setEdges, recordSnapshot]);
-
-  const resultsOf = useCallback((nodeId: string) => {
-    const success = model.boundTo(ROLE.Success);
-    const fail = model.boundTo(ROLE.Fail);
-    const choices = (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.choices ?? [];
-    return [
-      ...(success ? [{ id: success, name: t('pipeline.resultSuccess') }] : []),
-      ...(fail ? [{ id: fail, name: t('pipeline.resultFail') }] : []),
-      ...choices.map((choice) => ({ id: choice.id, name: choice.name })),
-    ];
-  }, [model, nodes, t]);
-
-  const canvasEdges = useMemo(() => {
-    const fail = model.boundTo(ROLE.Fail);
-    const choiceNames = new Map(nodes.flatMap((n) =>
-      ((n.data as unknown as PipelineNodeData).choices ?? []).map((choice) => [choice.id, choice.name] as const)));
-    return edges.map((e) => {
-      const data = (e.data as WireData | undefined) ?? {};
-      return { ...e, ...wireDrawing(data, takenOnOf(data.takenOn, model), fail, choiceNames) };
-    });
-  }, [edges, nodes, model]);
-
-  const liveRunStatus = runId ? model.runStatus(runId) : undefined;
-  const runActive = !!runId && (liveRunStatus === undefined || ['running', 'waiting', 'trying'].includes(liveRunStatus));
-  const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
-  const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
-
-  const clearStatuses = useCallback(() => {
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
-  }, [setNodes]);
-
-  const onSelectRun = useCallback((id: string) => {
-    clearStatuses();
-    setRunId(id || null);
-  }, [clearStatuses]);
-
-  const place = useCallback((data: PipelineNodeData) => {
-    recordSnapshot();
-    setNodes((ns) => [
-      ...ns,
-      {
-        id: `n${++nodeSequence}`,
-        type: 'pipelineNode',
-        position: { x: 80 + ns.length * 60, y: 80 + ns.length * 40 },
-        data: data as unknown as Record<string, unknown>,
-      },
-    ]);
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const addNode = useCallback((c: ConnectionInformation) => {
-    place({ label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports });
-  }, [place]);
-
-  // Where the run comes from: a start node standing for the catalyst it was placed from, whose out port
-  // is the run's parameter — the message that arrived, or the Thing that entered the state or the
-  // relationship. Placed from nothing, it is a start by hand, filled from the parameters typed above.
-  const placeStart = useCallback((row: CatalystRow | undefined) => {
-    const portName = row === undefined || row.kind === 'message' ? 'payload' : 'subject';
-    place({
-      label: row ? (row.who ? `${row.who} · ${row.what}` : row.what) : t('pipeline.boundaryInput'),
-      kind: 'input',
-      ports: [{ portId: crypto.randomUUID(), portName, direction: 'out', type: 'any', required: false }],
-      ...(row ? { standsForId: row.standsForId } : {}),
-    });
-  }, [place, t]);
-
-  // The rail's words after a hand-over come from the binding the stream delivers, not from the press.
-  const handOver = useCallback(async (row: CatalystRow) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await handStateToOrchestrator(model, row, relationshipApi);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('pipeline.catalysts.handOverFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }, [model, t]);
-
-  const placeOutput = useCallback((row: OutputRow) => {
-    if (row.kind === 'answer')
-      place({
-        label: t('pipeline.boundaryOutput'),
-        kind: 'output',
-        ports: [{ portId: crypto.randomUUID(), portName: 'value', direction: 'in', type: 'any', required: true }],
-      });
-    else if (row.kind === 'stop')
-      place({ label: t('pipeline.outputs.stop'), kind: 'stop', ports: model.resolvePorts(model.boundTo(ROLE.PipelineStop)!) });
-    else
-      place({
-        label: row.name,
-        kind: row.kind === 'pipeline' ? 'followOn' : 'tell',
-        ports: passedOn(row.kind === 'pipeline' ? 'subject' : 'payload'),
-        standsForId: row.id,
-      });
-  }, [place, model, t]);
-
-  const setDeclaredPorts = useCallback((nodeId: string, ports: PortInformation[]) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ports } } : n)));
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const setStandsFor = useCallback((nodeId: string, standsForId: string) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, standsForId } } : n)));
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const onConnect = useCallback((c: Connection) => {
-    const verdict = judgeConnection(nodes.map((n) => ({ id: n.id, ports: (n.data as PipelineNodeData).ports })), c);
-    if (verdict.kind === 'ignore') return;
-    if (verdict.kind === 'incompatible') {
-      setError(t('pipeline.incompatibleWire', { from: verdict.from, to: verdict.to }));
-      return;
-    }
-    setError(null);
-    recordSnapshot();
-    setEdges((es) => addEdge(c, es));
-    setSavedId(null);
-  }, [nodes, setEdges, recordSnapshot, t]);
-
-  const toEditorNodes = (): EditorNode[] =>
-    nodes.map((n) => {
-      const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule };
-    });
-
-  const toEditorEdges = (): EditorEdge[] =>
-    edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle ?? '',
-      target: e.target,
-      targetHandle: e.targetHandle ?? '',
-      fromPath: (e.data as WireData | undefined)?.fromPath,
-      itemTransform: (e.data as WireData | undefined)?.itemTransform,
-      listTransform: (e.data as WireData | undefined)?.listTransform,
-      toPath: (e.data as WireData | undefined)?.toPath,
-      takenOn: (e.data as WireData | undefined)?.takenOn,
-    }));
+  const openPipeline = useCallback((pipelineId: string) => {
+    if (!load(pipelineId)) return;
+    forgetRun();
+    clearSelection();
+  }, [load, forgetRun, clearSelection]);
 
   const onSave = useCallback(async () => {
-    // Optimistic rollback: remember the state we are trying to save so a rejected save can revert
-    // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
-    const attempt = structuredClone(stateReference.current);
-    setBusy(true);
-    setError(null);
-    try {
-      const saved = await savePipeline(name, toEditorNodes(), toEditorEdges(), model, editingPipelineId ?? undefined);
-      setEditingPipelineId(saved.pipelineId);
-      setSavedId(saved.pipelineId);
-      setThingIdByCanvasId(saved.nodeIdMap);
-      setRunId(null);
-      setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
-      commitBaseline(attempt); // the saved canvas is the new baseline; undo history clears
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
-      // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
-      const target = historyReference.current.rollbackTarget();
-      if (target) {
-        applySnapshot(target);
-        setCanUndo(false);
-        setDirty(false);
-        setSavedId(editingPipelineId);
-      }
-    } finally {
-      setBusy(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, nodes, edges, model, editingPipelineId, commitBaseline, applySnapshot, t]);
-
-  const onLoad = useCallback((pipelineId: string) => {
-    const loadedPipeline = loadPipeline(pipelineId, model);
-    if (!loadedPipeline) return;
-    setName(loadedPipeline.name);
-    setSavedId(pipelineId);
-    setEditingPipelineId(pipelineId);
-    setRunId(null);
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-    setThingIdByCanvasId(Object.fromEntries(loadedPipeline.nodes.map((n) => [n.id, n.id])));
-    const loadedNodes: Node[] = loadedPipeline.nodes.map((n) => ({
-      id: n.id,
-      type: 'pipelineNode',
-      position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule } as unknown as Record<string, unknown>,
-    }));
-    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
-    setNodes(loadedNodes);
-    setEdges(loadedEdges);
-    commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
-  }, [model, connections, setNodes, setEdges, commitBaseline]);
+    if (await save()) forgetRun();
+  }, [save, forgetRun]);
 
   const onNew = useCallback((newName?: string) => {
-    setNodes([]);
-    setEdges([]);
-    setName(newName ?? t('pipeline.newPipelineName'));
-    setSavedId(null);
-    setEditingPipelineId(null);
-    setRunId(null);
-    setThingIdByCanvasId({});
-    setError(null);
-    commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
-  }, [setNodes, setEdges, commitBaseline, t]);
+    startNew(newName);
+    forgetRun();
+  }, [startNew, forgetRun]);
 
   // The first pipeline opens on arrival, once the model has loaded; a model holding none leaves the
   // empty canvas, where naming a new one still works.
@@ -412,242 +87,49 @@ export function PipelinePage() {
   useEffect(() => {
     if (openedOnArrival.current || !loaded || pipelines.length === 0) return;
     openedOnArrival.current = true;
-    onLoad(pipelines[0].id);
-  }, [loaded, pipelines, onLoad]);
-
-  const onRun = useCallback(async () => {
-    if (!savedId) return;
-    setError(null);
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
-    try {
-      // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
-      // Param values are parsed as JSON when valid (so a list `["a","b"]` drives fan-out, `42`→number),
-      // otherwise passed through as a plain string.
-      const parameters = Object.fromEntries(parameterKeys.map((k) => [k, parseParameterValue(runParameterValues[k] ?? '')]));
-      const accepted = await pipelineApi.spawnAsync(savedId, parameters);
-      setRunId(accepted.runId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('pipeline.runFailed'));
-    }
-  }, [savedId, setNodes, parameterKeys, runParameterValues, t]);
-
-  const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => {
-      if (n.id !== nodeId) return n;
-      const d = n.data as unknown as PipelineNodeData;
-      const next = { ...(d.parameterBindings ?? {}) };
-      if (parameterKey.trim()) next[port] = parameterKey.trim();
-      else delete next[port];
-      return { ...n, data: { ...n.data, parameterBindings: next } };
-    }));
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const setChosen = useCallback((nodeId: string, chosen: Record<string, string>) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, chosen } } : n)));
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const setChoices = useCallback((nodeId: string, choices: EditorChoice[]) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, choices } } : n)));
-    const kept = new Set(choices.map((choice) => choice.id));
-    const removed = new Set(((nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.choices ?? [])
-      .map((choice) => choice.id).filter((id) => !kept.has(id)));
-    if (removed.size > 0) setEdges((es) => withoutChoices(es, nodeId, removed));
-    setSavedId(null);
-  }, [nodes, setNodes, setEdges, recordSnapshot]);
-
-  const setRule = useCallback((nodeId: string, rule: string | undefined) => {
-    recordSnapshot();
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, rule } } : n)));
-    setSavedId(null);
-  }, [setNodes, recordSnapshot]);
-
-  const onCancel = useCallback(async () => {
-    if (!runId) return;
-    try {
-      await stopRun(runId, t('pipeline.cancelledFromThePage'), model);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('pipeline.cancelFailed'));
-    }
-  }, [runId, t, model]);
-
-  // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
-  // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.
-  const onNodeDragStart = useCallback(() => recordSnapshot(), [recordSnapshot]);
-  const onNodesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);
-  const onEdgesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);
-
-  // Ctrl/Cmd+Z undoes the last editor change. Ignored while typing in a field so it doesn't hijack text undo.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        const el = e.target as HTMLElement | null;
-        const tag = el?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
-        e.preventDefault();
-        onUndo();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onUndo]);
-
-  // Drive the live animation: as Phloem writes NodeRun statuses, the model store updates over SSE → this
-  // recomputes and paints each node's status ring (PipelineNodeView). Canvas ids map to Thing ids via the
-  // save/load map so each NodeRun (keyed by Thing id) finds its node.
-  useEffect(() => {
-    if (!runId) return;
-    const statuses = model.nodeRunStatuses(runId);
-    const progress = model.nodeRunProgress(runId);
-    if (Object.keys(statuses).length === 0 && Object.keys(progress).length === 0) return;
-    setNodes((ns) => ns.map((n) => {
-      const thingId = thingIdByCanvasId[n.id] ?? n.id;
-      const status = statuses[thingId];
-      const prog = progress[thingId];
-      if (status === undefined && prog === undefined) return n;
-      const d = n.data as unknown as PipelineNodeData;
-      return { ...n, data: { ...n.data, status: status ?? d.status, progress: prog } };
-    }));
-  }, [runId, model, thingIdByCanvasId, setNodes]);
-
-  const wiredInputs = useMemo(
-    () => new Set(selectedNode ? edges.filter((e) => e.target === selectedNode.id).map((e) => e.targetHandle ?? '') : []),
-    [selectedNode, edges],
-  );
-
-  const offeredByPort = useMemo(() => Object.fromEntries(
-    ((selectedNode?.data as PipelineNodeData | undefined)?.ports ?? [])
-      .filter((p) => p.direction === 'in')
-      .map((p) => [p.portId, model.reachedAlong(p.portId, ROLE.Choice)] as const)),
-  [selectedNode, model]);
-  const [widened, setWidened] = useState(false);
-  const selectedPorts = (selectedNode?.data as PipelineNodeData | undefined)?.ports;
-  const kindsOffered = useMemo(
-    () => (widened && selectedPorts ? model.kindsOffered(selectedPorts) : null),
-    [widened, selectedPorts, model],
-  );
-  const referencedByTheDrawing = useCallback(() => new Set(stateReference.current.nodes.flatMap((n) => {
-    const d = n.data as unknown as PipelineNodeData;
-    return [...Object.values(d.chosen ?? {}), ...(d.choices ?? []).flatMap((choice) => choice.comparesWith)];
-  })), []);
-  useWiderList(kindsOffered, referencedByTheDrawing);
-  const widerList = useMemo(() => (kindsOffered ? model.thingsOfKinds(kindsOffered) : []), [model, kindsOffered]);
-  const nameOf = useCallback((thingId: string) => model.thing(thingId)?.Name ?? thingId, [model]);
-  const selectedKind = (selectedNode?.data as PipelineNodeData | undefined)?.kind;
-  const standsForOptions = useMemo(() => outputs
-    .filter((row) => (selectedKind === 'tell' && row.kind === 'externalSystem') || (selectedKind === 'followOn' && row.kind === 'pipeline'))
-    .map((row) => ({ id: row.id, name: row.name })), [outputs, selectedKind]);
-
-  const portNameOf = (nodeId: string, portId: string | null | undefined) =>
-    (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.ports.find((p) => p.portId === portId)?.portName ?? '';
+    openPipeline(pipelines[0].id);
+  }, [loaded, pipelines, openPipeline]);
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} onHandOver={handOver} />
-      <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={onLoad} onCreate={onNew} />
+      <CatalystRail groups={catalysts} onPlace={drawing.placeStart} onOpenPipeline={openPipeline} onHandOver={drawing.handOver} />
+      <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={openPipeline} onCreate={onNew} />
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
-          <button onClick={() => onNew()} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
-            <FilePlus size={14} /> {t('pipeline.new')}
-          </button>
-          <button
-            onClick={onUndo}
-            disabled={!canUndo}
-            title={t('pipeline.undoTitle')}
-            aria-label={t('pipeline.undo')}
-            className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400 disabled:opacity-40"
-          >
-            <Undo2 size={14} /> {t('pipeline.undo')}
-          </button>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-label={t('pipeline.name')}
-            className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
-          />
-          <button onClick={onSave} disabled={busy || nodes.length === 0} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">
-            <Save size={14} /> {t('pipeline.save')}
-          </button>
-          {runActive ? (
-            <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-amber-600 text-white">
-              <Ban size={14} /> {t('pipeline.cancel')}
-            </button>
-          ) : (
-            <button
-              onClick={onRun}
-              disabled={busy || !savedId || validationIssues.length > 0}
-              title={validationIssues.length > 0 ? validationIssues.map((i) => i.message).join('\n') : undefined}
-              className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50"
-            >
-              <Play size={14} /> {t('pipeline.run')}
-            </button>
-          )}
-          {savedId && runs.length > 0 && (
-            <div className="flex items-center gap-1 ml-2">
-              <History size={14} className="text-zinc-400" />
-              <select
-                onChange={(e) => onSelectRun(e.target.value)}
-                value={runId && runs.some((r) => r.runId === runId) ? runId : ''}
-                aria-label={t('pipeline.runHistory')}
-                className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
-              >
-                <option value="">{t('pipeline.history')}</option>
-                {runs.map((r) => (
-                  <option key={r.runId} value={r.runId}>
-                    {r.status || t('pipeline.runLabel')}{r.startedUtc ? ` · ${r.startedUtc.slice(11, 19)}` : ''}
-                  </option>
-                ))}
-              </select>
-              {chosenRunRequest && (
-                <Link
-                  to={`/requests?entry=${encodeURIComponent(chosenRunRequest)}`}
-                  title={t('pipeline.openRequestTitle')}
-                  className="flex items-center gap-1 px-2 py-1 text-sm rounded text-blue-600 hover:underline"
-                >
-                  <ArrowLeftRight size={14} /> {t('pipeline.openRequest')}
-                </Link>
-              )}
-            </div>
-          )}
-          {dirty ? (
-            <span className="text-xs text-amber-600">{t('pipeline.unsavedChanges')}</span>
-          ) : savedId ? (
-            <span className="text-xs text-green-600">{t('pipeline.saved')}</span>
-          ) : null}
-          {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
-        </div>
-        {parameterKeys.length > 0 && (
-          <div className="flex items-center gap-3 px-2 py-1 border-b border-zinc-200 dark:border-zinc-700 text-xs">
-            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.parameters')}</span>
-            {parameterKeys.map((k) => (
-              <label key={k} className="flex items-center gap-1">
-                <span className="font-mono text-zinc-600 dark:text-zinc-300">{k}</span>
-                <input
-                  value={runParameterValues[k] ?? ''}
-                  onChange={(e) => setRunParameterValues((v) => ({ ...v, [k]: e.target.value }))}
-                  className="w-28 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
-                />
-              </label>
-            ))}
-          </div>
-        )}
+        <PipelineToolbar
+          name={drawing.name}
+          onNameChange={drawing.setName}
+          canUndo={drawing.canUndo}
+          dirty={drawing.dirty}
+          busy={drawing.busy}
+          nodeCount={nodes.length}
+          savedId={savedId}
+          findings={drawing.validationIssues}
+          runActive={run.runActive}
+          runs={run.runs}
+          runId={run.runId}
+          chosenRunRequest={run.chosenRunRequest}
+          error={error}
+          onNew={onNew}
+          onUndo={drawing.onUndo}
+          onSave={onSave}
+          onRun={run.onRun}
+          onCancel={run.onCancel}
+          onSelectRun={run.onSelectRun}
+        />
+        <RunParametersBar parameterKeys={run.parameterKeys} values={run.runParameterValues} onChange={run.setRunParameter} />
         <div className="flex-1 relative">
           <ReactFlow
-            nodes={canvasNodes}
-            edges={canvasEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeDragStart={onNodeDragStart}
-            onNodesDelete={onNodesDelete}
-            onEdgesDelete={onEdgesDelete}
-            onNodeClick={(_, node) => { setSelectedNodeId(node.id); setSelectedEdgeId(null); }}
-            onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNodeId(null); }}
-            onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); }}
+            nodes={drawing.canvasNodes}
+            edges={drawing.canvasEdges}
+            onNodesChange={drawing.onNodesChange}
+            onEdgesChange={drawing.onEdgesChange}
+            onConnect={drawing.onConnect}
+            onNodeDragStart={drawing.onNodeDragStart}
+            onNodesDelete={drawing.onNodesDelete}
+            onEdgesDelete={drawing.onEdgesDelete}
+            onNodeClick={(_, node) => selection.selectNode(node.id)}
+            onEdgeClick={(_, edge) => selection.selectEdge(edge.id)}
+            onPaneClick={clearSelection}
             nodeTypes={nodeTypes}
             colorMode={theme}
             fitView
@@ -660,83 +142,45 @@ export function PipelinePage() {
               key={selectedNode.id}
               nodeId={selectedNode.id}
               data={selectedNode.data as unknown as PipelineNodeData}
-              wiredInputs={wiredInputs}
-              offeredByPort={offeredByPort}
-              widerList={widerList}
-              onWiden={setWidened}
-              nameOf={nameOf}
-              standsForOptions={standsForOptions}
-              onSetStandsFor={setStandsFor}
-              onSetPorts={setDeclaredPorts}
-              onSetBinding={setBinding}
-              onSetChosen={setChosen}
-              onSetChoices={setChoices}
-              onSetRule={setRule}
-              onClose={() => setSelectedNodeId(null)}
+              wiredInputs={selection.wiredInputs}
+              offeredByPort={selection.offeredByPort}
+              widerList={selection.widerList}
+              onWiden={selection.setWidened}
+              nameOf={selection.nameOf}
+              standsForOptions={selection.standsForOptions}
+              onSetStandsFor={drawing.setStandsFor}
+              onSetPorts={drawing.setDeclaredPorts}
+              onSetBinding={drawing.setBinding}
+              onSetChosen={drawing.setChosen}
+              onSetChoices={drawing.setChoices}
+              onSetRule={drawing.setRule}
+              onClose={selection.closeNodeInspector}
             />
           )}
           {selectedEdge && (
             <WireInspector
               wireId={selectedEdge.id}
-              fromPortName={portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
-              toPortName={portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
+              fromPortName={selection.portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
+              toPortName={selection.portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
               paths={(selectedEdge.data as WireData | undefined) ?? {}}
-              onSetPath={setEdgePath}
-              results={resultsOf(selectedEdge.source)}
+              onSetPath={drawing.setEdgePath}
+              results={selection.resultsOf(selectedEdge.source)}
               takenOn={takenOnOf((selectedEdge.data as WireData | undefined)?.takenOn, model)}
-              onSetTakenOn={setEdgeTakenOn}
-              onClose={() => setSelectedEdgeId(null)}
+              onSetTakenOn={drawing.setEdgeTakenOn}
+              onClose={selection.closeWireInspector}
             />
           )}
-          {nodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
-                {connections.length > 0 ? (
-                  <>
-                    <MousePointerClick className="mx-auto mb-2 text-zinc-400" size={28} />
-                    <p className="font-medium text-zinc-600 dark:text-zinc-300">{t('pipeline.startTitle')}</p>
-                    <p className="mt-1">{t('pipeline.startBody')}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium text-zinc-600 dark:text-zinc-300">{t('pipeline.noServicesTitle')}</p>
-                    <p className="mt-1">{t('pipeline.noServicesBody')}</p>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          {nodes.length === 0 && <EmptyCanvasHint hasServices={connections.length > 0} />}
         </div>
-        {(validationIssues.length > 0 || runId) && (
-          <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 text-xs max-h-40 overflow-auto">
-            {validationIssues.length > 0 && (
-              <ul aria-label={t('pipeline.findings')} className="mb-1 space-y-0.5">
-                {validationIssues.map((issue, i) => (
-                  <li key={i} className="flex items-start gap-1 text-amber-700 dark:text-amber-400">
-                    <AlertTriangle size={12} className="mt-0.5 shrink-0" /> <span>{issue.message}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {runId && (
-              <>
-                <div className={clsx('font-semibold', RUN_STATUS_COLOR[liveRunStatus ?? 'running'] ?? 'text-blue-600')}>
-                  {t('pipeline.runStatus', { status: liveRunStatus ?? t('pipeline.starting') })}{runActive ? '…' : ''}
-                </div>
-                {nodes.map((n) => {
-                  const d = n.data as unknown as PipelineNodeData;
-                  return (
-                    <div key={n.id} className="font-mono">
-                      {t('pipeline.nodeStatus', { label: d.label, status: d.status ?? t('pipeline.pending') })}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        )}
+        <FindingsAndRunPanel
+          findings={drawing.validationIssues}
+          runId={run.runId}
+          liveRunStatus={run.liveRunStatus}
+          runActive={run.runActive}
+          nodes={nodes}
+        />
       </div>
-      <OutputRail outputs={outputs} connections={connections} onPlaceOutput={placeOutput} onAddService={addNode} />
+      <OutputRail outputs={outputs} connections={connections} onPlaceOutput={drawing.placeOutput} onAddService={drawing.addNode} />
     </div>
   );
 }

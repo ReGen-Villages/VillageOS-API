@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
 using vos.Service.Shared;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.EnergyBalance.Tests;
@@ -23,16 +24,11 @@ public class EnergyBalanceReactiveHandlerTests
 
     private static readonly DateTime WorkedOut = new(2031, 6, 1, 9, 30, 0, DateTimeKind.Utc);
 
-    private sealed class FixedTime(DateTime now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => new(now);
-    }
-
     private static EnergyBalanceReactiveHandler NewHandler(
         RecordingHttpMessageHandler http, ILogger<EnergyBalanceReactiveHandler>? logger = null) =>
         new(new TestHttpClientFactory(new HttpClient(http)),
             logger ?? NullLogger<EnergyBalanceReactiveHandler>.Instance,
-            "http://mycelium", new ModelClock(new FixedTime(WorkedOut)), launchToken: new LaunchToken("test-token"));
+            "http://mycelium", new ModelClock(new FakeTimeProvider(new DateTimeOffset(WorkedOut))), launchToken: new LaunchToken("test-token"));
 
     private static IReadOnlyList<RecordedRequest> Writes(RecordingHttpMessageHandler http) =>
         http.Requests.Where(request => request.Method == HttpMethod.Post).ToList();

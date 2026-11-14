@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
 using vos.Service.Shared;
 
@@ -65,7 +64,7 @@ public sealed class CoverageLedger
                 // than undone: dropping it would make a model missing the vocabulary discover nothing
                 // at all, which is worse than the once-ever discovery this replaces.
                 outstanding.Add(new OutstandingCall(
-                    source, call, await MintAsync(source, call, coverage.Vocabulary, cancellationToken), 0));
+                    source, call, await WriteRecordAsync(source, call, coverage.Vocabulary, cancellationToken), 0));
             }
 
         return outstanding;
@@ -141,35 +140,37 @@ public sealed class CoverageLedger
 
     // Stamped whatever the run found, including nothing: a Thing no source covers was looked at, and
     // saying so is what tells it apart from one still waiting to be.
-    public Task StampWorkedOutAsync(Guid thingId, CancellationToken cancellationToken)
+    public Task<bool> StampWorkedOutAsync(Guid thingId, CancellationToken cancellationToken)
         => _writer.WriteFactAsync(
             thingId, CoverageMatchedAtProperty, _clock.GetUtcNow().UtcDateTime, cancellationToken);
 
-    // Minted and related in one step, because a Thing left unrelated reaches neither its subject nor its
-    // source and no later run can tell it from one that was never minted.
-    private async Task<Guid?> MintAsync(
+    // Worked out from the subject and the source, so a call planned twice before its answer lands, by a retried step
+    // or by two runs at once, writes one record rather than two.
+    public static Guid RecordIdentifierFor(Guid subjectId, Guid sourceId)
+    {
+        Span<byte> buffer = stackalloc byte[48];
+        subjectId.TryWriteBytes(buffer[..16]);
+        sourceId.TryWriteBytes(buffer[16..32]);
+        RecordIdentifierSeed.TryWriteBytes(buffer[32..]);
+        return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
+    }
+
+    // Keeps a record's identifier apart from any other identifier worked out from the same two Things.
+    private static readonly Guid RecordIdentifierSeed = new("0c5e7a9b-3f1d-4e62-9a8b-75790c0e0000");
+
+    private async Task<Guid?> WriteRecordAsync(
         CoveringSource source, SourceCall call, CoverageVocabulary? vocabulary, CancellationToken cancellationToken)
     {
         if (vocabulary == null) return null;
 
-        var minted = await _writer.MintAsync($"{call.SubjectName} × {source.Name}", cancellationToken);
-        if (minted == null)
-        {
-            _logger.LogError("Could not mint the coverage of {Subject} by {Source}; the call stays outstanding",
-                call.SubjectName, source.Name);
-            return null;
-        }
+        var recordId = RecordIdentifierFor(call.SubjectId, source.SourceId);
+        if (await _writer.WriteCoverageAsync(recordId, $"{call.SubjectName} × {source.Name}",
+                [(vocabulary.Is, vocabulary.Archetype), (vocabulary.AppliesTo, call.SubjectId), (vocabulary.SourcedFrom, source.SourceId)],
+                cancellationToken))
+            return recordId;
 
-        var related =
-            await _writer.RelateAsync(minted.Value, vocabulary.Is, vocabulary.Archetype, cancellationToken)
-            && await _writer.RelateAsync(minted.Value, vocabulary.AppliesTo, call.SubjectId, cancellationToken)
-            && await _writer.RelateAsync(minted.Value, vocabulary.SourcedFrom, source.SourceId, cancellationToken);
-
-        if (related) return minted;
-
-        _logger.LogError(
-            "Minted the coverage of {Subject} by {Source} and could not relate it; it records nothing and " +
-            "the call stays outstanding", call.SubjectName, source.Name);
+        _logger.LogError("Could not write the coverage of {Subject} by {Source}; the call stays outstanding",
+            call.SubjectName, source.Name);
         return null;
     }
 }

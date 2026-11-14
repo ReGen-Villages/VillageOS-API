@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
 using vos.Service.Shared.Subscriptions;
 
@@ -29,14 +28,15 @@ public sealed class VocabularyEdgeWriter
         _logger = logger;
     }
 
-    public async Task ResolveAsync(Guid siteId, DiscoveryReport report, CancellationToken cancellationToken)
+    // Null where the declarations could not be read, which is not the same as no word resolving.
+    public async Task<WordsResolved?> ResolveAsync(DiscoveryReport report, CancellationToken cancellationToken)
     {
         var fetched = report.Resolved
             .Where(outcome => outcome.SubjectId is not null && outcome.Written is { Count: > 0 })
             .Select(outcome => new FetchedWords(
                 outcome.SubjectId!.Value, outcome.Source, outcome.Written!))
             .ToList();
-        if (fetched.Count == 0) return;
+        if (fetched.Count == 0) return new WordsResolved([], [], []);
 
         if (await ReadDeclarationsAsync(fetched, cancellationToken) is not { } snapshot)
         {
@@ -44,9 +44,9 @@ public sealed class VocabularyEdgeWriter
             // run, so nothing retries this by itself — said out loud rather than left as words that
             // quietly never became relationships.
             _logger.LogError(
-                "Could not read the vocabulary declarations for site {SiteId}; the fetched words stay "
-                + "unresolved until the next discovery run", siteId);
-            return;
+                "Could not read the vocabulary declarations for {Subjects}; the fetched words stay "
+                + "unresolved until the next discovery run", string.Join(", ", fetched.Select(words => words.SubjectId).Distinct()));
+            return null;
         }
 
         var resolution = DiscoveredVocabularyResolver.Resolve(snapshot, fetched);
@@ -58,11 +58,14 @@ public sealed class VocabularyEdgeWriter
                 unresolved.Source, unresolved.Word, unresolved.SubjectName,
                 unresolved.Property, unresolved.Vocabulary);
 
+        var written = new List<PlannedVocabularyEdge>();
+        var notWritten = new List<PlannedVocabularyEdge>();
         foreach (var edge in resolution.Edges)
-            await WriteAsync(edge, cancellationToken);
+            (await WriteAsync(edge, cancellationToken) ? written : notWritten).Add(edge);
+        return new WordsResolved(written, notWritten, resolution.Unresolved);
     }
 
-    private async Task WriteAsync(PlannedVocabularyEdge edge, CancellationToken cancellationToken)
+    private async Task<bool> WriteAsync(PlannedVocabularyEdge edge, CancellationToken cancellationToken)
     {
         foreach (var stale in edge.Replaces)
             if (!await _mycelium.DeleteRelationshipAsync(stale, cancellationToken))
@@ -72,15 +75,19 @@ public sealed class VocabularyEdgeWriter
                 _logger.LogError(
                     "Could not remove the stale vocabulary edge {RelationshipId} from {Subject}; "
                     + "'{Word}' stays unresolved", stale, edge.SubjectName, edge.Word);
-                return;
+                return false;
             }
 
         if (await _mycelium.CreateRelationshipAsync(
                 edge.SubjectId, edge.PredicateId, edge.MemberId, cancellationToken))
+        {
             _logger.LogInformation("Resolved '{Word}' into an edge for {Subject}", edge.Word, edge.SubjectName);
-        else
-            _logger.LogError("Could not relate {Subject} to the member '{Word}' names; the word stays "
-                + "unresolved until the next discovery run", edge.SubjectName, edge.Word);
+            return true;
+        }
+
+        _logger.LogError("Could not relate {Subject} to the member '{Word}' names; the word stays "
+            + "unresolved until the next discovery run", edge.SubjectName, edge.Word);
+        return false;
     }
 
     private async Task<SnapshotDocument?> ReadDeclarationsAsync(
@@ -120,3 +127,10 @@ public sealed class VocabularyEdgeWriter
         }
     }
 }
+
+// What resolving a run's words came to: the relationships written, those that would not go, and the words no
+// member of their vocabulary is named by.
+public sealed record WordsResolved(
+    IReadOnlyList<PlannedVocabularyEdge> Written,
+    IReadOnlyList<PlannedVocabularyEdge> NotWritten,
+    IReadOnlyList<UnresolvedWord> Unknown);

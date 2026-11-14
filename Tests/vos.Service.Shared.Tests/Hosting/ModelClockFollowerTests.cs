@@ -1,9 +1,8 @@
-using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.Shared.Tests.Hosting;
@@ -25,19 +24,7 @@ public class ModelClockFollowerTests
             Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, failure));
     }
 
-    // A clock this test moves by hand, so "has it moved against this machine" is a question about the
-    // readings rather than about how long the agent took between two calls.
-    private sealed class SteppingClock(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset _now = now;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan elapsed) => _now += elapsed;
-    }
-
-    private static async IAsyncEnumerable<ModelTimeReading> Announcing(
-        IEnumerable<ModelTimeReading> readings, [EnumeratorCancellation] CancellationToken cancellation = default)
+    private static async IAsyncEnumerable<ModelTimeReading> Announcing(IEnumerable<ModelTimeReading> readings)
     {
         foreach (var reading in readings)
         {
@@ -47,7 +34,7 @@ public class ModelClockFollowerTests
     }
 
     private static Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> Broker(params ModelTimeReading[] readings) =>
-        cancellation => Announcing(readings, cancellation);
+        _ => Announcing(readings);
 
     private static ModelClockFollower NewFollower(
         ModelClock clock, Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> listen,
@@ -113,7 +100,7 @@ public class ModelClockFollowerTests
         var captured = new Captured();
         var answering = false;
         var follower = NewFollower(new ModelClock(),
-            cancellation => Announcing(answering ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation), captured);
+            _ => Announcing(answering ? [new ModelTimeReading(ModelInstant, 1)] : []), captured);
 
         await ListenOnceAsync(follower);
         await ListenOnceAsync(follower);
@@ -133,7 +120,7 @@ public class ModelClockFollowerTests
         // follower says the standing again only where it changed, and whether it changed must not depend
         // on how long the agent took.
         var follower = NewFollower(
-            new ModelClock(new SteppingClock(DateTimeOffset.UtcNow)), Broker(new ModelTimeReading(ModelInstant, 1)), captured);
+            new ModelClock(new FakeTimeProvider(DateTimeOffset.UtcNow)), Broker(new ModelTimeReading(ModelInstant, 1)), captured);
 
         await ListenOnceAsync(follower);
         await ListenOnceAsync(follower);
@@ -146,7 +133,7 @@ public class ModelClockFollowerTests
     {
         var connections = 0;
         var follower = NewFollower(new ModelClock(),
-            cancellation => Announcing(Interlocked.Increment(ref connections) > 0 ? [new ModelTimeReading(ModelInstant, 1)] : [], cancellation),
+            _ => Announcing(Interlocked.Increment(ref connections) > 0 ? [new ModelTimeReading(ModelInstant, 1)] : []),
             reconnectDelay: TimeSpan.FromMilliseconds(10));
 
         await follower.StartAsync(CancellationToken.None);

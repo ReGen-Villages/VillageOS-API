@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Shared.Tests;

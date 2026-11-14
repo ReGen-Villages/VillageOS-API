@@ -1,5 +1,5 @@
 using FluentAssertions;
-using vos.Service.Intake;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -10,7 +10,7 @@ public class AddressVerificationTests
 {
     private const string Address = "ana.ferreira@example.pt";
 
-    private static MovableClock AClock() => new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
+    private static FakeTimeProvider AClock() => new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
 
     [Fact]
     public void The_code_that_was_sent_is_the_one_accepted()

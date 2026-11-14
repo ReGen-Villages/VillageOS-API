@@ -20,7 +20,8 @@ public abstract class DagNodeService : MyceliumClientBase
     public abstract IReadOnlyList<PortDescriptor> Ports { get; }
 
     // Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
-    // {result:"fail",error}, never as an unhandled 500.
+    // {result:"fail",error}, never as an unhandled 500. Throw NodeFailedException for a failure answer carrying outputs,
+    // and FailureCanBeTriedAgainException for one the orchestrator may try again.
     protected abstract Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken);
 
     // True iff root is a DAG-node invocation (carries both runId and
@@ -48,6 +49,13 @@ public abstract class DagNodeService : MyceliumClientBase
             var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs);
             var result = await ExecuteNodeAsync(context, cancellationToken);
             return new NodeResponse(NodeResponse.Succeeded, result.Outputs, null);
+        }
+        catch (NodeFailedException failure)
+        {
+            var again = failure as FailureCanBeTriedAgainException;
+            Logger.LogWarning("DAG node {NodeId} (run {RunId}) failed: {Reason} (may be tried again: {MayBeTriedAgain})",
+                request.NodeId, request.RunId, failure.Message, again is not null);
+            return new NodeResponse(NodeResponse.Failed, failure.Outputs, failure.Message, again is null ? null : new RetryAnswer(again.Wait?.TotalSeconds));
         }
         catch (Exception ex)
         {

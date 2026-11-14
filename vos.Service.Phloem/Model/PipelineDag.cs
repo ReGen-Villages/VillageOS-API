@@ -27,13 +27,23 @@ public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId
 // The pipeline an end node stands for: a run reaching the end starts a run of it with what reached the end.
 public sealed record Starting(Guid PipelineId, string PipelineName);
 
-// How a node keeps calling a service it cannot reach: how many attempts, the pause before the second in model
-// minutes, the multiplier the pause grows by each attempt, the fraction of the pause added at random, and how long
-// trying may last from the first attempt.
+// How a node keeps calling a service it cannot reach, or one that answered its failure can be tried again: how many
+// attempts, the pause before the second in model minutes, the multiplier the pause grows by each attempt, the
+// fraction of the pause added at random, and how long trying may last from the first attempt.
 public sealed record RetryPolicy(int Attempts, double PauseMinutes, double PauseGrowth, double PauseSpread, double TryingMinutes)
 {
     public TimeSpan PauseBefore(int attemptNumber, double spreadDraw) =>
         TimeSpan.FromMinutes(PauseMinutes * Math.Pow(PauseGrowth, attemptNumber - 2) * (1 + PauseSpread * spreadDraw));
+
+    // The asked wait is real time, so it is turned into model time at the clock's rate; a clock standing still takes
+    // a pause in real time.
+    public TimeSpan PauseBefore(int attemptNumber, double spreadDraw, TimeSpan? asked, double clockRate)
+    {
+        var pause = PauseBefore(attemptNumber, spreadDraw);
+        if (asked is not { } wait) return pause;
+        var askedInModelTime = wait * (clockRate > 0 ? clockRate : 1);
+        return askedInModelTime > pause ? askedInModelTime : pause;
+    }
 
     public TimeSpan TryingTime => TimeSpan.FromMinutes(TryingMinutes);
 }

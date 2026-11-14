@@ -91,13 +91,6 @@ export interface VosRelationship {
   Properties: Record<string, unknown>;
 }
 
-export interface VosModel {
-  Id?: string;
-  Name?: string;
-  Things: VosThing[];
-  Relationships: VosRelationship[];
-}
-
 export interface ModelSummary {
   Id: string;
   Name: string;

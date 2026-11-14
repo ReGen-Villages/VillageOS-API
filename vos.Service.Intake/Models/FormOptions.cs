@@ -4,13 +4,16 @@ namespace vos.Service.Intake.Models;
 // model for itself: the programme categories a submission may name, the imagery a map may draw on,
 // the split a page offers before anybody has stated a programme, whether the position lookups —
 // the parcel boundary at a point, and place names for a typed search — are registered, so a page draws
-// only what the model can honour, and what each offered term is called in each language the model
-// states.
+// only what the model can honour, the kinds a layer file's shapes may be given, and what each offered term
+// is called in each language the model states.
 public sealed record FormOptions(
     IReadOnlyList<string> AllocationCategories, IReadOnlyList<DeclaredBasemapSource> BasemapSources,
     IReadOnlyList<string> HazardTypes, IReadOnlyList<string> HazardLevels,
     IReadOnlyList<DeclaredShare> DefaultProgramme, bool ParcelLookup, bool PlaceSearch,
-    IReadOnlyList<DeclaredTheme> Themes, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording);
+    IReadOnlyList<DeclaredTheme> Themes, IReadOnlyList<DeclaredLayerKind> LayerKinds,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording);
+
+public sealed record DeclaredLayerKind(string Name, string? Colour);
 
 // A theme a section of the report may name, as the model declares it: the colour that faces
 // its tile, the icon the page draws on it, and its place in the grid. Each is absent where the model

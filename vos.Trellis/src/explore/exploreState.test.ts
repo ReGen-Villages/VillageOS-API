@@ -33,6 +33,7 @@ const options: FormOptions = {
   placeSearch: true,
   wording: {},
   themes: [],
+  layerKinds: [],
 };
 
 describe('the exploration before anything is posted', () => {

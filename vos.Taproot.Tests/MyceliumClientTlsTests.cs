@@ -1,7 +1,4 @@
-using System;
-using System.Net.Http;
 using FluentAssertions;
-using vos.Taproot;
 using Xunit;
 
 namespace vos.Taproot.Tests;

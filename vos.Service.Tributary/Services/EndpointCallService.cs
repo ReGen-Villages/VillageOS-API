@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
 using vos.Service.Shared.Subscriptions;
@@ -147,207 +147,227 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
-        // What a kind requires is checked before any mechanism reads its settings, so an endpoint
-        // that under-supplies is refused in the kind's words rather than the mechanism's. The body
-        // kind comes before the reshape, which refuses a transform over bytes. Each clash check comes
-        // after the last thing it combines, so an unimplemented kind is refused as such and never as
-        // a clash with something it is not. Everything else is in the order the properties are read.
-        var kinds = EndpointKinds.Reached(endpoint.Kinds);
+        if (!TryPlanCall(request, thing.Value.Id, effective, EndpointKinds.Reached(endpoint.Kinds), out var plan, out var refusal))
+            return refusal.ToResult();
 
-        if (EndpointCallChecks.UnmetRequirement(kinds, effective) is { } unmet)
-            return unmet.ToResult();
-        if (!EndpointCallChecks.TryBodyKind(kinds.Body, out var binaryResponse, out var refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryAddress(effective, request.AddressParameters, out var address, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryReshape(effective, request.ResponseTransform, binaryResponse, out var reshape, out refusal))
-            return refusal.ToResult();
-        if (!string.IsNullOrWhiteSpace(reshape.Registered))
-            _logger.LogInformation("Endpoint {EndpointName} responseTransform: {Transform}", request.EndpointName, reshape.Registered);
-        if (!EndpointCallChecks.TryOptionalMap(effective, "headers", out var headers, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryOptionalMap(effective, "queryParams", out var queryParams, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryRequestContentType(effective, out var requestContentType, out refusal))
-            return refusal.ToResult();
-        // Optional Accept for content-negotiating upstreams (e.g. image/tiff from an ImageServer);
-        // a dedicated structural key like requestContentType, not an entry in the headers map.
-        if (!EndpointCallChecks.TryOptionalText(effective, "acceptHeader", out var acceptHeader, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryTimeout(effective, out var statedTimeout, out refusal))
-            return refusal.ToResult();
-        if (statedTimeout is { } stated)
-            _passedOnRequestLimit.WarnOnceWhenNotShorter(thing.Value.Id, request.EndpointName, stated);
-        var timeout = statedTimeout ?? OutboundRequest.DefaultTimeout;
-        if (!EndpointCallChecks.TryUnavailability(effective, _unavailability, out var unavailability, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryCredential(kinds.Authentication, effective, out var credentialPlan, out refusal))
-            return refusal.ToResult();
-        if (!EndpointCallChecks.TryPaging(kinds.Paging, effective, out var pageConfig, out refusal))
-            return refusal.ToResult();
-        if (EndpointCallChecks.PagingClash(kinds, binaryResponse, pageConfig) is { } pagingClash)
-            return pagingClash.ToResult();
-        if (!EndpointCallChecks.TryCaching(kinds.Caching, effective, out var cacheFor, out refusal))
-            return refusal.ToResult();
-        if (EndpointCallChecks.CachingClash(kinds, cacheFor, pageConfig, address.Method, request.Body) is { } cachingClash)
-            return cachingClash.ToResult();
-        if (!EndpointCallChecks.TryKeeping(kinds.Keeping, effective, request.AddressParameters, out var keep, out refusal))
-            return refusal.ToResult();
-        if (EndpointCallChecks.KeepingClash(kinds, keep, pageConfig) is { } keepingClash)
-            return keepingClash.ToResult();
-
-        var endpointUri = address.Uri;
-        var normalizedMethod = address.Method;
         deadline.Awaiting = AwaitedStep.DataSource;
 
         try
         {
-            // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
-            // upstream message can name the credential and must not leak; the real one is logged.
-            var credential = credentialPlan?.PreMinted;
-            if (credentialPlan?.Fetch is { } tokenFetch)
+            var (outbound, tokenFailure) = await PrepareOutboundAsync(request, plan, deadline);
+            if (outbound is null)
+                return tokenFailure!;
+
+            if (plan.BinaryResponse)
+                return await CallBinaryAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
+            if (outbound.Cached is { } cachedText)
+                return await AnswerTextAsync(request, plan, thing.Value.Id, endpoint.Observed,
+                    new ProviderAnswer<string>(200, Encoding.UTF8.GetString(cachedText.Bytes), cachedText.ContentType, null), deadline);
+            if (plan.Paging != null)
+                return await CallPagedAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
+            return await CallOnceAsync(request, plan, outbound, thing.Value.Id, endpoint.Observed, deadline);
+        }
+        catch (Exception exception) when (!deadline.HasPassed)
+        {
+            _logger.LogError(exception, "Endpoint call failed for {EndpointName}", request.EndpointName);
+            return Problem(502, "Endpoint call failed", exception.Message);
+        }
+    }
+
+    // What a kind requires is checked before any mechanism reads its settings, so an endpoint
+    // that under-supplies is refused in the kind's words rather than the mechanism's. The body
+    // kind comes before the reshape, which refuses a transform over bytes. Each clash check comes
+    // after the last thing it combines, so an unimplemented kind is refused as such and never as
+    // a clash with something it is not. Everything else is in the order the properties are read.
+    private bool TryPlanCall(
+        EndpointCallRequest request,
+        Guid endpointThingId,
+        IReadOnlyDictionary<string, JsonElement> effective,
+        EndpointKinds kinds,
+        [NotNullWhen(true)] out EndpointCallPlan? plan,
+        [NotNullWhen(false)] out Refusal? refusal)
+    {
+        plan = null;
+
+        refusal = EndpointCallChecks.UnmetRequirement(kinds, effective);
+        if (refusal is not null)
+            return false;
+        if (!EndpointCallChecks.TryBodyKind(kinds.Body, out var binaryResponse, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryAddress(effective, request.AddressParameters, out var address, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryReshape(effective, request.ResponseTransform, binaryResponse, out var reshape, out refusal))
+            return false;
+        if (!string.IsNullOrWhiteSpace(reshape.Registered))
+            _logger.LogInformation("Endpoint {EndpointName} responseTransform: {Transform}", request.EndpointName, reshape.Registered);
+        if (!EndpointCallChecks.TryOptionalMap(effective, "headers", out var headers, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryOptionalMap(effective, "queryParams", out var queryParameters, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryRequestContentType(effective, out var requestContentType, out refusal))
+            return false;
+        // Optional Accept for content-negotiating upstreams (e.g. image/tiff from an ImageServer);
+        // a dedicated structural key like requestContentType, not an entry in the headers map.
+        if (!EndpointCallChecks.TryOptionalText(effective, "acceptHeader", out var acceptHeader, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryTimeout(effective, out var statedTimeout, out refusal))
+            return false;
+        if (statedTimeout is { } stated)
+            _passedOnRequestLimit.WarnOnceWhenNotShorter(endpointThingId, request.EndpointName!, stated);
+        if (!EndpointCallChecks.TryUnavailability(effective, _unavailability, out var unavailability, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryCredential(kinds.Authentication, effective, out var credential, out refusal))
+            return false;
+        if (!EndpointCallChecks.TryPaging(kinds.Paging, effective, out var paging, out refusal))
+            return false;
+        refusal = EndpointCallChecks.PagingClash(kinds, binaryResponse, paging);
+        if (refusal is not null)
+            return false;
+        if (!EndpointCallChecks.TryCaching(kinds.Caching, effective, out var cacheFor, out refusal))
+            return false;
+        refusal = EndpointCallChecks.CachingClash(kinds, cacheFor, paging, address.Method, request.Body);
+        if (refusal is not null)
+            return false;
+        if (!EndpointCallChecks.TryKeeping(kinds.Keeping, effective, request.AddressParameters, out var keep, out refusal))
+            return false;
+        refusal = EndpointCallChecks.KeepingClash(kinds, keep, paging);
+        if (refusal is not null)
+            return false;
+
+        plan = new EndpointCallPlan(
+            address, binaryResponse, reshape, headers, queryParameters, requestContentType, acceptHeader,
+            statedTimeout ?? OutboundRequest.DefaultTimeout, unavailability, credential, paging, cacheFor, keep);
+        return true;
+    }
+
+    private sealed record EndpointCallPlan(
+        EndpointAddress Address,
+        bool BinaryResponse,
+        Reshape Reshape,
+        IReadOnlyDictionary<string, string>? Headers,
+        IReadOnlyDictionary<string, string>? QueryParameters,
+        string RequestContentType,
+        string? AcceptHeader,
+        TimeSpan Timeout,
+        ProviderUnavailability Unavailability,
+        Credential? Credential,
+        OffsetPaginationConfig? Paging,
+        TimeSpan? CacheFor,
+        KeepPlan? Keep);
+
+    private async Task<(OutboundCall? Call, EndpointCallResult? TokenFailure)> PrepareOutboundAsync(
+        EndpointCallRequest request, EndpointCallPlan plan, PassedOnRequestDeadline deadline)
+    {
+        // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
+        // upstream message can name the credential and must not leak; the real one is logged.
+        var credential = plan.Credential?.PreMinted;
+        if (plan.Credential?.Fetch is { } tokenFetch)
+        {
+            try
             {
-                try
-                {
-                    credential = await _tokenExchangeCache.GetTokenAsync(tokenFetch, cancellationToken);
-                }
-                catch (Exception tokenEx) when (!deadline.HasPassed)
-                {
-                    _logger.LogError(tokenEx, "Token acquisition failed for {EndpointName}", request.EndpointName);
-                    return Problem(502, "Token acquisition failed", "Failed to obtain an authentication token for the endpoint.");
-                }
+                credential = await _tokenExchangeCache.GetTokenAsync(tokenFetch, deadline.Token);
             }
-
-            var effectiveQueryParams = queryParams != null
-                ? new Dictionary<string, string>(queryParams, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var effectiveHeaders = headers != null
-                ? new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrEmpty(credential))
+            catch (Exception exception) when (!deadline.HasPassed)
             {
-                if (!string.IsNullOrEmpty(credentialPlan!.Header))
-                    effectiveHeaders[credentialPlan.Header] = string.IsNullOrEmpty(credentialPlan.Scheme)
-                        ? credential
-                        : $"{credentialPlan.Scheme} {credential}";
-                else
-                    effectiveQueryParams[credentialPlan.Param] = credential;
+                _logger.LogError(exception, "Token acquisition failed for {EndpointName}", request.EndpointName);
+                return (null, Problem(502, "Token acquisition failed", "Failed to obtain an authentication token for the endpoint."));
             }
+        }
 
-            // The key is the fully-resolved address — placeholders filled, query attached — plus
-            // the Accept header, since the same address can answer with different formats.
-            string? cacheKey = null;
-            CachedResponse? cached = null;
-            if (cacheFor is { } timeToLive)
-            {
-                cacheKey = DiskResponseCache.CacheKey(
-                    OutboundRequest.ApplyQueryParameters(endpointUri, effectiveQueryParams), acceptHeader);
-                cached = _diskCache.TryRead(request.EndpointName!, cacheKey, timeToLive);
-            }
-
-            if (binaryResponse)
-            {
-                if (cached is { } fromDisk)
-                    return EndpointCallResult.Body(BinaryEnvelope(fromDisk.Bytes, fromDisk.ContentType), "application/json");
-
-                // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
-                // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
-                // application/json so the result flows through existing proxying unchanged.
-                var (binaryStatus, bytes, upstreamContentType, binaryRetryAfter) = await AskedOnceMoreWhileUnavailableAsync(
-                    unavailability, request.EndpointName!,
-                    token => CallEndpointBinaryAsync(
-                        _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, token),
-                    answered => answered.StatusCode,
-                    answered => Encoding.UTF8.GetString(answered.Body),
-                    cancellationToken);
-
-                var servedContentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType;
-                if (cacheKey != null && binaryStatus is >= 200 and < 300)
-                    _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
-
-                string Words() => Encoding.UTF8.GetString(bytes);
-                if (ProviderRefused(binaryStatus) || unavailability.IsAnswered(binaryStatus, Words))
-                    return EndpointCallResult.Refused(Words(), servedContentType, binaryStatus, binaryRetryAfter);
-
-                if (keep != null && binaryStatus is >= 200 and < 300
-                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, deadline) is { } notKept)
-                    return notKept;
-
-                return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
-            }
-
-            int status;
-            string body;
-            string? contentType;
-            RetryConditionHeaderValue? retryAfter = null;
-
-            if (cached is { } cachedText)
-            {
-                status = 200;
-                body = Encoding.UTF8.GetString(cachedText.Bytes);
-                contentType = cachedText.ContentType;
-            }
-            else if (pageConfig != null)
-            {
-                var paging = pageConfig!;
-                body = await OffsetPaginator.FetchAllPagesAsync(
-                    async (offset, ct) =>
-                    {
-                        var pageParams = new Dictionary<string, string>(effectiveQueryParams, StringComparer.OrdinalIgnoreCase)
-                        {
-                            [paging.OffsetParameter] = offset.ToString(CultureInfo.InvariantCulture)
-                        };
-                        if (paging.PageSizeParameter != null && paging.PageSize is > 0)
-                            pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
-
-                        var (pageStatus, pageBody, pageContentType, pageRetryAfter) = await CallEndpointAsync(
-                            _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);
-                        if (pageStatus is < 200 or >= 300)
-                            throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, pageRetryAfter, offset);
-                        return pageBody;
-                    },
-                    paging,
-                    cancellationToken);
-                status = 200;
-                contentType = "application/json";
-            }
+        var queryParameters = plan.QueryParameters != null
+            ? new Dictionary<string, string>(plan.QueryParameters, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var headers = plan.Headers != null
+            ? new Dictionary<string, string>(plan.Headers, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(credential))
+        {
+            if (!string.IsNullOrEmpty(plan.Credential!.Header))
+                headers[plan.Credential.Header] = string.IsNullOrEmpty(plan.Credential.Scheme)
+                    ? credential
+                    : $"{plan.Credential.Scheme} {credential}";
             else
-            {
-                (status, body, contentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
-                    unavailability, request.EndpointName!,
-                    token => CallEndpointAsync(
-                        _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, token),
-                    answered => answered.StatusCode,
-                    answered => answered.Body,
-                    cancellationToken);
+                queryParameters[plan.Credential.Param] = credential;
+        }
 
-                if (cacheKey != null && status is >= 200 and < 300)
-                    _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
+        // The key is the fully-resolved address — placeholders filled, query attached — plus
+        // the Accept header, since the same address can answer with different formats.
+        string? cacheKey = null;
+        CachedResponse? cached = null;
+        if (plan.CacheFor is { } timeToLive)
+        {
+            cacheKey = DiskResponseCache.CacheKey(
+                OutboundRequest.ApplyQueryParameters(plan.Address.Uri, queryParameters), plan.AcceptHeader);
+            cached = _diskCache.TryRead(request.EndpointName!, cacheKey, timeToLive);
+        }
 
-                if (keep != null && status is >= 200 and < 300
-                    && await KeepAsync(keep, Encoding.UTF8.GetBytes(body), contentType ?? "application/json",
-                        thing.Value.Id, endpoint.Observed, deadline) is { } notKept)
-                    return notKept;
-            }
+        return (new OutboundCall(headers, queryParameters, cacheKey, cached), null);
+    }
 
-            if (ProviderRefused(status) || unavailability.IsAnswered(status, () => body))
-                return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter);
+    private sealed record OutboundCall(
+        Dictionary<string, string> Headers,
+        Dictionary<string, string> QueryParameters,
+        string? CacheKey,
+        CachedResponse? Cached);
 
-            if (reshape.Transform is { } transform && status is >= 200 and < 300)
-            {
-                deadline.Awaiting = AwaitedStep.ReadingsWrite;
-                var ingestResult = await _observationService.CreateObservationsAsync(
-                    thing.Value.Id, transform, body, request.SubjectId, endpoint.Observed, cancellationToken);
-                if (!ingestResult.Success)
-                    return new Refusal(400, ingestResult.Error ?? "Observation ingest failed.",
-                        new Dictionary<string, object?> { ["detail"] = ingestResult.Detail }).ToResult();
+    private async Task<EndpointCallResult> CallBinaryAsync(
+        EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
+        ObservedEdges observed, PassedOnRequestDeadline deadline)
+    {
+        if (outbound.Cached is { } fromDisk)
+            return EndpointCallResult.Body(BinaryEnvelope(fromDisk.Bytes, fromDisk.ContentType), "application/json");
 
-                return EndpointCallResult.Ingested(new IngestSummary(
-                    thing.Value.Id, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted,
-                    ingestResult.Written));
-            }
+        // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
+        // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
+        // application/json so the result flows through existing proxying unchanged.
+        var (status, bytes, upstreamContentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
+            plan.Unavailability, request.EndpointName!,
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadBytes, token),
+            answered => answered.StatusCode,
+            answered => Encoding.UTF8.GetString(answered.Body),
+            deadline.Token);
 
-            return EndpointCallResult.Body(body, contentType ?? "application/json");
+        var servedContentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType;
+        if (outbound.CacheKey != null && status is >= 200 and < 300)
+            _diskCache.Write(request.EndpointName!, outbound.CacheKey, bytes, servedContentType);
+
+        string Words() => Encoding.UTF8.GetString(bytes);
+        var providerAway = plan.Unavailability.IsAnswered(status, Words);
+        if (ProviderRefused(status) || providerAway)
+            return EndpointCallResult.Refused(Words(), servedContentType, status, retryAfter, providerAway);
+
+        if (plan.Keep != null && status is >= 200 and < 300
+            && await KeepAsync(plan.Keep, bytes, servedContentType, endpointThingId, observed, deadline) is { } notKept)
+            return notKept;
+
+        return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
+    }
+
+    private async Task<EndpointCallResult> CallPagedAsync(
+        EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
+        ObservedEdges observed, PassedOnRequestDeadline deadline)
+    {
+        var paging = plan.Paging!;
+        string body;
+        try
+        {
+            body = await OffsetPaginator.FetchAllPagesAsync(
+                async (offset, ct) =>
+                {
+                    var pageParams = new Dictionary<string, string>(outbound.QueryParameters, StringComparer.OrdinalIgnoreCase)
+                    {
+                        [paging.OffsetParameter] = offset.ToString(CultureInfo.InvariantCulture)
+                    };
+                    if (paging.PageSizeParameter != null && paging.PageSize is > 0)
+                        pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
+
+                    var page = await SendAsync(plan, outbound.Headers, pageParams, request.Body, ReadText, ct);
+                    if (page.StatusCode is < 200 or >= 300)
+                        throw new PageNotAnsweredException(page.StatusCode, page.Body, page.ContentType, page.RetryAfter, offset);
+                    return page.Body;
+                },
+                paging,
+                deadline.Token);
         }
         catch (PageNotAnsweredException unanswered)
         {
@@ -359,11 +379,9 @@ public sealed class EndpointCallService
                 unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode,
                 unanswered.RetryAfter);
         }
-        catch (Exception ex) when (!deadline.HasPassed)
-        {
-            _logger.LogError(ex, "Endpoint call failed for {EndpointName}", request.EndpointName);
-            return Problem(502, "Endpoint call failed", ex.Message);
-        }
+
+        return await AnswerTextAsync(request, plan, endpointThingId, observed,
+            new ProviderAnswer<string>(200, body, "application/json", null), deadline);
     }
 
     // Any page outside 2xx ends the walk, 404 included — which a single call takes for "holds
@@ -377,6 +395,59 @@ public sealed class EndpointCallService
         public string? ContentType { get; } = contentType;
         public RetryConditionHeaderValue? RetryAfter { get; } = retryAfter;
         public int Offset { get; } = offset;
+    }
+
+    private async Task<EndpointCallResult> CallOnceAsync(
+        EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
+        ObservedEdges observed, PassedOnRequestDeadline deadline)
+    {
+        var answered = await AskedOnceMoreWhileUnavailableAsync(
+            plan.Unavailability, request.EndpointName!,
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadText, token),
+            answer => answer.StatusCode,
+            answer => answer.Body,
+            deadline.Token);
+        var (status, body, contentType, _) = answered;
+
+        if (outbound.CacheKey != null && status is >= 200 and < 300)
+            _diskCache.Write(request.EndpointName!, outbound.CacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
+
+        if (plan.Keep != null && status is >= 200 and < 300
+            && await KeepAsync(plan.Keep, Encoding.UTF8.GetBytes(body), contentType ?? "application/json",
+                endpointThingId, observed, deadline) is { } notKept)
+            return notKept;
+
+        return await AnswerTextAsync(request, plan, endpointThingId, observed, answered, deadline);
+    }
+
+    private async Task<EndpointCallResult> AnswerTextAsync(
+        EndpointCallRequest request,
+        EndpointCallPlan plan,
+        Guid endpointThingId,
+        ObservedEdges observed,
+        ProviderAnswer<string> answered,
+        PassedOnRequestDeadline deadline)
+    {
+        var (status, body, contentType, retryAfter) = answered;
+        var providerAway = plan.Unavailability.IsAnswered(status, () => body);
+        if (ProviderRefused(status) || providerAway)
+            return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter, providerAway);
+
+        if (plan.Reshape.Transform is { } transform && status is >= 200 and < 300)
+        {
+            deadline.Awaiting = AwaitedStep.ReadingsWrite;
+            var ingestResult = await _observationService.CreateObservationsAsync(
+                endpointThingId, transform, body, request.SubjectId, observed, deadline.Token);
+            if (!ingestResult.Success)
+                return new Refusal(400, ingestResult.Error ?? "Observation ingest failed.",
+                    new Dictionary<string, object?> { ["detail"] = ingestResult.Detail }).ToResult();
+
+            return EndpointCallResult.Ingested(new IngestSummary(
+                endpointThingId, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted,
+                ingestResult.Written));
+        }
+
+        return EndpointCallResult.Body(body, contentType ?? "application/json");
     }
 
     // Deposit the bytes, then write the ticket the store answered onto the subject's property. Runs
@@ -440,49 +511,33 @@ public sealed class EndpointCallService
         return await ask(cancellationToken);
     }
 
-    private static async Task<(int StatusCode, string Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointAsync(
-        IHttpClientFactory httpClientFactory,
-        Uri endpointUri,
-        string method,
+    private async Task<ProviderAnswer<TBody>> SendAsync<TBody>(
+        EndpointCallPlan plan,
+        IReadOnlyDictionary<string, string> headers,
+        IReadOnlyDictionary<string, string> queryParameters,
         JsonElement body,
-        IReadOnlyDictionary<string, string>? headers,
-        IReadOnlyDictionary<string, string>? queryParameters,
-        string requestContentType,
-        string? acceptHeader,
-        TimeSpan timeout,
+        Func<HttpContent, CancellationToken, Task<TBody>> readBody,
         CancellationToken cancellationToken)
     {
-        var client = httpClientFactory.CreateClient();
-        client.Timeout = timeout;
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = plan.Timeout;
 
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
-    }
-
-    private static async Task<(int StatusCode, byte[] Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointBinaryAsync(
-        IHttpClientFactory httpClientFactory,
-        Uri endpointUri,
-        string method,
-        JsonElement body,
-        IReadOnlyDictionary<string, string>? headers,
-        IReadOnlyDictionary<string, string>? queryParameters,
-        string requestContentType,
-        string? acceptHeader,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        var client = httpClientFactory.CreateClient();
-        client.Timeout = timeout;
-
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
+        using var request = OutboundRequest.Build(
+            plan.Address.Method, plan.Address.Uri, body, headers, queryParameters, plan.RequestContentType, plan.AcceptHeader);
 
         using var response = await client.SendAsync(request, cancellationToken);
-        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        var content = await readBody(response.Content, cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
+        return new ProviderAnswer<TBody>((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
     }
+
+    // Text is read as text so it is decoded in the character set the provider declares, not assumed to be UTF-8.
+    private static readonly Func<HttpContent, CancellationToken, Task<string>> ReadText =
+        (content, cancellationToken) => content.ReadAsStringAsync(cancellationToken);
+
+    private static readonly Func<HttpContent, CancellationToken, Task<byte[]>> ReadBytes =
+        (content, cancellationToken) => content.ReadAsByteArrayAsync(cancellationToken);
+
+    private sealed record ProviderAnswer<TBody>(
+        int StatusCode, TBody Body, string? ContentType, RetryConditionHeaderValue? RetryAfter);
 }

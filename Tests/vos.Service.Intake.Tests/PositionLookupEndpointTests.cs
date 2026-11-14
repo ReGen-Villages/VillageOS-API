@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -194,6 +195,319 @@ public class PositionLookupEndpointTests
         answered.GetProperty("attribution").GetString().Should().Be(WillowBend.PlaceSearchAttribution);
     }
 
+    private const string FirstSearch = "first-place-search";
+    private const string FallbackPredicate = "triedNext";
+
+    private static DeclaredModel SearchingFirstThen() =>
+        DeclaredModel.Seeded()
+            .With(FallbackPredicate)
+            .Bound(PositionLookupReader.FallsBackToRole, FallbackPredicate)
+            .Stating(FirstSearch,
+                (PositionLookupReader.TransformProperty, WillowBend.PlaceSearchTransform),
+                (PositionLookupReader.AttributionProperty, "© the first gazetteer"))
+            .Unbound(PositionLookupReader.PlaceSearchRole)
+            .Bound(PositionLookupReader.PlaceSearchRole, FirstSearch)
+            .Relate(FirstSearch, FallbackPredicate, WillowBend.PlaceSearchName);
+
+    // Each search answers by its own name, so a test can tell which one the query reached.
+    private static IntakeWebApplicationFactory AnsweringPerSearch(
+        DeclaredModel model, Func<string, HttpResponseMessage> answerFor, List<string> asked) => new()
+    {
+        HandlerCallback = request =>
+        {
+            if (request.RequestUri!.AbsolutePath != EndpointForwardPath)
+                return ModelStub.Json(JsonSerializer.Serialize(
+                    new SnapshotReadResult(0, model.Build()), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            var name = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())
+                .RootElement.GetProperty("endpointName").GetString()!;
+            asked.Add(name);
+            return answerFor(name);
+        },
+    };
+
+    [Fact]
+    public async Task A_refused_search_hands_the_query_to_the_one_it_falls_back_to()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(),
+            name => name == FirstSearch ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : ModelStub.Json(SomePlaces),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(FirstSearch, WillowBend.PlaceSearchName);
+        (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("attribution").GetString().Should().Be(WillowBend.PlaceSearchAttribution);
+    }
+
+    [Fact]
+    public async Task A_search_that_finds_nothing_hands_the_query_on_and_one_that_finds_places_ends_the_order()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(),
+            name => ModelStub.Json(name == FirstSearch ? """{"found": []}""" : SomePlaces),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(FirstSearch, WillowBend.PlaceSearchName);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("places").GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Finding_nothing_in_every_search_is_an_answer_not_an_outage()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(SearchingFirstThen(), _ => ModelStub.Json("""{"found": []}"""), asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Nowhere at all" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("places").GetArrayLength().Should().Be(0);
+    }
+
+    private const string BorderLookup = "border-elevation";
+    private const string CentreLookup = "centre-elevation";
+    private const string ElevationTransform =
+        "{\"elevationMetres\": centre, \"elevationMinimumMetres\": low, \"elevationMaximumMetres\": high}";
+
+    private static DeclaredModel ElevationFirstThenCentre() =>
+        DeclaredModel.Seeded()
+            .With(FallbackPredicate)
+            .Bound(PositionLookupReader.FallsBackToRole, FallbackPredicate)
+            .Stating(BorderLookup,
+                (PositionLookupReader.TransformProperty, ElevationTransform),
+                (PositionLookupReader.AttributionProperty, "© the border heights"))
+            .Stating(CentreLookup,
+                (PositionLookupReader.TransformProperty, ElevationTransform),
+                (PositionLookupReader.AttributionProperty, "© the centre height"))
+            .Bound(PositionLookupReader.BorderElevationRole, BorderLookup)
+            .Relate(BorderLookup, FallbackPredicate, CentreLookup);
+
+    private static readonly object ASquareBorder = new
+    {
+        boundary = new[]
+        {
+            new { latitude = 25.00, longitude = 55.40 }, new { latitude = 25.00, longitude = 55.44 },
+            new { latitude = 25.04, longitude = 55.44 }, new { latitude = 25.04, longitude = 55.40 },
+        },
+    };
+
+    [Fact]
+    public async Task A_finished_border_answers_its_centre_and_its_lowest_and_highest_point()
+    {
+        var asked = new List<string>();
+        var sent = new List<string>();
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+            {
+                if (request.RequestUri!.AbsolutePath != EndpointForwardPath)
+                    return ModelStub.Json(JsonSerializer.Serialize(new SnapshotReadResult(0, ElevationFirstThenCentre().Build()),
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                sent.Add(body);
+                asked.Add(JsonDocument.Parse(body).RootElement.GetProperty("endpointName").GetString()!);
+                return ModelStub.Json("""{"centre": 100, "low": 84, "high": 112}""");
+            },
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        answered.GetProperty("elevationMetres").GetDouble().Should().Be(100);
+        answered.GetProperty("elevationMinimumMetres").GetDouble().Should().Be(84);
+        answered.GetProperty("elevationMaximumMetres").GetDouble().Should().Be(112);
+        answered.GetProperty("attribution").GetString().Should().Be("© the border heights");
+        asked.Should().Equal(BorderLookup);
+        JsonDocument.Parse(sent.Single()).RootElement.GetProperty("addressParameters").GetProperty("locations").GetString()
+            .Should().Be("25.02,55.42|25,55.4|25,55.44|25.04,55.44|25.04,55.4");
+    }
+
+    [Fact]
+    public async Task A_border_lookup_that_is_refused_hands_the_border_to_the_centre_lookup()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(ElevationFirstThenCentre(),
+            name => name == BorderLookup
+                ? new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                : ModelStub.Json("""{"centre": 37}"""),
+            asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        asked.Should().Equal(BorderLookup, CentreLookup);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        answered.GetProperty("elevationMetres").GetDouble().Should().Be(37);
+        answered.GetProperty("elevationMinimumMetres").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task A_model_declaring_no_elevation_lookup_answers_that_none_is_available()
+    {
+        await using var factory = Answering(providerBody: """{"centre": 100}""");
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoElevation);
+    }
+
+    [Theory]
+    [InlineData("""{"boundary": [{"latitude": 25, "longitude": 55}, {"latitude": 25.1, "longitude": 55}]}""", "boundaryTooFewCorners")]
+    [InlineData("""{"boundary": [{"latitude": 95, "longitude": 55}, {"latitude": 25.1, "longitude": 55}, {"latitude": 25.1, "longitude": 55.1}]}""", "fieldOutOfRange")]
+    [InlineData("""{}""", "boundaryTooFewCorners")]
+    public async Task A_border_a_submission_would_refuse_is_refused_before_any_provider_is_asked(string body, string code)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(ElevationFirstThenCentre(), providerBody: """{"centre": 1}""", endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/submissions/border-elevation",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(code);
+        calls.Should().BeEmpty();
+    }
+
+    private const string PlotsKind = "PlotsInViewLookup";
+    private const string PlotsRegister = "emirate-plots";
+
+    private static DeclaredModel WithPlotsRegister(bool connected = true) =>
+        DeclaredModel.Seeded()
+            .WithArchetype(PlotsKind)
+            .Bound(PositionLookupReader.PlotsInViewLookupRole, PlotsKind)
+            .Stating(PlotsRegister, [
+                .. connected ? new (string, object)[] { (PositionLookupReader.TransformProperty, "{\"plots\": found}") } : [],
+                (PositionLookupReader.AttributionProperty, "© the emirate's register"),
+                (PositionLookupReader.SouthLatitudeProperty, 24.6),
+                (PositionLookupReader.NorthLatitudeProperty, 25.4),
+                (PositionLookupReader.WestLongitudeProperty, 54.85),
+                (PositionLookupReader.EastLongitudeProperty, 56.25),
+                (PositionLookupReader.MinimumZoomProperty, 15),
+                (PositionLookupReader.MostPlotsProperty, 2)])
+            .Relate(PlotsRegister, "is", PlotsKind);
+
+    private const string ThreePlots =
+        """
+        {"found": [
+          {"identifier": "P-1", "areaHectares": 1.2, "boundary": [{"latitude": 25.01, "longitude": 55.41}, {"latitude": 25.02, "longitude": 55.41}, {"latitude": 25.02, "longitude": 55.42}]},
+          {"identifier": "P-2", "boundary": [{"latitude": 25.03, "longitude": 55.41}, {"latitude": 25.04, "longitude": 55.41}]},
+          {"identifier": "P-3", "areaHectares": 0.8, "boundary": [{"latitude": 25.05, "longitude": 55.41}, {"latitude": 25.06, "longitude": 55.41}, {"latitude": 25.06, "longitude": 55.42}]},
+          {"identifier": "P-4", "areaHectares": 0.5, "boundary": [{"latitude": 25.07, "longitude": 55.41}, {"latitude": 25.08, "longitude": 55.41}, {"latitude": 25.08, "longitude": 55.42}]}]}
+        """;
+
+    private static object ViewOverDubai(int zoom) =>
+        new { southLatitude = 25.0, westLongitude = 55.4, northLatitude = 25.1, eastLongitude = 55.5, zoom };
+
+    [Fact]
+    public async Task A_view_inside_a_registers_box_at_its_zoom_answers_its_plots_up_to_its_cap()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var plots = answered.GetProperty("plots").EnumerateArray().ToArray();
+        plots.Select(plot => plot.GetProperty("identifier").GetString()).Should().Equal("P-1", "P-3");
+        plots[0].GetProperty("areaHectares").GetDouble().Should().Be(1.2);
+        plots[0].GetProperty("boundary").GetArrayLength().Should().Be(3);
+        answered.GetProperty("attributions").EnumerateArray().Select(credit => credit.GetString())
+            .Should().Equal("© the emirate's register");
+        var parameters = JsonDocument.Parse(calls.Single()).RootElement.GetProperty("addressParameters");
+        parameters.GetProperty("southLatitude").GetString().Should().Be("25");
+        parameters.GetProperty("eastLongitude").GetString().Should().Be("55.5");
+    }
+
+    [Theory]
+    [InlineData(14)]
+    [InlineData(null)]
+    public async Task A_view_further_out_than_a_registers_zoom_asks_it_nothing(int? zoom)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view",
+            new { southLatitude = 25.0, westLongitude = 55.4, northLatitude = 25.1, eastLongitude = 55.5, zoom });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoPlots);
+        calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_view_outside_every_registers_box_asks_none()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view",
+            new { southLatitude = 48.8, westLongitude = 2.3, northLatitude = 48.9, eastLongitude = 2.4, zoom = 17 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        calls.Should().BeEmpty();
+    }
+
+    // As shipped, a register whose licence is not obtained carries no reshape, so the page shows "Coming soon".
+    [Fact]
+    public async Task A_register_not_connected_yet_is_left_out()
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(connected: false), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("""{"southLatitude": 25.1, "westLongitude": 55.4, "northLatitude": 25.0, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("""{"southLatitude": 25.0, "westLongitude": 55.4, "northLatitude": 95.0, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("""{"zoom": 16}""")]
+    public async Task A_view_that_is_not_a_box_is_refused_before_any_register_is_asked(string body)
+    {
+        var calls = new List<string>();
+        await using var factory = Answering(WithPlotsRegister(), providerBody: ThreePlots, endpointCalls: calls);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/submissions/plots-in-view",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.PositionMissing);
+        calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_border_of_more_corners_than_the_provider_takes_is_sampled_evenly_round_it()
+    {
+        var border = Enumerable.Range(0, 300).Select(index => new BoundaryPoint { Latitude = index, Longitude = 0 }).ToList();
+
+        var sampled = PositionLookupService.SampledCorners(border);
+
+        sampled.Should().HaveCount(PositionLookupService.MostElevationCorners);
+        sampled.Select(point => point.Latitude).Should().BeInAscendingOrder().And.Contain(0);
+        sampled[^1].Latitude.Should().BeGreaterThan(290);
+    }
+
     [Fact]
     public async Task A_model_registering_no_place_search_says_so()
     {
@@ -247,8 +561,11 @@ public class PositionLookupEndpointTests
 
     // The broker itself refusing the model read is not the stub above answering a provider failure:
     // the read throws rather than answering null, and the route still owes the stranger a bare 503.
-    [Fact]
-    public async Task A_broker_that_cannot_be_read_is_answered_as_an_unseeded_model_is()
+    [Theory]
+    [InlineData("/submissions/place-search", """{"query": "Santarém"}""")]
+    [InlineData("/submissions/plots-in-view", """{"southLatitude": 25.0, "westLongitude": 55.4, "northLatitude": 25.1, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("/submissions/border-elevation", """{"boundary": [{"latitude": 25, "longitude": 55.4}, {"latitude": 25, "longitude": 55.44}, {"latitude": 25.04, "longitude": 55.44}]}""")]
+    public async Task A_broker_that_cannot_be_read_is_answered_as_an_unseeded_model_is(string route, string body)
     {
         await using var factory = new IntakeWebApplicationFactory
         {
@@ -259,9 +576,48 @@ public class PositionLookupEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+        var response = await client.PostAsync(route, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_view_whose_every_register_could_not_be_asked_is_the_deployments_problem()
+    {
+        await using var factory = Answering(WithPlotsRegister(), endpointAnswer: HttpStatusCode.InternalServerError);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_border_no_elevation_lookup_could_be_asked_about_is_the_deployments_problem()
+    {
+        await using var factory = Answering(ElevationFirstThenCentre(), endpointAnswer: HttpStatusCode.InternalServerError);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_border_every_lookup_answered_without_a_height_for_answers_that_none_is_available()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(ElevationFirstThenCentre(), _ => ModelStub.Json("{}"), asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoElevation);
+        asked.Should().Equal(BorderLookup, CentreLookup);
     }
 
     // A connection that dies mid-call surfaces as an exception rather than a status; the lookup treats

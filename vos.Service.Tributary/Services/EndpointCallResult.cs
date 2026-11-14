@@ -16,13 +16,16 @@ public sealed class EndpointCallResult
 
     public RetryConditionHeaderValue? RetryAfter { get; private init; }
 
+    // The provider answered in the words of one that is away, so the same question may be answered later.
+    public bool ProviderAway { get; private init; }
+
     public static EndpointCallResult Failure(EndpointCallError error) => new() { Error = error };
     public static EndpointCallResult Ingested(IngestSummary ingest) => new() { Ingest = ingest };
     public static EndpointCallResult Body(string content, string? contentType) =>
         new() { Content = content, ContentType = contentType };
     public static EndpointCallResult Refused(
-        string content, string? contentType, int statusCode, RetryConditionHeaderValue? retryAfter) =>
-        new() { Content = content, ContentType = contentType, StatusCode = statusCode, RetryAfter = retryAfter };
+        string content, string? contentType, int statusCode, RetryConditionHeaderValue? retryAfter, bool providerAway = false) =>
+        new() { Content = content, ContentType = contentType, StatusCode = statusCode, RetryAfter = retryAfter, ProviderAway = providerAway };
 }
 
 // A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message

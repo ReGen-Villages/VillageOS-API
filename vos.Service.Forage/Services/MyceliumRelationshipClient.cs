@@ -1,6 +1,4 @@
-using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 
 namespace vos.Service.Forage.Services;
@@ -17,32 +15,33 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
 
-    public async Task<Guid?> MintAsync(string name, CancellationToken cancellationToken)
+    public async Task<bool> WriteCoverageAsync(
+        Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.PostAsJsonAsync(
-                $"{MyceliumUrl}/api/things", new { Name = name }, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/model/fragment", new
             {
-                Logger.LogWarning("Failed to mint {Name}: {Status}", name, response.StatusCode);
-                return null;
-            }
+                name,
+                things = new[] { new { id = coverageId, name } },
+                relationships = relationships.Select(relationship => new
+                {
+                    subject = coverageId,
+                    predicate = relationship.Predicate,
+                    target = relationship.Target,
+                }),
+            }, cancellationToken);
+            if (response.IsSuccessStatusCode) return true;
 
-            var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            if (TryGetPropertyCaseInsensitive(body, "Id", out var id) && id.TryGetGuid(out var minted))
-                return minted;
-
-            // Worse than a refusal, and so said separately: the create worked, so the Thing is in the
-            // model with nothing able to reach it, and the next attempt adds another beside it.
-            Logger.LogWarning("Minted {Name} and the model's answer named no identifier", name);
-            return null;
+            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode,
+                await response.Content.ReadAsStringAsync(cancellationToken));
+            return false;
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "Error minting {Name}", name);
-            return null;
+            Logger.LogError(exception, "Error writing {Name}", name);
+            return false;
         }
     }
 
@@ -67,29 +66,9 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         }
     }
 
-    public async Task<bool> CreateRelationshipAsync(
-        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.PostAsJsonAsync(
-                $"{MyceliumUrl}/api/relationships",
-                new { subjectId, predicateId, targetId },
-                cancellationToken);
-            if (response.IsSuccessStatusCode)
-                return true;
-
-            Logger.LogWarning("Refused relating {Subject} to {Target}: {Status} {Reason}", subjectId, targetId,
-                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
-            return false;
-        }
-        catch (Exception exception)
-        {
-            Logger.LogError(exception, "Error relating {Subject} to {Target}", subjectId, targetId);
-            return false;
-        }
-    }
+    public Task<bool> CreateRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
+        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(30), cancellationToken);
 
     public async Task<bool> DeleteRelationshipAsync(Guid relationshipId, CancellationToken cancellationToken)
     {

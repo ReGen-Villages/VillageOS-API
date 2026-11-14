@@ -19,7 +19,7 @@ namespace vos.Service.Tributary.Tests;
 // Audience on the factory instance before creating a client.
 // IHttpClientFactory is replaced with one that wraps a per-test
 // MockHttpMessageHandler. The handler routes BOTH mycelium calls AND the outbound
-// endpoint call made by CallEndpointAsync via the same factory; tests set
+// endpoint call made by SendAsync via the same factory; tests set
 // HandlerCallback to control responses for their scenario.
 public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -42,14 +42,6 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
-
-    private sealed class PerCallHttpClientFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallHttpClientFactory(HttpMessageHandler handler) { _handler = handler; }
-        // disposeHandler=false so the per-test MockHttpMessageHandler outlives each HttpClient.
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

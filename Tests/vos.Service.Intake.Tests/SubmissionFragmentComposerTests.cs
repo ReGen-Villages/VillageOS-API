@@ -16,12 +16,18 @@ public class SubmissionFragmentComposerTests
 
     private static ComposedSubmission Compose(Submission submission, DeclaredVocabulary vocabulary) =>
         SubmissionFragmentComposer.Compose(
-            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary, WillowBend.ArrivedAt);
+            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary, WillowBend.ArrivedAt,
+            elevationRange: null);
 
     private static ComposedSubmission Compose(Submission submission, DateTime? arrivedAt) =>
         SubmissionFragmentComposer.Compose(
             submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, WillowBend.KnownVocabulary,
-            arrivedAt);
+            arrivedAt, elevationRange: null);
+
+    private static ComposedSubmission Compose(Submission submission, ElevationRange? elevationRange) =>
+        SubmissionFragmentComposer.Compose(
+            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, WillowBend.KnownVocabulary,
+            WillowBend.ArrivedAt, elevationRange);
 
     private static FragmentThing Record(ComposedSubmission composed) => Named(composed, "Willow Bend Submission");
 
@@ -188,6 +194,17 @@ public class SubmissionFragmentComposerTests
 
         Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
             WillowBend.TermId("drawn-by-hand")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_border_imported_from_a_file_reaches_that_way_of_obtaining_it()
+    {
+        var submission = WillowBend.Submission();
+
+        var composed = Compose(submission with { Parcel = submission.Parcel! with { BoundarySource = "imported-from-file" } });
+
+        Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
+            WillowBend.TermId("imported-from-file")).Should().BeTrue();
     }
 
     // A term reached by a relationship and copied into a property beside it says the same thing twice, and the
@@ -510,7 +527,8 @@ public class SubmissionFragmentComposerTests
 
         var composed = SubmissionFragmentComposer.Compose(
             WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = "volcano" }] },
-            WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt);
+            WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt,
+            elevationRange: null);
 
         Relates(composed, HazardOf(composed, "volcano").Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("volcano")).Should().BeTrue();
@@ -859,7 +877,8 @@ public class SubmissionFragmentComposerTests
             WillowBend.KnownPredicates with { Studies = minted },
             WillowBend.KnownArchetypes,
             WillowBend.KnownVocabulary,
-            WillowBend.ArrivedAt);
+            WillowBend.ArrivedAt,
+            elevationRange: null);
 
         composed.Fragment.Things.Should().Contain(thing => thing.Id == minted.Id && thing.Name == "studies");
     }
@@ -872,7 +891,8 @@ public class SubmissionFragmentComposerTests
             WillowBend.KnownPredicates,
             WillowBend.KnownArchetypes with { Site = new DeclaredTerm("Locus", WillowBend.SiteArchetypeId) },
             WillowBend.KnownVocabulary,
-            WillowBend.ArrivedAt);
+            WillowBend.ArrivedAt,
+            elevationRange: null);
 
         composed.Fragment.Relationships.Single(edge => edge.Target == WillowBend.SiteArchetypeId)
             .Name.Should().EndWith(" is Locus");
@@ -995,5 +1015,35 @@ public class SubmissionFragmentComposerTests
         composed.Fragment.Relationships
             .Count(edge => edge.Subject == site.Id && edge.Predicate == WillowBend.IsInPredicateId)
             .Should().Be(1);
+    }
+
+    [Fact]
+    public void A_looked_up_range_is_written_onto_the_site()
+    {
+        var composed = Compose(WillowBend.Submission(), new ElevationRange(21.0, 43.0));
+        var site = Named(composed, "Willow Bend");
+
+        site.Properties["elevationMinimumMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 21.0));
+        site.Properties["elevationMaximumMetres"].Should().Be(TypedValue.Written(VosTypeNames.Double, 43.0));
+    }
+
+    // A fragment upserts, so leaving the figures out keeps whatever the site already holds.
+    [Fact]
+    public void No_range_writes_no_elevation_figure()
+    {
+        var composed = Compose(WillowBend.Submission(), elevationRange: null);
+        var site = Named(composed, "Willow Bend");
+
+        site.Properties.Keys.Should().NotContain(SiteElevationReader.Figures);
+    }
+
+    [Fact]
+    public void The_figures_written_are_the_ones_read_back_to_decide_whether_to_look_up_again()
+    {
+        var composed = Compose(WillowBend.Submission(), new ElevationRange(21.0, 43.0));
+        var site = Named(composed, "Willow Bend");
+
+        site.Properties.Keys.Should().Contain(SiteElevationReader.Figures);
+        Named(composed, "Willow Bend Parcel-01").Properties.Keys.Should().Contain(SiteElevationReader.BoundaryProperty);
     }
 }

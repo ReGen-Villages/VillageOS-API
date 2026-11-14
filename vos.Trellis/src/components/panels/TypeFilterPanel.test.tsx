@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { TypeFilterPanel } from './TypeFilterPanel';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
@@ -43,6 +43,30 @@ describe('TypeFilterPanel layout', () => {
     expect(root.className).toContain('flex-col');
     expect(root.className).toContain('flex-1');
     expect(root.className).toContain('min-h-0');
+  });
+
+  it('narrows the list to the types the search names, and shows every one again once it is cleared', () => {
+    render(<TypeFilterPanel />);
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'TypeB' } });
+    expect(screen.queryByText('TypeA')).toBeNull();
+    expect(screen.getByText('TypeB')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByText('TypeA')).toBeInTheDocument();
+  });
+
+  it('hides every type and the Things with none with None, says how many that hides, and shows them all again with All', () => {
+    render(<TypeFilterPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'None' }));
+    expect(useUiStore.getState().hiddenTypeIds).toEqual(new Set(['tA', 'tB', '__noType__']));
+    const total = screen.getByText(/^0\/\d+$/).textContent!.split('/')[1];
+    expect(screen.getByText(`${total} hidden`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
+    expect(screen.queryByText(/ hidden$/)).toBeNull();
   });
 
   describe('on a screen narrower than a tablet', () => {

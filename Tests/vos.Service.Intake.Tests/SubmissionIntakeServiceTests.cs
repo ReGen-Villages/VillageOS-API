@@ -8,6 +8,7 @@ using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
 using vos.Service.Shared;
@@ -56,6 +57,8 @@ public class SubmissionIntakeServiceTests
     // Built once, so a test can ask the model which Thing a role binds and compare it with what was written.
     private static readonly DeclaredModel SeededModel = DeclaredModel.Seeded();
 
+    private const string FetcherSubdomain = "fetcher";
+
     private static SubmissionIntakeService ServiceAnswering(HttpMessageHandler answers)
     {
         var mycelium = new IntakeMyceliumClient(
@@ -63,21 +66,26 @@ public class SubmissionIntakeServiceTests
             NullLogger<IntakeMyceliumClient>.Instance,
             "http://localhost",
             new LaunchToken("test-token"));
+        var declarations = new HeldDeclarations(mycelium, TimeProvider.System);
+        var clock = new ModelClock(new FakeTimeProvider(new DateTimeOffset(WillowBend.ArrivedAt, TimeSpan.Zero)));
         return new SubmissionIntakeService(
             mycelium,
-            new HeldDeclarations(mycelium, TimeProvider.System),
-            new ModelClock(new FakeTimeProvider(WillowBend.ArrivedAt)));
+            declarations,
+            new PositionLookupService(
+                mycelium, declarations, FetcherSubdomain, NullLogger<PositionLookupService>.Instance, clock),
+            clock);
     }
 
-    // A clock that does not move, so an arrival time can be asserted rather than bounded.
-    private sealed class FakeTimeProvider(DateTime now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
-    }
+    private static readonly Guid SiteId =
+        StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.SiteRole);
+
+    private static readonly Guid ParcelId =
+        StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.ParcelRole);
 
     // A broker answering every declaration read with the model a test built, recording what it was asked
-    // for; every other call falls through to the responder the test gave.
-    private sealed class DeclaredBroker(SnapshotDocument model)
+    // for, and the read of this submission's site and parcel with what the test says the model holds of them;
+    // every other call falls through to the responder the test gave.
+    private sealed class DeclaredBroker(SnapshotDocument model, SnapshotDocument? heldSite = null)
     {
         private static readonly JsonSerializerOptions AsTheBrokerWritesIt = new(JsonSerializerDefaults.Web);
 
@@ -88,9 +96,14 @@ public class SubmissionIntakeServiceTests
         public HttpResponseMessage? Answer(HttpRequestMessage request)
         {
             if (!IsDeclarationRead(request)) return null;
-            Reads++;
-            AskedFor = JsonSerializer.Deserialize<SubscriptionSelector>(
+            var asked = JsonSerializer.Deserialize<SubscriptionSelector>(
                 request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(), AsTheBrokerWritesIt);
+            if (asked?.Ids?.Contains(SiteId) == true)
+                return Json(JsonSerializer.Serialize(
+                    new SnapshotReadResult(0, heldSite ?? new SnapshotDocument(0, [], [])), AsTheBrokerWritesIt));
+
+            Reads++;
+            AskedFor = asked;
             return Json(JsonSerializer.Serialize(new SnapshotReadResult(0, model), AsTheBrokerWritesIt));
         }
     }
@@ -112,11 +125,11 @@ public class SubmissionIntakeServiceTests
     {
         var (service, read) = ServiceReading(DeclaredModel.Seeded());
         await service.SubmitAsync(Document, CancellationToken.None);
-        read.Reads.Should().Be(2, "the submission's shape and its vocabularies are each one read");
+        read.Reads.Should().Be(3, "the submission's shape, its vocabularies and its elevation lookups are each one read");
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
-        read.Reads.Should().Be(2);
+        read.Reads.Should().Be(3);
     }
 
     [Fact]
@@ -418,5 +431,152 @@ public class SubmissionIntakeServiceTests
         var edge = posted.GetProperty("Relationships").EnumerateArray().First();
         foreach (var key in new[] { "Subject", "Predicate", "Target" })
             edge.TryGetProperty(key, out _).Should().BeTrue($"the model reads an edge's {key} under that name");
+    }
+
+    private const string BorderLookup = "border-elevation";
+
+    private const string BorderHeights = """{"centre": 100, "low": 84, "high": 112}""";
+
+    private const string CentreHeightOnly = """{"centre": 100}""";
+
+    private static DeclaredModel WithBorderElevation() =>
+        DeclaredModel.Seeded()
+            .Stating(BorderLookup,
+                (PositionLookupReader.TransformProperty,
+                    "{\"elevationMetres\": centre, \"elevationMinimumMetres\": low, \"elevationMaximumMetres\": high}"),
+                (PositionLookupReader.AttributionProperty, "© the border heights"))
+            .Bound(PositionLookupReader.BorderElevationRole, BorderLookup);
+
+    private static readonly IReadOnlyList<BoundaryPoint> AnotherBorder =
+    [
+        new() { Latitude = 39.40, Longitude = -8.40 }, new() { Latitude = 39.41, Longitude = -8.40 },
+        new() { Latitude = 39.41, Longitude = -8.39 },
+    ];
+
+    private static SnapshotProperty Value(object value) => new(JsonSerializer.SerializeToElement(value), null, null);
+
+    // Each value sits in an override under the archetype declaring it, which is how the model holds them.
+    private static SnapshotDocument SiteHolding(IReadOnlyList<BoundaryPoint> border, params string[] figures) =>
+        new(0,
+        [
+            new SnapshotThing(ParcelId, null, false, [], new Dictionary<string, InheritedPropertySet>
+            {
+                [Guid.NewGuid().ToString()] = new(null,
+                    new() { [SiteElevationReader.BoundaryProperty] = Value(BoundaryGeometry.ToGeoJson(border)) }, null),
+            }, [], null),
+            new SnapshotThing(SiteId, null, false, [], new Dictionary<string, InheritedPropertySet>
+            {
+                [Guid.NewGuid().ToString()] = new(null, figures.ToDictionary(figure => figure, _ => Value(30.0)), null),
+            }, [], null),
+        ], []);
+
+    // The lookups, removals and fragment the service made, in the order it made them.
+    private static (SubmissionIntakeService Service, List<string> Calls, Func<string?> PostedFragment) ServiceLookingUp(
+        SnapshotDocument? heldSite, string lookupAnswer, HttpStatusCode removalAnswer = HttpStatusCode.OK)
+    {
+        var calls = new List<string>();
+        string? fragment = null;
+        var read = new DeclaredBroker(WithBorderElevation().Build(), heldSite);
+        var service = ServiceAnswering(new MockHttpMessageHandler(request =>
+        {
+            if (read.Answer(request) is { } declared) return declared;
+            if (request.RequestUri!.AbsolutePath == $"/api/endpoints/{FetcherSubdomain}")
+            {
+                calls.Add("lookup");
+                return Json(lookupAnswer);
+            }
+            if (request.Method == HttpMethod.Delete)
+            {
+                calls.Add($"remove {request.RequestUri.Segments[^1]}");
+                return new HttpResponseMessage(removalAnswer);
+            }
+            if (IsFragment(request))
+            {
+                calls.Add("fragment");
+                fragment = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+            return Holds(request);
+        }));
+        return (service, calls, () => fragment);
+    }
+
+    private static JsonElement PostedSite(string fragment) =>
+        JsonDocument.Parse(fragment).RootElement.GetProperty("Things").EnumerateArray()
+            .Single(thing => thing.GetProperty("Id").GetGuid() == SiteId)
+            .GetProperty("Properties");
+
+    private static IReadOnlyList<BoundaryPoint> PostedBorder => Document.Parcel!.Boundary!;
+
+    [Fact]
+    public async Task A_first_submission_writes_the_range_its_border_was_looked_up_for()
+    {
+        var (service, calls, fragment) = ServiceLookingUp(heldSite: null, BorderHeights);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("lookup", "fragment");
+        var site = PostedSite(fragment()!);
+        site.GetProperty("elevationMinimumMetres").GetProperty("value").GetDouble().Should().Be(84);
+        site.GetProperty("elevationMaximumMetres").GetProperty("value").GetDouble().Should().Be(112);
+    }
+
+    [Fact]
+    public async Task A_save_whose_border_and_figures_the_site_already_holds_makes_no_lookup()
+    {
+        var (service, calls, fragment) = ServiceLookingUp(
+            SiteHolding(PostedBorder, [.. SiteElevationReader.Figures]), BorderHeights);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("fragment");
+        PostedSite(fragment()!).TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_moved_border_with_no_range_found_loses_the_old_figures_before_the_submission_is_written()
+    {
+        var (service, calls, fragment) = ServiceLookingUp(
+            SiteHolding(AnotherBorder, [.. SiteElevationReader.Figures]), CentreHeightOnly);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal(
+            "lookup", "remove elevationMinimumMetres", "remove elevationMaximumMetres", "fragment");
+        PostedSite(fragment()!).TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
+    }
+
+    // Asking to remove a figure the site never stated would still write a removal into the model's history.
+    [Fact]
+    public async Task No_range_found_for_a_site_holding_no_figures_removes_nothing()
+    {
+        var (service, calls, _) = ServiceLookingUp(heldSite: null, CentreHeightOnly);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("lookup", "fragment");
+    }
+
+    // Written anyway, the site would hold the old border's range against the new border, and a later save
+    // would find both figures present and never look the new border up.
+    [Fact]
+    public async Task A_removal_the_model_refuses_leaves_the_submission_unwritten()
+    {
+        var (service, calls, _) = ServiceLookingUp(
+            SiteHolding(AnotherBorder, [.. SiteElevationReader.Figures]), CentreHeightOnly,
+            removalAnswer: HttpStatusCode.InternalServerError);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => service.SubmitAsync(Document, CancellationToken.None));
+
+        calls.Should().NotContain("fragment");
+    }
+
+    [Fact]
+    public async Task A_model_declaring_no_elevation_lookup_still_takes_the_submission()
+    {
+        var (service, fragment) = ServiceCapturingFragment();
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        PostedSite(fragment()!).TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
     }
 }

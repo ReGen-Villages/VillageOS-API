@@ -1632,6 +1632,8 @@ export const en = {
     noParcel: "No parcel boundary is available at this position. Draw the boundary instead.",
     queryMissing: "Type something to search for.",
     noSearch: "No place search is available here.",
+    noElevation: "No elevation is available for this border.",
+    noPlots: "No register's plots are available for this view.",
     noBasemap: "That map is not served here.",
     emailAddressMissing: "An email address is needed.",
     codesExhausted: "That address has been sent as many codes as it can be for now. Try again later.",
@@ -1662,6 +1664,10 @@ export const en = {
     fileTooLarge: "A file may be at most {{megabytes}} MB.",
     descriptionTooLong: "A description is at most {{characters}} characters.",
     filesNotTaken: "Files are not taken here.",
+    layerFileUnreadable: "This file could not be read as a map layer. A layer is a KML, KMZ, GeoJSON or GPX file.",
+    featuresUnreadable: "The kinds chosen for this layer's features could not be read.",
+    featureNotInFile: "“{{value}}” is not a feature this file holds.",
+    documentNotShared: "This file is not one this submission shares.",
   },
 };
 

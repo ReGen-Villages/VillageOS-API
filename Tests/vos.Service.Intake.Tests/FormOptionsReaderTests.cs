@@ -1,6 +1,5 @@
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
@@ -201,6 +200,31 @@ public class FormOptionsReaderTests
         var reading = () => FormOptionsReader.Read(model.Build());
 
         reading.Should().Throw<ModelNotSeededError>().WithMessage("*Theme*Motif*");
+    }
+
+    [Fact]
+    public void Each_layer_kind_travels_with_its_colour_and_its_wording()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("SiteLayerKind").Bound(LandIntakeRoles.SiteLayerKind, "SiteLayerKind")
+            .Stating("flood-extent", ("colour", "#56CCF2"), (FormOptionsReader.WordingProperty, """{"en": "Flood extent", "de": "Überflutungsfläche"}"""))
+            .Stating("other-layer")
+            .Relate("flood-extent", "is", "SiteLayerKind")
+            .Relate("other-layer", "is", "SiteLayerKind");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.LayerKinds.Should().BeEquivalentTo([new DeclaredLayerKind("flood-extent", "#56CCF2"), new DeclaredLayerKind("other-layer", null)]);
+        options.Wording["flood-extent"]["de"].Should().Be("Überflutungsfläche");
+        FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.SiteLayerKind.Id);
+        FormOptionsReader.Selector().BoundTypes.Should().Contain(LandIntakeRoles.SiteLayerKind.Id,
+            "the kinds are the members of the bound archetype, and the broker sends only what the selector asks for");
+    }
+
+    [Fact]
+    public void A_model_declaring_no_site_layer_offers_no_layer_kinds()
+    {
+        FormOptionsReader.Read(DeclaredModel.Seeded().Build()).LayerKinds.Should().BeEmpty();
     }
 
     [Fact]

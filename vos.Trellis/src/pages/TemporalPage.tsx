@@ -6,7 +6,7 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { toast } from '../components/common/toastStore';
 import { ImageryTimeline } from '../components/assets/ImageryTimeline';
-import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
+import type { ModelMutations, MutationDto, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { relationshipLabel } from '../utils/relationshipLabel';
@@ -82,33 +82,15 @@ function MutationsPanel() {
       <p className="text-xs text-zinc-500">
         {t('temporal.mutationsIntro')}
       </p>
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
-          <input
-            type="datetime-local"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          onClick={loadMutations}
-          disabled={loading}
-          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? t('common.loading') : t('common.query')}
-        </button>
-      </div>
+      <TimeRangeQuery
+        startTime={startTime}
+        endTime={endTime}
+        onStartTime={setStartTime}
+        onEndTime={setEndTime}
+        onQuery={loadMutations}
+        loading={loading}
+        ready
+      />
 
       {mutations && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
@@ -123,17 +105,7 @@ function MutationsPanel() {
               <div key={tm.ObjectId} className="border-l-2 border-blue-500 pl-3">
                 <h4 className="text-sm font-medium">{tm.ObjectName}</h4>
                 <div className="space-y-1 mt-1">
-                  {tm.Mutations.map((m, i) => (
-                    <div key={i} className="text-xs text-zinc-400">
-                      <span className="font-mono text-zinc-500">{formatDateTime(m.Timestamp)}</span>
-                      {' '}
-                      <span className="text-amber-400">{m.PropertyName}</span>
-                      {': '}
-                      <span className="text-red-400">{formatPropertyValue(m.OldValue)}</span>
-                      {' → '}
-                      <span className="text-emerald-400">{formatPropertyValue(m.NewValue)}</span>
-                    </div>
-                  ))}
+                  {tm.Mutations.map((m, i) => <MutationLine key={i} mutation={m} />)}
                 </div>
               </div>
             ))}
@@ -150,11 +122,6 @@ function MutationsPanel() {
 function ThingMutationsPanel() {
   const { t } = useTranslation();
   const [things, setThings] = useState<VosThing[]>([]);
-  const [thingId, setThingId] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [mutations, setMutations] = useState<ThingMutations | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const loadThings = useCallback(async () => {
     try { setThings(await thingApi.getAll()); } catch { /* ignore */ }
@@ -163,83 +130,16 @@ function ThingMutationsPanel() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadThings(); }, [loadThings]);
 
-  const loadMutations = async () => {
-    if (!thingId) return;
-    setLoading(true);
-    try {
-      const data = await temporalApi.getThingMutations(thingId, startTime || undefined, endTime || undefined);
-      setMutations(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadThingMutationsFailed'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="max-w-3xl space-y-4">
-      <p className="text-xs text-zinc-500">
-        {t('temporal.thingMutationsIntro')}
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.thing')}</label>
-          <select
-            value={thingId}
-            onChange={(e) => { setThingId(e.target.value); setMutations(null); }}
-            className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">{t('temporal.selectThing')}</option>
-            {things.map((thing) => <option key={thing.Id} value={thing.Id}>{thing.Name}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
-          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
-          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <button onClick={loadMutations} disabled={loading || !thingId}
-          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-          {loading ? t('common.loading') : t('common.query')}
-        </button>
-      </div>
-
-      {mutations && (
-        <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
-          <div className="flex justify-between text-sm mb-3">
-            <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.ObjectName}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
-            </span>
-            <span className="text-zinc-500 text-xs">
-              {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
-            </span>
-          </div>
-          <div className="space-y-1">
-            {mutations.Mutations.map((m, i) => (
-              <div key={i} className="text-xs text-zinc-400">
-                <span className="font-mono text-zinc-500">{formatDateTime(m.Timestamp)}</span>
-                {' '}
-                <span className="text-amber-400">{m.PropertyName}</span>
-                {': '}
-                <span className="text-red-400">{formatPropertyValue(m.OldValue)}</span>
-                {' → '}
-                <span className="text-emerald-400">{formatPropertyValue(m.NewValue)}</span>
-              </div>
-            ))}
-            {mutations.Mutations.length === 0 && (
-              <p className="text-sm text-zinc-500">{t('temporal.noMutations')}</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+    <OneObjectMutationsPanel
+      intro={t('temporal.thingMutationsIntro')}
+      label={t('temporal.thing')}
+      placeholder={t('temporal.selectThing')}
+      failure={t('temporal.toast.loadThingMutationsFailed')}
+      options={things.map((thing) => ({ id: thing.Id, label: thing.Name }))}
+      read={(id, start, end) => temporalApi.getThingMutations(id, start, end)}
+      nameOf={(changes) => changes.ObjectName}
+    />
   );
 }
 
@@ -250,11 +150,6 @@ function RelationshipMutationsPanel() {
   const things = useModelStore((s) => s.things);
   const thingNames = useMemo(() => new Map(things.map((thing) => [thing.Id, thing.Name])), [things]);
   const [relationships, setRelationships] = useState<VosRelationship[]>([]);
-  const [relationshipId, setRelationshipId] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [mutations, setMutations] = useState<RelationshipMutations | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const loadRelationships = useCallback(async () => {
     try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
@@ -263,78 +158,139 @@ function RelationshipMutationsPanel() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadRelationships(); }, [loadRelationships]);
 
+  return (
+    <OneObjectMutationsPanel
+      intro={t('temporal.relationshipMutationsIntro')}
+      label={t('temporal.relationship')}
+      placeholder={t('temporal.selectRelationship')}
+      failure={t('temporal.toast.loadRelationshipMutationsFailed')}
+      options={relationships.map((r) => ({ id: r.Id, label: relationshipLabel(r, (id) => thingNames.get(id)) }))}
+      read={(id, start, end) => temporalApi.getRelationshipMutations(id, start, end)}
+      nameOf={(changes, id) => changes.RelationshipName || relationships.find((r) => r.Id === id)?.Name}
+    />
+  );
+}
+
+interface TimeRangeQueryProperties {
+  startTime: string;
+  endTime: string;
+  onStartTime: (value: string) => void;
+  onEndTime: (value: string) => void;
+  onQuery: () => void;
+  loading: boolean;
+  ready: boolean;
+}
+
+function TimeRangeQuery({ startTime, endTime, onStartTime, onEndTime, onQuery, loading, ready }: TimeRangeQueryProperties) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap gap-3 items-end">
+      <div>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
+        <input type="datetime-local" value={startTime} onChange={(e) => onStartTime(e.target.value)}
+          className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
+        <input type="datetime-local" value={endTime} onChange={(e) => onEndTime(e.target.value)}
+          className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <button onClick={onQuery} disabled={loading || !ready}
+        className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+        {loading ? t('common.loading') : t('common.query')}
+      </button>
+    </div>
+  );
+}
+
+function MutationLine({ mutation }: { mutation: MutationDto }) {
+  return (
+    <div className="text-xs text-zinc-400">
+      <span className="font-mono text-zinc-500">{formatDateTime(mutation.Timestamp)}</span>
+      {' '}
+      <span className="text-amber-400">{mutation.PropertyName}</span>
+      {': '}
+      <span className="text-red-400">{formatPropertyValue(mutation.OldValue)}</span>
+      {' → '}
+      <span className="text-emerald-400">{formatPropertyValue(mutation.NewValue)}</span>
+    </div>
+  );
+}
+
+interface OneObjectChanges {
+  StartTime: string;
+  EndTime: string;
+  Mutations: MutationDto[];
+}
+
+interface OneObjectMutationsPanelProperties<Changes extends OneObjectChanges> {
+  intro: string;
+  label: string;
+  placeholder: string;
+  failure: string;
+  options: { id: string; label: string }[];
+  read: (id: string, start?: string, end?: string) => Promise<Changes>;
+  nameOf: (changes: Changes, id: string) => string | undefined;
+}
+
+function OneObjectMutationsPanel<Changes extends OneObjectChanges>(
+  { intro, label, placeholder, failure, options, read, nameOf }: OneObjectMutationsPanelProperties<Changes>,
+) {
+  const { t } = useTranslation();
+  const [chosenId, setChosenId] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [mutations, setMutations] = useState<Changes | null>(null);
+  const [loading, setLoading] = useState(false);
+
   const loadMutations = async () => {
-    if (!relationshipId) return;
+    if (!chosenId) return;
     setLoading(true);
     try {
-      const data = await temporalApi.getRelationshipMutations(relationshipId, startTime || undefined, endTime || undefined);
-      setMutations(data);
+      setMutations(await read(chosenId, startTime || undefined, endTime || undefined));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadRelationshipMutationsFailed'));
+      toast.error(err instanceof Error ? err.message : failure);
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedRelationship = relationships.find((r) => r.Id === relationshipId);
-
   return (
     <div className="max-w-3xl space-y-4">
-      <p className="text-xs text-zinc-500">
-        {t('temporal.relationshipMutationsIntro')}
-      </p>
+      <p className="text-xs text-zinc-500">{intro}</p>
       <div>
-        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.relationship')}</label>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{label}</label>
         <select
-          value={relationshipId}
-          onChange={(e) => { setRelationshipId(e.target.value); setMutations(null); }}
+          value={chosenId}
+          onChange={(e) => { setChosenId(e.target.value); setMutations(null); }}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">{t('temporal.selectRelationship')}</option>
-          {relationships.map((r) => (
-            <option key={r.Id} value={r.Id}>{relationshipLabel(r, (id) => thingNames.get(id))}</option>
-          ))}
+          <option value="">{placeholder}</option>
+          {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>
       </div>
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
-          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
-          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <button onClick={loadMutations} disabled={loading || !relationshipId}
-          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-          {loading ? t('common.loading') : t('common.query')}
-        </button>
-      </div>
+      <TimeRangeQuery
+        startTime={startTime}
+        endTime={endTime}
+        onStartTime={setStartTime}
+        onEndTime={setEndTime}
+        onQuery={loadMutations}
+        loading={loading}
+        ready={chosenId !== ''}
+      />
 
       {mutations && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRelationship?.Name}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
+              <strong className="text-zinc-200">{nameOf(mutations, chosenId)}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
             </span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
             </span>
           </div>
           <div className="space-y-1">
-            {mutations.Mutations.map((m, i) => (
-              <div key={i} className="text-xs text-zinc-400">
-                <span className="font-mono text-zinc-500">{formatDateTime(m.Timestamp)}</span>
-                {' '}
-                <span className="text-amber-400">{m.PropertyName}</span>
-                {': '}
-                <span className="text-red-400">{formatPropertyValue(m.OldValue)}</span>
-                {' → '}
-                <span className="text-emerald-400">{formatPropertyValue(m.NewValue)}</span>
-              </div>
-            ))}
+            {mutations.Mutations.map((m, i) => <MutationLine key={i} mutation={m} />)}
             {mutations.Mutations.length === 0 && (
               <p className="text-sm text-zinc-500">{t('temporal.noMutations')}</p>
             )}

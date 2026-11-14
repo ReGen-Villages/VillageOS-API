@@ -38,10 +38,11 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
   orchestrator names the drawing and that service, and offers **Handle with the orchestrator**, which
   rebinds the state's connection so entering the state starts the drawing.
 - **Roster (left, beside the catalysts)** — the model's pipelines. Click one to open it.
-- **Outputs (right)** — the answer, the other pipelines and the external systems. Click one to place an end
-  node.
-- **Services (right, beneath)** — each entry is a service you can drop as a node. Click one to add it to the
-  canvas.
+- **Outputs (right)** — the answer, which places the Output node; the other pipelines, each placing a
+  follow-on node; the external systems told through a connection, each placing a tell node; and a stop
+  node. Each is offered only where the model binds its kind.
+- **Services (right, beneath)** — each entry is a service that declares at least one port, which you can
+  drop as a node. Click one to add it to the canvas.
 - **Wire ports** — drag from a node's output handle (right) to another node's input handle (left). Wires are
   type-checked; an incompatible connection is refused.
 - **New** clears the canvas.
@@ -51,7 +52,9 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 - **Inspector** — click a node to bind its inputs to run parameters (or edit a boundary node's ports), to
   edit its choices and the Things each choice compares with, and to change which offered Thing it chose for
   each in port that offers Things; click the Output node for its rule; click a wire to set what it is taken
-  on, its field paths and a transform.
+  on, its field paths, an item transform (sees one item, which goes on by itself) and a list transform
+  (sees every item at once). A tell or follow-on node chooses what it stands for and edits each value it
+  passes on as one in and one out port; a stop node binds its in ports to run parameters.
 
 Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the-canvas).
 
@@ -74,12 +77,13 @@ Open each from the **roster**. Grouped by what it demonstrates.
 
 ### Field mapping and transforms on wires
 
-Click a **wire** to open its inspector and see the field paths / transform in place.
+Click a **wire** to open its inspector and see the field paths and transforms in place.
 
 | Pipeline | What it shows |
 |----------|---------------|
 | **Field Merge** | Two sources land at different **to-paths** (`greeting`, `roll`) of one `JSON Merge` input, so they deep-merge into one object instead of overwriting. |
-| **Wire Transform** | A JSONata **transform** on the `Generate Text → Echo` wire reshapes the payload (`{"message": "shout: " & $}`) before it reaches the input. |
+| **Wire Transform** | A JSONata **list transform** on the `Generate Text → Echo` wire reshapes the payload (`{"message": "shout: " & $}`) before it reaches the input. |
+| **Each Item Reshaped** | An **item transform** on the wire between two enrichment nodes that run once per item, so each record goes on reshaped (`{"record": $, "reshaped": true}`) without waiting for slower ones. |
 | **Diamond Fan** | A wider pipeline — one source fans to two transforms that merge (at to-paths `upper` / `lower`), then a report. Good for seeing canvas layout and multi-input merge. |
 
 ### Parameters, fan-out, and the analysis domains
@@ -101,7 +105,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | Pipeline | What it shows |
 |----------|---------------|
 | **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
-| **Daily Report** | A tell node, *The office is told*, stands for the `Reporting office`, an external system, and tells it the report; it passes the report on to the Output node, *Reported*. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. The canvas draws the tell node from the seed and does not place one of its own. |
+| **Daily Report** | A tell node, *The office is told*, stands for the `Reporting office`, an external system, and tells it the report; it passes the report on to the Output node, *Reported*. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. |
 
 ### A drawing that branches
 
@@ -144,6 +148,7 @@ Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet check
 | Number Cruncher | `factor` = `10`, `offset` = `5` |
 | Site Analysis (Combined) | `perCapitaConsumptionM3` = `55`, `storageCapacityM3` = `40000`, plus the Energy params above |
 | Echo and Follow On | `seed` = `hello` |
+| Each Item Reshaped | `records` = a list, for example `["slow", "quick"]` |
 | Stop the Runs About Them | `things` = a list of run or Thing identifiers, such as `["<run identifier>"]`; `reason` = a sentence saying why |
 
 > **`perCapitaConsumptionM3` is per person per *year*.** `55` is 150 litres per person per day
@@ -169,6 +174,11 @@ live Run needs the service listening at that subdomain.
 So everything on the **canvas** (building, wiring, validation, save/load, field mapping, transforms, boundary
 ports) works from seed data alone. A live **Run** with real results needs the target service up; the seeded
 run history (Hello Echo, Fan-out Scoring) shows the run/animation UI without one.
+
+> **The stand-alone seed is for the canvas only.** **Run** on the Pipelines page, and **Start again**
+> and **Carry on** on the Dashboard, need the examples merged into a site model with
+> `generate.py --into`, whose `runsPipeline` connection reaches the orchestrator. In the stand-alone
+> seed the broker answers "No endpoint service registered for subdomain 'phloem'".
 
 > **Boundary `Input` seeding.** An Input node fills its outputs from run parameters matched to its **port
 > names**, but the Params bar only surfaces parameters that *service* nodes bind in their inspector — it does

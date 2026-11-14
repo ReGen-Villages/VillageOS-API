@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
 
 namespace vos.Service.Forage.Services;
@@ -28,10 +27,10 @@ public sealed class AnalysisSpawner
         Guid siteId, SiteAnalysis? analysis, CancellationToken cancellationToken)
     {
         if (analysis == null)
-            return new AnalysisSpawn(false, "The site has no study to analyse.");
+            return new AnalysisSpawn(false, "The site has no study to analyse.", []);
 
         if (analysis.Triggers.Count == 0)
-            return new AnalysisSpawn(false, "The model marks no connection as one a site analysis starts.");
+            return new AnalysisSpawn(false, "The model marks no connection as one a site analysis starts.", []);
 
         var unstarted = new List<string>();
         foreach (var trigger in analysis.Triggers)
@@ -51,17 +50,20 @@ public sealed class AnalysisSpawner
         // Partial failure is reported as failure while naming what did start, for the reason an
         // unresolved source carries one: a planner reading a balance has to know it is not there because
         // it could not be written, rather than because the figure is genuinely unknown.
+        var running = analysis.Triggers.Select(trigger => trigger.ConnectionName).Except(unstarted).ToList();
         if (unstarted.Count > 0)
-            return new AnalysisSpawn(false, "Could not start: " + string.Join(", ", unstarted) + ".");
+            return new AnalysisSpawn(false, "Could not start: " + string.Join(", ", unstarted) + ".", running, Refused: true);
 
         var alreadyRelated = analysis.Triggers.Count(trigger => trigger.AlreadyRelated);
         _logger.LogInformation(
             "Analysis started for study {StudyId} of site {SiteId} on {Count} services, {AlreadyRelated} of them by an earlier run or the seed.",
             analysis.StudyId, siteId, analysis.Triggers.Count, alreadyRelated);
-        return new AnalysisSpawn(true, null);
+        return new AnalysisSpawn(true, null, running);
     }
 }
 
 // Whether the analysis was started, and why not when it was not. A reason is always carried for the
-// same reason an unresolved source carries one: "did not start" alone is unactionable.
-public sealed record AnalysisSpawn(bool Started, string? Reason);
+// same reason an unresolved source carries one: "did not start" alone is unactionable. Running names every
+// connection the study now reaches, started by this run or an earlier one; Refused says a write would not go,
+// which a later attempt may get past, rather than that there was nothing to start.
+public sealed record AnalysisSpawn(bool Started, string? Reason, IReadOnlyList<string> Running, bool Refused = false);

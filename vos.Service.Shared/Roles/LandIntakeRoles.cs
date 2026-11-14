@@ -49,6 +49,13 @@ public static class LandIntakeRoles
     public static readonly Role Observed = new("observed", new("a44eff0a-1230-5b5f-93e6-a7cc0443b58b"));
     public static readonly Role BasemapSource = new("basemapSource", new("61066752-41d5-5bea-a1cd-5450e6603486"));
     public static readonly Role Predicate = new("predicate", new("86743302-6588-5a93-b6a5-0dde78b092c1"));
+    public static readonly Role FallsBackTo = new("fallsBackTo", new("a5439b98-8724-5431-99ef-9c193026e40e"));
+    public static readonly Role PlotsInViewLookup = new("plotsInViewLookup", new("bdb1e270-c1ef-55eb-8cfd-7cb053b23ae9"));
+    public static readonly Role BorderElevation = new("borderElevation", new("bf5f80ab-6a4a-5d16-8f70-8f9c51005b72"));
+    public static readonly Role SiteLayerKind = new("siteLayerKind", new("2ed90db2-4734-514b-aa12-c4f83c3be9bc"));
+    public static readonly Role SiteLayerFeature = new("siteLayerFeature", new("da99b07b-fa78-581c-bb5f-7560773cbee4"));
+    public static readonly Role OfLayerKind = new("ofLayerKind", new("f60956a5-cde5-5f08-8176-6e98f7d69d2b"));
+    public static readonly Role SourcedFrom = new("sourcedFrom", new("7b89b20c-9f9c-5d60-9481-56c524dd1370"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -58,6 +65,7 @@ public static class LandIntakeRoles
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
         PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
-        Predicate,
+        Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
+        SourcedFrom,
     ];
 }
