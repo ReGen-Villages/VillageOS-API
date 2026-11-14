@@ -52,14 +52,7 @@ public static class LayerFeatureChoice
                 throw new SubmissionError(RefusalCode.FeatureNotInFile,
                     $"'{name}' is not a feature this file holds.", Refusal.With(("value", name)));
 
-            foreach (var shape in named)
-            {
-                if (shape.Corners > SubmissionLimits.MostBoundaryCorners)
-                    throw new SubmissionError(RefusalCode.FieldTooMany,
-                        $"'{name}' holds at most {SubmissionLimits.MostBoundaryCorners} corners.",
-                        Refusal.With(("field", name), ("most", SubmissionLimits.MostBoundaryCorners)));
-                features.Add(new ChosenFeature(name, shape.Geometry, kind));
-            }
+            features.AddRange(named.Select(shape => new ChosenFeature(name, shape.Geometry, kind)));
         }
 
         if (features.Count > SubmissionLimits.MostLayerFeatures)

@@ -1390,6 +1390,12 @@ hold, a kind the model does not declare, a file that is not a layer, and a shape
 border may have are each refused before anything is kept. KML and GPX are read with external references
 switched off, and a KMZ is unpacked no further than a file may be.
 
+Only shapes bearing a chosen name are parsed. KML, KMZ and GPX are read one element at a time, so a large
+shape nobody chose costs nothing to step past, and a chosen one is refused as soon as it passes the corner
+limit. Those formats give a shape's name before its geometry, so a shape whose name comes after it is left
+out. A GeoJSON file is held as its bytes while it is read, since a feature may give its name after its
+geometry.
+
 **A submitter can remove a file they shared.** `DELETE /submissions/{submissionId}/documents/{documentId}`,
 under the ticket, removes each feature that came from the file, then the file's Thing, then its bytes.
 Only a file the submission's project shares can be removed. A removal that fails part way leaves the file

@@ -420,6 +420,18 @@ public sealed class SharedDocumentEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task A_shape_nobody_chose_is_not_read_so_a_broken_one_keeps_no_file_out()
+    {
+        var withABrokenShape = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(TwoFeatures)
+            .Replace("9.1,47.2 9.2,47.3", "east,47.2 9.2,47.3", StringComparison.Ordinal));
+
+        var (response, broker) = await ShareLayerAsync(BothChosen, bytes: withABrokenShape);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        JsonDocument.Parse(broker.Fragments.Single()).RootElement.GetProperty("Things").GetArrayLength().Should().Be(3);
+    }
+
+    [Fact]
     public async Task A_layer_file_with_no_kind_chosen_is_stored_as_a_plain_file()
     {
         var (response, broker) = await ShareLayerAsync("{}");

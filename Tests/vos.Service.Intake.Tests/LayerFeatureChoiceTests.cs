@@ -45,7 +45,7 @@ public class LayerFeatureChoiceTests
     public void A_name_the_file_does_not_hold_is_refused_by_that_name()
     {
         var refusal = RefusalOf(() => LayerFeatureChoice.Choose(
-            [new LayerShape("Mill Brook", Outline, 3)], new Dictionary<string, string> { ["Zone"] = "flood-extent" }));
+            [new LayerShape("Mill Brook", Outline)], new Dictionary<string, string> { ["Zone"] = "flood-extent" }));
 
         refusal.Code.Should().Be(RefusalCode.FeatureNotInFile);
         refusal.Values!["value"].Should().Be("Zone");
@@ -55,38 +55,17 @@ public class LayerFeatureChoiceTests
     public void Every_shape_bearing_a_chosen_name_is_chosen_and_a_shape_not_chosen_is_not()
     {
         var chosen = LayerFeatureChoice.Choose(
-            [new LayerShape("Zone", Outline, 3), new LayerShape("Mill Brook", Outline, 3), new LayerShape("Zone", Outline, 3)],
+            [new LayerShape("Zone", Outline), new LayerShape("Mill Brook", Outline), new LayerShape("Zone", Outline)],
             new Dictionary<string, string> { ["Zone"] = "flood-extent" });
 
         chosen.Should().HaveCount(2).And.OnlyContain(feature => feature.Name == "Zone" && feature.Kind == "flood-extent");
     }
 
     [Fact]
-    public void A_chosen_shape_with_more_corners_than_a_border_takes_is_refused()
-    {
-        var refusal = RefusalOf(() => LayerFeatureChoice.Choose(
-            [new LayerShape("Zone", Outline, SubmissionLimits.MostBoundaryCorners + 1)],
-            new Dictionary<string, string> { ["Zone"] = "flood-extent" }));
-
-        refusal.Code.Should().Be(RefusalCode.FieldTooMany);
-        refusal.Values!["field"].Should().Be("Zone");
-        refusal.Values!["most"].Should().Be(SubmissionLimits.MostBoundaryCorners);
-    }
-
-    [Fact]
-    public void A_shape_not_chosen_is_not_held_to_the_corner_limit()
-    {
-        LayerFeatureChoice.Choose(
-                [new LayerShape("Zone", Outline, 3), new LayerShape("Coastline", Outline, SubmissionLimits.MostBoundaryCorners + 1)],
-                new Dictionary<string, string> { ["Zone"] = "flood-extent" })
-            .Should().ContainSingle();
-    }
-
-    [Fact]
     public void More_features_than_one_file_may_store_are_refused()
     {
         var shapes = Enumerable.Range(0, SubmissionLimits.MostLayerFeatures + 1)
-            .Select(_ => new LayerShape("Zone", Outline, 3)).ToList();
+            .Select(_ => new LayerShape("Zone", Outline)).ToList();
 
         var refusal = RefusalOf(() => LayerFeatureChoice.Choose(shapes, new Dictionary<string, string> { ["Zone"] = "flood-extent" }));
 
@@ -98,7 +77,7 @@ public class LayerFeatureChoiceTests
     public void As_many_features_as_one_file_may_store_are_taken()
     {
         var shapes = Enumerable.Range(0, SubmissionLimits.MostLayerFeatures)
-            .Select(_ => new LayerShape("Zone", Outline, 3)).ToList();
+            .Select(_ => new LayerShape("Zone", Outline)).ToList();
 
         LayerFeatureChoice.Choose(shapes, new Dictionary<string, string> { ["Zone"] = "flood-extent" })
             .Should().HaveCount(SubmissionLimits.MostLayerFeatures);

@@ -106,7 +106,7 @@ public sealed class SharedDocumentService(
         SiteLayerDeclarations layer)
     {
         using var bytes = openFile();
-        var chosen = LayerFeatureChoice.Choose(LayerFileReader.Read(fileName, bytes), chosenKinds);
+        var chosen = LayerFeatureChoice.Choose(LayerFileReader.Read(fileName, bytes, chosenKinds.ContainsKey), chosenKinds);
         return [.. chosen.Select(feature =>
             (feature, SubmissionFragmentComposer.Resolve(layer.Kinds, feature.Name, feature.Kind)))];
     }

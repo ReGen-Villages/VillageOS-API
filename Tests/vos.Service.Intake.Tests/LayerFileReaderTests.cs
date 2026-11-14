@@ -26,13 +26,23 @@ public class LayerFileReaderTests
         </kml>
         """;
 
-    private static IReadOnlyList<LayerShape> Read(string fileName, string text) =>
-        LayerFileReader.Read(fileName, new MemoryStream(Encoding.UTF8.GetBytes(text)));
+    private static IReadOnlyList<LayerShape> Read(string fileName, string text, Func<string, bool>? isChosen = null) =>
+        LayerFileReader.Read(fileName, new MemoryStream(Encoding.UTF8.GetBytes(text)), isChosen ?? (_ => true));
 
     private static JsonElement Geometry(LayerShape shape) => JsonDocument.Parse(shape.Geometry).RootElement;
 
-    private static string RefusalCodeOf(Action reading) =>
-        reading.Should().Throw<SubmissionError>().Which.AsRefusal().Code;
+    private static Refusal RefusalOf(Action reading) => reading.Should().Throw<SubmissionError>().Which.AsRefusal();
+
+    private static string RefusalCodeOf(Action reading) => RefusalOf(reading).Code;
+
+    private static string Positions(int count, double longitude = 8.1) =>
+        string.Join(' ', Enumerable.Range(0, count).Select(index => FormattableString.Invariant(
+            $"{longitude + 0.01 * Math.Cos(2 * Math.PI * index / count):F6},{47.2 + 0.01 * Math.Sin(2 * Math.PI * index / count):F6}")));
+
+    private static string Outline(int corners, int holeCorners = 0) =>
+        $"<Polygon><outerBoundaryIs><LinearRing><coordinates>{Positions(corners)}</coordinates></LinearRing></outerBoundaryIs>"
+        + (holeCorners == 0 ? "" : $"<innerBoundaryIs><LinearRing><coordinates>{Positions(holeCorners, 8.1001)}</coordinates></LinearRing></innerBoundaryIs>")
+        + "</Polygon>";
 
     [Fact]
     public void A_kml_outline_is_read_as_a_polygon_under_its_name_without_its_heights()
@@ -40,7 +50,6 @@ public class LayerFileReaderTests
         var shape = Read("layers.kml", SpringZoneKml).Should().ContainSingle().Subject;
 
         shape.Name.Should().Be("Spring Protection Zone");
-        shape.Corners.Should().Be(3);
         shape.Geometry.Should().Be("""{"type":"Polygon","coordinates":[[[8.1,47.2],[8.12,47.2],[8.12,47.22],[8.1,47.2]]]}""");
     }
 
@@ -71,7 +80,165 @@ public class LayerFileReaderTests
         var shape = Read("layers.kml", withHole).Single();
 
         Geometry(shape).GetProperty("coordinates").GetArrayLength().Should().Be(2);
-        shape.Corners.Should().Be(6);
+    }
+
+    [Fact]
+    public void An_outline_s_outer_ring_comes_first_though_the_file_gives_its_hole_first()
+    {
+        const string kml = """
+            <kml><Placemark><name>Zone</name><Polygon>
+              <innerBoundaryIs><LinearRing><coordinates>8.105,47.205 8.11,47.205 8.11,47.21</coordinates></LinearRing></innerBoundaryIs>
+              <outerBoundaryIs><LinearRing><coordinates>8.1,47.2 8.2,47.2 8.2,47.3</coordinates></LinearRing></outerBoundaryIs>
+            </Polygon></Placemark></kml>
+            """;
+
+        Geometry(Read("zone.kml", kml).Single()).GetProperty("coordinates")[0][0].GetRawText().Should().Be("[8.1,47.2]");
+    }
+
+    [Fact]
+    public void A_kml_name_given_as_character_data_is_read()
+    {
+        const string kml = """
+            <kml><Placemark><name><![CDATA[Mill & Brook]]></name><LineString><coordinates>8.1,47.2 8.2,47.3</coordinates></LineString></Placemark></kml>
+            """;
+
+        Read("brook.kml", kml).Single().Name.Should().Be("Mill & Brook");
+    }
+
+    [Theory]
+    [InlineData("<coordinates>8.1,47.2<!--first--> <!--second-->8.2,47.3</coordinates>")]
+    [InlineData("<coordinates xml:space=\"preserve\">8.1,47.2<!--first--> <!--second-->8.2,47.3</coordinates>")]
+    public void Kml_positions_split_by_comments_and_whitespace_are_two_positions(string coordinates)
+    {
+        var shape = Read("brook.kml", $"<kml><Placemark><name>Mill Brook</name><LineString>{coordinates}</LineString></Placemark></kml>").Single();
+
+        shape.Geometry.Should().Be("""{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}""");
+    }
+
+    [Fact]
+    public void A_kml_shape_whose_name_follows_its_geometry_is_left_out()
+    {
+        const string kml = """
+            <kml><Placemark><LineString><coordinates>8.1,47.2 8.2,47.3</coordinates></LineString><name>Mill Brook</name></Placemark></kml>
+            """;
+
+        Read("brook.kml", kml).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void An_outline_of_as_many_corners_as_a_border_takes_is_read_since_its_closing_position_is_no_corner()
+    {
+        var closedRing = $"{Positions(SubmissionLimits.MostBoundaryCorners)} {Positions(1)}";
+
+        Read("zone.kml", $"""
+            <kml><Placemark><name>Zone</name><LinearRing><coordinates>{closedRing}</coordinates></LinearRing></Placemark></kml>
+            """).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void A_kml_geometry_s_other_settings_are_not_read_as_positions()
+    {
+        const string kml = """
+            <kml><Placemark><name>Mill Brook</name><LineString><tessellate>1</tessellate><coordinates>8.1,47.2 8.2,47.3</coordinates></LineString></Placemark></kml>
+            """;
+
+        Read("brook.kml", kml).Single().Geometry.Should().Be("""{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}""");
+    }
+
+    [Fact]
+    public void An_empty_placemark_or_name_leaves_the_next_shape_to_be_read()
+    {
+        const string kml = """
+            <kml><Document><Placemark><name/></Placemark><Placemark/><Placemark><name>Zone</name><LineString><coordinates>8.1,47.2 8.2,47.3</coordinates></LineString></Placemark>
+            </Document></kml>
+            """;
+
+        Read("zones.kml", kml).Select(shape => shape.Name).Should().Equal("Zone");
+    }
+
+    [Fact]
+    public void A_gpx_route_point_s_name_is_not_a_route()
+    {
+        const string gpx = """
+            <gpx><rte><name>Coastline</name>
+              <rtept lat="47.2" lon="8.1"><name>Zone</name></rtept><rtept lat="47.3" lon="8.2"/>
+            </rte></gpx>
+            """;
+
+        Read("walk.gpx", gpx, name => name == "Zone").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_chosen_outline_whose_rings_together_pass_the_corner_limit_is_refused_by_its_name()
+    {
+        var refusal = RefusalOf(() => Read("zone.kml",
+            $"<kml><Placemark><name>Zone</name>{Outline(SubmissionLimits.MostBoundaryCorners - 2, holeCorners: 3)}</Placemark></kml>"));
+
+        refusal.Code.Should().Be(RefusalCode.FieldTooMany);
+        refusal.Values!["field"].Should().Be("Zone");
+        refusal.Values!["most"].Should().Be(SubmissionLimits.MostBoundaryCorners);
+    }
+
+    [Fact]
+    public void A_chosen_placemark_whose_lines_together_pass_the_corner_limit_is_refused()
+    {
+        var half = SubmissionLimits.MostBoundaryCorners / 2;
+        var kml = $"""
+            <kml><Placemark><name>Brooks</name><MultiGeometry>
+              <LineString><coordinates>{Positions(half + 1)}</coordinates></LineString>
+              <LineString><coordinates>{Positions(half, 9.1)}</coordinates></LineString>
+            </MultiGeometry></Placemark></kml>
+            """;
+
+        RefusalCodeOf(() => Read("brooks.kml", kml)).Should().Be(RefusalCode.FieldTooMany);
+    }
+
+    [Theory]
+    [InlineData("layers.kml", "<kml><Placemark><name>Coastline</name><LineString><coordinates>east,47.2 8.2,47.3</coordinates></LineString></Placemark><Placemark><name>Zone</name><LineString><coordinates>8.1,47.2 8.2,47.3</coordinates></LineString></Placemark></kml>")]
+    [InlineData("walk.gpx", "<gpx><trk><name>Coastline</name><trkseg><trkpt lat=\"47.2\"/></trkseg></trk><rte><name>Zone</name><rtept lat=\"47.2\" lon=\"8.1\"/><rtept lat=\"47.3\" lon=\"8.2\"/></rte></gpx>")]
+    [InlineData("layers.geojson", """{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Coastline"},"geometry":{"type":"LineString","coordinates":[["east",47.2]]}},{"type":"Feature","properties":{"name":"Zone"},"geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}}]}""")]
+    public void A_shape_not_chosen_is_left_unread(string fileName, string text)
+    {
+        Read(fileName, text, name => name == "Zone").Select(shape => shape.Name).Should().Equal("Zone");
+    }
+
+    [Theory]
+    [InlineData("coastline.kml", false)]
+    [InlineData("coastline.gpx", false)]
+    [InlineData("coastline.geojson", false)]
+    [InlineData("coastline.kml", true)]
+    [InlineData("coastline.gpx", true)]
+    [InlineData("coastline.geojson", true)]
+    public void Reading_a_large_shape_costs_less_than_twice_the_file_whether_or_not_it_is_chosen(string fileName, bool chosen)
+    {
+        const int positions = 200_000;
+        var text = new StringBuilder();
+        switch (Path.GetExtension(fileName))
+        {
+            case ".kml":
+                text.Append("<kml><Placemark><name>Coastline</name><LineString><coordinates>");
+                for (var index = 0; index < positions; index++) text.Append("8.1234567,47.1234567,412 ");
+                text.Append("</coordinates></LineString></Placemark></kml>");
+                break;
+            case ".gpx":
+                text.Append("<gpx><trk><name>Coastline</name><trkseg>");
+                for (var index = 0; index < positions; index++) text.Append("<trkpt lat=\"47.1234567\" lon=\"8.1234567\"/>");
+                text.Append("</trkseg></trk></gpx>");
+                break;
+            default:
+                text.Append("""{"type":"Feature","properties":{"name":"Coastline"},"geometry":{"type":"LineString","coordinates":[""");
+                for (var index = 0; index < positions; index++) text.Append(index == 0 ? "" : ",").Append("[8.1234567,47.1234567]");
+                text.Append("]}}");
+                break;
+        }
+        var bytes = Encoding.UTF8.GetBytes(text.ToString());
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var reading = () => LayerFileReader.Read(fileName, new MemoryStream(bytes), name => chosen && name == "Coastline");
+        if (chosen) RefusalCodeOf(() => reading()).Should().Be(RefusalCode.FieldTooMany);
+        else reading().Should().BeEmpty();
+
+        (GC.GetAllocatedBytesForCurrentThread() - before).Should().BeLessThan(2L * bytes.Length);
     }
 
     [Fact]
@@ -102,7 +269,6 @@ public class LayerFileReaderTests
         var shape = Read("zone.kml", kml).Single();
 
         Geometry(shape).GetProperty("type").GetString().Should().Be("Polygon");
-        shape.Corners.Should().Be(3);
     }
 
     [Fact]
@@ -147,7 +313,7 @@ public class LayerFileReaderTests
         }
         archive.Position = 0;
 
-        LayerFileReader.Read("layers.kmz", archive).Select(shape => shape.Name).Should().Equal("Spring Protection Zone");
+        LayerFileReader.Read("layers.kmz", archive, _ => true).Select(shape => shape.Name).Should().Equal("Spring Protection Zone");
     }
 
     [Fact]
@@ -158,7 +324,7 @@ public class LayerFileReaderTests
             Entry(zip, "readme.txt", "nothing here");
         archive.Position = 0;
 
-        RefusalCodeOf(() => LayerFileReader.Read("layers.kmz", archive)).Should().Be(RefusalCode.LayerFileUnreadable);
+        RefusalCodeOf(() => LayerFileReader.Read("layers.kmz", archive, _ => true)).Should().Be(RefusalCode.LayerFileUnreadable);
     }
 
     [Fact]
@@ -175,7 +341,7 @@ public class LayerFileReaderTests
         }
         archive.Position = 0;
 
-        RefusalCodeOf(() => LayerFileReader.Read("layers.kmz", archive)).Should().Be(RefusalCode.FileTooLarge);
+        RefusalCodeOf(() => LayerFileReader.Read("layers.kmz", archive, _ => true)).Should().Be(RefusalCode.FileTooLarge);
     }
 
     [Fact]
@@ -202,6 +368,9 @@ public class LayerFileReaderTests
               {"type":"Feature","properties":{"name":"Mixed"},"geometry":{"type":"GeometryCollection","geometries":[
                 {"type":"Point","coordinates":[8.1,47.2]},{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}]}},
               {"type":"Feature","properties":{"name":"Well Head"},"geometry":{"type":"Point","coordinates":[8.1,47.2]}},
+              {"type":"Feature","properties":{"name":"Nowhere"},"geometry":null},
+              {"type":"Feature","properties":{"name":3},"geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}},
+              {"type":"Feature","properties":{"name":"Nowhere"}},
               {"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}}
             ]}
             """;
@@ -224,6 +393,37 @@ public class LayerFileReaderTests
 
         Read("brook.json", geoJson).Single().Geometry
             .Should().Be("""{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}""");
+    }
+
+    [Fact]
+    public void A_geojson_feature_giving_its_name_after_its_geometry_is_read()
+    {
+        const string geoJson = """
+            {"geometry":{"coordinates":[[8.1,47.2],[8.2,47.3]],"type":"LineString"},"properties":{"name":"Mill Brook"},"type":"Feature"}
+            """;
+
+        Read("brook.geojson", geoJson, name => name == "Mill Brook").Single().Geometry
+            .Should().Be("""{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}""");
+    }
+
+    [Fact]
+    public void A_geojson_feature_whose_properties_are_null_is_unnamed_whatever_else_it_holds()
+    {
+        const string geoJson = """
+            {"type":"Feature","properties":null,"name":"Mill Brook","geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}}
+            """;
+
+        Read("brook.geojson", geoJson).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_geojson_file_beginning_with_a_byte_order_mark_is_read()
+    {
+        var text = Encoding.UTF8.GetBytes(
+            """{"type":"Feature","properties":{"name":"Mill Brook"},"geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,47.3]]}}""");
+
+        LayerFileReader.Read("brook.geojson", new MemoryStream([.. Encoding.UTF8.Preamble, .. text]), _ => true)
+            .Should().ContainSingle();
     }
 
     [Fact]
@@ -251,6 +451,26 @@ public class LayerFileReaderTests
     [InlineData("layers.shp", "anything")]
     [InlineData("layers.geojson", "{ not json")]
     [InlineData("layers.geojson", """{"type":"Polygon","coordinates":[]}""")]
+    [InlineData("layers.geojson", "")]
+    [InlineData("layers.geojson", "[]")]
+    [InlineData("layers.geojson", """{"type":"FeatureCollection","features":{}}""")]
+    [InlineData("layers.geojson", """{"type":"FeatureCollection","features":[3]}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":{}}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":[3,[8.2,47.3]]}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":[[8.1],[8.2,47.3]]}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":[[8.1,"north"],[8.2,47.3]]}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":[[8.1,47.2,"high"],[8.2,47.3]]}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"Polygon","coordinates":3}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"MultiPolygon","coordinates":3}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"MultiLineString","coordinates":3}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"GeometryCollection","geometries":3}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"GeometryCollection","geometries":[3]}}""")]
+    [InlineData("layers.geojson", """{"type":"Feature","properties":{"name":"A"},"geometry":{"type":"LineString","coordinates":[[8.1,47.2],[8.2,1e400]]}}""")]
+    [InlineData("layers.kmz", "not an archive")]
+    [InlineData("walk.gpx", "<gpx><trk><name>A</name><trkseg><trkpt lon=\"8.1\"/><trkpt lat=\"47.3\" lon=\"8.2\"/></trkseg></trk></gpx>")]
+    [InlineData("layers.kml", "<kml><Placemark><name>A</name><LinearRing><coordinates></coordinates></LinearRing></Placemark></kml>")]
+    [InlineData("layers.geojson", """{"type":"FeatureCollection"}""")]
+    [InlineData("layers.kml", "<kml><Placemark><name>A</name><Polygon><extrude>1</extrude></Polygon></Placemark></kml>")]
     [InlineData("layers.kml", "<kml><Placemark><name>A</name>")]
     [InlineData("layers.kml", "<kml><Placemark><name>A</name><LineString><coordinates>8.1,47.2</coordinates></LineString></Placemark></kml>")]
     [InlineData("layers.kml", "<kml><Placemark><name>A</name><LineString><coordinates>8.1,95 8.2,47.3</coordinates></LineString></Placemark></kml>")]
