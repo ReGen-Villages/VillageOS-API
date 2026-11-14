@@ -30,6 +30,8 @@ internal static class IntakeEndpoints
         MapForm(app);
         MapParcelAtPosition(app);
         MapPlaceSearch(app);
+        MapPlotsInView(app);
+        MapBorderElevation(app);
         MapVerification(app);
         MapTicket(app);
         MapSubmission(app);
@@ -38,6 +40,7 @@ internal static class IntakeEndpoints
         MapBasemapTiles(app);
         MapDocumentUpload(app);
         MapDocumentList(app);
+        MapDocumentRemoval(app);
     }
 
     private static void MapForm(WebApplication app)
@@ -141,6 +144,96 @@ internal static class IntakeEndpoints
                                               && !context.RequestAborted.IsCancellationRequested))
             {
                 logger.LogError(error, "A place search could not be answered: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+        }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }
+
+    private static void MapPlotsInView(WebApplication app)
+    {
+        // A register's plots inside the map in view, for a page to offer as borders before any site exists.
+        app.MapPost("/submissions/plots-in-view", async (
+            HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+        {
+            var asked = await ReadAsync<PlotsAsked>(context);
+            if (asked is not { SouthLatitude: { } south, WestLongitude: { } west, NorthLatitude: { } north, EastLongitude: { } east }
+                || south is < -90 or > 90 || north is < -90 or > 90 || west is < -180 or > 180 || east is < -180 or > 180
+                || south >= north || west >= east)
+                return Refused(context, "the view was missing or not a box",
+                    Results.BadRequest(new Refusal(RefusalCode.PositionMissing,
+                        "'southLatitude', 'westLongitude', 'northLatitude' and 'eastLongitude' are all needed, in degrees, south below north and west of east.")));
+
+            try
+            {
+                var answered = await lookups.PlotsInViewAsync(
+                    new DeclaredBounds(south, north, west, east), asked.Zoom ?? 0, context.RequestAborted);
+                return answered.Outcome switch
+                {
+                    LookupOutcome.Found => Results.Ok(new
+                    {
+                        plots = answered.Plots!.Plots,
+                        attributions = answered.Plots.Attributions,
+                    }),
+                    LookupOutcome.NothingAvailable => Results.Json(
+                        new Refusal(RefusalCode.NoPlots, PositionLookupService.NoPlotsAvailable),
+                        statusCode: StatusCodes.Status404NotFound),
+                    _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
+                };
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "The plots in view could not be answered: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+        }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }
+
+    private static void MapBorderElevation(WebApplication app)
+    {
+        // How high the land inside a finished border sits, before any site exists, so the Location page can
+        // show the same figures the site will keep when it is submitted.
+        app.MapPost("/submissions/border-elevation", async (
+            HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+        {
+            var border = (await ReadAsync<ElevationAsked>(context))?.Boundary;
+            if (border is null || border.Count < 3)
+                return Refused(context, "the border had fewer than three corners",
+                    Results.BadRequest(new Refusal(RefusalCode.BoundaryTooFewCorners,
+                        "A border needs at least three corners.", Refusal.With(("corners", border?.Count ?? 0)))));
+            try
+            {
+                SubmissionLimits.Boundary(border, "boundary");
+            }
+            catch (SubmissionError error)
+            {
+                return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
+            }
+
+            try
+            {
+                var answered = await lookups.ElevationAsync(border, context.RequestAborted);
+                return answered.Outcome switch
+                {
+                    LookupOutcome.Found => Results.Ok(new
+                    {
+                        elevationMetres = answered.Elevation!.ElevationMetres,
+                        elevationMinimumMetres = answered.Elevation.ElevationMinimumMetres,
+                        elevationMaximumMetres = answered.Elevation.ElevationMaximumMetres,
+                        attribution = answered.Elevation.Attribution,
+                    }),
+                    LookupOutcome.NothingAvailable => Results.Json(
+                        new Refusal(RefusalCode.NoElevation, PositionLookupService.NoElevationAvailable),
+                        statusCode: StatusCodes.Status404NotFound),
+                    _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
+                };
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "A border elevation could not be answered: {Reason}", error.Message);
                 return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
             }
         }).RequireRateLimiting(SubmissionRate.PolicyName);
@@ -463,17 +556,30 @@ internal static class IntakeEndpoints
                         $"A description is at most {SubmissionLimits.LongestProse} characters.",
                         Refusal.With(("characters", SubmissionLimits.LongestProse)))));
 
+            IReadOnlyDictionary<string, string>? chosenKinds = null;
             try
             {
-                await using var bytes = file.OpenReadStream();
+                if (form.TryGetValue(LayerFeatureChoice.FormField, out var features))
+                    chosenKinds = LayerFeatureChoice.Read(features.ToString());
+            }
+            catch (SubmissionError error)
+            {
+                return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
+            }
+
+            try
+            {
                 var shared = await documents.ShareAsync(
                     submissionId, address => tickets.WasIssuedFor(presented, address),
-                    Path.GetFileName(file.FileName), file.ContentType, description, bytes, context.RequestAborted);
+                    Path.GetFileName(file.FileName), file.ContentType, description, file.OpenReadStream, chosenKinds,
+                    context.RequestAborted);
                 switch (shared.Outcome)
                 {
                     case ShareOutcome.Shared:
                         context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(shared.Address!);
                         return Results.Json(shared.Document, statusCode: StatusCodes.Status201Created);
+                    case ShareOutcome.Refused:
+                        return Refused(context, shared.Refusal!.Error, Results.BadRequest(shared.Refusal));
                     case ShareOutcome.NotTakenHere:
                         return Refused(context, "this model takes no shared file",
                             Results.Json(new Refusal(RefusalCode.FilesNotTaken, "Files are not taken here: the model declares no place for one."),
@@ -521,6 +627,44 @@ internal static class IntakeEndpoints
                                               && !context.RequestAborted.IsCancellationRequested))
             {
                 logger.LogError(error, "Shared files could not be listed: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+        }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }
+
+    private static void MapDocumentRemoval(WebApplication app)
+    {
+        app.MapDelete("/submissions/{submissionId}/documents/{documentId:guid}", async (
+            string submissionId, Guid documentId, HttpContext context, SharedDocumentService documents,
+            SubmissionTicket tickets, ILogger<SharedDocumentService> logger) =>
+        {
+            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+            if (tickets.WhyRefused(presented) is { } notFromAForm)
+                return Refused(context, "the ticket was not accepted",
+                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            try
+            {
+                var removed = await documents.RemoveAsync(
+                    submissionId, address => tickets.WasIssuedFor(presented, address), documentId, context.RequestAborted);
+                switch (removed.Outcome)
+                {
+                    case RemovalOutcome.Removed:
+                        context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(removed.Address!);
+                        return Results.NoContent();
+                    case RemovalOutcome.NotShared:
+                        return Refused(context, "the submission shares no such file",
+                            Results.Json(new Refusal(RefusalCode.DocumentNotShared, "This file is not one this submission shares."),
+                                statusCode: StatusCodes.Status404NotFound));
+                    default:
+                        return Refused(context, "the reference and the ticket name no submission",
+                            Results.Json(new Refusal(RefusalCode.NotYourSubmission, SubmissionFindingsService.NotYourSubmission), statusCode: StatusCodes.Status404NotFound));
+                }
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "A shared file could not be removed: {Reason}", error.Message);
                 return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
             }
         }).RequireRateLimiting(SubmissionRate.PolicyName);

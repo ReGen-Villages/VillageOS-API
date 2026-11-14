@@ -14,7 +14,11 @@ public sealed record ParcelLookup(LookupOutcome Outcome, AnsweredParcel? Parcel 
 
 public sealed record PlacesLookup(LookupOutcome Outcome, AnsweredPlaces? Places = null);
 
-// The two lookups a page makes before any site exists, answered from the registrations the model
+public sealed record ElevationLookup(LookupOutcome Outcome, AnsweredElevation? Elevation = null);
+
+public sealed record PlotsLookup(LookupOutcome Outcome, AnsweredPlots? Plots = null);
+
+// The lookups a page makes before any site exists, answered from the registrations the model
 // declares. The outbound call goes through the broker's endpoint-forward route to the fetching
 // service, which owns addresses, placeholder filling and outbound identification — a second HTTP path
 // here would be a second mapping to keep right. What comes back is the provider's raw body, because
@@ -34,6 +38,117 @@ public sealed class PositionLookupService(
         "No parcel boundary is available at this position. Draw the boundary instead.";
 
     public const string NoSearchAvailable = "No place search is available here.";
+
+    public const string NoElevationAvailable = "No elevation is available for this border.";
+
+    public const string NoPlotsAvailable = "No register's plots are available for this view.";
+
+    // Every register whose box overlaps the view and that answers at this zoom is asked, because a view can
+    // straddle two registers' territory; their plots are answered together, each register credited once.
+    public async Task<PlotsLookup> PlotsInViewAsync(DeclaredBounds view, int zoom, CancellationToken cancellation)
+    {
+        var registers = await declarations.ReadAsync(
+            PositionLookupReader.PlotsSelector(), PositionLookupReader.PlotsInViewLookups, cancellation);
+        var asking = registers
+            .Where(register => register.Lookup.Bounds!.Overlaps(view) && zoom >= register.MinimumZoom)
+            .ToList();
+        if (asking.Count == 0) return new PlotsLookup(LookupOutcome.NothingAvailable);
+
+        var plots = new List<AnsweredPlot>();
+        var credits = new List<string>();
+        var answered = 0;
+        foreach (var register in asking)
+        {
+            var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+            {
+                endpointName = register.Lookup.Name,
+                addressParameters = new Dictionary<string, string>
+                {
+                    ["southLatitude"] = view.SouthLatitude.ToString(CultureInfo.InvariantCulture),
+                    ["westLongitude"] = view.WestLongitude.ToString(CultureInfo.InvariantCulture),
+                    ["northLatitude"] = view.NorthLatitude.ToString(CultureInfo.InvariantCulture),
+                    ["eastLongitude"] = view.EastLongitude.ToString(CultureInfo.InvariantCulture),
+                },
+            }, cancellation);
+            if (body is null) continue;
+            answered++;
+
+            var found = Plots(register, body);
+            plots.AddRange(found);
+            if (found.Count > 0 && register.Lookup.Attribution is { } credit) credits.Add(credit);
+        }
+
+        return answered == 0
+            ? new PlotsLookup(LookupOutcome.ProviderUnavailable)
+            : new PlotsLookup(LookupOutcome.Found, new AnsweredPlots(plots, credits));
+    }
+
+    // The provider's limit on points a call, less the one the centre takes.
+    public const int MostElevationCorners = 99;
+
+    public async Task<ElevationLookup> ElevationAsync(
+        IReadOnlyList<BoundaryPoint> border, CancellationToken cancellation)
+    {
+        var lookups = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.BorderElevations, cancellation);
+        if (lookups.Count == 0) return new ElevationLookup(LookupOutcome.NothingAvailable);
+
+        var centre = BoxCentre(border);
+        string Pair(BoundaryPoint point) => string.Create(CultureInfo.InvariantCulture, $"{point.Latitude},{point.Longitude}");
+        var parameters = new Dictionary<string, string>
+        {
+            ["locations"] = string.Join('|', SampledCorners(border).Prepend(centre).Select(Pair)),
+            ["latitude"] = centre.Latitude.ToString(CultureInfo.InvariantCulture),
+            ["longitude"] = centre.Longitude.ToString(CultureInfo.InvariantCulture),
+        };
+
+        var asked = 0;
+        foreach (var lookup in lookups)
+        {
+            var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+            {
+                endpointName = lookup.Name,
+                addressParameters = parameters,
+            }, cancellation);
+            if (body is null) continue;
+            asked++;
+            if (Elevation(lookup, body) is { } answered) return new ElevationLookup(LookupOutcome.Found, answered);
+        }
+
+        return new ElevationLookup(asked == 0 ? LookupOutcome.ProviderUnavailable : LookupOutcome.NothingAvailable);
+    }
+
+    // The centre of the border's box, as the Location page shows it, rather than its centre of area.
+    public static BoundaryPoint BoxCentre(IReadOnlyList<BoundaryPoint> border) => new()
+    {
+        Latitude = (border.Min(point => point.Latitude) + border.Max(point => point.Latitude)) / 2,
+        Longitude = (border.Min(point => point.Longitude) + border.Max(point => point.Longitude)) / 2,
+    };
+
+    public static IReadOnlyList<BoundaryPoint> SampledCorners(IReadOnlyList<BoundaryPoint> border) =>
+        border.Count <= MostElevationCorners
+            ? border
+            : [.. Enumerable.Range(0, MostElevationCorners).Select(index => border[index * border.Count / MostElevationCorners])];
+
+    private AnsweredElevation? Elevation(DeclaredLookup lookup, string body)
+    {
+        if (Reshaped(lookup, body) is not { } answered) return null;
+        using (answered)
+        {
+            if (answered.RootElement.ValueKind != JsonValueKind.Object) return null;
+            double? Metres(string name) =>
+                answered.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+                    ? value.GetDouble()
+                    : null;
+
+            var centre = Metres("elevationMetres");
+            var lowest = Metres("elevationMinimumMetres");
+            var highest = Metres("elevationMaximumMetres");
+            return centre is null && lowest is null && highest is null
+                ? null
+                : new AnsweredElevation(centre, lowest, highest, lookup.Attribution);
+        }
+    }
 
     public async Task<ParcelLookup> ParcelAtAsync(
         double latitude, double longitude, CancellationToken cancellation)
@@ -74,19 +189,30 @@ public sealed class PositionLookupService(
 
     public async Task<PlacesLookup> PlacesAsync(string query, CancellationToken cancellation)
     {
-        var search = await declarations.ReadAsync(
-            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearch, cancellation);
-        if (search is null) return new PlacesLookup(LookupOutcome.NothingAvailable);
+        var searches = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearches, cancellation);
+        if (searches.Count == 0) return new PlacesLookup(LookupOutcome.NothingAvailable);
 
-        var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+        // A search that is refused, cannot be reached or finds nothing hands the query to the next one in the
+        // model's order; finding nothing anywhere is still an answer, unlike every search being unreachable.
+        AnsweredPlaces? foundNothing = null;
+        foreach (var search in searches)
         {
-            endpointName = search.Name,
-            addressParameters = new Dictionary<string, string> { ["query"] = query },
-        }, cancellation);
-        if (body is null) return new PlacesLookup(LookupOutcome.ProviderUnavailable);
+            var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new
+            {
+                endpointName = search.Name,
+                addressParameters = new Dictionary<string, string> { ["query"] = query },
+            }, cancellation);
+            if (body is null) continue;
 
-        return new PlacesLookup(
-            LookupOutcome.Found, new AnsweredPlaces(Places(search, body), search.Attribution));
+            var places = Places(search, body);
+            if (places.Count > 0) return new PlacesLookup(LookupOutcome.Found, new AnsweredPlaces(places, search.Attribution));
+            foundNothing ??= new AnsweredPlaces(places, search.Attribution);
+        }
+
+        return foundNothing is null
+            ? new PlacesLookup(LookupOutcome.ProviderUnavailable)
+            : new PlacesLookup(LookupOutcome.Found, foundNothing);
     }
 
     private IReadOnlyList<BoundaryPoint>? Boundary(DeclaredLookup register, string body)
@@ -94,28 +220,64 @@ public sealed class PositionLookupService(
         if (Reshaped(register, body) is not { } answered) return null;
         using (answered)
         {
-            if (answered.RootElement.ValueKind != JsonValueKind.Object
-                || !answered.RootElement.TryGetProperty("boundary", out var ring)
-                || ring.ValueKind != JsonValueKind.Array)
-                return null;
+            return answered.RootElement.ValueKind == JsonValueKind.Object
+                   && answered.RootElement.TryGetProperty("boundary", out var ring)
+                ? Ring(register, ring)
+                : null;
+        }
+    }
 
-            var corners = new List<BoundaryPoint>();
-            foreach (var corner in ring.EnumerateArray())
+    private IReadOnlyList<BoundaryPoint>? Ring(DeclaredLookup register, JsonElement ring)
+    {
+        if (ring.ValueKind != JsonValueKind.Array) return null;
+
+        var corners = new List<BoundaryPoint>();
+        foreach (var corner in ring.EnumerateArray())
+        {
+            if (Coordinate(corner, "latitude", 90) is not { } cornerLatitude
+                || Coordinate(corner, "longitude", 180) is not { } cornerLongitude
+                || corners.Count == SubmissionLimits.MostBoundaryCorners)
             {
-                if (Coordinate(corner, "latitude", 90) is not { } cornerLatitude
-                    || Coordinate(corner, "longitude", 180) is not { } cornerLongitude
-                    || corners.Count == SubmissionLimits.MostBoundaryCorners)
-                {
-                    // A register answering a shape this service would refuse as a submission is a
-                    // registration to fix, not a boundary to pass along.
-                    logger.LogWarning(
-                        "The register '{Register}' answered a boundary outside what a parcel takes",
-                        register.Name);
-                    return null;
-                }
-                corners.Add(new BoundaryPoint { Latitude = cornerLatitude, Longitude = cornerLongitude });
+                // A register answering a shape this service would refuse as a submission is a
+                // registration to fix, not a boundary to pass along.
+                logger.LogWarning(
+                    "The register '{Register}' answered a boundary outside what a parcel takes",
+                    register.Name);
+                return null;
             }
-            return corners.Count >= 3 ? corners : null;
+            corners.Add(new BoundaryPoint { Latitude = cornerLatitude, Longitude = cornerLongitude });
+        }
+        return corners.Count >= 3 ? corners : null;
+    }
+
+    private IReadOnlyList<AnsweredPlot> Plots(DeclaredPlotsLookup register, string body)
+    {
+        if (Reshaped(register.Lookup, body) is not { } answered) return [];
+        using (answered)
+        {
+            if (answered.RootElement.ValueKind != JsonValueKind.Object
+                || !answered.RootElement.TryGetProperty("plots", out var found)
+                || found.ValueKind != JsonValueKind.Array)
+                return [];
+
+            var plots = new List<AnsweredPlot>();
+            foreach (var plot in found.EnumerateArray())
+            {
+                if (plots.Count == register.MostPlots) break;
+                if (plot.ValueKind != JsonValueKind.Object
+                    || !plot.TryGetProperty("boundary", out var ring)
+                    || Ring(register.Lookup, ring) is not { } boundary)
+                    continue;
+                plots.Add(new AnsweredPlot(
+                    boundary,
+                    plot.TryGetProperty("identifier", out var identifier) && identifier.ValueKind == JsonValueKind.String
+                        ? identifier.GetString()
+                        : null,
+                    plot.TryGetProperty("areaHectares", out var area) && area.ValueKind == JsonValueKind.Number
+                        ? area.GetDouble()
+                        : null));
+            }
+            return plots;
         }
     }
 

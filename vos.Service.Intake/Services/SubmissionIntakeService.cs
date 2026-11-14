@@ -4,7 +4,8 @@ using vos.Service.Shared;
 
 namespace vos.Service.Intake.Services;
 
-public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium, HeldDeclarations declarations, ModelClock time)
+public sealed class SubmissionIntakeService(
+    IntakeMyceliumClient mycelium, HeldDeclarations declarations, PositionLookupService lookups, ModelClock time)
 {
     public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
@@ -15,8 +16,9 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium, HeldD
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
         var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
+        var held = HeldElevationAsync(submission, cancellation);
 
-        await Task.WhenAll([shape, has, isEdge, arrival]);
+        await Task.WhenAll([shape, has, isEdge, arrival, held]);
 
         var read = await shape;
         var predicates = new ResolvedPredicates(read.Studies, await has, await isEdge, read.Proposes, read.ServedAfter);
@@ -26,12 +28,47 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium, HeldD
         // run together the one that answered first would decide which of the two refusals the planner saw.
         // The study's archetype comes with it, found through its role rather than by a name.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
+        var elevationRange = await ElevationRangeAsync(submission, await held, cancellation);
 
         var composed = SubmissionFragmentComposer.Compose(
-            submission, predicates, archetypes, vocabulary, await arrival);
+            submission, predicates, archetypes, vocabulary, await arrival, elevationRange);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
     }
+
+    // Null for a submission the composer will refuse for its identifier or its border.
+    private async Task<HeldElevation?> HeldElevationAsync(Submission submission, CancellationToken cancellation)
+    {
+        if (string.IsNullOrWhiteSpace(submission.SubmissionId) || submission.Parcel?.Boundary is not { Count: >= 3 })
+            return null;
+
+        var (siteId, parcelId) = SiteAndParcel(submission.SubmissionId);
+        var snapshot = await mycelium.ReadSnapshotAsync(SiteElevationReader.Selector(siteId, parcelId), cancellation);
+        return SiteElevationReader.Read(snapshot, siteId, parcelId);
+    }
+
+    // The figures go before the submission is written: should that write fail, the site is left with its old
+    // border and no figures, which the next save looks up again.
+    private async Task<ElevationRange?> ElevationRangeAsync(
+        Submission submission, HeldElevation? held, CancellationToken cancellation)
+    {
+        var border = submission.Parcel?.Boundary;
+        if (held is null || border is null || !held.NeedsLookupFor(border))
+            return null;
+
+        var answered = await lookups.ElevationAsync(border, cancellation);
+        if (answered.Elevation?.Range is { } range)
+            return range;
+
+        var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
+        foreach (var figure in held.FiguresStated)
+            await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
+        return null;
+    }
+
+    private static (Guid Site, Guid Parcel) SiteAndParcel(string submissionId) =>
+        (StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SiteRole),
+         StableIdentity.Derive(submissionId, SubmissionFragmentComposer.ParcelRole));
 
     // When this submission arrived, which is only the arrival the first time. A wizard saves as the planner
     // fills the form in and a fragment upserts, so a time written on every save would record the last save.

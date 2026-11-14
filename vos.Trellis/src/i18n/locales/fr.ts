@@ -1634,6 +1634,8 @@ export const fr: PartialResources = {
     noParcel: "Aucune limite de parcelle n’est disponible à cet endroit. Dessinez plutôt la limite.",
     queryMissing: "Saisissez quelque chose à rechercher.",
     noSearch: "Aucune recherche de lieu n’est disponible ici.",
+    noElevation: "Aucune altitude n’est disponible pour cette limite.",
+    noPlots: "Aucune parcelle d’un registre n’est disponible pour cette vue.",
     noBasemap: "Cette carte n’est pas proposée ici.",
     emailAddressMissing: "Une adresse e-mail est nécessaire.",
     codesExhausted: "Cette adresse a reçu autant de codes que possible pour le moment. Réessayez plus tard.",
@@ -1664,5 +1666,9 @@ export const fr: PartialResources = {
     fileTooLarge: "Un fichier peut faire au plus {{megabytes}} Mo.",
     descriptionTooLong: "Une description compte au plus {{characters}} caractères.",
     filesNotTaken: "Les fichiers ne sont pas acceptés ici.",
+    layerFileUnreadable: "Ce fichier n’a pas pu être lu comme couche cartographique. Une couche est un fichier KML, KMZ, GeoJSON ou GPX.",
+    featuresUnreadable: "Les types choisis pour les éléments de cette couche n’ont pas pu être lus.",
+    featureNotInFile: "« {{value}} » n’est pas un élément de ce fichier.",
+    documentNotShared: "Ce fichier ne fait pas partie de cette soumission.",
   },
 };

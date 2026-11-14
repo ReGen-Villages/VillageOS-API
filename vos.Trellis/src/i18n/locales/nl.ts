@@ -1634,6 +1634,8 @@ export const nl: PartialResources = {
     noParcel: "Op deze positie is geen perceelgrens beschikbaar. Teken de grens zelf.",
     queryMissing: "Typ iets om naar te zoeken.",
     noSearch: "Hier is geen plaatszoekfunctie beschikbaar.",
+    noElevation: "Voor deze grens is geen hoogte beschikbaar.",
+    noPlots: "Voor deze weergave zijn geen percelen uit een register beschikbaar.",
     noBasemap: "Die kaart wordt hier niet aangeboden.",
     emailAddressMissing: "Er is een e-mailadres nodig.",
     codesExhausted: "Naar dat adres zijn voorlopig zoveel codes gestuurd als mogelijk is. Probeer het later opnieuw.",
@@ -1664,5 +1666,9 @@ export const nl: PartialResources = {
     fileTooLarge: "Een bestand mag hoogstens {{megabytes}} MB groot zijn.",
     descriptionTooLong: "Een beschrijving mag hoogstens {{characters}} tekens lang zijn.",
     filesNotTaken: "Hier worden geen bestanden aangenomen.",
+    layerFileUnreadable: "Dit bestand kon niet als kaartlaag worden gelezen. Een laag is een KML-, KMZ-, GeoJSON- of GPX-bestand.",
+    featuresUnreadable: "De soorten die voor de onderdelen van deze laag zijn gekozen, konden niet worden gelezen.",
+    featureNotInFile: "‘{{value}}’ is geen onderdeel van dit bestand.",
+    documentNotShared: "Dit bestand hoort niet bij deze inzending.",
   },
 };

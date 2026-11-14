@@ -1739,6 +1739,8 @@ export const ar: WithArabicPluralForms<Resources> = {
     noParcel: "لا تتوفر حدود قطعة أرض في هذا الموقع. ارسم الحدود بنفسك.",
     queryMissing: "اكتب شيئًا للبحث عنه.",
     noSearch: "البحث عن الأماكن غير متاح هنا.",
+    noElevation: "لا يتوفر ارتفاع لهذه الحدود.",
+    noPlots: "لا تتوفر قطع أراضٍ من أي سجل لهذا العرض.",
     noBasemap: "هذه الخريطة غير متاحة هنا.",
     emailAddressMissing: "يلزم عنوان بريد إلكتروني.",
     codesExhausted: "أُرسل إلى هذا العنوان أقصى عدد ممكن من الرموز حاليًا. أعد المحاولة لاحقًا.",
@@ -1769,5 +1771,9 @@ export const ar: WithArabicPluralForms<Resources> = {
     fileTooLarge: "يجب ألا يتجاوز حجم الملف {{megabytes}} ميغابايت.",
     descriptionTooLong: "يجب ألا يتجاوز الوصف {{characters}} حرفًا.",
     filesNotTaken: "لا تُقبل الملفات هنا.",
+    layerFileUnreadable: "تعذّرت قراءة هذا الملف كطبقة خريطة. الطبقة ملف KML أو KMZ أو GeoJSON أو GPX.",
+    featuresUnreadable: "تعذّرت قراءة الأنواع المختارة لعناصر هذه الطبقة.",
+    featureNotInFile: "«{{value}}» ليس عنصرًا في هذا الملف.",
+    documentNotShared: "هذا الملف ليس من ملفات هذا الطلب.",
   },
 };

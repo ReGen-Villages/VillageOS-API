@@ -1634,6 +1634,8 @@ export const de: PartialResources = {
     noParcel: "An dieser Position ist keine Flurstücksgrenze verfügbar. Zeichnen Sie die Grenze stattdessen selbst.",
     queryMissing: "Geben Sie einen Suchbegriff ein.",
     noSearch: "Hier ist keine Ortssuche verfügbar.",
+    noElevation: "Für diese Grenze ist keine Höhe verfügbar.",
+    noPlots: "Für diesen Ausschnitt sind keine Flurstücke eines Registers verfügbar.",
     noBasemap: "Diese Karte wird hier nicht bereitgestellt.",
     emailAddressMissing: "Eine E-Mail-Adresse wird benötigt.",
     codesExhausted: "An diese Adresse wurden vorerst so viele Codes wie möglich gesendet. Versuchen Sie es später erneut.",
@@ -1664,5 +1666,9 @@ export const de: PartialResources = {
     fileTooLarge: "Eine Datei darf höchstens {{megabytes}} MB groß sein.",
     descriptionTooLong: "Eine Beschreibung darf höchstens {{characters}} Zeichen lang sein.",
     filesNotTaken: "Hier werden keine Dateien angenommen.",
+    layerFileUnreadable: "Diese Datei konnte nicht als Kartenebene gelesen werden. Eine Ebene ist eine KML-, KMZ-, GeoJSON- oder GPX-Datei.",
+    featuresUnreadable: "Die für die Elemente dieser Ebene gewählten Arten konnten nicht gelesen werden.",
+    featureNotInFile: "„{{value}}“ ist kein Element dieser Datei.",
+    documentNotShared: "Diese Datei gehört nicht zu dieser Einreichung.",
   },
 };
