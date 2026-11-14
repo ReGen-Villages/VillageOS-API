@@ -529,7 +529,7 @@ public class HandleEndpointTests
     public async Task Handle_OutboundCallThrows_Returns502()
     {
         // The MockHttpMessageHandler's callback throws — surfaces as an exception in
-        // CallEndpointAsync's await, hits the outer try/catch in /handle, returns 502.
+        // SendAsync's await, hits the outer try/catch in /handle, returns 502.
         var thingId = Guid.NewGuid();
         var props = """
         {
