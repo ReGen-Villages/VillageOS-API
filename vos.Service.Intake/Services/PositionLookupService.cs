@@ -18,7 +18,7 @@ public sealed record ElevationLookup(LookupOutcome Outcome, AnsweredElevation? E
 
 public sealed record PlotsLookup(LookupOutcome Outcome, AnsweredPlots? Plots = null);
 
-// The two lookups a page makes before any site exists, answered from the registrations the model
+// The lookups a page makes before any site exists, answered from the registrations the model
 // declares. The outbound call goes through the broker's endpoint-forward route to the fetching
 // service, which owns addresses, placeholder filling and outbound identification — a second HTTP path
 // here would be a second mapping to keep right. What comes back is the provider's raw body, because
@@ -83,7 +83,7 @@ public sealed class PositionLookupService(
             : new PlotsLookup(LookupOutcome.Found, new AnsweredPlots(plots, credits));
     }
 
-    // The provider takes at most a hundred points a call: the centre, then this many corners.
+    // The provider's limit on points a call, less the one the centre takes.
     public const int MostElevationCorners = 99;
 
     public async Task<ElevationLookup> ElevationAsync(

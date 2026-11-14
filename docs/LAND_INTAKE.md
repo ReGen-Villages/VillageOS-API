@@ -384,6 +384,15 @@ figure the planner saw and the figure the model holds cannot drift apart. Coordi
 `latitude` / `longitude` pairs, because a coordinate pair read in the wrong order is a mistake nothing
 downstream can catch; the boundary is stored as a GeoJSON polygon, which is longitude-first.
 
+**A border's lowest and highest point are looked up by the service, never taken from the page.** When a
+submission arrives with a boundary, the service asks the registration the `borderElevation` role binds
+and writes `elevationMinimumMetres` and `elevationMaximumMetres` onto the site as facts. What a page sends
+is a claim; what the lookup answered is what the site keeps. The explore page posts the whole submission
+again each time a dial settles, so the boundary is looked up only when it differs from the one the parcel
+holds or a figure is missing. A lookup that answers no range still lets the submission be accepted,
+without the figures: any figures the site held for an earlier boundary are removed first, and the next
+save asks again.
+
 The body is **capped at a few hundred kilobytes** — far above a form's worth of answers and a drawn
 boundary, and low enough that a body cannot cost the service its memory before anything has looked at
 it. Every field inside it is bounded too: text has a length, coordinates a range, and areas, populations
@@ -578,15 +587,29 @@ position into an area name, the other searches the portal's own divisions for th
 covers a Place and neither carries a reshape expression, because nothing they answer is a reading
 about the site — see [§8](#hazards).
 
-**Two more answer the plot-first page, before any site exists.** `parcel-at-position`
+**Others answer the plot-first page, before any site exists.** `parcel-at-position`
 asks a country's land register for the legal parcel enclosing a clicked point — the French national
 cadastre is the one the seed registers — and `place-search` turns what somebody typed into positions.
-Both are called through the same fetching service, and neither carries a `responseTransform`: no
+`plots-in-view` asks a register for the plots inside the map in view, and `border-elevation` answers a
+finished border's height at the centre of its box and its lowest and highest point.
+All are called through the same fetching service, and none carries a `responseTransform`: no
 Thing exists to ingest onto at that point, so each carries its reshape under `lookupTransform` and
 the intake service applies it to the raw body. Where a register applies is a pair of latitude and longitude bounds on the
 registration rather than a `covers` relationship, because a bare coordinate is in no Place a walk could
 start from; a click outside every register's bounds is refused before any provider is contacted. A
 further country's register is one more registration — data, not code.
+
+**Place searches and border elevations are asked in the model's order.** The intake service asks the
+registration the role binds first and follows the predicate the `fallsBackTo` role binds from it. A
+search that is refused (one whose provider key is missing, for instance), cannot be reached or finds
+nothing hands the query to the next. Finding nothing in any search is answered as no places; every
+search being unreachable is answered as unavailable.
+
+**Plots in view come from every register that covers the view.** Each registration of the kind the
+`plotsInViewLookup` role binds states the closest zoom it answers from (`minimumZoom`) and the most plots
+it answers a call (`mostPlotsPerRequest`). The intake service asks every one whose bounds overlap the view
+and that answers at the zoom asked for, and answers their plots together, crediting each register that
+answered plots.
 
 **The registered sources ship in the seed, not in a call.** A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — which is a
@@ -1352,7 +1375,27 @@ submission's project along the predicate the `shares` role binds, so the review 
 lists a submission's files from the model and never asks this service. `GET
 /submissions/{submissionId}/documents`, under the ticket, lists the same for the page that shared them.
 A model declaring no shared file takes none: the route says files are not taken here rather than
-keeping bytes nothing can list. Once the retention pass has taken a rejected submission out of the
+keeping bytes nothing can list.
+
+**A layer file is a shared file with the kind chosen for each named shape.** The upload carries a
+`features` field beside `file`: a JSON object from each feature's name to the word of the kind chosen
+for it, such as `{"Mill Brook": "brook-or-wadi"}`. The service reads the file itself — KML, KMZ (the first
+KML inside), GeoJSON or GPX — and keeps its named outlines and lines; points and unnamed shapes are left
+out. In the one write that stores the document it adds one Thing of the archetype the `siteLayerFeature`
+role binds for every shape bearing a chosen name: its outline as `geometry`, related from the site along
+`has`, to its kind along the predicate the `ofLayerKind` role binds, and to the document along the
+predicate the `sourcedFrom` role binds. A kind is resolved against the Things that `is` the archetype the
+`siteLayerKind` role binds, so a kind added to the model needs no change here. A name the file does not
+hold, a kind the model does not declare, a file that is not a layer, and a shape with more corners than a
+border may have are each refused before anything is kept. KML and GPX are read with external references
+switched off, and a KMZ is unpacked no further than a file may be.
+
+**A submitter can remove a file they shared.** `DELETE /submissions/{submissionId}/documents/{documentId}`,
+under the ticket, removes each feature that came from the file, then the file's Thing, then its bytes.
+Only a file the submission's project shares can be removed. A removal that fails part way leaves the file
+listed, and asking again carries on from where it stopped.
+
+Once the retention pass has taken a rejected submission out of the
 model, its files go with it — the store asks the model each hour which of the submissions it holds
 files for still stand, and forgets the rest — and a folder of its own is the reason a deployment that
 never shares a file configures nothing.
@@ -1413,7 +1456,9 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | The map, the wizard, and drawing a parcel with the drawn area checked against the stated area | `vos.Trellis` |
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
 | The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
-| The parcel boundary at a clicked position, and a place search, answered to a page with no credential | `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations the `parcelLookup` and `placeSearch` roles bind |
+| The parcel boundary at a clicked position, a place search, the plots in a map view and a border's elevation, answered to a page with no credential | `POST /submissions/parcel-at-position`, `POST /submissions/place-search`, `POST /submissions/plots-in-view` and `POST /submissions/border-elevation`, from the registrations the `parcelLookup`, `placeSearch`, `plotsInViewLookup` and `borderElevation` roles bind |
+| A site's lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
+| The features of a shared layer file, kept under the site and removed with the file | `POST` and `DELETE` on `/submissions/{submissionId}/documents`, under the ticket |
 | Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
