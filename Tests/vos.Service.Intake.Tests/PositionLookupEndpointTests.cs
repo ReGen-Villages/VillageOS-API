@@ -561,8 +561,11 @@ public class PositionLookupEndpointTests
 
     // The broker itself refusing the model read is not the stub above answering a provider failure:
     // the read throws rather than answering null, and the route still owes the stranger a bare 503.
-    [Fact]
-    public async Task A_broker_that_cannot_be_read_is_answered_as_an_unseeded_model_is()
+    [Theory]
+    [InlineData("/submissions/place-search", """{"query": "Santarém"}""")]
+    [InlineData("/submissions/plots-in-view", """{"southLatitude": 25.0, "westLongitude": 55.4, "northLatitude": 25.1, "eastLongitude": 55.5, "zoom": 16}""")]
+    [InlineData("/submissions/border-elevation", """{"boundary": [{"latitude": 25, "longitude": 55.4}, {"latitude": 25, "longitude": 55.44}, {"latitude": 25.04, "longitude": 55.44}]}""")]
+    public async Task A_broker_that_cannot_be_read_is_answered_as_an_unseeded_model_is(string route, string body)
     {
         await using var factory = new IntakeWebApplicationFactory
         {
@@ -573,9 +576,48 @@ public class PositionLookupEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+        var response = await client.PostAsync(route, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_view_whose_every_register_could_not_be_asked_is_the_deployments_problem()
+    {
+        await using var factory = Answering(WithPlotsRegister(), endpointAnswer: HttpStatusCode.InternalServerError);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/plots-in-view", ViewOverDubai(16));
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_border_no_elevation_lookup_could_be_asked_about_is_the_deployments_problem()
+    {
+        await using var factory = Answering(ElevationFirstThenCentre(), endpointAnswer: HttpStatusCode.InternalServerError);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task A_border_every_lookup_answered_without_a_height_for_answers_that_none_is_available()
+    {
+        var asked = new List<string>();
+        await using var factory = AnsweringPerSearch(ElevationFirstThenCentre(), _ => ModelStub.Json("{}"), asked);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/border-elevation", ASquareBorder);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.NoElevation);
+        asked.Should().Equal(BorderLookup, CentreLookup);
     }
 
     // A connection that dies mid-call surfaces as an exception rather than a status; the lookup treats
