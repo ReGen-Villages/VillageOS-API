@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Shared;
@@ -96,6 +97,82 @@ public class DiskCacheHandleTests : IDisposable
         second.StatusCode.Should().Be(HttpStatusCode.OK);
         upstreamCalls.Should().Be(1);
         (await second.Content.ReadAsStringAsync()).Should().Be("""{"n":1}""");
+    }
+
+    [Fact]
+    public async Task Handle_DiskCachePlainBodyWithoutAContentType_SecondCallServedFromDiskAsJson()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/data"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.cacheTtl":   {"Value":"300"}
+        }
+        """;
+        var upstreamCalls = 0;
+        await using var factory = Factory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+            {
+                upstreamCalls++;
+                return MyceliumStub.Binary(Encoding.UTF8.GetBytes("""{"n":1}"""), contentType: null);
+            }
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId, DiskCache())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+        var second = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        upstreamCalls.Should().Be(1);
+        second.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        (await second.Content.ReadAsStringAsync()).Should().Be("""{"n":1}""");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_DiskCache_RefusedAnswerIsNotKept_SoTheNextCallAsksAgain(bool binary)
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/data"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.cacheTtl":   {"Value":"300"}
+        }
+        """;
+        Kind[] kinds = binary ? [DiskCache(), Binary()] : [DiskCache()];
+        var upstreamCalls = 0;
+        await using var factory = Factory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+            {
+                upstreamCalls++;
+                return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new StringContent("not today")
+                };
+            }
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId, kinds)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var first = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+        var second = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        first.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        second.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        upstreamCalls.Should().Be(2, "a refusal is not an answer worth serving again");
     }
 
     [Fact]
