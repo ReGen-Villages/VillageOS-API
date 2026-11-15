@@ -1648,27 +1648,29 @@ model's own dashboard, with every personal detail withheld — share survey file
 on the satellite imagery the model declares with the report's sections as tabs along the bottom.
 
 ### 58. Reviewing what has arrived
-The **Submissions** page is a page the land-intake template declares, listed with the model's other
-pages. It shows the submissions waiting for a decision: when each arrived and the site it proposes.
-**Show decided** brings back the ones already decided, with what was decided and nothing to press.
+The **Submissions** page lists what has arrived in this model: when, what it proposes, and what
+has been decided about it — **Waiting** for no decision. Decided rows leave the queue; **Show
+decided** brings them back. On a model that takes no submissions the page says so rather than
+listing nothing.
 
-- **One button for each disposition the model holds.** The buttons are the Things under the
-  `SubmissionDisposition` archetype, labelled by each one's wording. A press relates the submission
-  to that disposition along `resolvedAs` and records when, in `resolvedAt`. A disposition added to
-  the model is offered with no change to the page or to the console.
-- **Promote** is listed by hand, because its route also copies the site the submission proposes —
-  never the record of the arrival — into a project model built from a template. It asks for the
-  template, what travels with the site (chosen from the model's predicates) and the project's name.
-  The route records the decision itself once the copy has landed, so a refused copy leaves the
-  submission waiting. Promoting the same submission twice produces one project and one decision.
+![The Submissions page on a model that takes no submissions: it says so rather than listing nothing](assets/trellis-submissions.png)
 
-The same decisions are `submissions decide`, `reject` and `promote` in Taproot, and `submissions
-list` lists what has arrived, so a staging model can be worked from a browser or a terminal. Clearing
-rejected submissions once their period has run is `submissions dispose`, a retention pass with no
-page.
+- **Reject** relates the submission to the disposition that names a retention period, and records
+  when the decision was made. The row leaves the queue and stays gone, because the decision is in
+  the model rather than on the page.
+- **Promote** copies the site the submission proposes — never the record of the arrival — into a
+  project model built from a template, then marks the submission promoted. The dialog asks for the
+  template, what travels with the site (offered from the predicates the model actually asserts
+  through), and the project's name. Promoting the same submission twice produces one project,
+  because the server derives the project's identifier from the submission; the button stays enabled
+  and the server keeps the promise.
 
-The page is an action widget whose choices come from a binding; see the Tendril README for the
-specification it is written in.
+The same three actions are `submissions list`, `reject` and `promote` in Taproot, so a staging
+model can be worked from a browser or a terminal. Clearing rejected submissions once their period
+has run is `submissions dispose`, a retention pass with no page.
+
+The page finds all of this through the roles the model binds to its own vocabulary, never by name.
+A model that binds no predicate to the role of reaching a proposed site says so in place of the list.
 
 ### 59. Keyboard and mouse reference
 | Input | Action |
@@ -2458,6 +2460,7 @@ effects on a live change, the decimal precisions, and which properties a load se
 | `/compose` | Compose |
 | `/design`, `/design/{page}` | Design: a new page, or one of the model's opened for editing |
 | `/intake` | The land-intake wizard |
+| `/submissions` | The review page |
 | `/graph`, `/model`, `/temporal`, `/things`, `/properties`, `/pipelines`, `/logs` | As chapter 46 describes them |
 | `/requests` | The request log; `?connection=` narrows it to one connection and `?entry=` opens one request |
 
@@ -2601,9 +2604,8 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `logs tail`, `logs follow`, `logs download` | The Logs page's tail, live stream and download |
 | `requests latest`, `requests follow`, `requests download`, `requests show` | The Requests page's list, live stream, hour download and entry panel; the Pipelines history panel links a chosen run to its request |
 | `submissions list` | The Submissions page; **Show decided** widens it |
-| `submissions decide` | A disposition's button on a row |
-| `submissions reject` | The button of the disposition that names a retention period |
-| `submissions promote` | **Promote** on a row, with its questions for the template, what travels, and the name |
+| `submissions reject` | **Reject** on a row |
+| `submissions promote` | **Promote** on a row, with the dialog for the template, what travels, and the name |
 | `submissions dispose` | None, by design: the retention pass is not a decision a reviewer makes on a row |
 | `serialize`, `deserialize`, `clear model` | None; the command line and the request interface |
 
@@ -2885,17 +2887,6 @@ model, an account, announces nothing on the stream. The platform's own administr
 `POST /api/auth/administration`, takes these bodies for its Accounts and API keys pages; no shipped
 service endpoint takes them, and one a model registers has to accept
 `{ view | reason, record, …asked }` or `{ view, …fields }` and answer `{ said }` or `{ error }`.
-A route on the platform is also sent the row's identifier as `recordId`, because names are not
-unique; a forwarded endpoint is sent names only.
-
-An `action` widget can take more from the model:
-
-| Field | What it does |
-|---|---|
-| `writes.choicesFrom` | `{ from, predicate }`: one button for each Thing the `from` binding returns, labelled by its `wording` in the reader's language or else its name. A press relates the row to that Thing along `predicate` and posts nothing. A listed choice whose `target` names one of these Things takes its place. |
-| A choice's `via` and `asks` | The route this one choice posts to, and the questions it asks before it is pressed, in place of the widget's. Pressing such a choice opens its questions on the row with a confirm button and **Cancel**. |
-| `writes.stamps` | A time property set on the row once a press was taken, and not where the press was refused. |
-| `decided` | `{ rows, decision }`: rows already decided, drawn behind a **Show decided** switch with the value `decision` names beside each and nothing to press. |
 
 **Translating a description.** Author in one base language, then add a top-level `translations`
 map from language code to base string to translated string, keyed by language rather than region
