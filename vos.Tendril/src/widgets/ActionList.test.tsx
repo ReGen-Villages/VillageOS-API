@@ -100,7 +100,7 @@ describe('ActionList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
 
     expect(await screen.findByText('ada may now enter Site A')).toBeInTheDocument();
-    expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant', record: 'ada', model: 'Ada' });
+    expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant', record: 'ada', recordId: 'u1', model: 'Ada' });
     expect(screen.getByRole('button', { name: 'Grant' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
 
@@ -230,7 +230,7 @@ describe('ActionList', () => {
       fireEvent.change(screen.getByLabelText('Closed until'), { target: { value: 'spring thaw' } });
       fireEvent.click(confirm);
 
-      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/springs/close', { record: 'SPRING-1', reason: 'closed', until: 'spring thaw' }));
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/springs/close', { record: 'SPRING-1', recordId: 's1', reason: 'closed', until: 'spring thaw' }));
       expect(mockRelate).not.toHaveBeenCalled();
       await waitFor(() => expect(mockStamp).toHaveBeenCalledWith('s1', 'judgedAt', expect.any(Date)));
     });
