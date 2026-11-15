@@ -16,8 +16,14 @@ DEVELOP = 'refs/heads/develop'
 
 # The wiki describes develop, the branch that moves, and every file link on its pages names develop,
 # so a publish from main would put one branch's text beside the other branch's code. That is why a
-# condition naming main is refused whether it moved the step there or widened it to both.
-PUBLISHING_STEPS = ('Publish the wiki to GitHub',)
+# condition naming main is refused whether it moved the step there or widened it to both. Tendril is
+# published from develop for a different reason: a version is released by merging it, and what is
+# published is then what develop's whole build has just passed.
+PUBLISHING_STEPS = ('Publish the wiki to GitHub', 'Publish Tendril to the package feed')
+
+# A step that runs after a failure is a check or a report, and one placed after a publishing step
+# finds what it finds only once the publish is done.
+RUNS_AFTER_A_FAILURE = ('condition: always()', 'condition: succeededOrFailed()')
 
 # A build against main compiles Release, which is what a release is built in; everything else
 # compiles Debug, which is what a developer runs. A pull request into main has to compile Release
@@ -38,7 +44,12 @@ OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 # pushed outlived that decision, gated to a branch that had never built, so no build result ever
 # showed the contradiction. Read as the absence of packaging anywhere, so a step added later is
 # decided on rather than inherited.
-PACKAGING_MARKERS = ('dotnet pack', 'publishVstsFeed')
+#
+# Tendril is the one decided exception (2026-11-15): another application installs it to build with,
+# so a feed is how it is delivered, and the pipeline publishes it under its own identity, so no
+# packaging credential is issued. It is published only by the step named in PUBLISHING_STEPS, through
+# vos.Tendril/release/publishUnlessHeld.mjs, so a step running npm publish itself is reported.
+PACKAGING_MARKERS = ('dotnet pack', 'publishVstsFeed', 'npm publish')
 
 
 def indented_block(build_file_text, opening):
@@ -166,6 +177,14 @@ def problems(build_file_text):
         elif DEVELOP not in condition or MAIN in condition:
             found.append(
                 '"%s" must run on develop only; its condition reads %s' % (step, condition.strip()))
+
+    lines = build_file_text.splitlines()
+    for step in PUBLISHING_STEPS:
+        start = next((index for index, line in enumerate(lines) if "displayName: '%s'" % step in line), None)
+        if start is not None and any(line.strip() in RUNS_AFTER_A_FAILURE for line in lines[start + 1:]):
+            found.append(
+                '"%s" runs before a step that runs after a failure, so what that step checks is found '
+                'only once the publish is done' % step)
 
     declared_jobs = jobs(build_file_text)
     if not declared_jobs:

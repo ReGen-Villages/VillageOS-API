@@ -1,6 +1,7 @@
 # The build: it runs when develop or main moves and for every pull request into either; builds and
 # tests the .NET solution, Trellis, the tools and the echo services; publishes test results and
-# coverage; generates and converts the wiki pages; and on develop publishes them to the GitHub wiki.
+# coverage; generates and converts the wiki pages; and on develop publishes them to the GitHub wiki
+# and publishes a Tendril version the package feed does not hold yet.
 
 # A feature branch is built when its pull request is validated and again after the merge; building
 # every push as well took an agent from the pool a third time for a result nothing waits on.
@@ -449,4 +450,22 @@ jobs:
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
     env:
       GITHUB_PAT: $(GITHUB_PAT)
+
+  # A release of Tendril is a merged version change: develop publishes a version the package feed
+  # does not hold yet. The npm configuration is written outside the checkout, because an npm configuration file in vos.Tendril would also be read
+  # by a developer's own installs there.
+  - bash: echo "@tendril-ui:registry=https://pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/" > "$(Agent.TempDirectory)/tendril.npmrc"
+    displayName: 'Point the Tendril scope at the package feed'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
+  - task: npmAuthenticate@0
+    displayName: 'Sign in to the package feed as this pipeline'
+    inputs:
+      workingFile: '$(Agent.TempDirectory)/tendril.npmrc'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
+  - script: node release/publishUnlessHeld.mjs "$(Agent.TempDirectory)/tendril.npmrc"
+    displayName: 'Publish Tendril to the package feed'
+    workingDirectory: vos.Tendril
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
