@@ -212,6 +212,25 @@ describe('ActionList', () => {
       expect(mockWrote).toHaveBeenCalledTimes(1);
     });
 
+    it('says so and writes nothing where the page cannot relate along the predicate', async () => {
+      const unwritable = { ...writing, reads: { ...writing.reads, relate: undefined } } as unknown as ResolveContext;
+      render(<ActionList widget={REVIEW} context={unwritable} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      expect(await screen.findByText('This page cannot relate a row along “judgedAs”.')).toBeInTheDocument();
+      expect(mockStamp).not.toHaveBeenCalled();
+    });
+
+    it('shows a refused stamp in the words it was refused in, and keeps the row pressable', async () => {
+      mockStamp.mockRejectedValueOnce(new Error('judgedAt takes a date and time'));
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      expect(await screen.findByText('judgedAt takes a date and time')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'unfit' })).toBeInTheDocument();
+      expect(mockWrote).not.toHaveBeenCalled();
+    });
+
     it('stamps nothing where the relationship was refused', async () => {
       mockRelate.mockRejectedValueOnce(new Error('SPRING-1 is already judged'));
       render(<ActionList widget={REVIEW} context={writing} />);
