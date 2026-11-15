@@ -56,6 +56,14 @@ describe('relationshipApi.get', () => {
   });
 });
 
+describe('relationshipApi.retry', () => {
+  it('asks the record its call be sent again, giving no reason', async () => {
+    mockPost.mockResolvedValue({ state: 'Pending' });
+    await relationshipApi.retry('record-1');
+    expect(mockPost).toHaveBeenCalledWith('/api/relationships/record-1/retry', {});
+  });
+});
+
 describe('relationshipApi.create', () => {
   it('posts with subject, predicate, and target IDs', async () => {
     mockPost.mockResolvedValue({ Id: 'r1', Name: 'test', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });

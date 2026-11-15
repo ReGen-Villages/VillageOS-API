@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const mockGetThingStates = vi.fn();
@@ -13,15 +13,19 @@ vi.mock('../../../api/stateApi', () => ({
 }));
 
 const mockGetRelationship = vi.fn();
+const mockRetry = vi.fn();
 
 vi.mock('../../../api/relationshipApi', () => ({
   relationshipApi: {
     get: (id: string, signal?: AbortSignal) => mockGetRelationship(id, signal),
+    retry: (id: string) => mockRetry(id),
   },
 }));
 
+let wiringIndex: () => ModelIndex = () => indexWithAService();
+
 vi.mock('../../../api/serviceWiringApi', () => ({
-  fetchServiceWiring: () => Promise.resolve(indexWithAService()),
+  fetchServiceWiring: () => Promise.resolve(wiringIndex()),
 }));
 
 const mockGetAtInstant = vi.fn();
@@ -32,7 +36,8 @@ vi.mock('../../../api/thingApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '@tendril-ui/tendril';
+import { buildModelIndex, CALL_RECORD_ROLE_ID, type ModelIndex } from '@tendril-ui/tendril';
+import { ApiError } from '../../../api/client';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { ROLE } from '../../../pipeline/model';
 import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
@@ -159,6 +164,7 @@ function open(overrides: Partial<Parameters<typeof EntityDetailWindow>[0]> = {})
       onSpread={vi.fn()}
       declaredTypes={{}}
       openDetail={vi.fn()}
+      mayChangeData={false}
       {...overrides}
     />,
   );
@@ -347,5 +353,134 @@ describe('EntityDetailWindow', () => {
     fireEvent.click(screen.getByText('Earlier decisions (1)'));
     expect(screen.getByText('sourcing-0')).toBeInTheDocument();
     expect(screen.getAllByText(/2026-09-21/).length).toBeGreaterThan(0);
+  });
+});
+
+/** A Catchment that entered OutOfDate, whose call record goes out on Estimate-Rainfall to rainfall-estimator. */
+function catchmentWithACallRecord() {
+  return buildModelIndex(...withRoles(
+    [
+      thing('is', 'is'),
+      thing('has', 'has'),
+      thing('connectionArchetype', 'a connection', playing(ROLE.Connection), true),
+      thing('serviceArchetype', 'a service', playing(ROLE.Service), true),
+      thing('handledBy', 'handledBy', playing(CALL_RECORD_ROLE_ID)),
+      thing('estimateRainfall', 'Estimate-Rainfall'),
+      thing('rainfallEstimator', 'rainfall-estimator'),
+      thing('catchment', 'Catchment North'),
+    ],
+    [
+      relationship('c1', 'estimateRainfall', 'is', 'connectionArchetype'),
+      relationship('c2', 'rainfallEstimator', 'is', 'serviceArchetype'),
+      relationship('c3', 'estimateRainfall', 'has', 'rainfallEstimator'),
+      relationship('record', 'catchment', 'handledBy', 'estimateRainfall'),
+    ],
+  ));
+}
+
+const OUT_OF_DATE_REASON = 'no rainfall estimate came back while the Catchment was OutOfDate';
+
+describe('EntityDetailWindow, retrying a call', () => {
+  let recordState: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    wiringIndex = catchmentWithACallRecord;
+    recordState = 'Failed';
+    mockGetThingStates.mockResolvedValue({ CurrentStates: [] });
+    mockGetStateTransitions.mockRejectedValue(new Error('no engine'));
+    mockGetRelationship.mockReset().mockImplementation(async () => ({
+      Id: 'record',
+      SubjectId: 'catchment',
+      PredicateId: 'handledBy',
+      TargetId: 'estimateRainfall',
+      Properties: {
+        __CallState: recordState,
+        __CallLastAttemptAt: '2026-11-15T08:00:00Z',
+        ...(recordState === 'Pending' ? {} : { __CallLastError: OUT_OF_DATE_REASON }),
+      },
+    }));
+    mockRetry.mockReset().mockImplementation(async () => {
+      recordState = 'Pending';
+      return { state: 'Pending' };
+    });
+  });
+
+  afterEach(() => {
+    wiringIndex = () => indexWithAService();
+  });
+
+  function openTheCatchment(mayChangeData: boolean) {
+    open({ modelIndex: catchmentWithACallRecord(), thingId: 'catchment', detail: {}, mayChangeData });
+  }
+
+  it('shows a failed call on a Catchment with its reason and a Retry button', async () => {
+    openTheCatchment(true);
+
+    expect(await screen.findByText(OUT_OF_DATE_REASON)).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry the call to rainfall-estimator' })).toBeInTheDocument();
+  });
+
+  it('offers a blocked call for retry too, with the reason it was blocked', async () => {
+    recordState = 'Blocked';
+    openTheCatchment(true);
+
+    expect(await screen.findByText(OUT_OF_DATE_REASON)).toBeInTheDocument();
+    expect(screen.getByText('Blocked')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry the call to rainfall-estimator' })).toBeInTheDocument();
+  });
+
+  it('offers no retry for a call that has not failed or been blocked', async () => {
+    recordState = 'Completed';
+    openTheCatchment(true);
+
+    expect(await screen.findByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('sends the retry when pressed and shows the call Pending once the record is read again', async () => {
+    openTheCatchment(true);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+
+    expect(await screen.findByText('Pending')).toBeInTheDocument();
+    expect(mockRetry).toHaveBeenCalledWith('record');
+    expect(screen.queryByText(OUT_OF_DATE_REASON)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('shows no Retry button to a user who may not change the model', async () => {
+    openTheCatchment(false);
+
+    expect(await screen.findByText(OUT_OF_DATE_REASON)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('says in plain words that a call no longer failed or blocked was not retried', async () => {
+    mockRetry.mockRejectedValue(new ApiError(409, '{"error":"the record is Sent"}'));
+    openTheCatchment(true);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+
+    expect(await screen.findByText('This call is no longer failed or blocked, so it was not retried.')).toBeInTheDocument();
+  });
+
+  it('says in plain words that the user may not retry the call', async () => {
+    mockRetry.mockRejectedValue(new ApiError(403, '{"error":"forbidden"}'));
+    openTheCatchment(true);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+
+    expect(await screen.findByText('You may not change the model, so this call was not retried.')).toBeInTheDocument();
+  });
+
+  it('passes on any other refusal in the words the platform gave', async () => {
+    mockRetry.mockRejectedValue(new ApiError(404, '{"error":"no relationship record"}'));
+    openTheCatchment(true);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+
+    expect(await screen.findByText('The call was not retried: no relationship record')).toBeInTheDocument();
   });
 });

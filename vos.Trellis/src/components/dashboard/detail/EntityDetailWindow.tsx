@@ -6,6 +6,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '@tendril-ui/tendril';
 import { effectiveProperties } from '@tendril-ui/tendril';
@@ -20,7 +21,9 @@ import { useEntityDetail } from './useEntityDetail';
 import { DecisionExplanations } from './DecisionExplanations';
 import { decisionsOn } from './decisionExplanation';
 import type { ResolvedRelation } from './entityDetail';
-import type { ServiceCall } from './serviceHandling';
+import { isCallState, mayBeRetried, type ServiceCall } from './serviceHandling';
+import { relationshipApi } from '../../../api/relationshipApi';
+import { ApiError } from '../../../api/client';
 
 interface Props {
   modelIndex: ModelIndex;
@@ -39,6 +42,7 @@ interface Props {
   /** Resolved properties per Thing id, for formatting a value to what the platform says it holds.
    * Null while the read is in flight — values format by shape until it lands. */
   declaredTypes: DeclaredPropertyTypes | null;
+  mayChangeData: boolean;
 }
 
 const WINDOW_WIDTH = 460;
@@ -79,48 +83,113 @@ function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
   );
 }
 
+function retryRefusal(error: unknown, t: TFunction): string {
+  if (error instanceof ApiError && error.status === 409) return t('entityDetail.retry.notFailedOrBlocked');
+  if (error instanceof ApiError && error.status === 403) return t('entityDetail.retry.mayNotChange');
+  return t('entityDetail.retry.refused', { reason: error instanceof Error ? error.message : String(error) });
+}
+
+/** Reads the record again after any answer to a retry, so the card shows the state the platform holds, not a guessed one. */
+function ServiceCallRow({
+  call,
+  mayRetry,
+  openDetail,
+  readCallsAgain,
+}: {
+  call: ServiceCall;
+  mayRetry: boolean;
+  openDetail: (thingId: string) => void;
+  readCallsAgain: () => void;
+}) {
+  const { t } = useTranslation();
+  const [retrying, setRetrying] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const retry = async () => {
+    setRetrying(true);
+    setRefusal(null);
+    try {
+      await relationshipApi.retry(call.relationshipId);
+    } catch (error) {
+      setRefusal(retryRefusal(error, t));
+    } finally {
+      setRetrying(false);
+      readCallsAgain();
+    }
+  };
+
+  return (
+    <li className="flex gap-2 text-[11.5px]">
+      <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
+        {call.at ? formatTimestamp(call.at) : '—'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          {call.serviceId ? (
+            <button
+              onClick={() => openDetail(call.serviceId!)}
+              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {call.serviceName}
+            </button>
+          ) : (
+            <span className="font-semibold text-zinc-700 dark:text-zinc-200">{call.serviceName}</span>
+          )}
+          <span className="text-zinc-400 dark:text-zinc-500 truncate">{call.connectionName}</span>
+          {call.state && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(call.state)}`}>
+              {isCallState(call.state) ? t(`entityDetail.callState.${call.state}`) : call.state}
+            </span>
+          )}
+          {mayRetry && mayBeRetried(call) && (
+            <button
+              type="button"
+              onClick={retry}
+              disabled={retrying}
+              aria-label={t('entityDetail.retry.title', { service: call.serviceName })}
+              title={t('entityDetail.retry.title', { service: call.serviceName })}
+              className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+            >
+              {t('entityDetail.retry.button')}
+            </button>
+          )}
+        </span>
+        {call.error && (
+          <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{call.error}</span>
+        )}
+        {refusal && (
+          <span role="alert" className="block text-[11px] text-amber-700 dark:text-amber-400 break-words">{refusal}</span>
+        )}
+      </span>
+    </li>
+  );
+}
+
 /** Every service the platform ran on this Thing, oldest first, each with the connection it was
  *  reached through and how that service call ended. A service is a Thing, so its name opens its card. */
 function ServiceCalls({
   calls,
+  mayRetry,
   openDetail,
+  readCallsAgain,
 }: {
   calls: ServiceCall[];
+  mayRetry: boolean;
   openDetail: (thingId: string) => void;
+  readCallsAgain: () => void;
 }) {
   const { t } = useTranslation();
   return (
     <>
       <ol className="mt-1 space-y-1.5">
         {calls.map((call) => (
-          <li key={call.relationshipId} className="flex gap-2 text-[11.5px]">
-            <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
-              {call.at ? formatTimestamp(call.at) : '—'}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                {call.serviceId ? (
-                  <button
-                    onClick={() => openDetail(call.serviceId!)}
-                    className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {call.serviceName}
-                  </button>
-                ) : (
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{call.serviceName}</span>
-                )}
-                <span className="text-zinc-400 dark:text-zinc-500 truncate">{call.connectionName}</span>
-                {call.state && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(call.state)}`}>
-                    {call.state}
-                  </span>
-                )}
-              </span>
-              {call.error && (
-                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{call.error}</span>
-              )}
-            </span>
-          </li>
+          <ServiceCallRow
+            key={call.relationshipId}
+            call={call}
+            mayRetry={mayRetry}
+            openDetail={openDetail}
+            readCallsAgain={readCallsAgain}
+          />
         ))}
       </ol>
       {calls.some((call) => !call.at) && (
@@ -200,9 +269,9 @@ function RelationGroups({
   );
 }
 
-export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
+export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes, mayChangeData }: Props) {
   const { t } = useTranslation();
-  const { loading, root, relations, statesById, stateChanges, coverage, calls } = useEntityDetail(modelIndex, thingId, detail, nonce);
+  const { loading, root, relations, statesById, stateChanges, coverage, calls, readCallsAgain } = useEntityDetail(modelIndex, thingId, detail, nonce);
   const decisions = useMemo(() => decisionsOn(thingId, modelIndex), [thingId, modelIndex]);
   const numbers = useNumberDisplaySettings();
 
@@ -323,7 +392,7 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
         {calls.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
-            <ServiceCalls calls={calls} openDetail={openDetail} />
+            <ServiceCalls calls={calls} mayRetry={mayChangeData} openDetail={openDetail} readCallsAgain={readCallsAgain} />
           </section>
         )}
 

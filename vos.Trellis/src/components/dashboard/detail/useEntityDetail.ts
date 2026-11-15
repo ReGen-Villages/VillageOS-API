@@ -10,7 +10,7 @@
  * of the next refresh window. The history, the service wiring and the call stamps are not in a
  * dashboard's snapshot and are read.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ModelIndex } from '@tendril-ui/tendril';
 import { relationshipApi } from '../../../api/relationshipApi';
 import { fetchServiceWiring } from '../../../api/serviceWiringApi';
@@ -44,6 +44,7 @@ export interface EntityDetail {
   /** Null when the model has no active reactive engine to serve state history. */
   coverage: StateHistoryCoverage | null;
   calls: ServiceCall[];
+  readCallsAgain: () => void;
 }
 
 /** Follow `value` at most once per `milliseconds`, leading-edge: the first change after a quiet period
@@ -102,9 +103,11 @@ export function useEntityDetail(
 
   const historyEnabled = detail?.history?.enabled !== false;
   const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MILLISECONDS);
+  const [askedReads, setAskedReads] = useState(0);
+  const readCallsAgain = useCallback(() => setAskedReads((reads) => reads + 1), []);
   const serviceCallsKey = serviceEdges.map((edge) => edge.relationshipId).join(',');
   const wiringRead = wiring !== undefined;
-  const requestKey = `${thingId}|${wiringRead}|${serviceCallsKey}|${refreshTick}`;
+  const requestKey = `${thingId}|${wiringRead}|${serviceCallsKey}|${refreshTick}|${askedReads}`;
   const [resolved, setResolved] = useState<{
     key: string;
     stateChanges: StateChange[];
@@ -163,5 +166,6 @@ export function useEntityDetail(
     stateChanges: resolved.stateChanges,
     coverage: resolved.coverage,
     calls: resolved.calls,
+    readCallsAgain,
   };
 }

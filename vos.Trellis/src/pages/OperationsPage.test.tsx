@@ -21,6 +21,7 @@ vi.mock('../api/stateApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/stateApi')>()),
   stateApi: { getThingsInState: vi.fn() },
 }));
+vi.mock('../hooks/useAuthentication', () => ({ useAuthentication: () => ({ role: 'viewer' }) }));
 vi.mock('../api/client', async (importOriginal) => {
   const original = await importOriginal<typeof import('../api/client')>();
   return { ...original, apiClient: Object.assign(original.apiClient, { post: vi.fn() }) };
