@@ -158,7 +158,7 @@ function ServiceCallRow({
               onClick={askWhy}
               aria-label={t('entityDetail.retry.title', { service: call.serviceName })}
               title={t('entityDetail.retry.title', { service: call.serviceName })}
-              className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+              className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
             >
               {t('entityDetail.retry.button')}
             </button>
