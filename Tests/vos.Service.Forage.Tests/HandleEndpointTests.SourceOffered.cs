@@ -24,7 +24,6 @@ public class HandleEndpointSourceOfferedTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
     private const string RecordRoute = "/api/model/fragment";
-    private const string RelateRoute = "/api/relationships";
     private const string SnapshotRoute = "/api/snapshots";
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
@@ -88,16 +87,16 @@ public class HandleEndpointSourceOfferedTests
                 Fetched.Add(body);
                 return Json(HttpStatusCode.OK, """{"success":true}""");
             }
+            if (RelationshipWrite.In(request) is not null)
+            {
+                Related.Add(body);
+                return Json(HttpStatusCode.OK, "{}");
+            }
             if (path == RecordRoute && request.Method == HttpMethod.Post)
             {
                 Minted.Add(JsonDocument.Parse(body).RootElement.GetProperty("things")[0].GetProperty("name").GetString()!);
                 Related.Add(body);
                 return Json(HttpStatusCode.OK, "{}");
-            }
-            if (path == RelateRoute && request.Method == HttpMethod.Post)
-            {
-                Related.Add(body);
-                return Json(HttpStatusCode.Created, "{}");
             }
             if (path.EndsWith("/facts", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
             {

@@ -62,7 +62,7 @@ public class StepWordAndRegionTests
     };
 
     private static Func<HttpRequestMessage, HttpResponseMessage> Catchment(Dictionary<string, Guid> ids, bool refuseRelating = false) => request =>
-        request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/relationships"
+        RelationshipWrite.In(request) is not null
             ? refuseRelating ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") } : Ok("{}")
             : RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
 

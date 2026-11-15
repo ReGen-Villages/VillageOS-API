@@ -10,7 +10,7 @@ namespace vos.Service.Forage.Helpers;
 public sealed record FetchedWords(Guid SubjectId, string Source, IReadOnlyDictionary<string, string> Values);
 
 // One relationship the run should write: the subject, the predicate the shape relationship names, and the member the
-// fetched word resolved to — with the relationships it replaces where the subject already carries this
+// fetched word resolved to — with the members it replaces where the subject already carries this
 // predicate pointing elsewhere, so a re-graded assessment ends the run carrying one level.
 public sealed record PlannedVocabularyEdge(
     Guid SubjectId,
@@ -18,7 +18,7 @@ public sealed record PlannedVocabularyEdge(
     Guid PredicateId,
     Guid MemberId,
     string Word,
-    IReadOnlyList<Guid> Replaces);
+    IReadOnlyList<Guid> ReplacedMemberIds);
 
 // A word the vocabulary does not hold, reported rather than silently dropped or silently written: the
 // observation stays on the series, no relationship is written, and every name a reader needs is carried.
@@ -166,17 +166,17 @@ public static class DiscoveredVocabularyResolver
         SnapshotDocument snapshot, Guid subjectId, string subjectName,
         Guid predicateId, Guid memberId, string word)
     {
-        var replaces = snapshot.Relationships
+        var replaced = snapshot.Relationships
             .Where(edge => edge.SubjectId == subjectId && edge.PredicateId == predicateId
                            && edge.TargetId != memberId)
-            .Select(edge => edge.Id)
+            .Select(edge => edge.TargetId)
             .ToList();
 
-        return new PlannedVocabularyEdge(subjectId, subjectName, predicateId, memberId, word, replaces);
+        return new PlannedVocabularyEdge(subjectId, subjectName, predicateId, memberId, word, replaced);
     }
 
     private static bool AlreadyInPlace(SnapshotDocument snapshot, PlannedVocabularyEdge edge) =>
-        edge.Replaces.Count == 0
+        edge.ReplacedMemberIds.Count == 0
         && snapshot.Relationships.Any(existing => existing.SubjectId == edge.SubjectId
                                                   && existing.PredicateId == edge.PredicateId
                                                   && existing.TargetId == edge.MemberId);

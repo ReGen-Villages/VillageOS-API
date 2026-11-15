@@ -18,13 +18,9 @@ public interface IDiscoveryRunStarter
 //
 // A run is held back while another run for the same subject is in flight; runs for different subjects
 // still run together. A run reads which calls the model holds no answer for, then makes them and records
-// what came back, so two runs for one site read the same gaps and both fill them. The record each writes for
-// a call is the same one, because its identifier is worked out from the subject and the source, but:
-//   - each calls the same sources;
-//   - each replaces the same vocabulary relationships, and the second replacement is refused;
-//   - each writes the analysis relationship, which the model refuses the second time.
-// Running one site's discoveries in parallel needs those writes to stop duplicating first, and only then
-// can this hold go. It holds within one process only.
+// what came back, so two runs for one site read the same gaps and both fill them. Every write a run makes is
+// safe to make twice, so the hold only saves a second set of calls to the same sources. It holds within one
+// process only.
 //
 // At most one run waits. A waiting run reads the model only once the run in flight ends, so a service call
 // arriving while one already waits would find nothing it will not; dropping it keeps a site called
