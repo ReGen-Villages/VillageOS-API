@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tendril's widgets are drawn here, and Tailwind scans only this folder unless told otherwise. */
+@source "../../vos.Tendril/src";
+
 /*
  * Switch Tailwind's dark variant from prefers-color-scheme media to a
  * class on the document root, so themeStore can override the OS theme.

@@ -403,6 +403,14 @@ jobs:
     workingDirectory: vos.Trellis
     condition: always()
 
+  # Tailwind writes rules only for classes in the files it scans, so a class used only in Tendril is
+  # dropped from the built stylesheet with nothing reported. Like the check above, it exists only in
+  # built output.
+  - script: npm run check:tendril-classes
+    displayName: 'Check every class Tendril uses is in the built stylesheet'
+    workingDirectory: vos.Trellis
+    condition: always()
+
   - script: |
       echo "========================================"
       echo "Build Summary for $(Build.SourceBranchName)"
