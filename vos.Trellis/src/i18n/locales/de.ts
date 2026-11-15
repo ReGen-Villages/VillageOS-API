@@ -1346,6 +1346,8 @@ export const de: PartialResources = {
       readOnly: "Sie dürfen diese Einstellungen lesen, aber nicht ändern",
       reading: "Die Aufrufeinstellungen werden gelesen…",
       readFailed: "Die Aufrufeinstellungen konnten nicht gelesen werden: {{reason}}",
+      readNoConnection: "Die Plattform hält hier keine Verbindung, die Sie lesen dürfen, daher können ihre Aufrufeinstellungen nicht gezeigt werden.",
+      readMayNotRead: "Sie dürfen ein Ding nicht lesen, von dem eine dieser Einstellungen stammt, daher können sie nicht gezeigt werden.",
       completesWhen: "Wann der Aufruf abgeschlossen ist",
       source: {
         connection: "an dieser Verbindung gesetzt",

@@ -241,17 +241,33 @@ describe('the call settings of the connection behind a state', () => {
     expect(within(panel).queryAllByRole('spinbutton')).toEqual([]);
   });
 
-  it('says in the platform\'s words when the settings cannot be read', async () => {
+  function openRefused(refusal: ApiError) {
     const fixture = connectionSettingsFixture();
     vi.mocked(thingApi.getEffectiveProperties).mockResolvedValue(fixture.resolved);
-    vi.mocked(callSettingsApi.get).mockRejectedValue(new ApiError(404, '{"error":"no connection Estimate-Rainfall"}'));
+    vi.mocked(callSettingsApi.get).mockRejectedValue(refusal);
     useModelStore.setState({ things: fixture.things, relationships: fixture.relationships, loaded: true });
     render(<PipelinePage />);
     fireEvent.click(screen.getByRole('button', { name: OPEN_THE_SETTINGS }));
-    const panel = screen.getByRole('region', { name: 'Call settings of Estimate-Rainfall' });
+    return screen.getByRole('region', { name: 'Call settings of Estimate-Rainfall' });
+  }
 
-    await waitFor(() => expect(panel).toHaveTextContent('The call settings could not be read: no connection Estimate-Rainfall'));
+  it('says in plain words when the platform holds no connection the user may read', async () => {
+    const panel = openRefused(new ApiError(404, '{"error":"No Thing estimate-rainfall"}'));
+
+    await waitFor(() => expect(panel).toHaveTextContent('The platform holds no connection here that you may read, so its call settings cannot be shown.'));
     expect(within(panel).queryAllByRole('listitem')).toEqual([]);
+  });
+
+  it('says in plain words when the user may not read a Thing a setting comes from', async () => {
+    const panel = openRefused(new ApiError(403, '{"error":"forbidden"}'));
+
+    await waitFor(() => expect(panel).toHaveTextContent('You may not read a Thing one of these settings comes from, so they cannot be shown.'));
+  });
+
+  it('says in the platform\'s words when the settings cannot be read for another reason', async () => {
+    const panel = openRefused(new ApiError(500, '{"error":"the engine is starting"}'));
+
+    await waitFor(() => expect(panel).toHaveTextContent('The call settings could not be read: the engine is starting'));
   });
 
   it('says it is reading until the platform answers', () => {

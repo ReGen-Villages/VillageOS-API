@@ -1346,6 +1346,8 @@ export const es: PartialResources = {
       readOnly: "Puede leer estos ajustes, pero no cambiarlos",
       reading: "Leyendo los ajustes de las llamadas…",
       readFailed: "No se pudieron leer los ajustes de las llamadas: {{reason}}",
+      readNoConnection: "La plataforma no tiene aquí ninguna conexión que pueda leer, así que no se pueden mostrar sus ajustes de las llamadas.",
+      readMayNotRead: "No puede leer una Cosa de la que viene uno de estos ajustes, así que no se pueden mostrar.",
       completesWhen: "Cuándo termina la llamada",
       source: {
         connection: "fijado en esta conexión",

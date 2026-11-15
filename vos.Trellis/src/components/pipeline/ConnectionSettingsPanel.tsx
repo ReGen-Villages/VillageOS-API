@@ -66,7 +66,11 @@ export function ConnectionSettingsPanel({ model, connection, mayChange, onClose 
       {!mayChange && <p className="mb-1.5 text-zinc-500">{t('pipeline.connectionSettings.readOnly')}</p>}
       {reading.kind === 'reading' && <p className="text-zinc-500">{t('pipeline.connectionSettings.reading')}</p>}
       {reading.kind === 'failed' && (
-        <p role="alert" className="text-red-600 dark:text-red-400">{t('pipeline.connectionSettings.readFailed', { reason: reading.reason })}</p>
+        <p role="alert" className="text-red-600 dark:text-red-400">
+          {reading.status === 404 ? t('pipeline.connectionSettings.readNoConnection')
+            : reading.status === 403 ? t('pipeline.connectionSettings.readMayNotRead')
+            : t('pipeline.connectionSettings.readFailed', { reason: reading.reason })}
+        </p>
       )}
       {reading.kind === 'read' && (
         <ul>

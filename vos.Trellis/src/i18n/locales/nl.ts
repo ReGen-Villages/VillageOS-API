@@ -1346,6 +1346,8 @@ export const nl: PartialResources = {
       readOnly: "U mag deze instellingen lezen, maar niet wijzigen",
       reading: "De instellingen van de aanroepen worden gelezen…",
       readFailed: "De instellingen van de aanroepen konden niet worden gelezen: {{reason}}",
+      readNoConnection: "Het platform heeft hier geen verbinding die u mag lezen, dus haar instellingen van de aanroepen kunnen niet worden getoond.",
+      readMayNotRead: "U mag een Ding waar een van deze instellingen vandaan komt niet lezen, dus ze kunnen niet worden getoond.",
       completesWhen: "Wanneer de aanroep klaar is",
       source: {
         connection: "ingesteld op deze verbinding",

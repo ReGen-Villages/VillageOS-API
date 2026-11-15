@@ -1344,6 +1344,8 @@ export const en = {
       readOnly: "You may read these settings but not change them",
       reading: "Reading the call settings…",
       readFailed: "The call settings could not be read: {{reason}}",
+      readNoConnection: "The platform holds no connection here that you may read, so its call settings cannot be shown.",
+      readMayNotRead: "You may not read a Thing one of these settings comes from, so they cannot be shown.",
       completesWhen: "When the call is finished",
       source: {
         connection: "set on this connection",

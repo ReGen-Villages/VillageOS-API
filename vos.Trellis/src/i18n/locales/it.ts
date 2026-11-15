@@ -1346,6 +1346,8 @@ export const it: PartialResources = {
       readOnly: "Puoi leggere queste impostazioni, ma non modificarle",
       reading: "Lettura delle impostazioni delle chiamate…",
       readFailed: "Non è stato possibile leggere le impostazioni delle chiamate: {{reason}}",
+      readNoConnection: "La piattaforma non ha qui nessuna connessione che puoi leggere, quindi le sue impostazioni delle chiamate non si possono mostrare.",
+      readMayNotRead: "Non puoi leggere una Cosa da cui viene una di queste impostazioni, quindi non si possono mostrare.",
       completesWhen: "Quando la chiamata è finita",
       source: {
         connection: "impostato su questa connessione",

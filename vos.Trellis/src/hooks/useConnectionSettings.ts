@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { thingApi } from '../api/thingApi';
+import { ApiError } from '../api/client';
 import { callSettingsApi, type CallSetting, type CallSettings } from '../api/callSettingsApi';
 import { toast } from '../components/common/toastStore';
 import { ROLE, type PipelineModel } from '../pipeline/model';
@@ -14,7 +15,7 @@ export interface ConnectionSettingLine extends CallSetting {
 
 export type ConnectionSettingsReading =
   | { kind: 'reading' }
-  | { kind: 'failed'; reason: string }
+  | { kind: 'failed'; status: number | undefined; reason: string }
   | { kind: 'read'; completesWhen: CallSetting | undefined; values: ConnectionSettingLine[] };
 
 /** A change to the connection's or its service's own values or choices asks the platform again; a change to an archetype
@@ -29,7 +30,7 @@ function askAgainWhenChanged(model: PipelineModel, connectionId: string): string
 export function useConnectionSettings(model: PipelineModel, connectionId: string): ConnectionSettingsReading {
   const { t } = useTranslation();
   const askedFor = askAgainWhenChanged(model, connectionId);
-  const [answer, setAnswer] = useState<{ kind: 'answered'; settings: CallSettings } | { kind: 'failed'; reason: string }>();
+  const [answer, setAnswer] = useState<{ kind: 'answered'; settings: CallSettings } | Extract<ConnectionSettingsReading, { kind: 'failed' }>>();
   const [types, setTypes] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
@@ -37,7 +38,12 @@ export function useConnectionSettings(model: PipelineModel, connectionId: string
     callSettingsApi.get(connectionId, controller.signal).then(
       (settings) => setAnswer({ kind: 'answered', settings }),
       (error) => {
-        if (!controller.signal.aborted) setAnswer({ kind: 'failed', reason: error instanceof Error ? error.message : String(error) });
+        if (controller.signal.aborted) return;
+        setAnswer({
+          kind: 'failed',
+          status: error instanceof ApiError ? error.status : undefined,
+          reason: error instanceof Error ? error.message : String(error),
+        });
       },
     );
     return () => controller.abort();
