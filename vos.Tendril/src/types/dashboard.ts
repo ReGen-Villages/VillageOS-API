@@ -759,6 +759,18 @@ export interface ActionChoice {
   target?: string;
   viaPredicate?: string;
   act?: string;
+  /** The route this choice posts to in place of the widget's, for an act whose route also does
+   *  more than record the decision. */
+  via?: string;
+  /** What this choice asks for a row before it is pressed, in place of the widget's questions. */
+  asks?: AskedValue[];
+}
+
+/** One choice for each Thing `from` returns, labelled by that Thing's wording; a press relates the
+ *  row to it along `predicate`, so a decision added to the model is offered with no page edit. */
+export interface DrawnChoices {
+  from: Binding;
+  predicate: string;
 }
 
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
@@ -768,7 +780,7 @@ export interface ActionRecords {
   /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
    *  beginning with `/`, a route on the platform itself, posted to as written. Either names a route,
    *  not an outcome. */
-  via: string;
+  via?: string;
   /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
    *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
    *  A press that marks the row itself mints nothing and names none. */
@@ -780,6 +792,10 @@ export interface ActionRecords {
    *  often as needed, and the answer to the last press is shown beside the row until the next. */
   repeatable?: boolean;
   choices: ActionChoice[];
+  /** A listed choice whose `target` names a drawn Thing takes that Thing's place. */
+  choicesFrom?: DrawnChoices;
+  /** A time property set on the row once a press was taken. */
+  stamps?: string;
 }
 
 /** A widget that records a decision rather than reporting one. Every other widget reads; this is
@@ -799,6 +815,9 @@ export interface ActionWidget {
    *  ask. */
   asks?: AskedValue[];
   writes: ActionRecords;
+  /** The rows already decided about, drawn behind a switch with what was decided and nothing to
+   *  press. `decision` names the row value that says what was decided. */
+  decided?: { rows: Binding; decision: string };
 }
 
 /** A widget that records something nothing on the page lists yet. Every other writing press is

@@ -1080,9 +1080,10 @@ public class MyceliumClientTests
             return JsonResponse("{\"modelId\":\"00000000-0000-0000-0000-0000000000a1\",\"modelName\":\"Willow Bend\"}");
         });
 
-        var result = await client.PromoteAsync(root, ["has", "studies"], "project.seed.json", "Willow Bend");
+        var result = await client.PromoteAsync(root, "promoted", ["has", "studies"], "project.seed.json", "Willow Bend");
 
-        capturedBody!.Value.GetProperty("RootThingId").GetGuid().Should().Be(root);
+        capturedBody!.Value.GetProperty("RecordId").GetGuid().Should().Be(root);
+        capturedBody.Value.GetProperty("Reason").GetString().Should().Be("promoted");
         capturedBody.Value.GetProperty("FollowedPredicateNames").EnumerateArray()
             .Select(name => name.GetString()).Should().Equal("has", "studies");
         capturedBody.Value.GetProperty("Template").GetString().Should().Be("project.seed.json");

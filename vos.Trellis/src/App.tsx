@@ -22,7 +22,6 @@ const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ 
 const ComposerPage = lazy(() => import('./pages/ComposerPage').then(m => ({ default: m.ComposerPage })));
 const DesignPage = lazy(() => import('./pages/DesignPage').then(m => ({ default: m.DesignPage })));
 const IntakeWizardPage = lazy(() => import('./pages/IntakeWizardPage').then(m => ({ default: m.IntakeWizardPage })));
-const SubmissionReviewPage = lazy(() => import('./pages/SubmissionReviewPage').then(m => ({ default: m.SubmissionReviewPage })));
 const TemporalPage = lazy(() => import('./pages/TemporalPage').then(m => ({ default: m.TemporalPage })));
 const PropertySearchPage = lazy(() => import('./pages/PropertySearchPage').then(m => ({ default: m.PropertySearchPage })));
 const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => ({ default: m.ThingSearchPage })));
@@ -61,7 +60,6 @@ function AuthenticatedApp() {
             <Route path="/design" element={<DesignPage />} />
             <Route path="/design/:dashboardKey" element={<DesignPage />} />
             <Route path="/intake" element={<IntakeWizardPage />} />
-            <Route path="/submissions" element={<SubmissionReviewPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/temporal" element={<TemporalPage />} />
             <Route path="/properties" element={<PropertySearchPage />} />

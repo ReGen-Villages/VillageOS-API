@@ -5,6 +5,7 @@ import type { ResolveContext } from '../api/dashboardApi';
 
 const mockRows = vi.fn();
 const mockOptions = vi.fn();
+const answered = new Map<Binding, unknown>();
 // The rows a widget acts on are a state's members; what it asks for a row is chosen from a
 // roster. Told apart by the binding, so one mock serves both reads.
 vi.mock('../hooks/useBinding', () => ({
@@ -12,7 +13,7 @@ vi.mock('../hooks/useBinding', () => ({
     bindings.map((binding) => ({
       loading: false,
       error: false,
-      value: binding ? (binding.kind === 'thingList' ? mockOptions() : mockRows()) : null,
+      value: binding ? (answered.get(binding) ?? (binding.kind === 'thingList' ? mockOptions() : mockRows())) : null,
     })),
 }));
 
@@ -99,7 +100,7 @@ describe('ActionList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
 
     expect(await screen.findByText('ada may now enter Site A')).toBeInTheDocument();
-    expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant', record: 'ada', model: 'Ada' });
+    expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant', record: 'ada', recordId: 'u1', model: 'Ada' });
     expect(screen.getByRole('button', { name: 'Grant' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
 
@@ -153,5 +154,123 @@ describe('ActionList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
 
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'assign', record: 'SPRING-1', reader: 'Ada' }));
+  });
+
+  describe('with choices the model holds', () => {
+    const verdicts: Binding = { kind: 'thingList', archetype: 'Verdict' };
+    const judged: Binding = { kind: 'stateList', state: 'judged', archetype: 'Spring' };
+    const REVIEW: ActionWidget = {
+      type: 'action',
+      rows: { kind: 'stateList', state: 'sampled', archetype: 'Spring' },
+      writes: {
+        choicesFrom: { from: verdicts, predicate: 'judgedAs' },
+        stamps: 'judgedAt',
+        choices: [
+          {
+            label: 'Close the spring',
+            target: 'closed',
+            via: '/api/springs/close',
+            asks: [{ key: 'until', label: 'Closed until' }],
+          },
+        ],
+      },
+      decided: { rows: judged, decision: 'verdict' },
+    };
+
+    const mockRelate = vi.fn();
+    const mockStamp = vi.fn();
+    const writing = {
+      ...context,
+      index: { predicateNameToId: new Map([['judgedAs', 'predicate-judgedAs']]) },
+      reads: { ...context.reads, relate: mockRelate, stampTime: mockStamp },
+    } as unknown as ResolveContext;
+
+    beforeEach(() => {
+      answered.clear();
+      answered.set(verdicts, [
+        { id: 'v1', name: 'potable', wording: JSON.stringify({ en: 'Potable', nl: 'Drinkbaar' }) },
+        { id: 'v2', name: 'unfit' },
+        { id: 'v3', name: 'closed' },
+      ]);
+      answered.set(judged, [{ id: 's9', name: 'SPRING-9', verdict: 'unfit' }]);
+      mockRelate.mockReset().mockResolvedValue(undefined);
+      mockStamp.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('offers one choice for each Thing the binding returns, by its wording or else its name', () => {
+      render(<ActionList widget={REVIEW} context={writing} />);
+      expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Potable', 'unfit', 'Close the spring']);
+    });
+
+    it('relates the row to the Thing pressed, then stamps the time on the row, and posts nothing', async () => {
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      await waitFor(() => expect(mockStamp).toHaveBeenCalledWith('s1', 'judgedAt', expect.any(Date)));
+      expect(mockRelate).toHaveBeenCalledWith('s1', 'predicate-judgedAs', 'v2');
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(mockWrote).toHaveBeenCalledTimes(1);
+    });
+
+    it('says so and writes nothing where the page cannot relate along the predicate', async () => {
+      const unwritable = { ...writing, reads: { ...writing.reads, relate: undefined } } as unknown as ResolveContext;
+      render(<ActionList widget={REVIEW} context={unwritable} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      expect(await screen.findByText('This page cannot relate a row along “judgedAs”.')).toBeInTheDocument();
+      expect(mockStamp).not.toHaveBeenCalled();
+    });
+
+    it('shows a refused stamp in the words it was refused in, and keeps the row pressable', async () => {
+      mockStamp.mockRejectedValueOnce(new Error('judgedAt takes a date and time'));
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      expect(await screen.findByText('judgedAt takes a date and time')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'unfit' })).toBeInTheDocument();
+      expect(mockWrote).not.toHaveBeenCalled();
+    });
+
+    it('stamps nothing where the relationship was refused', async () => {
+      mockRelate.mockRejectedValueOnce(new Error('SPRING-1 is already judged'));
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'unfit' }));
+
+      expect(await screen.findByText('SPRING-1 is already judged')).toBeInTheDocument();
+      expect(mockStamp).not.toHaveBeenCalled();
+    });
+
+    it('asks a listed choice its own questions and posts it to its own route, in place of the Thing it names', async () => {
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Close the spring' }));
+      const confirm = screen.getByRole('button', { name: 'Close the spring' });
+      expect(confirm).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText('Closed until'), { target: { value: 'spring thaw' } });
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/springs/close', { record: 'SPRING-1', recordId: 's1', reason: 'closed', until: 'spring thaw' }));
+      expect(mockRelate).not.toHaveBeenCalled();
+      await waitFor(() => expect(mockStamp).toHaveBeenCalledWith('s1', 'judgedAt', expect.any(Date)));
+    });
+
+    it('goes back to every choice when asking is cancelled', () => {
+      render(<ActionList widget={REVIEW} context={writing} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Close the spring' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.getByRole('button', { name: 'unfit' })).toBeInTheDocument();
+      expect(screen.queryByLabelText('Closed until')).toBeNull();
+    });
+
+    it('draws the rows already decided only behind the switch, with what was decided and nothing to press', () => {
+      render(<ActionList widget={REVIEW} context={writing} />);
+      expect(screen.queryByText('SPRING-9')).toBeNull();
+
+      fireEvent.click(screen.getByLabelText('Show decided'));
+      const decidedRow = screen.getByText('SPRING-9').closest('div')!;
+      expect(decidedRow).toHaveTextContent('unfit');
+      expect(decidedRow.querySelector('button')).toBeNull();
+    });
   });
 });

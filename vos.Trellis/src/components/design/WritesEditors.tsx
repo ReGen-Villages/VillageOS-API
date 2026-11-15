@@ -73,7 +73,7 @@ export function ActionWritesEditor({
     <Field title={label}>
       {() => (
         <div className={nestedClass}>
-          <OfferedField label={t('design.writes.via')} value={held.via} mono offered={offeredFor('endpoint', context, undefined, t)} onCommit={(via) => set('via', via.trim())} />
+          <OfferedField label={t('design.writes.via')} value={held.via ?? ''} mono offered={offeredFor('endpoint', context, undefined, t)} onCommit={(via) => set('via', via.trim() || undefined)} />
           <OfferedField label={t('design.writes.archetype')} value={held.archetype ?? ''} mono offered={kinds} onCommit={(archetype) => set('archetype', archetype.trim() || undefined)} />
           <OfferedField label={t('design.writes.predicate')} value={held.predicate ?? ''} mono offered={predicates} onCommit={(predicate) => set('predicate', predicate.trim() || undefined)} />
           <SwitchField label={t('design.writes.repeatable')} value={held.repeatable === true} onCommit={(on) => set('repeatable', on ? true : undefined)} />

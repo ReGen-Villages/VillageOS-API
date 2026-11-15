@@ -471,12 +471,13 @@ public class MyceliumClient
     // begins. Promoting the same group twice produces one project, because the server derives both the
     // project model's identifier and the identifiers inside it rather than generating them.
     public virtual async Task<JsonElement> PromoteAsync(
-        Guid rootThingId, IReadOnlyList<string> followedPredicateNames, string template, string projectName)
+        Guid recordId, string reason, IReadOnlyList<string> followedPredicateNames, string template, string projectName)
     {
         await SetAuthHeaderAsync();
         var body = JsonSerializer.Serialize(new
         {
-            RootThingId = rootThingId,
+            RecordId = recordId,
+            Reason = reason,
             FollowedPredicateNames = followedPredicateNames,
             Template = template,
             ProjectName = projectName,
