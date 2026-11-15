@@ -5,7 +5,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Tests;
 
-// The one Mycelium read Forage makes: a scoped snapshot. Builds the payload a real subscription
+// The one Mycelium read Forage makes: a scoped snapshot. Builds the payload a real read
 // returns, so a test declares a model rather than a JSON document.
 internal static class ModelSnapshotStub
 {
@@ -26,16 +26,16 @@ internal static class ModelSnapshotStub
     // The `binds` predicate Thing a role reaches its archetype along, under one identifier for every scenario.
     internal static readonly Guid BindsPredicate = new("b1bd5000-0000-5000-8000-000000000001");
 
-    internal static HttpResponseMessage? RouteSubscription(
+    internal static HttpResponseMessage? RouteSnapshotRead(
         HttpRequestMessage request, IReadOnlyDictionary<string, Guid> ids, params Edge[] edges) =>
-        RouteSubscription(request, ids, edges, siteValues: null);
+        RouteSnapshotRead(request, ids, edges, siteValues: null);
 
-    internal static HttpResponseMessage? RouteSubscription(
+    internal static HttpResponseMessage? RouteSnapshotRead(
         HttpRequestMessage request,
         IReadOnlyDictionary<string, Guid> ids,
         Edge[] edges,
         IReadOnlyDictionary<string, string>? siteValues) =>
-        RouteSubscription(request, ids, edges, siteValues, archetypes: null);
+        RouteSnapshotRead(request, ids, edges, siteValues, archetypes: null);
 
     // A value on a Thing that is neither the site nor an archetype: what a run has already written onto
     // a coverage. Raw JSON, because the properties a run writes are not all numbers.
@@ -44,15 +44,15 @@ internal static class ModelSnapshotStub
     // siteValues land on the FIRST named Thing, which every scenario here declares as the site: the
     // values a source's address may name have to arrive on the site itself, not on any Thing.
 
-    internal static HttpResponseMessage? RouteSubscription(
+    internal static HttpResponseMessage? RouteSnapshotRead(
         HttpRequestMessage request,
         IReadOnlyDictionary<string, Guid> ids,
         Edge[] edges,
         IReadOnlyDictionary<string, string>? siteValues,
         IReadOnlyCollection<Archetype>? archetypes) =>
-        RouteSubscription(request, ids, edges, siteValues, archetypes, carrying: null);
+        RouteSnapshotRead(request, ids, edges, siteValues, archetypes, carrying: null);
 
-    internal static HttpResponseMessage? RouteSubscription(
+    internal static HttpResponseMessage? RouteSnapshotRead(
         HttpRequestMessage request,
         IReadOnlyDictionary<string, Guid> ids,
         Edge[] edges,
@@ -61,10 +61,7 @@ internal static class ModelSnapshotStub
         IReadOnlyCollection<Carrying>? carrying,
         IReadOnlyCollection<Binding>? bindings = null)
     {
-        var path = request.RequestUri!.AbsolutePath;
-        if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
-            return new HttpResponseMessage(HttpStatusCode.NoContent);
-        if (request.Method != HttpMethod.Post || path != "/api/subscriptions")
+        if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/snapshots")
             return null;
 
         var byName = (archetypes ?? []).ToDictionary(archetype => archetype.Name, StringComparer.Ordinal);
@@ -93,7 +90,7 @@ internal static class ModelSnapshotStub
                 Relationship(Guid.NewGuid(), binding.Role.Id, BindsPredicate, ids[binding.Thing])));
         }
 
-        var body = "{\"subscriptionId\":\"" + Guid.NewGuid() + "\",\"watermark\":0,\"snapshot\":{"
+        var body = "{\"watermark\":0,\"snapshot\":{"
             + "\"watermark\":0,\"things\":[" + string.Join(",", things) + "],"
             + "\"relationships\":[" + string.Join(",", relationships) + "]}}";
 

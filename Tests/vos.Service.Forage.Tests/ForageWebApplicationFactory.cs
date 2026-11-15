@@ -12,7 +12,7 @@ namespace vos.Service.Forage.Tests;
 
 // Mirrors TributaryWebApplicationFactory: settings arrive through UseSetting because the settings
 // reader falls back to those when no command-line flags are present, which is always the case here,
-// and IHttpClientFactory is replaced so the subscription read routes through the per-test handler.
+// and IHttpClientFactory is replaced so the snapshot read routes through the per-test handler.
 public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }

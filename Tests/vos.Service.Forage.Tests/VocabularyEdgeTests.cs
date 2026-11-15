@@ -87,7 +87,7 @@ public class VocabularyEdgeTests
         factory.HandlerCallback = request =>
             recorder.Route(request)
             ?? (request.RequestUri!.AbsolutePath == FetchRoute ? Ok(fetchAnswer) : null)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, DeclaredArchetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, DeclaredArchetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -189,7 +189,7 @@ public class VocabularyEdgeTests
             }
             return (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -198,35 +198,6 @@ public class VocabularyEdgeTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         attempts.Should().Be(1);
-    }
-
-    // The read already succeeded, so a subscription release that fails must not lose it: the relationship is
-    // still written. The release ignores what the gateway answers, so only a dropped connection can
-    // fail it — which is what the thrown handler stages.
-    [Fact]
-    public async Task A_failed_subscription_release_does_not_lose_the_resolution()
-    {
-        var ids = CatchmentWithOneSource();
-        var recorder = new EdgeRecorder();
-
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = request =>
-        {
-            if (request.Method == HttpMethod.Delete
-                && request.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
-                throw new HttpRequestException("connection dropped");
-            return recorder.Route(request)
-                ?? (request.RequestUri!.AbsolutePath == FetchRoute
-                    ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        recorder.Written.Should().Contain((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
     }
 
     // Writing beside a relationship that would not go would leave a reader two answers; leaving the stale one
@@ -248,7 +219,7 @@ public class VocabularyEdgeTests
             return recorder.Route(request)
                 ?? (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids,
+                ?? RouteSnapshotRead(request, ids,
                     DeclaredModel(new Edge("WillowBend", "flowsAs", "flashy", stale)),
                     siteValues: null, DeclaredArchetypes())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -278,7 +249,7 @@ public class VocabularyEdgeTests
         factory.HandlerCallback = request =>
         {
             if (request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                && request.RequestUri!.AbsolutePath == "/api/snapshots"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
                     .Contains(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id.ToString(), StringComparison.Ordinal))
             {
@@ -288,7 +259,7 @@ public class VocabularyEdgeTests
             return recorder.Route(request)
                 ?? (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

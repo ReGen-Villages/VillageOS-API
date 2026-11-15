@@ -61,7 +61,7 @@ public class HandleEndpointCoverageTests
                 fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
-            return RouteSubscription(
+            return RouteSnapshotRead(
                        req, ids, Edges(), siteValues: null, Archetypes(),
                        [new Carrying("WillowBend × OpenMeteo", "resolvedAt", "\"2026-08-27T09:00:00Z\"")])
                    ?? new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -92,7 +92,7 @@ public class HandleEndpointCoverageTests
                 fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
-            return RouteSubscription(req, ids, Edges(), siteValues: null, archetypes: null)
+            return RouteSnapshotRead(req, ids, Edges(), siteValues: null, archetypes: null)
                    ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

@@ -83,10 +83,10 @@ public sealed class CoveringSourceService
         string question,
         CancellationToken cancellationToken)
     {
-        SubscribeResult subscribed;
+        SnapshotReadResult read;
         try
         {
-            subscribed = await _subscriptions.SubscribeAsync(selector, cancellationToken);
+            read = await _subscriptions.ReadSnapshotAsync(selector, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -94,22 +94,6 @@ public sealed class CoveringSourceService
             return default;
         }
 
-        try
-        {
-            return resolve(subscribed.Snapshot);
-        }
-        finally
-        {
-            try
-            {
-                await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                // The read already succeeded; failing to release the subscription must not lose it.
-                _logger.LogWarning(exception, "Failed to release the coverage subscription {SubscriptionId}",
-                    subscribed.SubscriptionId);
-            }
-        }
+        return resolve(read.Snapshot);
     }
 }

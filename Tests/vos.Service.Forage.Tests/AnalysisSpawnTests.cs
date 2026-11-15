@@ -90,7 +90,7 @@ public class AnalysisSpawnTests
             intercept?.Invoke(request)
             ?? spawns.Route(request)
             ?? (request.RequestUri!.AbsolutePath == FetchRoute ? Ok("""{"success":true}""") : null)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, AnalysisArchetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, AnalysisArchetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 

@@ -82,7 +82,7 @@ public class PassedOnRequestLimitHandleTests
         const string props = ReshapedProperties;
 
         await AssertAnsweredAtTheDeadlineAsync(
-            stalls: request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/subscriptions",
+            stalls: request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/snapshots",
             answers: request => RouteFindThing(request, thingId, "EP")
                 ?? RouteEffectiveProperties(request, thingId, props),
             handleRequest: new { endpointName = "EP" },

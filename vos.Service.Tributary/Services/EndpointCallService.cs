@@ -55,8 +55,7 @@ public sealed class EndpointCallService
 
     // One scoped read answers every role, and the `observed` relationships the endpoint already carries with
     // them — those relationships are in the same snapshot whether or not anything reads them, so provenance
-    // costs no second call. Unsubscribing in a finally keeps a failed resolution from leaving a live
-    // subscription on the gateway for the rest of the process's life.
+    // costs no second call.
     //
     // Null means the read failed, never that the endpoint reaches no kind — the two must not collapse,
     // because an unreachable gateway would otherwise read as an endpoint needing no credential and the
@@ -66,11 +65,10 @@ public sealed class EndpointCallService
     private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed)?> ReadEndpointAsync(
         Guid endpointId, CancellationToken cancellationToken)
     {
-        SubscribeResult subscribed;
+        SnapshotReadResult read;
         try
         {
-            subscribed = await _subscriptions.SubscribeAsync(
-                EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
+            read = await _subscriptions.ReadSnapshotAsync(EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -82,24 +80,7 @@ public sealed class EndpointCallService
             return null;
         }
 
-        try
-        {
-            return (EndpointKindResolver.Resolve(subscribed.Snapshot, endpointId),
-                    ObservedEdges.Resolve(subscribed.Snapshot, endpointId));
-        }
-        finally
-        {
-            try
-            {
-                await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                // The read already succeeded; failing to release the subscription must not lose it.
-                _logger.LogWarning(exception, "Failed to release the kind-resolution subscription {SubscriptionId}",
-                    subscribed.SubscriptionId);
-            }
-        }
+        return (EndpointKindResolver.Resolve(read.Snapshot, endpointId), ObservedEdges.Resolve(read.Snapshot, endpointId));
     }
 
     // A call cut short by the deadline answers with what it was waiting on, so Mycelium is told why instead

@@ -93,37 +93,18 @@ public sealed class VocabularyEdgeWriter
     private async Task<SnapshotDocument?> ReadDeclarationsAsync(
         IReadOnlyList<FetchedWords> fetched, CancellationToken cancellationToken)
     {
-        SubscribeResult subscribed;
         try
         {
-            subscribed = await _subscriptions.SubscribeAsync(
+            var read = await _subscriptions.ReadSnapshotAsync(
                 DiscoveredVocabularyResolver.SelectorFor(
                     fetched.Select(words => words.SubjectId).Distinct().ToList()),
                 cancellationToken);
+            return read.Snapshot;
         }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Failed to read the discovered-vocabulary declarations");
             return null;
-        }
-
-        try
-        {
-            return subscribed.Snapshot;
-        }
-        finally
-        {
-            try
-            {
-                await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                // The read already succeeded; failing to release the subscription must not lose it.
-                _logger.LogWarning(exception,
-                    "Failed to release the vocabulary subscription {SubscriptionId}",
-                    subscribed.SubscriptionId);
-            }
         }
     }
 }
