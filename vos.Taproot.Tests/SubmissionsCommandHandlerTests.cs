@@ -269,6 +269,28 @@ public class SubmissionsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Deciding_without_naming_a_submission_shows_what_it_needs()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on");
+
+        Assert.Contains("Usage: submissions decide", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Deciding_about_a_submission_nothing_answers_to_writes_nothing()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on nothing-by-that-name");
+
+        Assert.Contains("No submission here answers to", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task A_submission_can_be_named_by_the_identifier_it_was_submitted_under()
     {
         AModelWithOneSubmission();
