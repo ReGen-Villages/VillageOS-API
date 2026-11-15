@@ -35,6 +35,20 @@ describe('the predicates a model index knows', () => {
     expect(buildModelIndex(renamed, relationships).predicateNameToId.get('judgedAs')).toBe('judgedAs');
   });
 
+  it('knows a predicate beneath a kind of predicate, and one reached two ways once', () => {
+    const kinds = [...things, thing('verdict-predicate', 'VerdictPredicate', true)];
+    const deeper = [
+      ...relationships,
+      edge('kind-is-predicate', 'verdict-predicate', 'is', 'predicate-root'),
+      edge('judgedAs-is-kind', 'judgedAs', 'is', 'verdict-predicate'),
+    ];
+
+    const index = buildModelIndex(kinds, deeper);
+
+    expect(index.predicateNameToId.get('judgedAs')).toBe('judgedAs');
+    expect(index.predicateNameToId.get('VerdictPredicate')).toBe('verdict-predicate');
+  });
+
   it('still knows a predicate a relationship uses where the model binds no predicate role', () => {
     const unbound = relationships.filter((one) => one.Id !== 'role-binds-root');
 
