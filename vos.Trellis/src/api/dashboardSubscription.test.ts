@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
 import type { DashboardSpecification } from '@tendril-ui/tendril';
 import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
-import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME, PREDICATE_ROLE_ID } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@tendril-ui/tendril';
 
@@ -27,11 +27,15 @@ describe('subscriptionForSpec', () => {
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
   });
 
+  it('asks for the role that binds the predicate root, so a press can relate along a predicate nothing uses yet', () => {
+    expect(subscriptionForSpecification(specificationWith({}), null).ids).toContain(PREDICATE_ROLE_ID);
+  });
+
   // The role Things travel with what they bind, so a reader can tell the settings Thing from the rest.
   it('asks for the page kind and the settings through their roles and never by a type name', () => {
     expect(NAVIGATION_AND_SETTINGS.boundTypes).toEqual([PAGE_ROLE_ID]);
     expect(NAVIGATION_AND_SETTINGS.boundArchetypes).toEqual([DISPLAY_SETTINGS_ROLE_ID]);
-    expect(NAVIGATION_AND_SETTINGS.ids).toEqual([PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.ids).toEqual([PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID, PREDICATE_ROLE_ID]);
     expect(NAVIGATION_AND_SETTINGS.names).toEqual(['is', 'binds']);
     expect(NAVIGATION_AND_SETTINGS.types).toBeUndefined();
 
@@ -61,7 +65,7 @@ describe('subscriptionForSpec', () => {
   it('names the selected entity as an identifier', () => {
     const selector = subscriptionForSpecification(specificationWith({ compare: { label: 'site', archetype: 'Site' } }), SCOPE_ID);
 
-    expect(selector.ids!.slice(0, 3)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
+    expect(selector.ids!.slice(0, NAVIGATION_AND_SETTINGS.ids!.length + 1)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
   });
 
   // The platform answers a count from the state endpoint and a series from its reduction, so their
@@ -366,7 +370,7 @@ describe('subscriptionForSpec', () => {
     );
 
     expect(selector.names).toContain('Reservoir');
-    expect(selector.ids!.slice(0, 3)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
+    expect(selector.ids!.slice(0, NAVIGATION_AND_SETTINGS.ids!.length + 1)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
     expect(selector.names).not.toContain('$scope');
   });
 });
