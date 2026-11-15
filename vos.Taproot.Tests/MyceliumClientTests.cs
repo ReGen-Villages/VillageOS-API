@@ -501,6 +501,57 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task RetryCallAsync_PostsTheReasonToTheRecordsRetryRouteAndAnswersTheText()
+    {
+        var recordId = Guid.NewGuid();
+        HttpRequestMessage? captured = null;
+        string? sent = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            sent = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("{\"state\":\"Pending\"}");
+        });
+
+        var answer = await client.RetryCallAsync(recordId, "the rainfall reading is back");
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be($"/api/relationships/{recordId}/retry");
+        sent.Should().Be("{\"reason\":\"the rainfall reading is back\"}");
+        answer.Should().Be("{\"state\":\"Pending\"}");
+    }
+
+    [Fact]
+    public async Task RetryCallAsync_WithoutAReason_SendsAnEmptyBody()
+    {
+        string? sent = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            sent = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("{\"state\":\"Pending\"}");
+        });
+
+        await client.RetryCallAsync(Guid.NewGuid(), null);
+
+        sent.Should().Be("{}");
+    }
+
+    [Fact]
+    public async Task RetryCallAsync_OnRefusal_ThrowsCarryingTheStatusAndTheBrokersWords()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent("{\"error\":\"the record is Sent\"}") });
+
+        var act = async () => await client.RetryCallAsync(Guid.NewGuid(), null);
+
+        (await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*the record is Sent*"))
+            .Which.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task PostToEndpointAsync_OnRefusal_ThrowsCarryingTheRoutesWords()
     {
         var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"

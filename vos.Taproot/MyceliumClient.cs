@@ -657,6 +657,11 @@ public class MyceliumClient
     public virtual Task<string> RequestServiceAsync(Guid handlerId, string bodyJson)
         => PostBodyAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/request", bodyJson);
 
+    public virtual Task<string> RetryCallAsync(Guid recordId, string? reason)
+        => PostBodyAsync(
+            $"{_myceliumUrl}/api/relationships/{recordId}/retry",
+            reason is null ? "{}" : JsonSerializer.Serialize(new { reason }));
+
     private async Task<string> PostBodyAsync(string url, string bodyJson)
     {
         await SetAuthHeaderAsync();
