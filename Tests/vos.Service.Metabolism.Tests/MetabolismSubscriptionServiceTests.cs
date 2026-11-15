@@ -41,6 +41,9 @@ public class MetabolismSubscriptionServiceTests
         public Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default)
             => Task.FromResult(new SubscribeResult(SubscriptionId, 0, new SnapshotDocument(0, new(), new())));
 
+        public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
             lock (Added) Added.Add(selector);

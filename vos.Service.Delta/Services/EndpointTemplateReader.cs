@@ -13,10 +13,10 @@ public sealed class EndpointTemplateReader(
 {
     public async Task<(EndpointTemplate? Template, TemplateRefusal? Refusal)> ReadAsync(string? templateName)
     {
-        SubscribeResult subscribed;
+        SnapshotReadResult read;
         try
         {
-            subscribed = await subscriptions.SubscribeAsync(EndpointTemplateTree.Selector(templateName));
+            read = await subscriptions.ReadSnapshotAsync(EndpointTemplateTree.Selector(templateName));
         }
         catch (Exception exception)
         {
@@ -24,16 +24,7 @@ public sealed class EndpointTemplateReader(
             return (null, new TemplateRefusal(500, "Could not read the endpoint templates from the model."));
         }
 
-        LocatedTemplate? located;
-        TemplateRefusal? refusal;
-        try
-        {
-            (located, refusal) = EndpointTemplateTree.Locate(subscribed.Snapshot, templateName);
-        }
-        finally
-        {
-            await ReleaseAsync(subscribed.SubscriptionId);
-        }
+        var (located, refusal) = EndpointTemplateTree.Locate(read.Snapshot, templateName);
         if (located is null) return (null, refusal);
 
         var properties = await mycelium.GetResolvedPropertiesAsync(located.Id);
@@ -41,18 +32,5 @@ public sealed class EndpointTemplateReader(
             return (null, new TemplateRefusal(500, $"Could not read the properties of the endpoint template '{located.Name}'."));
 
         return (new EndpointTemplate(located.Id, located.Name, located.IsPredicateId, properties), null);
-    }
-
-    private async Task ReleaseAsync(Guid subscriptionId)
-    {
-        try
-        {
-            await subscriptions.UnsubscribeAsync(subscriptionId);
-        }
-        catch (Exception exception)
-        {
-            // The read already succeeded; failing to release the subscription must not refuse the registration.
-            logger.LogWarning(exception, "Failed to release the template-read subscription {SubscriptionId}", subscriptionId);
-        }
     }
 }

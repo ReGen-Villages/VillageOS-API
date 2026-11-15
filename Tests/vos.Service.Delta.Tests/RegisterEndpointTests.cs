@@ -16,7 +16,7 @@ public class RegisterEndpointTests
         var (response, model) = await HandleAsync(new { properties = new { url = "https://x.example/" } });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        model.SubscriptionsOpened.Should().BeEmpty();
+        model.SelectionsRead.Should().Be(0);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class RegisterEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should().Contain("more than one 'is'");
-        model.SubscriptionsOpened.Should().BeEmpty();
+        model.SelectionsRead.Should().Be(0);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class RegisterEndpointTests
         var (response, model) = await HandleAsync(new { name = "MyEndpoint", properties = new { httpMethod = "GET" } });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        model.SubscriptionsOpened.Should().BeEmpty();
+        model.SelectionsRead.Should().Be(0);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class RegisterEndpointTests
     public async Task Handle_TheModelCannotBeRead_Returns500AndWritesNothing()
     {
         var model = Seeded();
-        model.RefuseSubscription = true;
+        model.RefuseSelectionRead = true;
 
         var response = await HandleAsync(model, Under("EsriEndpoint"));
 
@@ -176,17 +176,6 @@ public class RegisterEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
         (await response.Content.ReadAsStringAsync()).Should().Contain("EsriEndpoint");
         model.ThingsCreated.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Handle_TheSubscriptionCannotBeReleased_StillRegisters()
-    {
-        var model = Seeded();
-        model.DropSubscriptionRelease = true;
-
-        var response = await HandleAsync(model, Under("EsriEndpoint"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

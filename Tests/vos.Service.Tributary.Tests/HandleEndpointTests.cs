@@ -254,6 +254,37 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_ReadsWhichKindsTheEndpointReachesWithoutOpeningASubscription()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/data"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        var brokerRequests = new List<string>();
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host != "api.test")
+                lock (brokerRequests) brokerRequests.Add($"{req.Method} {req.RequestUri.AbsolutePath}");
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? (req.RequestUri.Host == "api.test" ? Json("{\"value\":42}") : new HttpResponseMessage(HttpStatusCode.NotFound));
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        brokerRequests.Should().ContainSingle(request => request == "POST /api/snapshots");
+        brokerRequests.Should().NotContain(request => request.Contains("/api/subscriptions"));
+    }
+
+    [Fact]
     public async Task Handle_BlankTransformDeclaredOnTheTemplate_ReturnsRawBody()
     {
         // A blank value makes the key admissible for a registration without supplying an

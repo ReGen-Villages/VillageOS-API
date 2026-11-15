@@ -106,9 +106,9 @@ public class StepRequestTests
                 Related.Add((written.GetProperty("subjectId").GetGuid(), written.GetProperty("predicateId").GetGuid(), written.GetProperty("targetId").GetGuid()));
                 return Json("{}");
             }
-            if (ReadsFail && path == "/api/subscriptions")
+            if (ReadsFail && path == "/api/snapshots")
                 return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
-            return RouteSubscription(request, Ids, Edges, SiteValues.ToDictionary(value => value.Key, value => $"\"{value.Value}\""), Archetypes, Carrying)
+            return RouteSnapshotRead(request, Ids, Edges, SiteValues.ToDictionary(value => value.Key, value => $"\"{value.Value}\""), Archetypes, Carrying)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         }
 

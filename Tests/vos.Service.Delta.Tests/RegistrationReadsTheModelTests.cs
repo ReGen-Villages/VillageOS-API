@@ -191,7 +191,7 @@ public class RegistrationReadsTheModelTests
     }
 
     [Fact]
-    public async Task Reading_the_tree_releases_the_subscription_it_opened()
+    public async Task Reading_the_tree_opens_no_subscription()
     {
         var model = new EndpointModelStandIn();
         model.SeedTree(FirstModel);
@@ -199,8 +199,8 @@ public class RegistrationReadsTheModelTests
         await RegisterAsync(model, FirstModel, Registration("county-parcels", "EsriEndpoint",
             new { url = "https://gis.example/parcels" }));
 
-        model.SubscriptionsOpened.Should().NotBeEmpty();
-        model.SubscriptionsClosed.Should().BeEquivalentTo(model.SubscriptionsOpened);
+        model.SelectionsRead.Should().Be(1);
+        model.SubscriptionRequests.Should().Be(0);
     }
 
     [Fact]

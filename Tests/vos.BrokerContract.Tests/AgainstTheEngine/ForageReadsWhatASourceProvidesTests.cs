@@ -48,8 +48,8 @@ public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(source, provides, temperature);
         await _engine.RelateAsync(source, provides, rain);
 
-        var subscribed = await Subscriptions().SubscribeAsync(CoveringSourceResolver.SelectorFor(site));
-        var covering = CoveringSourceResolver.Resolve(subscribed.Snapshot, site);
+        var read = await Subscriptions().ReadSnapshotAsync(CoveringSourceResolver.SelectorFor(site));
+        var covering = CoveringSourceResolver.Resolve(read.Snapshot, site);
 
         covering.Should().ContainSingle().Which.Calls.Should().ContainSingle()
             .Which.Values.Should().Contain(CoveringSourceResolver.VariablesPlaceholder, "rain,temperature_2m");

@@ -25,7 +25,7 @@ public class HandleEndpointSourceOfferedTests
     private const string FetchRoute = "/api/endpoints/tributary";
     private const string RecordRoute = "/api/model/fragment";
     private const string RelateRoute = "/api/relationships";
-    private const string SubscribeRoute = "/api/subscriptions";
+    private const string SnapshotRoute = "/api/snapshots";
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -122,7 +122,7 @@ public class HandleEndpointSourceOfferedTests
         factory.HandlerCallback = request =>
             before?.Invoke(request)
             ?? writes.Route(request)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, archetypes ?? Archetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, archetypes ?? Archetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -187,7 +187,7 @@ public class HandleEndpointSourceOfferedTests
 
         var writes = await ServiceCall(ids, "NationalFloodPortal", Edges(), request =>
             request.Method == HttpMethod.Post
-            && request.RequestUri!.AbsolutePath == SubscribeRoute
+            && request.RequestUri!.AbsolutePath == SnapshotRoute
             && Interlocked.Increment(ref reads) == 2
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                 : null);

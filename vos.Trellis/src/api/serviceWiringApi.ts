@@ -26,22 +26,19 @@ export function serviceWiringOf(thingId: string): SubscriptionSelector {
   };
 }
 
-/** The service wiring as the platform holds it now. The subscription is handed back at once, because the card
- *  reads it once a round and nothing would ever expire it. */
+/** The service wiring as the platform holds it now, read through the route that registers no subscription,
+ *  because the card reads it once a round. */
 export async function fetchServiceWiring(thingId: string, signal?: AbortSignal): Promise<ModelIndex> {
   const token = await apiClient.ensureToken();
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-  const response = await fetch(`${BASE_URL}/api/subscriptions`, {
+  const response = await fetch(`${BASE_URL}/api/snapshots`, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     credentials: 'include',
-    body: JSON.stringify({ ...serviceWiringOf(thingId), includeSnapshot: true }),
+    body: JSON.stringify(serviceWiringOf(thingId)),
     signal,
   });
   if (!response.ok) throw new ApiError(response.status, await response.text());
 
-  const { subscriptionId, snapshot } = await response.json();
-  void fetch(`${BASE_URL}/api/subscriptions/${subscriptionId}`, { method: 'DELETE', headers, credentials: 'include' })
-    .catch(() => {});
+  const { snapshot } = await response.json();
   return buildModelIndex(snapshot.things, snapshot.relationships);
 }
