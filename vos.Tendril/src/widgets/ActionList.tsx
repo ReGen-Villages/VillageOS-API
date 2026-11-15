@@ -60,7 +60,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
 
   async function write(row: Row, choice: OfferedChoice, asked: Entered): Promise<EndpointAnswer> {
     const route = routeFor(widget, choice);
-    if (route) return postToEndpoint(context.reads, route, actionRequest(widget, row, choice.choice, asked, route));
+    if (route) return postToEndpoint(context.reads, route, actionRequest(widget, row, choice.choice, asked, route), context.wordRefusal);
     const predicateId = context.index.predicateNameToId.get(widget.writes.choicesFrom?.predicate ?? '');
     if (!predicateId || !context.reads.relate) return { error: tendrilWord('cannotRelate', { predicate: widget.writes.choicesFrom?.predicate ?? '' }) };
     try {

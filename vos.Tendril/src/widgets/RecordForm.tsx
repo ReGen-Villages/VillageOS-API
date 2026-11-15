@@ -31,7 +31,7 @@ export function RecordForm({ widget, context }: { widget: FormWidget; context: R
     setWriting(true);
     setRefusal('');
     try {
-      return await postToEndpoint(context.reads, widget.writes.via, formRequest(widget, entered, act));
+      return await postToEndpoint(context.reads, widget.writes.via, formRequest(widget, entered, act), context.wordRefusal);
     } finally {
       setWriting(false);
     }
