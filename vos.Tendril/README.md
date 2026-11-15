@@ -54,12 +54,14 @@ package feed. It reaches no public registry.
 
 ### Releasing a version
 
-1. Change `version` in `package.json`, run `npm install` here and in `vos.Trellis` so both lock
-   files agree, and merge the change into develop.
-2. Tag the merge commit on develop `tendril-v<version>`, for example `tendril-v0.1.0`, and push the
-   tag.
-3. The tag's build runs every check the repository has. When they pass, it refuses a tag that does
-   not name the version in `package.json` or is not on develop, and otherwise publishes.
+A release is a merged version change.
+
+1. Change `version` in `package.json`, and run `npm install` here and in `vos.Trellis` so both lock
+   files agree.
+2. Merge the change into develop through a pull request.
+3. Develop's build runs every check the repository has. When they pass, it asks the feed for that
+   version and publishes it if the feed does not hold it yet. A build that finds the version already
+   there publishes nothing, so building develop again never publishes twice.
 
 ### Installing it
 
