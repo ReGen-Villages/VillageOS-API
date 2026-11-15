@@ -5,11 +5,21 @@ import { asRows, type ResolveContext, type Row } from '../api/dashboardApi';
 import { postToEndpoint, type EndpointAnswer } from '../api/dashboardWrites';
 import { PROPERTY_NAME_WORDING } from '../api/propertyNames';
 import { useBindings } from '../hooks/useBinding';
-import { useAskedOptions } from '../hooks/useAskedOptions';
+import { rostersForRow, useAskedOptions } from '../hooks/useAskedOptions';
 import { wordingIn, wordsInLanguage } from '../i18n/termWording';
 import { tendrilWord } from '../i18n/words';
 import { AskedFields } from './AskedFields';
 import { actionRequest, asksOf, complete, nameOf, offeredChoices, routeFor, type Entered, type OfferedChoice } from './writeRequest';
+
+/* A row is a button's line and padding tall, with the gap between rows, in rem so the cap follows
+   the font. A row whose asked fields wrap stands taller and the cap shows fewer of them. */
+const ROW_HEIGHT = '2rem';
+const ROW_GAP = '0.75rem';
+
+function capStyle(visibleRows: number | undefined) {
+  if (!visibleRows) return undefined;
+  return { maxHeight: `calc(${visibleRows} * ${ROW_HEIGHT} + ${visibleRows - 1} * ${ROW_GAP})` };
+}
 
 /**
  * The one widget that acts on what it lists. Every other widget reports what the model holds;
@@ -37,12 +47,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
     [widget, drawn, i18n.language],
   );
   const widgetAsks = useMemo(() => widget.asks ?? [], [widget.asks]);
-  const everyAsk = useMemo(
-    () => [...widgetAsks, ...widget.writes.choices.flatMap((choice) => choice.asks ?? [])],
-    [widgetAsks, widget.writes.choices],
-  );
-  const everyOption = useAskedOptions(everyAsk, context);
-  const optionsFor = (fields: AskedValue[]) => fields.map((field) => everyOption[everyAsk.indexOf(field)] ?? []);
+  const widgetOptions = useAskedOptions(widgetAsks, context);
 
   const [refusal, setRefusal] = useState('');
   // Which row is mid-write. A second press before the first answers would record the decision
@@ -50,7 +55,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
   const [writing, setWriting] = useState<string | null>(null);
   const [decided, setDecided] = useState<Record<string, string>>({});
   const [entered, setEntered] = useState<Record<string, Entered>>({});
-  const [asking, setAsking] = useState<{ rowId: string; offered: OfferedChoice } | null>(null);
+  const [asking, setAsking] = useState<{ rowId: string; offered: OfferedChoice; rosters: Row[][]; unreadable: boolean } | null>(null);
   const [showingDecided, setShowingDecided] = useState(false);
 
   async function write(row: Row, choice: OfferedChoice, asked: Entered): Promise<EndpointAnswer> {
@@ -88,11 +93,20 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
     }
   }
 
-  function fieldsFor(rowId: string, fields: AskedValue[]) {
+  function open(rowId: string, choice: OfferedChoice) {
+    setAsking({ rowId, offered: choice, rosters: [], unreadable: false });
+    const stillAsking = (was: typeof asking) => was?.rowId === rowId && was.offered === choice;
+    rostersForRow(choice.choice.asks ?? [], context, rowId).then(
+      (rosters) => setAsking((was) => (stillAsking(was) ? { ...was!, rosters } : was)),
+      () => setAsking((was) => (stillAsking(was) ? { ...was!, unreadable: true } : was)),
+    );
+  }
+
+  function fieldsFor(rowId: string, fields: AskedValue[], options: Row[][]) {
     return (
       <AskedFields
         fields={fields}
-        options={optionsFor(fields)}
+        options={options}
         entered={entered[rowId] ?? {}}
         onChange={(next) => setEntered((was) => ({ ...was, [rowId]: next }))}
         disabled={writing !== null}
@@ -129,13 +143,13 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
           {tendrilWord('showDecided')}
         </label>
       )}
-      <div className="mt-2 flex flex-col gap-3">
+      <div className={`mt-2 flex flex-col gap-3 ${widget.visibleRows ? 'overflow-y-auto' : ''}`} style={capStyle(widget.visibleRows)}>
         {rows.map((row) => {
           const id = String(row.id ?? '');
           const already = decided[id];
           const asked = entered[id] ?? {};
           const pressable = !already || widget.writes.repeatable;
-          const askingHere = asking?.rowId === id ? asking.offered : null;
+          const askingHere = asking?.rowId === id ? asking : null;
           return (
             <div key={id} className="flex flex-wrap items-center gap-2" data-decided={Boolean(already)}>
               <span className="min-w-40 text-sm text-zinc-900 dark:text-zinc-100">{nameOf(widget, row)}</span>
@@ -143,8 +157,9 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
               {already && <span className="text-sm text-zinc-500 dark:text-zinc-400">{already}</span>}
               {pressable && askingHere && (
                 <>
-                  {fieldsFor(id, asksOf(widget, askingHere.choice))}
-                  {button('confirm', askingHere.choice.label, writing !== null || !complete(asksOf(widget, askingHere.choice), asked), () => void press(row, askingHere))}
+                  {fieldsFor(id, asksOf(widget, askingHere.offered.choice), askingHere.rosters)}
+                  {askingHere.unreadable && <span className="text-sm text-red-600 dark:text-red-400">{tendrilWord('rosterUnreadable')}</span>}
+                  {button('confirm', askingHere.offered.choice.label, writing !== null || askingHere.unreadable || !complete(asksOf(widget, askingHere.offered.choice), asked), () => void press(row, askingHere.offered))}
                   <button type="button" onClick={() => setAsking(null)} className="rounded px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
                     {tendrilWord('cancel')}
                   </button>
@@ -152,11 +167,11 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
               )}
               {pressable && !askingHere && (
                 <>
-                  {widgetAsks.length > 0 && fieldsFor(id, widgetAsks)}
+                  {widgetAsks.length > 0 && fieldsFor(id, widgetAsks, widgetOptions)}
                   {offered.map((choice) => {
                     const ownAsks = choice.choice.asks;
                     const key = choice.drawnId ?? choice.choice.label;
-                    if (ownAsks) return button(key, choice.choice.label, writing !== null, () => setAsking({ rowId: id, offered: choice }));
+                    if (ownAsks) return button(key, choice.choice.label, writing !== null, () => open(id, choice));
                     return button(key, choice.choice.label, writing !== null || !complete(widgetAsks, asked), () => void press(row, choice));
                   })}
                 </>
