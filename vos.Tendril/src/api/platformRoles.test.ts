@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { CONTAINMENT_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, thingBoundBy } from './platformRoles';
-import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
+import {
+  BINDS_PREDICATE_NAME,
+  CONTAINMENT_ROLE_ID,
+  DISPLAY_SETTINGS_ROLE_ID,
+  PAGE_ROLE_ID,
+  thingBoundBy,
+} from './platformRoles';
 import type { VosRelationship, VosThing } from '../types/vos';
 
 function thing(Id: string, Name: string): VosThing {

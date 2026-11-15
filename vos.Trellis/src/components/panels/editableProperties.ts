@@ -1,4 +1,4 @@
-import type { EffectiveProperty } from '../../types/vos';
+import type { EffectiveProperty } from '@tendril-ui/tendril';
 
 /** One property as this list shows it: what it is called, what it holds, and what the platform
  *  says it holds. The type comes from the platform's own reading of the property — a save states

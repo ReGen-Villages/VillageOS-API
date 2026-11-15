@@ -2382,10 +2382,10 @@ vos.Trellis/
 │                                  the three public pages, built on their own
 └── src/
     ├── main.tsx, App.tsx          the root, the router, the sign-in gate, the theme
-    ├── types/                     the wire shapes: Things, relationships, ranges,
-    │                              temporal answers, page descriptions, basemaps
+    ├── types/                     the wire shapes Tendril does not hold: basemaps,
+    │                              connections, engine metrics, subscriptions
     ├── api/                       the client, one module per server area, and the
-    │                              page-binding resolver
+    │                              broker reads Tendril's binding reader asks through
     ├── hooks/                     the stream, the loaded model and its live updates
     ├── stores/                    selection, the live model, the feed, the map, the theme
     ├── utils/                     pure functions: the graph mapper, search, clustering,
@@ -2399,6 +2399,23 @@ vos.Trellis/
     ├── i18n/                      one file per language
     └── components/                layout, graph, panels, dashboard widgets, pipeline,
                                    model viewer, map, auth, common
+```
+
+The page reader and the widgets that write are a package of their own beside it, `vos.Tendril`,
+so another application draws a model's pages the same way. The console uses its source from the
+folder.
+
+```text
+vos.Tendril/
+└── src/
+    ├── types/                     the wire shapes: Things, relationships, ranges,
+    │                              temporal answers, page descriptions
+    ├── api/                       the page-binding resolver, the platform's roles, and
+    │                              where a press posts
+    ├── hooks/                     resolving a binding again when what its answer reads moves
+    ├── widgets/                   the action list, the form and the fields they ask for
+    ├── utils/                     effective properties, a value's origin, finding a range
+    └── i18n/                      Tendril's own words, in every language the console offers
 ```
 
 ### 84. Drawing the graph
@@ -2628,7 +2645,8 @@ the closing view (chapter 94).
 description with no sections draws its title and says the view is empty; a widget of a kind this
 build does not know draws a card naming the kind, and every other widget draws; a binding that
 resolves to nothing reads as *absent*, never as zero. The seed validator resolves the model names a
-description holds; the set of widget and binding kinds lives in the console and is checked there.
+description holds; the set of widget and binding kinds is declared in Tendril (`vos.Tendril`), the
+package the console reads pages with, and is checked by the console.
 The console holds no domain word of its own — every noun a reader sees is the description's — and a
 test over the source fails on a widget named for what one model measures.
 

@@ -25,9 +25,9 @@ vi.mock('../../../api/relationshipApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '../../../api/dashboardApi';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
-import type { VosThing, VosRelationship } from '../../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { useModelStore } from '../../../stores/modelStore';
 import { useEntityDetail } from './useEntityDetail';
 

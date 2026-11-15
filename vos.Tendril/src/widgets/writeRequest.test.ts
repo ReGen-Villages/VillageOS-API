@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ActionWidget, FormWidget } from '../../../types/dashboard';
+import type { ActionWidget, FormWidget } from '../types/dashboard';
 import { actionRequest, complete, formRequest, nameOf } from './writeRequest';
 
 const DECIDE: ActionWidget = {

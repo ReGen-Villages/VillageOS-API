@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
+import { TENDRIL_SHARES } from './build/tendrilShares'
 
 // The pages a person with land opens, built on their own: the guided submission form, the findings for
 // a submission already made, and the plot-first explore page that runs beside the form so the two
@@ -31,6 +32,7 @@ export default defineConfig({
       },
     },
   ],
+  resolve: { dedupe: TENDRIL_SHARES },
   base: './',
   build: {
     outDir: 'dist-public',

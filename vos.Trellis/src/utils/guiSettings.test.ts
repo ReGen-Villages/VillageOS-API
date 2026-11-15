@@ -9,8 +9,8 @@ import {
   extractNumberDisplaySettings,
   NUMBER_DISPLAY_DEFAULTS,
 } from './guiSettings';
-import type { VosThing, VosRelationship } from '../types/vos';
-import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID } from '@tendril-ui/tendril';
 
 let idCounter = 0;
 function uniqueId() {

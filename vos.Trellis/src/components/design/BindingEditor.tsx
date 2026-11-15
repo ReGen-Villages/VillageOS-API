@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeReference } from '../../types/dashboard';
+import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeReference } from '@tendril-ui/tendril';
 import { BINDING_SCHEMAS, FILTER_OPERATORS, STEP_DIRECTIONS, kindsForShape, type BindingShape, type FieldSpecification } from '../../utils/widgetSchema';
 import type { EdgeCandidate } from '../../api/modelDeclaration';
 import { rowKindOf } from '../../utils/rowKind';

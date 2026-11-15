@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { Binding } from '../types/dashboard';
-import type { ModelReads } from '../api/modelReads';
-import type { BindingResult, ResolveContext } from '../api/dashboardApi';
+import type { Binding, BindingResult, ModelReads, ResolveContext } from '@tendril-ui/tendril';
 
 const answered = vi.fn<(binding: Binding, context: ResolveContext) => Promise<BindingResult>>();
-vi.mock('../api/dashboardApi', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/dashboardApi')>()),
+// The file Tendril's own hooks import, so the mock reaches the call `useBinding` makes.
+vi.mock('../../../vos.Tendril/src/api/dashboardApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   resolveBinding: (binding: Binding, context: ResolveContext) => answered(binding, context),
 }));
+// The test setup's translations load Tendril before the mock above exists.
+vi.resetModules();
 
-const { useResolveContext, useBinding } = await import('./useDashboard');
-const { buildModelIndex } = await import('../api/dashboardApi');
+const { useResolveContext } = await import('./useDashboard');
+const { buildModelIndex, useBinding } = await import('@tendril-ui/tendril');
 const { useUiStore } = await import('../stores/uiStore');
 const { useModelStore } = await import('../stores/modelStore');
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useGraphData } from './useGraphData';
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@tendril-ui/tendril';
 
 function makeThing(id: string, props: Record<string, unknown> = {}): VosThing {
   return { Id: id, Name: id, Properties: props } as VosThing;

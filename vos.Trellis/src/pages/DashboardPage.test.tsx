@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ConnectionState } from '../types/connection';
 import type { RegisteredService } from '../types/mycelium';
 import type { EngineMetricsSummary } from '../types/engineMetrics';
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@tendril-ui/tendril';
 
 const { navigated } = vi.hoisted(() => ({ navigated: vi.fn() }));
 vi.mock('react-router-dom', async (importOriginal) => ({

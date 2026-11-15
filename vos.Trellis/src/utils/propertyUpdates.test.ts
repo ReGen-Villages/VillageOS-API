@@ -6,7 +6,7 @@ import {
   applyRelationshipPropertyRemoval,
   isVisibleRelationship,
 } from './propertyUpdates';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const makeThing = (overrides?: Partial<VosThing>): VosThing => ({
   Id: 'thing-1',

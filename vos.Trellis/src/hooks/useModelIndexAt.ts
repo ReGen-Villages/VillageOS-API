@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { modelApi } from '../api/modelApi';
-import { modelIndexFor, type ModelIndex } from '../api/dashboardApi';
-import type { InheritedPropertySet, VosRelationship, VosThing } from '../types/vos';
+import { modelIndexFor, type ModelIndex } from '@tendril-ui/tendril';
+import type { InheritedPropertySet, VosRelationship, VosThing } from '@tendril-ui/tendril';
 
 /** How long a chosen instant is left alone before it is read for. Long enough that spinning a
  *  datetime field through its segments asks once rather than once a segment. */

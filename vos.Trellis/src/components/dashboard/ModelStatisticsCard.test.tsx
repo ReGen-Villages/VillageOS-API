@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ModelStatisticsCard } from './ModelStatisticsCard';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const thing = (Id: string, Properties: Record<string, unknown> = {}) => ({ Id, Name: Id, Properties }) as unknown as VosThing;
 const relationship = (Id: string, PredicateId: string) =>

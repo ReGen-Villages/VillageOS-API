@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import type { AskedValue } from '../../../types/dashboard';
-import type { Row } from '../../../api/dashboardApi';
+import type { AskedValue } from '../types/dashboard';
+import type { Row } from '../api/dashboardApi';
 import type { Entered } from './writeRequest';
 
 const INPUT_TYPES = { text: 'text', number: 'number', datetime: 'datetime-local', secret: 'password' } as const;

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LeaderboardWidget, LeaderMetric } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows } from '../../../api/dashboardApi';
-import { useBinding } from '../../../hooks/useDashboard';
+import type { LeaderboardWidget, LeaderMetric } from '@tendril-ui/tendril';
+import type { ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows } from '@tendril-ui/tendril';
+import { useBinding } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 

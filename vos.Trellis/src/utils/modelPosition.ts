@@ -1,4 +1,4 @@
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@tendril-ui/tendril';
 
 export interface Position {
   latitude: number;

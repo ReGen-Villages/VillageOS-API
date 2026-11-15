@@ -3,8 +3,8 @@
  * the binding covers, and the calendar words the axes are labelled with. Shared so every chart reads
  * a series the same way and names a month the same way.
  */
-import { asRows, nullableNumber, type BindingResult } from '../../../api/dashboardApi';
-import type { Binding } from '../../../types/dashboard';
+import { asRows, nullableNumber, type BindingResult } from '@tendril-ui/tendril';
+import type { Binding } from '@tendril-ui/tendril';
 
 const SECONDS_PER_DAY = 86_400;
 const SECONDS_PER_YEAR = 365 * SECONDS_PER_DAY;

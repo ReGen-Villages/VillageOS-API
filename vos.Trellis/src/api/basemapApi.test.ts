@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
-import { buildModelIndex } from './dashboardApi';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { discoverBasemapSources } from './basemapApi';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import { DEFAULT_RASTER_MAXIMUM_ZOOM } from '../types/basemap';

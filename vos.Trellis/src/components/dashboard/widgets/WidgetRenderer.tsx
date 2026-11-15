@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TableWidget, Widget } from '../../../types/dashboard';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import {
+  ActionList,
+  RecordForm,
+  type ResolveContext,
+  type Row,
+  type TableWidget,
+  type Widget,
+} from '@tendril-ui/tendril';
 import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
 import { widgetNeedsOneEntity } from '../../../api/selectedEntity';
 import { KpiCard } from './KpiCard';
@@ -12,8 +18,6 @@ import { Leaderboard } from './Leaderboard';
 import { VerdictList } from './VerdictList';
 import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
-import { ActionList } from './ActionList';
-import { RecordForm } from './RecordForm';
 import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
 import { LineSeries } from './LineSeries';
@@ -77,9 +81,17 @@ export function WidgetRenderer({
     case 'smallMultiples':
       return <SmallMultiples widget={widget} context={context} />;
     case 'action':
-      return <ActionList widget={widget} context={context} />;
+      return (
+        <WidgetCard title={widget.title} hint={widget.hint}>
+          <ActionList widget={widget} context={context} />
+        </WidgetCard>
+      );
     case 'form':
-      return <RecordForm widget={widget} context={context} />;
+      return (
+        <WidgetCard title={widget.title} hint={widget.hint}>
+          <RecordForm widget={widget} context={context} />
+        </WidgetCard>
+      );
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }

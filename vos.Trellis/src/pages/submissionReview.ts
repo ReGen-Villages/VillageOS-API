@@ -9,7 +9,7 @@
  * come to answer the same model differently.
  */
 
-import type { VosThing } from '../types/vos';
+import type { VosThing } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
 import { IS_PREDICATE_NAME, boundBy, type ModelReading } from './modelVocabulary';

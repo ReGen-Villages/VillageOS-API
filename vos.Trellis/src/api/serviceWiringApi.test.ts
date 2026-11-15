@@ -6,7 +6,7 @@ vi.mock('./client', async (importOriginal) => ({
 }));
 
 import { fetchServiceWiring, serviceWiringOf } from './serviceWiringApi';
-import { AWAITED_THING_ROLE_ID, CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from './platformRoles';
+import { AWAITED_THING_ROLE_ID, CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../pipeline/model';
 
 const calls: { url: string; request: RequestInit }[] = [];

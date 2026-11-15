@@ -1,6 +1,6 @@
 import type Graph from 'graphology';
 import { resolvePredicateColor } from './colors';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 export interface PredicateStatistics {
   predicateId: string;

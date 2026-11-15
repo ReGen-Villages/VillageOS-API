@@ -6,13 +6,15 @@
  * Thing it binds. Each identifier is the standard version 5 identifier of the role's word; the intake service
  * and the command line read the same ones.
  */
+import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
+
 export const LAND_INTAKE_ROLE = {
   SiteStudy: 'e9036a23-21c1-5956-b0d8-a212e8ad8272',
   Site: '84e29a09-b999-5b22-b82c-d101723d96d1',
   AllocationCategory: '2cdde53d-72b8-54d3-aaa5-e5a9cc56b9e6',
   CategorizedAs: 'e0fd16d3-1feb-509b-8753-f4197b1288be',
   WaterDemandComponent: '69c31cd9-313d-56dc-b554-3aa0cc24d427',
-  PropertyName: 'a44ad23e-44ed-5992-8360-1fdabc1a6240',
+  PropertyName: PROPERTY_NAME_ROLE,
   ProposedSite: 'ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b',
   PersonalDetail: '2e154d0e-6477-5e2b-9d61-faf40f7d39d1',
   SharedDocument: 'a3605555-fa7a-50c0-9422-3085734c5c22',
@@ -43,6 +45,3 @@ export const LAND_INTAKE_ROLE = {
   RefusedCandidate: '3634a526-0bab-5e7b-ae8f-6d822ce7c1b1',
   BasemapSource: '61066752-41d5-5bea-a1cd-5450e6603486',
 } as const;
-
-/** The platform's own predicate a role Thing reaches the Thing playing it along, and so found by name. */
-export const BINDS_PREDICATE_NAME = 'binds';

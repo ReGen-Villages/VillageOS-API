@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import { apiClient, type AuthenticatedUser } from '../api/client';
 import { myceliumApi, type StartupProgress } from '../api/myceliumApi';
 import { useModelStore } from '../stores/modelStore';
-import type { ModelSummary } from '../types/vos';
+import type { ModelSummary } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
 export interface AuthenticationState {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { Plus } from 'lucide-react';
-import type { DashboardDescriptor, DashboardSpecification } from '../../types/dashboard';
+import type { DashboardDescriptor, DashboardSpecification } from '@tendril-ui/tendril';
 import { isKeptPage } from '../../utils/designSpec';
 
 /** A page the model holds whose specification could be read; one that could not is not offered,

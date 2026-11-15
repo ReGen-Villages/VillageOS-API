@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DashboardSpecification, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import {
   layoutItemsOf,
   placementsFromLayout,

@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { KpiWidget } from '../../../types/dashboard';
-import { ORIGIN_KINDS, type OriginKind } from '../../../types/vos';
-import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asNumber, asRows, asSeries } from '../../../api/dashboardApi';
-import { useBinding } from '../../../hooks/useDashboard';
+import type { KpiWidget } from '@tendril-ui/tendril';
+import { ORIGIN_KINDS, type OriginKind } from '@tendril-ui/tendril';
+import type { ResolveContext, Row } from '@tendril-ui/tendril';
+import { asNumber, asRows, asSeries } from '@tendril-ui/tendril';
+import { useBinding } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { Sparkline } from './Sparkline';

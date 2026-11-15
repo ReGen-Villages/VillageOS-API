@@ -361,7 +361,6 @@ export const it: PartialResources = {
     signIn: 'Accedi',
   },
   widgets: {
-    stateCountMissing: "Impossibile leggere il numero di cose in «{{state}}».",
     chooseOneEntity: "Mostrato per una sola opzione di «{{label}}» alla volta: sceglietene una qui sopra.",
     funnel: {
       rows: "righe",
