@@ -244,6 +244,31 @@ public class SubmissionsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Deciding_relates_the_submission_to_the_disposition_named_and_records_when()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on Willow Bend Submission");
+
+        _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, PromotedId), Times.Once);
+        _mycelium.Verify(client => client.SetPropertyAsync(
+            SubmissionId, "resolvedAt", "vos.DateTime", It.IsAny<object?>()), Times.Once);
+        Assert.Contains("is now 'taken-on'", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Deciding_as_a_disposition_the_model_does_not_hold_names_the_ones_it_does_and_writes_nothing()
+    {
+        AModelWithOneSubmission();
+
+        await Run($"decide withdrawn {SubmissionId}");
+
+        Assert.Contains("holds no disposition 'withdrawn'. It holds: binned, taken-on.", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task A_submission_can_be_named_by_the_identifier_it_was_submitted_under()
     {
         AModelWithOneSubmission();

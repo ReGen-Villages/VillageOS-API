@@ -42,6 +42,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             {
                 case "list": await ListAsync(); break;
                 case "reject": await RejectAsync(args); break;
+                case "decide": await DecideAsync(args); break;
                 case "promote": await PromoteAsync(args); break;
                 case "dispose": await DisposeAsync(args); break;
                 default: ShowHelp(); break;
@@ -108,6 +109,32 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
         await ResolveAsync(model, submission, disposable);
         writer.WriteLine($"Rejected: {submission.Name} is now '{disposable.Name}'.");
+    }
+
+    private async Task DecideAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            writer.WriteLine("Usage: submissions decide <disposition> <submission>   - record any disposition this model holds");
+            return;
+        }
+
+        var model = await ModelSnapshot.ReadAsync(client!);
+        var held = DispositionsIn(model).ToList();
+        var chosen = held.Where(one => one.Name == args[0] || one.Id.ToString() == args[0]).ToList();
+        if (chosen.Count != 1)
+        {
+            writer.WriteLine(chosen.Count == 0
+                ? $"This model holds no disposition '{args[0]}'. It holds: {string.Join(", ", held.Select(one => one.Name))}."
+                : $"'{args[0]}' answers {chosen.Count} dispositions, so it does not say which. Give its identifier.");
+            return;
+        }
+
+        if (Identify(model, string.Join(' ', args[1..])) is not { } submission)
+            return;
+
+        await ResolveAsync(model, submission, chosen[0]);
+        writer.WriteLine($"Decided: {submission.Name} is now '{chosen[0].Name}'.");
     }
 
     private async Task PromoteAsync(string[] args)
@@ -323,12 +350,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine("Submission review commands:");
         writer.WriteLine("  submissions list                                      - what has arrived, and its state");
         writer.WriteLine("  submissions reject <submission>                       - move one to a disposable state");
+        writer.WriteLine("  submissions decide <disposition> <submission>         - record any disposition this model holds");
         writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
         writer.WriteLine("                                                        - copy one into a project model of its own");
         writer.WriteLine("  submissions dispose <predicates>                      - clear every rejection whose period has run");
         writer.WriteLine();
         writer.WriteLine("  A submission is identified by its identifier, its name, or the identifier it was");
         writer.WriteLine("  submitted under. A name may contain spaces where it ends the line — which it does");
-        writer.WriteLine("  for reject, and does not for promote. Promoting twice produces one project.");
+        writer.WriteLine("  for reject and decide, and does not for promote. Promoting twice produces one project.");
     }
 }

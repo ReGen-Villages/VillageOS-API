@@ -48,7 +48,39 @@ export function actionRequest(widget: ActionWidget, row: Row, choice: ActionChoi
   if (choice.act) body.view = choice.act;
   body.record = nameOf(widget, row);
   if (choice.target) body.reason = choice.target;
-  return withValues(body, widget.asks, entered);
+  return withValues(body, asksOf(widget, choice), entered);
+}
+
+export function asksOf(widget: ActionWidget, choice: ActionChoice): AskedValue[] {
+  return choice.asks ?? widget.asks ?? [];
+}
+
+/** One button on a row: the choice it makes, and the Thing a press relates the row to where the
+ *  model offered it rather than the specification. */
+export interface OfferedChoice {
+  choice: ActionChoice;
+  drawnId?: string;
+}
+
+/** The model's choices in the order the binding returned them, each replaced by a listed choice
+ *  naming it, then the listed choices naming none of them. */
+export function offeredChoices(widget: ActionWidget, drawn: Row[], wordsOf: (row: Row) => string): OfferedChoice[] {
+  const listed = widget.writes.choices;
+  const drawnNames = new Set(drawn.map((row) => String(row.name ?? '')));
+  const fromTheModel = drawn.map((row): OfferedChoice => {
+    const replacing = listed.find((choice) => choice.target !== undefined && choice.target === row.name);
+    return replacing ? { choice: replacing } : { choice: { label: wordsOf(row) }, drawnId: String(row.id ?? '') };
+  });
+  const listedOnly = listed
+    .filter((choice) => choice.target === undefined || !drawnNames.has(choice.target))
+    .map((choice): OfferedChoice => ({ choice }));
+  return [...fromTheModel, ...listedOnly];
+}
+
+/** Where a press is posted, or nothing where it relates the row to a drawn Thing instead. */
+export function routeFor(widget: ActionWidget, offered: OfferedChoice): string | undefined {
+  if (offered.choice.via) return offered.choice.via;
+  return offered.drawnId === undefined ? widget.writes.via : undefined;
 }
 
 /** The request a form makes: the act by name and every field a person filled. `act` names which

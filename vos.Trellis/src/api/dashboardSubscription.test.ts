@@ -150,6 +150,24 @@ describe('subscriptionForSpec', () => {
     expect(form.types).toContain('Catchment');
   });
 
+  it('asks for the choices the model offers, the rows already decided, a choice\'s own roster and the predicate a press relates along', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+        type: 'action',
+        rows: { kind: 'stateList', state: 'sampled', archetype: 'Spring' },
+        writes: {
+          choicesFrom: { from: { kind: 'thingList', archetype: 'Verdict' }, predicate: 'judgedAs' },
+          choices: [{ label: 'Close', via: '/api/springs/close', asks: [{ key: 'by', label: 'By', kind: 'choice', options: { kind: 'thingList', archetype: 'Person' } }] }],
+        },
+        decided: { rows: { kind: 'thingList', archetype: 'Catchment' }, decision: 'verdict' },
+      }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Verdict', 'Person', 'Catchment']));
+    expect(selector.names).toContain('judgedAs');
+  });
+
   // A binding narrowed to the selected entity reaches its rows along that entity's relationships, so asking
   // for its type as well would pull in every other entity's rows for a page showing one.
   it('leaves out a scoped binding\'s type once an entity is selected, and follows its edge instead', () => {
