@@ -135,6 +135,9 @@ public class SelectorDemoTests
             return Task.FromResult(result);
         }
 
+        public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {
             Unsubscribed = subscriptionId;

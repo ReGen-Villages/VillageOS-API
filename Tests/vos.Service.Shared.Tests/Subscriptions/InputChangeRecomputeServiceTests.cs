@@ -886,6 +886,9 @@ public class InputChangeRecomputeServiceTests
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
+        public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         // Resolved as the broker's add-objects route resolves it, so a flag the follower leaves at its default
         // has the consequence here that it has there.
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
