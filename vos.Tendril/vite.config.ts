@@ -11,7 +11,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'cobertura'],
       reportsDirectory: './coverage',
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'release/releaseTag.mjs'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/setupTests.ts'],
     },
   },

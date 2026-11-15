@@ -46,9 +46,40 @@ offers. An application registers the namespace at start-up and can override any 
 ## Versions and where it is published
 
 Versions are semantic. While the version starts with `0.`, a minor version may still change a
-declaration. Tendril is published as `@tendril-ui/tendril` to the ReGenVillages organization's
-private package feed; installing it needs a read-only token for that feed, and an npm configuration
-that sends the `@tendril-ui` scope to it.
+declaration. Tendril has a version of its own rather than the platform's, because the feed refuses a
+version it already holds and each fix needs a version to be published under.
+
+Tendril is published as `@tendril-ui/tendril` to `packages`, the ReGenVillages organization's private
+package feed. It reaches no public registry.
+
+### Releasing a version
+
+1. Change `version` in `package.json`, run `npm install` here and in `vos.Trellis` so both lock
+   files agree, and merge the change into develop.
+2. Tag the merge commit on develop `tendril-v<version>`, for example `tendril-v0.1.0`, and push the
+   tag.
+3. The tag's build runs every check the repository has. When they pass, it refuses a tag that does
+   not name the version in `package.json` or is not on develop, and otherwise publishes.
+
+### Installing it
+
+An application's project `.npmrc` sends the `@tendril-ui` scope to the feed:
+
+```ini
+@tendril-ui:registry=https://pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/
+```
+
+Each machine signs in with an Azure DevOps personal access token that has the Packaging (Read)
+scope, written base64-encoded into the user-level `~/.npmrc`, never into a tracked file:
+
+```ini
+//pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/:username=ReGenVillages
+//pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/:_password=<the token, base64-encoded>
+//pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/:email=npm requires an email but the feed does not use it
+```
+
+A pipeline signs in with the `npmAuthenticate` task. One in another Azure DevOps organization gives
+that task an npm service connection holding the token.
 
 ## Licence
 
