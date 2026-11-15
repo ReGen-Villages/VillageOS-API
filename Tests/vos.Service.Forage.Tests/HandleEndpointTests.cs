@@ -173,7 +173,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = request =>
         {
             if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
-            if (request.RequestUri.AbsolutePath == "/api/relationships") writes++;
+            if (RelationshipWrite.In(request) is not null) writes++;
             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
         };
         using var client = factory.CreateClient();

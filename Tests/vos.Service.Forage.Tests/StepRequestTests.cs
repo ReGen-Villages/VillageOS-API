@@ -84,6 +84,13 @@ public class StepRequestTests
                 Fetched.Add(body);
                 return Json("""{"success":true}""");
             }
+            if (RelationshipWrite.In(request) is { } write)
+            {
+                if (RelatingFails)
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") };
+                Related.Add(write.Relationship);
+                return Json("{}");
+            }
             if (path == "/api/model/fragment")
             {
                 var thing = JsonDocument.Parse(body).RootElement.GetProperty("things")[0];
@@ -92,19 +99,11 @@ public class StepRequestTests
             }
             if (path.EndsWith("/facts", StringComparison.Ordinal) && FactsFail)
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-            if (path == "/api/relationships" && RelatingFails)
-                return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") };
             if (path.EndsWith("/facts", StringComparison.Ordinal))
             {
                 var parts = path.Split('/');
                 Facts.Add((Guid.Parse(parts[3]), parts[5]));
                 return new HttpResponseMessage(HttpStatusCode.Created) { Content = new StringContent("""{"sequenceNumber":1}""", Encoding.UTF8, "application/json") };
-            }
-            if (path == "/api/relationships" && request.Method == HttpMethod.Post)
-            {
-                var written = JsonDocument.Parse(body).RootElement;
-                Related.Add((written.GetProperty("subjectId").GetGuid(), written.GetProperty("predicateId").GetGuid(), written.GetProperty("targetId").GetGuid()));
-                return Json("{}");
             }
             if (ReadsFail && path == "/api/snapshots")
                 return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
