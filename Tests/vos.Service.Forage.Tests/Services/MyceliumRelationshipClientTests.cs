@@ -94,20 +94,20 @@ public class MyceliumRelationshipClientTests
     }
 
     [Fact]
-    public async Task CreateRelationshipAsync_RefusedWrite_LogsTheStatusAndTheModelsReason()
+    public async Task WriteRelationshipAsync_RefusedWrite_LogsTheStatusAndTheModelsReason()
     {
         var logger = new CapturingLogger<MyceliumRelationshipClient>();
         var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.BadRequest,
             """
-            {"error":"A relationship already exists with the same subject, predicate and target."}
+            {"error":"A Thing cannot be related to itself."}
             """));
 
-        var related = await Client(handler, logger).CreateRelationshipAsync(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), default);
+        var related = await Client(handler, logger).WriteRelationshipAsync(
+            "'steady' for Willow Bend spring", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), [], default);
 
         related.Should().BeFalse();
         logger.Lines.Should().ContainSingle().Which.Should()
-            .Contain("BadRequest").And.Contain("already exists",
+            .Contain("BadRequest").And.Contain("related to itself",
                 "a refusal logged without its reason cannot be told apart from any other");
     }
 }

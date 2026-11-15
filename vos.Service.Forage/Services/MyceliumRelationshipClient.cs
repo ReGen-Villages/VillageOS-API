@@ -8,6 +8,9 @@ namespace vos.Service.Forage.Services;
 // removed — is how a discovered word becomes a relationship; and the coverage Things a run records
 // what each call came to on. Separate from the fetcher, which speaks to endpoint services rather than
 // to the model.
+//
+// Those writes are fragments because the engine skips a relationship it already holds and passes over a removal
+// already made, so a repeated write succeeds and leaves one copy.
 public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWriter
 {
     public MyceliumRelationshipClient(
@@ -15,39 +18,34 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
 
-    public async Task<bool> WriteCoverageAsync(
-        Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken)
-    {
-        try
+    public Task<bool> WriteCoverageAsync(
+        Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken) =>
+        PostFragmentAsync(name, new
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/model/fragment", new
+            name,
+            things = new[] { new { id = coverageId, name } },
+            relationships = relationships.Select(relationship => new
             {
-                name,
-                things = new[] { new { id = coverageId, name } },
-                relationships = relationships.Select(relationship => new
-                {
-                    subject = coverageId,
-                    predicate = relationship.Predicate,
-                    target = relationship.Target,
-                }),
-            }, cancellationToken);
-            if (response.IsSuccessStatusCode) return true;
+                subject = coverageId,
+                predicate = relationship.Predicate,
+                target = relationship.Target,
+            }),
+        }, cancellationToken);
 
-            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode,
-                await response.Content.ReadAsStringAsync(cancellationToken));
-            return false;
-        }
-        catch (Exception exception)
+    // Each replaced relationship is removed in the same write, so the subject never ends with both or with neither.
+    public Task<bool> WriteRelationshipAsync(
+        string name, Guid subjectId, Guid predicateId, Guid targetId, IReadOnlyList<Guid> replacedTargetIds,
+        CancellationToken cancellationToken) =>
+        PostFragmentAsync(name, new
         {
-            Logger.LogError(exception, "Error writing {Name}", name);
-            return false;
-        }
-    }
+            name,
+            relationships = new[] { new { subject = subjectId, predicate = predicateId, target = targetId } },
+            retractions = replacedTargetIds.Select(replaced => new { subject = subjectId, predicate = predicateId, target = replaced }),
+        }, cancellationToken);
 
     public Task<bool> RelateAsync(
-        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
-        => CreateRelationshipAsync(subjectId, predicateId, targetId, cancellationToken);
+        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
+        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(30), cancellationToken);
 
     // A Fact rather than an Observation: a run asserts what its own call came to, and nothing samples it
     // from a provider. The properties are declared FactOnly, so an observation would be refused.
@@ -66,22 +64,21 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         }
     }
 
-    public Task<bool> CreateRelationshipAsync(
-        Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
-        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(30), cancellationToken);
-
-    public async Task<bool> DeleteRelationshipAsync(Guid relationshipId, CancellationToken cancellationToken)
+    private async Task<bool> PostFragmentAsync(string name, object fragment, CancellationToken cancellationToken)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.DeleteAsync(
-                $"{MyceliumUrl}/api/relationships/{relationshipId}", cancellationToken);
-            return response.IsSuccessStatusCode;
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/model/fragment", fragment, cancellationToken);
+            if (response.IsSuccessStatusCode) return true;
+
+            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode,
+                await response.Content.ReadAsStringAsync(cancellationToken));
+            return false;
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "Error removing relationship {RelationshipId}", relationshipId);
+            Logger.LogError(exception, "Error writing {Name}", name);
             return false;
         }
     }

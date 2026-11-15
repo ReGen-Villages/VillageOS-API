@@ -38,8 +38,9 @@ public sealed class AnalysisSpawner
             if (trigger.AlreadyRelated)
                 continue;
 
-            if (await _mycelium.CreateRelationshipAsync(
-                    analysis.StudyId, trigger.ConnectionId, trigger.ServicePrototypeId, cancellationToken))
+            if (await _mycelium.WriteRelationshipAsync(
+                    $"{trigger.ConnectionName} for study {analysis.StudyId}", analysis.StudyId, trigger.ConnectionId,
+                    trigger.ServicePrototypeId, [], cancellationToken))
                 continue;
 
             _logger.LogError("Could not start {Connection} for study {StudyId} of site {SiteId}.",

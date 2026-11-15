@@ -84,6 +84,13 @@ public class StepRequestTests
                 Fetched.Add(body);
                 return Json("""{"success":true}""");
             }
+            if (RelationshipWrite.In(request) is { } write)
+            {
+                if (RelatingFails)
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") };
+                Related.Add(write.Relationship);
+                return Json("{}");
+            }
             if (path == "/api/model/fragment")
             {
                 var thing = JsonDocument.Parse(body).RootElement.GetProperty("things")[0];
