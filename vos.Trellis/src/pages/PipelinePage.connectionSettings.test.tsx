@@ -165,6 +165,47 @@ describe('the call settings of the connection behind a state', () => {
     expect(within(panel).queryAllByRole('spinbutton')).toEqual([]);
   });
 
+  it('says when the removal fails without a reason', async () => {
+    const { panel, id } = openTheSettings();
+    act(() => useModelStore.getState().applyBatch({ thingPropertyUpdates: [{ id: id.connection, path: 'callsAgainAtMost', value: 2 }] }));
+    vi.mocked(thingApi.deleteProperty).mockRejectedValue('refused');
+
+    fireEvent.click(within(line(panel, 'callsAgainAtMost')).getByRole('button', { name: 'Use the value inherited from ServiceBinding' }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({
+      type: 'error', message: 'callsAgainAtMost could not be removed from this connection',
+    })));
+  });
+
+  it('says a value with nothing recorded on the archetype is inherited, naming no archetype', async () => {
+    const { panel, id } = openTheSettings();
+
+    act(() => useModelStore.getState().applyBatch({ thingPropertyUpdates: [{ id: id.serviceBinding, path: 'startsAfterSeconds', value: null }] }));
+
+    await waitFor(() => expect(line(panel, 'startsAfterSeconds')).toHaveTextContent(/inherited$/));
+  });
+
+  it('says when the connection and its archetypes declare nothing', () => {
+    const fixture = connectionSettingsFixture();
+    for (const thing of fixture.things) if (thing.Id === fixture.id.serviceBinding || thing.Id === fixture.id.siteAnalysisConnection) thing.Properties = {};
+    vi.mocked(thingApi.getEffectiveProperties).mockResolvedValue({});
+    useModelStore.setState({ things: fixture.things, relationships: fixture.relationships, loaded: true });
+    render(<PipelinePage />);
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN_THE_SETTINGS }));
+
+    expect(screen.getByRole('region', { name: 'Call settings of Estimate-Rainfall' })).toHaveTextContent('The connection and its archetypes declare no settings');
+    expect(thingApi.getEffectiveProperties).not.toHaveBeenCalled();
+  });
+
+  it('closes when the connection leaves the model', async () => {
+    const { id } = openTheSettings();
+
+    act(() => useModelStore.getState().applyBatch({ thingRemovals: [id.connection] }));
+
+    expect(screen.queryByRole('region', { name: /^Call settings of/ })).toBeNull();
+  });
+
   it('closes', () => {
     const { panel } = openTheSettings();
 

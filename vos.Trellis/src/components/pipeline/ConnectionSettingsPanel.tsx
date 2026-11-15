@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import type { VosThing } from '@tendril-ui/tendril';
 import { thingApi } from '../../api/thingApi';
 import { useConnectionSettings, type ConnectionSettingLine } from '../../hooks/useConnectionSettings';
 import type { PipelineModel } from '../../pipeline/model';
@@ -7,15 +8,16 @@ import { toast } from '../common/toastStore';
 
 interface Props {
   model: PipelineModel;
-  connectionId: string;
+  connection: VosThing;
   mayChange: boolean;
   onClose: () => void;
 }
 
-export function ConnectionSettingsPanel({ model, connectionId, mayChange, onClose }: Props) {
+export function ConnectionSettingsPanel({ model, connection, mayChange, onClose }: Props) {
   const { t } = useTranslation();
+  const connectionId = connection.Id;
   const lines = useConnectionSettings(model, connectionId);
-  const title = t('pipeline.connectionSettings.title', { connection: model.thing(connectionId)?.Name ?? '' });
+  const title = t('pipeline.connectionSettings.title', { connection: connection.Name });
 
   const putBack = async (name: string, archetype: string) => {
     try {

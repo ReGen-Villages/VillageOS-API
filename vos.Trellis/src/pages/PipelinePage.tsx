@@ -58,6 +58,7 @@ export function PipelinePage() {
 
   const [error, setError] = useState<string | null>(null);
   const [settingsOfConnectionId, setSettingsOfConnectionId] = useState<string | null>(null);
+  const settingsOfConnection = settingsOfConnectionId ? model.thing(settingsOfConnectionId) : undefined;
   const { role } = useAuthentication();
   const drawing = usePipelineDrawing({ model, connections, setError });
   const { nodes, edges, setNodes, savedId, editingPipelineId, thingIdByCanvasId, currentNodes, load, save, startNew } = drawing;
@@ -175,11 +176,11 @@ export function PipelinePage() {
               onClose={selection.closeWireInspector}
             />
           )}
-          {settingsOfConnectionId && (
+          {settingsOfConnection && (
             <ConnectionSettingsPanel
-              key={settingsOfConnectionId}
+              key={settingsOfConnection.Id}
               model={model}
-              connectionId={settingsOfConnectionId}
+              connection={settingsOfConnection}
               mayChange={mayChangeData(role)}
               onClose={() => setSettingsOfConnectionId(null)}
             />
