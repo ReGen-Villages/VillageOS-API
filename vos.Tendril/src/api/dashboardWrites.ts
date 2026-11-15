@@ -32,5 +32,9 @@ export async function postToEndpoint(reads: ModelReads, via: string, body: Recor
 /** Where a `via` posts: a route on the platform itself where the specification wrote one by its path, and
  *  otherwise the endpoint the forwarder resolves by that name. */
 function routeOf(via: string): string {
-  return via.startsWith('/') ? via : `/api/endpoints/${via}`;
+  return isPlatformRoute(via) ? via : `/api/endpoints/${via}`;
+}
+
+export function isPlatformRoute(via: string): boolean {
+  return via.startsWith('/');
 }

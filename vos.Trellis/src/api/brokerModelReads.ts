@@ -11,6 +11,8 @@ import { stateApi } from './stateApi';
 import { thingsInStatePath, type StateNarrowing } from '@tendril-ui/tendril';
 import { rangeApi } from './rangeApi';
 import { temporalApi } from './temporalApi';
+import { relationshipApi } from './relationshipApi';
+import { thingApi } from './thingApi';
 import type { TemporalReduceResponse, ThingRangesResponse, ThingsInStateResponse } from '@tendril-ui/tendril';
 
 export function brokerModelReads(): ModelReads {
@@ -73,6 +75,14 @@ export function brokerModelReads(): ModelReads {
 
     recordAction(description, succeeded) {
       void apiClient.reportAction(description, succeeded);
+    },
+
+    async relate(subjectId, predicateId, targetId) {
+      await relationshipApi.create(subjectId, predicateId, targetId);
+    },
+
+    async stampTime(thingId, property, at) {
+      await thingApi.setProperty(thingId, property, 'vos.DateTime', at.toISOString());
     },
   };
 }

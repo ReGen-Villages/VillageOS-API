@@ -50,10 +50,15 @@ SUMMARY_STEP = """\
     displayName: 'Build Summary'
     inputs:
       script: echo wiki
-    condition: always()
+    condition: succeeded()
 """
 
-COMPLIANT = PREAMBLE + JOB + PUBLISH_STEP + ON_DEVELOP_ONLY + "\n" + SUMMARY_STEP
+TENDRIL_STEP = (
+    "  - script: node release/publishUnlessHeld.mjs \"$(Agent.TempDirectory)/tendril.npmrc\"\n"
+    "    displayName: 'Publish Tendril to the package feed'\n")
+
+COMPLIANT = (PREAMBLE + JOB + PUBLISH_STEP + ON_DEVELOP_ONLY + "\n" + TENDRIL_STEP + ON_DEVELOP_ONLY + "\n"
+             + SUMMARY_STEP)
 
 # Steps at column zero and no job: what the guard must report, and a shape its step reader must still
 # read correctly to report only that.
@@ -63,11 +68,15 @@ steps:
   displayName: 'Publish the wiki to GitHub'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
+- script: node release/publishUnlessHeld.mjs "$(Agent.TempDirectory)/tendril.npmrc"
+  displayName: 'Publish Tendril to the package feed'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
 - task: SomeTask@1
   displayName: 'Build Summary'
   inputs:
     script: echo wiki
-  condition: always()
+  condition: succeeded()
 """
 
 
@@ -175,7 +184,7 @@ class CheckBuildFileTests(unittest.TestCase):
         self.assertEqual([], problems(commented))
 
     def test_the_last_step_in_the_file_having_no_condition_is_reported(self):
-        unconditional = PREAMBLE + JOB + SUMMARY_STEP + "\n" + PUBLISH_STEP
+        unconditional = PREAMBLE + JOB + TENDRIL_STEP + ON_DEVELOP_ONLY + "\n" + SUMMARY_STEP + "\n" + PUBLISH_STEP
 
         self.assertIn('"Publish the wiki to GitHub" has no condition', problems(unconditional)[-1])
 
@@ -230,6 +239,37 @@ class CheckBuildFileTests(unittest.TestCase):
             "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
 
         self.assertIn('"publishVstsFeed"', problems(pushing)[0])
+
+    def test_tendril_published_for_a_pull_request_is_reported(self):
+        every_build = COMPLIANT.replace(
+            TENDRIL_STEP + ON_DEVELOP_ONLY, TENDRIL_STEP + "    condition: succeeded()\n")
+
+        self.assertIn('"Publish Tendril to the package feed" must run on develop only', problems(every_build)[0])
+
+    def test_a_build_file_that_never_publishes_tendril_is_reported(self):
+        without = COMPLIANT.replace(TENDRIL_STEP + ON_DEVELOP_ONLY, '')
+
+        self.assertIn('no step named "Publish Tendril to the package feed"', problems(without)[0])
+
+    def test_a_step_that_publishes_an_npm_package_itself_is_reported(self):
+        publishing = COMPLIANT + (
+            "\n  - script: npm publish\n"
+            "    displayName: 'Publish the console'\n"
+            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n")
+
+        self.assertIn('"npm publish"', problems(publishing)[0])
+
+    def test_a_check_that_runs_after_a_publishing_step_is_reported(self):
+        late = COMPLIANT + "\n  - script: npm audit\n    displayName: 'Audit'\n    condition: always()\n"
+
+        self.assertIn('"Publish Tendril to the package feed" runs before a step that runs after a failure',
+                      problems(late)[-1])
+
+    def test_a_check_that_runs_after_a_failure_and_before_publishing_is_not_reported(self):
+        early = COMPLIANT.replace(
+            PUBLISH_STEP, "  - script: npm audit\n    displayName: 'Audit'\n    condition: always()\n\n" + PUBLISH_STEP)
+
+        self.assertEqual([], problems(early))
 
 
 if __name__ == '__main__':

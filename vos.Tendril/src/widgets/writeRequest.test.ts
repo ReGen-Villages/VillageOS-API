@@ -40,15 +40,20 @@ describe('what a press on a row sends', () => {
   const row = { id: 's1', name: 'SPRING-1', flow: 12 };
 
   it('sends the row by name and a choice naming a Thing as the reason', () => {
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' })).toEqual({
+    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, 'inspections')).toEqual({
       record: 'SPRING-1',
       reason: 'Cleared',
       inspector: 'Ada',
     });
   });
 
+  it('sends a route on the platform the row\'s id as well, and a forwarded endpoint names only', () => {
+    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, '/api/springs/inspect').recordId).toBe('s1');
+    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, 'inspections')).not.toHaveProperty('recordId');
+  });
+
   it('sends a choice naming an act as the view', () => {
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada' })).toEqual({
+    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada' }, 'inspections')).toEqual({
       view: 'close',
       record: 'SPRING-1',
       inspector: 'Ada',
@@ -56,14 +61,14 @@ describe('what a press on a row sends', () => {
   });
 
   it('sends a number as a number and leaves an optional empty field out altogether', () => {
-    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada', litres: '40', note: '   ' });
+    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada', litres: '40', note: '   ' }, 'inspections');
     expect(body.litres).toBe(40);
     expect(body).not.toHaveProperty('note');
   });
 
   it('names nobody: no actor and no session travel in the body', () => {
-    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' });
-    expect(Object.keys(body).sort()).toEqual(['inspector', 'reason', 'record']);
+    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, '/api/springs/inspect');
+    expect(Object.keys(body).sort()).toEqual(['inspector', 'reason', 'record', 'recordId']);
   });
 
   it('reads the row by the label the widget names, or its id where it has no name', () => {
