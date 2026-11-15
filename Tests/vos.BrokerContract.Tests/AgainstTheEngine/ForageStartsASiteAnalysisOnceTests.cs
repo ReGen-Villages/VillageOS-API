@@ -60,8 +60,7 @@ public class ForageStartsASiteAnalysisOnceTests : IClassFixture<TheEngine>
     {
         var subscriptions = new SubscriptionClient(
             _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
-        var subscribed = await subscriptions.SubscribeAsync(CoveringSourceResolver.SelectorFor(site));
-        await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
-        return CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, site)!;
+        var read = await subscriptions.ReadSnapshotAsync(CoveringSourceResolver.SelectorFor(site));
+        return CoveringSourceResolver.AnalysisOf(read.Snapshot, site)!;
     }
 }
