@@ -8,6 +8,7 @@ namespace vos.Service.Shared.Subscriptions;
 public interface ISubscriptionClient
 {
     Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default);
+    Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default);
     Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default);
     Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default);
     Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default);
@@ -36,14 +37,21 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     {
     }
 
-    public async Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default)
+    public Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default) =>
+        PostSelectorAsync<SubscribeResult>("subscriptions", "the subscription", selector, ct);
+
+    // The broker registers nothing for this read, so a reader that wants one snapshot leaves nothing to check on later writes.
+    public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default) =>
+        PostSelectorAsync<SnapshotReadResult>("snapshots", "the read", selector, ct);
+
+    private async Task<T> PostSelectorAsync<T>(string route, string whatIsAsked, SubscriptionSelector selector, CancellationToken ct)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-        var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/subscriptions", selector, Json, ct);
+        var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/{route}", selector, Json, ct);
         if (!response.IsSuccessStatusCode)
-            throw new SubscriptionRefusedException(response.StatusCode, await response.Content.ReadAsStringAsync(ct));
-        return await response.Content.ReadFromJsonAsync<SubscribeResult>(Json, ct)
-            ?? throw new InvalidOperationException("Mycelium returned an empty subscription response");
+            throw new SubscriptionRefusedException(response.StatusCode, await response.Content.ReadAsStringAsync(ct), whatIsAsked);
+        return await response.Content.ReadFromJsonAsync<T>(Json, ct)
+            ?? throw new InvalidOperationException($"Mycelium answered {whatIsAsked} with nothing");
     }
 
     public async Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)

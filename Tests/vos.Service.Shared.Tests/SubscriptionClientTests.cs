@@ -96,6 +96,103 @@ public class SubscriptionClientTests
         result.Snapshot.Things.Should().ContainSingle().Which.Id.Should().Be(thingId);
     }
 
+    private static SubscriptionSelector EverySelectorField() => new()
+    {
+        Ids = [Guid.Parse("11111111-1111-1111-1111-111111111111")],
+        Names = ["Upper reservoir"],
+        Types = ["FlowMeter"],
+        BoundTypes = [MeterRole],
+        BoundArchetypes = [PumpRole],
+        PropertyValues = new() { ["status"] = "open" },
+        Traverse = [new TraverseRule { PredicateRole = PumpRole, Direction = "incoming", Depth = 2 }],
+        IncludeIsAncestors = false,
+        Relationships = [new RelationshipRule { Predicate = "feeds", FarEndRole = MeterRole }],
+    };
+
+    [Fact]
+    public async Task ReadSnapshotAsync_sends_one_post_to_the_snapshots_route_with_the_selector_as_a_subscription_sends_it()
+    {
+        var subscribeAnswer = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (subscriber, subscribing) = Build(_ => Json(subscribeAnswer));
+        await subscriber.SubscribeAsync(EverySelectorField());
+        var (reader, reading) = Build(_ => Json("""{ "watermark": 1, "snapshot": { "watermark": 1, "things": [], "relationships": [] } }"""));
+
+        await reader.ReadSnapshotAsync(EverySelectorField());
+
+        var sent = reading.Requests.Should().ContainSingle().Subject;
+        sent.Method.Should().Be(HttpMethod.Post);
+        sent.RequestUri!.AbsoluteUri.Should().Be($"{Url}/api/snapshots");
+        sent.Headers.Authorization!.ToString().Should().Be($"Bearer {Token}");
+        (await sent.Content!.ReadAsStringAsync())
+            .Should().Be(await subscribing.Requests.Single().Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_answers_the_watermark_and_snapshot_the_broker_answers()
+    {
+        var thingId = Guid.NewGuid();
+        var (client, _) = Build(_ => Json($$"""
+        { "watermark": 42, "snapshot": { "watermark": 42,
+          "things": [{ "id": "{{thingId}}", "name": "Upper reservoir", "isArchetype": false,
+            "properties": { "level": { "value": 3.5, "typeInfo": "vos.Double" } },
+            "inheritedProperties": {}, "states": ["nominal"], "relationships": [] }],
+          "relationships": [] } }
+        """));
+
+        var read = await client.ReadSnapshotAsync(new SubscriptionSelector { Ids = [thingId] });
+
+        read.Watermark.Should().Be(42);
+        read.Snapshot.Watermark.Should().Be(42);
+        var thing = read.Snapshot.Things.Should().ContainSingle().Subject;
+        thing.Id.Should().Be(thingId);
+        thing.Name.Should().Be("Upper reservoir");
+        thing.Properties["level"].Value.GetDouble().Should().Be(3.5);
+        thing.States.Should().Equal("nominal");
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_raises_a_refusal_with_the_platforms_status_and_words_naming_the_read()
+    {
+        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"error":"no Thing is named FlowMeter"}""", Encoding.UTF8, "application/json"),
+        });
+
+        var reading = () => client.ReadSnapshotAsync(new SubscriptionSelector { Types = ["FlowMeter"] });
+
+        var refused = (await reading.Should().ThrowAsync<SubscriptionRefusedException>()).Which;
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        refused.Body.Should().Be("""{"error":"no Thing is named FlowMeter"}""");
+        refused.Message.Should().Be("""the platform refused the read with 400: {"error":"no Thing is named FlowMeter"}""");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_raises_a_refusal_naming_the_subscription()
+    {
+        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent("two Things are named FlowMeter", Encoding.UTF8, "text/plain"),
+        });
+
+        var subscribing = () => client.SubscribeAsync(new SubscriptionSelector { Types = ["FlowMeter"] });
+
+        (await subscribing.Should().ThrowAsync<SubscriptionRefusedException>()).Which.Message
+            .Should().Be("the platform refused the subscription with 409: two Things are named FlowMeter");
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_throws_when_the_broker_answers_nothing()
+    {
+        var (client, _) = Build(_ => Json("null"));
+
+        var reading = () => client.ReadSnapshotAsync(new SubscriptionSelector { Ids = [Guid.NewGuid()] });
+
+        await reading.Should().ThrowAsync<InvalidOperationException>();
+    }
+
     [Fact]
     public async Task SubscribeAsync_sends_a_traversal_predicate_flag_under_the_name_the_broker_binds()
     {

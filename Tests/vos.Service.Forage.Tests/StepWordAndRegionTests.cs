@@ -64,7 +64,7 @@ public class StepWordAndRegionTests
     private static Func<HttpRequestMessage, HttpResponseMessage> Catchment(Dictionary<string, Guid> ids, bool refuseRelating = false) => request =>
         request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/relationships"
             ? refuseRelating ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") } : Ok("{}")
-            : RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+            : RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
 
     [Fact]
     public async Task Resolve_words_answers_the_relationships_written_and_the_words_the_model_does_not_hold()
@@ -126,7 +126,7 @@ public class StepWordAndRegionTests
             }
             if (path.EndsWith("/facts", StringComparison.Ordinal))
                 return new HttpResponseMessage(HttpStatusCode.Created) { Content = new StringContent("""{"sequenceNumber":1}""", Encoding.UTF8, "application/json") };
-            return RouteSubscription(request, ids, edges, coordinates, archetypes: null, carrying: lookupSettings, bindings: lookups)
+            return RouteSnapshotRead(request, ids, edges, coordinates, archetypes: null, carrying: lookupSettings, bindings: lookups)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         }, "resolveRegion", new { site = ids["WillowBend"].ToString() });
 

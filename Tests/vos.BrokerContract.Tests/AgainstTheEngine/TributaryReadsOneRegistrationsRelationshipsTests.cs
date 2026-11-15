@@ -58,8 +58,6 @@ public class TributaryReadsOneRegistrationsRelationshipsTests : IClassFixture<Th
     {
         var subscriptions = new SubscriptionClient(
             _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
-        var subscribed = await subscriptions.SubscribeAsync(EndpointKindResolver.SelectorFor(endpoint));
-        await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
-        return subscribed.Snapshot;
+        return (await subscriptions.ReadSnapshotAsync(EndpointKindResolver.SelectorFor(endpoint))).Snapshot;
     }
 }

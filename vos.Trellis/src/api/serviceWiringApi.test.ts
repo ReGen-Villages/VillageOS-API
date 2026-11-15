@@ -35,17 +35,18 @@ describe('fetchServiceWiring', () => {
     expect(serviceWiringOf('well').includeIsAncestors).not.toBe(false);
   });
 
-  it('builds the index from the snapshot and hands the subscription back', async () => {
+  it('builds the index from one read of the selection, opening no subscription', async () => {
     answering(200, {
-      subscriptionId: 'held-1',
+      watermark: 7,
       snapshot: { things: [{ Id: 'measures', Name: 'measures', Properties: {} }], relationships: [] },
     });
 
     const wiring = await fetchServiceWiring('well');
 
     expect(wiring.byId.get('measures')?.Name).toBe('measures');
-    expect(JSON.parse(String(calls[0].request.body))).toMatchObject({ ...serviceWiringOf('well'), includeSnapshot: true });
-    expect(calls[1]).toMatchObject({ url: '/api/subscriptions/held-1', request: { method: 'DELETE' } });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ url: '/api/snapshots', request: { method: 'POST' } });
+    expect(JSON.parse(String(calls[0].request.body))).toEqual(serviceWiringOf('well'));
   });
 
   it('throws on a refusal, so the card lists no service call rather than a wrong one', async () => {

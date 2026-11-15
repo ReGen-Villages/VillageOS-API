@@ -33,10 +33,8 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
 
     private async Task<(ObservedEdges Edges, SnapshotDocument Snapshot)> ReadAsync(Guid endpoint)
     {
-        var subscriptions = Subscriptions();
-        var subscribed = await subscriptions.SubscribeAsync(EndpointKindResolver.SelectorFor(endpoint));
-        await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
-        return (ObservedEdges.Resolve(subscribed.Snapshot, endpoint), subscribed.Snapshot);
+        var read = await Subscriptions().ReadSnapshotAsync(EndpointKindResolver.SelectorFor(endpoint));
+        return (ObservedEdges.Resolve(read.Snapshot, endpoint), read.Snapshot);
     }
 
     [FactAgainstTheEngine]

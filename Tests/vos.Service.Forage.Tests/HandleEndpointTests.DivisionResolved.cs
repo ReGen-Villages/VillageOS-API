@@ -100,7 +100,7 @@ public class HandleEndpointDivisionTests
                 };
             }
 
-            return RouteSubscription(req, ids, Edges(), Coordinates(), archetypes: null, carrying: TheTwoLookups(),
+            return RouteSnapshotRead(req, ids, Edges(), Coordinates(), archetypes: null, carrying: TheTwoLookups(),
                        bindings: TheLookupRoles())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
@@ -137,7 +137,7 @@ public class HandleEndpointDivisionTests
                 return Ok("""{"success":true}""");
             }
 
-            return RouteSubscription(req, ids, Edges(), places, archetypes: null, carrying: TheTwoLookups(),
+            return RouteSnapshotRead(req, ids, Edges(), places, archetypes: null, carrying: TheTwoLookups(),
                        bindings: TheLookupRoles())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };

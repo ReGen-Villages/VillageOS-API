@@ -35,7 +35,7 @@ public class HandleValidationTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { calledOut = true; return MyceliumStub.Json("{}"); }
-            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == "/api/subscriptions")
+            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == "/api/snapshots")
                 return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             return MyceliumStub.RouteFindThing(req, thingId, "EP")
                 ?? MyceliumStub.RouteEffectiveProperties(req, thingId, props)

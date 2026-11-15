@@ -74,7 +74,7 @@ public class RunTokenTests
                 presentedByTheRun.Add($"{request.RequestUri.AbsolutePath} {request.Headers.Authorization?.Parameter}");
             if (request.RequestUri.AbsolutePath == FetchRoute)
                 return Json(HttpStatusCode.OK, """{"success":true}""");
-            return RouteSubscription(request, ids, Edges()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+            return RouteSnapshotRead(request, ids, Edges()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = ClientCallingWith(factory, callToken);
 
@@ -95,7 +95,7 @@ public class RunTokenTests
         await factory.InitializeAsync();
         factory.HandlerCallback = request => request.RequestUri!.AbsolutePath == SwapRoute
             ? Json(HttpStatusCode.Forbidden, """{"error":"refused"}""")
-            : RouteSubscription(request, ids, Edges()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+            : RouteSnapshotRead(request, ids, Edges()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = ClientCallingWith(factory, CallToken());
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
