@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const mockGetThingStates = vi.fn();
 const mockGetStateTransitions = vi.fn();
@@ -18,7 +18,7 @@ const mockRetry = vi.fn();
 vi.mock('../../../api/relationshipApi', () => ({
   relationshipApi: {
     get: (id: string, signal?: AbortSignal) => mockGetRelationship(id, signal),
-    retry: (id: string) => mockRetry(id),
+    retry: (id: string, reason?: string) => mockRetry(id, reason),
   },
 }));
 
@@ -414,6 +414,12 @@ describe('EntityDetailWindow, retrying a call', () => {
     open({ modelIndex: catchmentWithACallRecord(), thingId: 'catchment', detail: {}, mayChangeData });
   }
 
+  async function sendTheRetry(reason?: string) {
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+    if (reason !== undefined) fireEvent.change(screen.getByRole('textbox', { name: 'Why retry it (optional)' }), { target: { value: reason } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send the retry' }));
+  }
+
   it('shows a failed call on a Catchment with its reason and a Retry button', async () => {
     openTheCatchment(true);
 
@@ -439,15 +445,43 @@ describe('EntityDetailWindow, retrying a call', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
-  it('sends the retry when pressed and shows the call Pending once the record is read again', async () => {
+  it('sends the retry with no reason when the box is left empty, and shows the call Pending once the record is read again', async () => {
+    openTheCatchment(true);
+
+    await sendTheRetry();
+
+    expect(await screen.findByText('Pending')).toBeInTheDocument();
+    expect(mockRetry).toHaveBeenCalledWith('record', undefined);
+    expect(screen.queryByText(OUT_OF_DATE_REASON)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('asks for a reason before it sends anything', async () => {
     openTheCatchment(true);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
 
-    expect(await screen.findByText('Pending')).toBeInTheDocument();
-    expect(mockRetry).toHaveBeenCalledWith('record');
-    expect(screen.queryByText(OUT_OF_DATE_REASON)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Why retry it (optional)' })).toBeInTheDocument();
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
+  it('sends the reason typed in the box', async () => {
+    openTheCatchment(true);
+
+    await sendTheRetry('  the rainfall reading is back  ');
+
+    await waitFor(() => expect(mockRetry).toHaveBeenCalledWith('record', 'the rainfall reading is back'));
+  });
+
+  it('sends nothing when the box is cancelled', async () => {
+    openTheCatchment(true);
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('textbox', { name: 'Why retry it (optional)' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry the call to rainfall-estimator' })).toBeInTheDocument();
+    expect(mockRetry).not.toHaveBeenCalled();
   });
 
   it('shows no Retry button to a user who may not change the model', async () => {
@@ -461,7 +495,7 @@ describe('EntityDetailWindow, retrying a call', () => {
     mockRetry.mockRejectedValue(new ApiError(409, '{"error":"the record is Sent"}'));
     openTheCatchment(true);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+    await sendTheRetry();
 
     expect(await screen.findByText('This call is no longer failed or blocked, so it was not retried.')).toBeInTheDocument();
   });
@@ -470,7 +504,7 @@ describe('EntityDetailWindow, retrying a call', () => {
     mockRetry.mockRejectedValue(new ApiError(403, '{"error":"forbidden"}'));
     openTheCatchment(true);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+    await sendTheRetry();
 
     expect(await screen.findByText('You may not change the model, so this call was not retried.')).toBeInTheDocument();
   });
@@ -479,7 +513,7 @@ describe('EntityDetailWindow, retrying a call', () => {
     mockRetry.mockRejectedValue(new ApiError(404, '{"error":"no relationship record"}'));
     openTheCatchment(true);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry the call to rainfall-estimator' }));
+    await sendTheRetry();
 
     expect(await screen.findByText('The call was not retried: no relationship record')).toBeInTheDocument();
   });

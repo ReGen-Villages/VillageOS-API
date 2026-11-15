@@ -57,10 +57,16 @@ describe('relationshipApi.get', () => {
 });
 
 describe('relationshipApi.retry', () => {
-  it('asks the record its call be sent again, giving no reason', async () => {
+  it('asks for the record\'s call to be sent again, with an empty body where no reason is given', async () => {
     mockPost.mockResolvedValue({ state: 'Pending' });
     await relationshipApi.retry('record-1');
     expect(mockPost).toHaveBeenCalledWith('/api/relationships/record-1/retry', {});
+  });
+
+  it('sends the reason given in the body', async () => {
+    mockPost.mockResolvedValue({ state: 'Pending' });
+    await relationshipApi.retry('record-1', 'the rainfall reading is back');
+    expect(mockPost).toHaveBeenCalledWith('/api/relationships/record-1/retry', { reason: 'the rainfall reading is back' });
   });
 });
 

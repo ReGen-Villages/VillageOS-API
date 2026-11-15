@@ -8,8 +8,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
-import type { ModelIndex } from '@tendril-ui/tendril';
-import { effectiveProperties } from '@tendril-ui/tendril';
+import type { Entered, ModelIndex } from '@tendril-ui/tendril';
+import { AskedFields, effectiveProperties } from '@tendril-ui/tendril';
 import { formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
 import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySettings';
 import type { DeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
@@ -83,6 +83,8 @@ function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
   );
 }
 
+const REASON = 'reason';
+
 function retryRefusal(error: unknown, t: TFunction): string {
   if (error instanceof ApiError && error.status === 409) return t('entityDetail.retry.notFailedOrBlocked');
   if (error instanceof ApiError && error.status === 403) return t('entityDetail.retry.mayNotChange');
@@ -102,18 +104,27 @@ function ServiceCallRow({
   readCallsAgain: () => void;
 }) {
   const { t } = useTranslation();
+  const [askingWhy, setAskingWhy] = useState(false);
+  const [entered, setEntered] = useState<Entered>({});
   const [retrying, setRetrying] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  const askWhy = () => {
+    setEntered({});
+    setAskingWhy(true);
+  };
+
   const retry = async () => {
+    const reason = String(entered[REASON] ?? '').trim();
     setRetrying(true);
     setRefusal(null);
     try {
-      await relationshipApi.retry(call.relationshipId);
+      await relationshipApi.retry(call.relationshipId, reason || undefined);
     } catch (error) {
       setRefusal(retryRefusal(error, t));
     } finally {
       setRetrying(false);
+      setAskingWhy(false);
       readCallsAgain();
     }
   };
@@ -141,11 +152,10 @@ function ServiceCallRow({
               {isCallState(call.state) ? t(`entityDetail.callState.${call.state}`) : call.state}
             </span>
           )}
-          {mayRetry && mayBeRetried(call) && (
+          {mayRetry && mayBeRetried(call) && !askingWhy && (
             <button
               type="button"
-              onClick={retry}
-              disabled={retrying}
+              onClick={askWhy}
               aria-label={t('entityDetail.retry.title', { service: call.serviceName })}
               title={t('entityDetail.retry.title', { service: call.serviceName })}
               className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
@@ -156,6 +166,34 @@ function ServiceCallRow({
         </span>
         {call.error && (
           <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{call.error}</span>
+        )}
+        {askingWhy && (
+          <span className="mt-1 flex flex-wrap items-center gap-1.5">
+            <AskedFields
+              fields={[{ key: REASON, label: t('entityDetail.retry.reason'), optional: true }]}
+              options={[[]]}
+              entered={entered}
+              onChange={setEntered}
+              disabled={retrying}
+              inline
+            />
+            <button
+              type="button"
+              onClick={retry}
+              disabled={retrying}
+              className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+            >
+              {t('entityDetail.retry.send')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAskingWhy(false)}
+              disabled={retrying}
+              className="text-[10px] text-zinc-500 hover:underline disabled:opacity-50"
+            >
+              {t('entityDetail.retry.cancel')}
+            </button>
+          </span>
         )}
         {refusal && (
           <span role="alert" className="block text-[11px] text-amber-700 dark:text-amber-400 break-words">{refusal}</span>

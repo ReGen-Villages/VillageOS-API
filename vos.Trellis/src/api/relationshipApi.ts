@@ -35,9 +35,9 @@ export const relationshipApi = {
   remove: (id: string) =>
     apiClient.action(`delete relationship ${id}`, () => apiClient.del<{ message: string }>(`/api/relationships/${id}`)),
 
-  retry: (recordId: string) =>
+  retry: (recordId: string, reason?: string) =>
     apiClient.action(`retry the service call on relationship ${recordId}`, () =>
-      apiClient.post<unknown>(`/api/relationships/${recordId}/retry`, {}),
+      apiClient.post<{ state: string }>(`/api/relationships/${recordId}/retry`, reason ? { reason } : {}),
     ),
 
   setProperty: writeProperty,

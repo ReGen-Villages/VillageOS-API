@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship, IsChainLookup } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
@@ -69,6 +69,9 @@ export const ROLE = {
   PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
   PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
   ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
+  // When a connection's call counts as finished: the choices, and the predicate a connection or its service names one along.
+  CallCompletion: 'cbb25882-3197-56fd-9bab-2ebcc1a000bf',
+  CompletesWhen: 'd508b5e4-6534-5e41-afbb-2eaa8ab08b29',
 } as const;
 
 /** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
@@ -485,19 +488,6 @@ export class PipelineModel {
 
   thing(id: string): VosThing | undefined {
     return this.byId.get(id);
-  }
-
-  isChainLookup(thingId: string): IsChainLookup {
-    const isParents = new Map<string, string[]>();
-    const waiting = [thingId];
-    while (waiting.length) {
-      const id = waiting.pop()!;
-      if (isParents.has(id)) continue;
-      const parents = this.outgoing(id, 'is').map((parent) => parent.Id);
-      isParents.set(id, parents);
-      waiting.push(...parents);
-    }
-    return { byId: this.byId, isParents };
   }
 
   /** Targets reached from `subjectId` via a predicate matched by name (the built-in is/has). */

@@ -17,6 +17,7 @@ import { REFUSAL_CODES } from '../api/refusals';
 import { PIPELINE_DECLARATIONS } from '../pipeline/serialize';
 import { CONNECTION_STATES } from '../types/connection';
 import { CALL_STATES } from '../components/dashboard/detail/serviceHandling';
+import { CALL_SETTING_SOURCES } from '../api/callSettingsApi';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -53,6 +54,7 @@ const BUILT_FROM = {
   'pipeline.declarations': [...PIPELINE_DECLARATIONS],
   connection: [...CONNECTION_STATES],
   'entityDetail.callState': [...CALL_STATES],
+  'pipeline.connectionSettings.source': [...CALL_SETTING_SOURCES],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

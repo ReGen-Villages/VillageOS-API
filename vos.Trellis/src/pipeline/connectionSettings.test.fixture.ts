@@ -1,15 +1,24 @@
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
+import type { CallSettings } from '../api/callSettingsApi';
 import { ROLE } from './model';
 import { playing, withRoles } from './roles.test.fixture';
 
-/** The connection states nothing itself: every setting it reads is declared on SiteAnalysisConnection or on ServiceBinding above it. */
+/** Estimate-Rainfall states nothing itself: the platform answers each of its settings from rainfall-estimator,
+ *  that service's archetype, or its built-in value. */
 export interface ConnectionSettingsFixture {
   things: VosThing[];
   relationships: VosRelationship[];
-  id: Record<'connection' | 'siteAnalysisConnection' | 'serviceBinding' | 'outOfDate' | 'catchment', string>;
+  id: Record<
+    'connection' | 'connectionArchetype' | 'service' | 'serviceArchetype' | 'completesWhen' | 'ending'
+    | 'whenTheServiceAnswers' | 'whenTheThingReachesTheDoneState' | 'whenTheServiceReportsCompletion',
+    string
+  >;
+  callSettings: CallSettings;
   /** The platform's answer for the connection's resolved properties, keyed by the path of archetypes. */
   resolved: Record<string, EffectiveProperty>;
 }
+
+const wording = (words: Record<string, string>) => JSON.stringify(words);
 
 export function connectionSettingsFixture(): ConnectionSettingsFixture {
   const things: VosThing[] = [];
@@ -27,21 +36,33 @@ export function connectionSettingsFixture(): ConnectionSettingsFixture {
   const watches = thing('watches', 'watches', playing(ROLE.StateWatch));
   const judges = thing('judges', 'judges', playing(ROLE.JudgedThing));
   const state = thing('state', 'state', playing(ROLE.StateTrigger));
+  const completesWhen = thing('completesWhen', 'completesWhen', playing(ROLE.CompletesWhen));
 
-  const serviceBinding = thing('service-binding', 'ServiceBinding', {
+  const ending = thing('ending', 'Ending', playing(ROLE.CallCompletion), true);
+  const whenTheServiceAnswers = thing('when-the-service-answers', 'whenTheServiceAnswers', {
+    wording: wording({ en: 'When the service answers', de: 'Wenn der Dienst antwortet' }),
+  });
+  const whenTheThingReachesTheDoneState = thing('when-the-thing-reaches-the-done-state', 'whenTheThingReachesTheDoneState', {
+    wording: wording({ en: 'When the Thing reaches its done state' }),
+  });
+  const whenTheServiceReportsCompletion = thing('when-the-service-reports-completion', 'whenTheServiceReportsCompletion');
+  for (const member of [whenTheServiceAnswers, whenTheThingReachesTheDoneState, whenTheServiceReportsCompletion]) relate(member, is, ending);
+
+  const connectionArchetype = thing('service-binding', 'ServiceBinding', {
     ...playing(ROLE.Connection),
-    waitsForTheHandler: false,
-    callsAgainWhileItsThingStaysIn: true,
-    doesNotCallAgainForSeconds: 10,
-    callsAgainForNoLongerThanSeconds: 60,
-    callsAgainAtMost: 5,
+    callsAgainWhileItsThingStaysIn: null,
+    doesNotCallAgainForSeconds: null,
+    callsAgainForNoLongerThanSeconds: null,
+    callsAgainAtMost: null,
   }, true);
-  const siteAnalysisConnection = thing('site-analysis-connection', 'SiteAnalysisConnection', { completion: 'ack', done_within: 300 }, true);
-  relate(siteAnalysisConnection, is, serviceBinding);
+  relate(connectionArchetype, completesWhen, ending);
 
-  const service = thing('capability', 'Capability', playing(ROLE.Service), true);
-  const rainfallEstimator = thing('rainfall-estimator', 'rainfall-estimator');
-  relate(rainfallEstimator, is, service);
+  const capability = thing('capability', 'Capability', playing(ROLE.Service), true);
+  const serviceArchetype = thing('rainfall-estimator-prototype', 'rainfall-estimator prototype', { callsAgainForNoLongerThanSeconds: 900 }, true);
+  relate(serviceArchetype, is, capability);
+  relate(serviceArchetype, completesWhen, whenTheServiceReportsCompletion);
+  const service = thing('rainfall-estimator', 'rainfall-estimator');
+  relate(service, is, serviceArchetype);
 
   const range = thing('range', 'Range', playing(ROLE.Range), true);
   const catchment = thing('catchment', 'Catchment', {}, true);
@@ -50,29 +71,42 @@ export function connectionSettingsFixture(): ConnectionSettingsFixture {
   relate(outOfDate, judges, catchment);
 
   const connection = thing('estimate-rainfall', 'Estimate-Rainfall');
-  relate(connection, is, siteAnalysisConnection);
+  relate(connection, is, connectionArchetype);
   relate(connection, triggeredBy, state);
   relate(connection, watches, outOfDate);
-  relate(connection, has, rainfallEstimator);
+  relate(connection, has, service);
 
-  const fromSiteAnalysis = (name: string, Type: string, Value: unknown): [string, EffectiveProperty] =>
-    [`SiteAnalysisConnection.${name}`, { Value, Type, IsInherited: true, InheritedFrom: siteAnalysisConnection }];
-  const fromPlatform = (name: string, Type: string, Value: unknown): [string, EffectiveProperty] =>
-    [`SiteAnalysisConnection.ServiceBinding.${name}`, { Value, Type, IsInherited: true, InheritedFrom: serviceBinding }];
+  const declared = (name: string, Type: string): [string, EffectiveProperty] =>
+    [`ServiceBinding.${name}`, { Value: null, Type, IsInherited: true, InheritedFrom: connectionArchetype }];
 
   const [held, heldRelationships] = withRoles(things, relationships);
   return {
     things: held,
     relationships: heldRelationships,
-    id: { connection, siteAnalysisConnection, serviceBinding, outOfDate, catchment },
+    id: {
+      connection, connectionArchetype, service, serviceArchetype, completesWhen, ending,
+      whenTheServiceAnswers, whenTheThingReachesTheDoneState, whenTheServiceReportsCompletion,
+    },
+    callSettings: {
+      completesWhen: {
+        value: whenTheServiceReportsCompletion,
+        source: 'serviceArchetype',
+        from: { id: serviceArchetype, name: 'rainfall-estimator prototype' },
+      },
+      callsAgainWhileItsThingStaysIn: { value: true, source: 'builtIn', from: null },
+      doesNotCallAgainForSeconds: { value: 10, source: 'builtIn', from: null },
+      callsAgainForNoLongerThanSeconds: {
+        value: 900,
+        source: 'serviceArchetype',
+        from: { id: serviceArchetype, name: 'rainfall-estimator prototype' },
+      },
+      callsAgainAtMost: { value: 5, source: 'builtIn', from: null },
+    },
     resolved: Object.fromEntries([
-      fromSiteAnalysis('completion', 'vos.String', 'ack'),
-      fromSiteAnalysis('done_within', 'vos.Integer', 300),
-      fromPlatform('waitsForTheHandler', 'vos.Boolean', false),
-      fromPlatform('callsAgainWhileItsThingStaysIn', 'vos.Boolean', true),
-      fromPlatform('doesNotCallAgainForSeconds', 'vos.Integer', 10),
-      fromPlatform('callsAgainForNoLongerThanSeconds', 'vos.Integer', 60),
-      fromPlatform('callsAgainAtMost', 'vos.Integer', 5),
+      declared('callsAgainWhileItsThingStaysIn', 'vos.Boolean'),
+      declared('doesNotCallAgainForSeconds', 'vos.Integer'),
+      declared('callsAgainForNoLongerThanSeconds', 'vos.Integer'),
+      declared('callsAgainAtMost', 'vos.Integer'),
     ]),
   };
 }
