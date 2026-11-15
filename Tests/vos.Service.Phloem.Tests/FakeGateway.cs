@@ -376,18 +376,18 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public List<(Guid CallRecordId, CallReport Report)> ReportsSent { get; } = new();
+    private readonly List<(Guid CallRecordId, CallReport Report)> _reportsSent = new();
     public Func<Guid, CallReport, Task> OnReport { get; set; } = (_, _) => Task.CompletedTask;
 
     public async Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken ct = default)
     {
-        lock (ReportsSent) ReportsSent.Add((callRecordId, report));
+        lock (_reportsSent) _reportsSent.Add((callRecordId, report));
         await OnReport(callRecordId, report);
     }
 
     public List<(Guid CallRecordId, CallReport Report)> ReportsSentSoFar()
     {
-        lock (ReportsSent) return ReportsSent.ToList();
+        lock (_reportsSent) return _reportsSent.ToList();
     }
 
     public List<OwedReport> Owed { get; } = new();

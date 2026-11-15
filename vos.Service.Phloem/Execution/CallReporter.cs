@@ -7,8 +7,8 @@ namespace vos.Service.Phloem.Execution;
 // before its start.
 public sealed class CallReporter
 {
-    public static readonly TimeSpan FirstPause = TimeSpan.FromSeconds(1);
-    public static readonly TimeSpan LongestPause = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan FirstPause = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan LongestPause = TimeSpan.FromMinutes(5);
 
     private readonly IMyceliumGateway _gateway;
     private readonly ILogger _logger;

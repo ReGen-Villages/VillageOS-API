@@ -524,11 +524,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     // The platform marks its record of calling the node run's connection Completed once this orchestrator answered the call.
     private static WaitAnswer AnswerOf(PipelineGraph graph, GraphThing nodeRun) =>
         graph.RelationshipsIntoAlong(nodeRun, PipelineRoles.CallRecord).FirstOrDefault() is not { } record ? WaitAnswer.None
-        : record.Properties.TryGetValue(CallStateProperty, out var state) && state.ValueKind == JsonValueKind.String && state.GetString() == CallDone ? WaitAnswer.Done
+        : record.Properties.TryGetValue(CallStateProperty, out var state) && state.ValueKind == JsonValueKind.String && state.GetString() == CallCompleted ? WaitAnswer.Done
         : WaitAnswer.Underway;
 
     private const string CallStateProperty = "__CallState";
-    private const string CallDone = "Completed";
+    private const string CallCompleted = "Completed";
 
     private static Guid? CallRecordOf(GraphThing run) =>
         Guid.TryParse(run.PropertyString(ModelNames.CallRecordId), out var callRecordId) ? callRecordId : null;

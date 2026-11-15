@@ -149,14 +149,14 @@ public sealed class PipelineExecutor
         var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
         if (dag is null)
         {
-            await FailRunAsync(record,refusal!, cancellationToken);
+            await FailRunAsync(record, refusal!, cancellationToken);
             return ResumeOutcome.Resumed;
         }
 
         var (progress, cannotResume) = ProgressFrom(dag, record, "resume");
         if (cannotResume is not null)
         {
-            await FailRunAsync(record,cannotResume, cancellationToken);
+            await FailRunAsync(record, cannotResume, cancellationToken);
             return ResumeOutcome.Resumed;
         }
 
@@ -175,7 +175,7 @@ public sealed class PipelineExecutor
                 outputs: resumed.Outputs, watch: watch), "fail the wait");
             if (!carriedOn && AnswerReachingNoWire(dag, resumed) is { } unhandled)
             {
-                await FailRunAsync(record,unhandled, cancellationToken);
+                await FailRunAsync(record, unhandled, cancellationToken);
                 return ResumeOutcome.Resumed;
             }
         }
@@ -269,7 +269,7 @@ public sealed class PipelineExecutor
         }
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, wait.NodeId, name, RunStatus.Failed, failure, cancellationToken,
             watch: wait.Watching), "fail the wait");
-        await FailRunAsync(record,failure, cancellationToken);
+        await FailRunAsync(record, failure, cancellationToken);
         return false;
     }
 
@@ -312,7 +312,7 @@ public sealed class PipelineExecutor
             if (failure is not null)
             {
                 await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, trying.NodeId, name, RunStatus.Interrupted, failure, cancellationToken), "mark the caught node interrupted");
-                await FailRunAsync(record,failure, cancellationToken);
+                await FailRunAsync(record, failure, cancellationToken);
                 continue;
             }
 
