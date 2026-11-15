@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ActionWidget, Binding } from '../types/dashboard';
 import type { ResolveContext } from '../api/dashboardApi';
 
@@ -15,6 +15,12 @@ vi.mock('../hooks/useBinding', () => ({
       error: false,
       value: binding ? (answered.get(binding) ?? (binding.kind === 'thingList' ? mockOptions() : mockRows())) : null,
     })),
+}));
+
+const mockResolve = vi.fn();
+vi.mock('../api/dashboardApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/dashboardApi')>()),
+  resolveBinding: (binding: Binding, context: ResolveContext) => mockResolve(binding, context),
 }));
 
 import { ActionList } from './ActionList';
@@ -108,6 +114,104 @@ describe('ActionList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
     expect(await screen.findByText('ada may no longer enter Site A')).toBeInTheDocument();
     expect(screen.queryByText('ada may now enter Site A')).toBeNull();
+  });
+
+  describe('a choice that asks from a roster of its own', () => {
+    const qualified: Binding = { kind: 'thingList', archetype: 'Person' };
+    const SEND: ActionWidget = {
+      type: 'action',
+      rows: { kind: 'stateList', state: 'due', archetype: 'Spring' },
+      writes: {
+        via: 'readings',
+        choices: [{ label: 'Send a reader', act: 'send', asks: [{ key: 'reader', label: 'Reader', kind: 'choice', options: qualified }] }],
+      },
+    };
+
+    beforeEach(() => {
+      mockRows.mockReturnValue([{ id: 's1', name: 'SPRING-1' }, { id: 's2', name: 'SPRING-2' }]);
+      mockResolve.mockReset().mockResolvedValue([{ id: 'p1', name: 'Ada' }]);
+    });
+
+    const openOn = (rowName: string) =>
+      fireEvent.click(within(screen.getByText(rowName).closest('div')!).getByRole('button', { name: 'Send a reader' }));
+
+    it('reads nothing for it until the choice is opened', () => {
+      render(<ActionList widget={SEND} context={context} />);
+
+      expect(mockResolve).not.toHaveBeenCalled();
+    });
+
+    it('reads it for the row the choice was opened on, with that row as the scope', async () => {
+      render(<ActionList widget={SEND} context={context} />);
+      openOn('SPRING-2');
+
+      await screen.findByRole('option', { name: 'Ada' });
+      expect(mockResolve).toHaveBeenCalledTimes(1);
+      expect(mockResolve.mock.calls[0][0]).toBe(qualified);
+      expect(mockResolve.mock.calls[0][1].scopeId).toBe('s2');
+    });
+
+    it('posts what was chosen from it for that row', async () => {
+      render(<ActionList widget={SEND} context={context} />);
+      openOn('SPRING-1');
+      await screen.findByRole('option', { name: 'Ada' });
+      fireEvent.change(screen.getByLabelText('Reader'), { target: { value: 'Ada' } });
+      openOn('SPRING-1');
+
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'send', record: 'SPRING-1', reader: 'Ada' }));
+    });
+
+    it('drops a roster that arrives after the choice was opened on another row', async () => {
+      let answerFirstRow: (rows: unknown) => void = () => {};
+      mockResolve
+        .mockReturnValueOnce(new Promise((resolve) => { answerFirstRow = resolve; }))
+        .mockResolvedValueOnce([{ id: 'p2', name: 'Grace' }]);
+      render(<ActionList widget={SEND} context={context} />);
+      openOn('SPRING-1');
+      openOn('SPRING-2');
+      await screen.findByRole('option', { name: 'Grace' });
+
+      answerFirstRow([{ id: 'p1', name: 'Ada' }]);
+      await new Promise((settle) => setTimeout(settle, 0));
+      expect(screen.queryByRole('option', { name: 'Ada' })).toBeNull();
+    });
+
+    it('says the roster could not be read, rather than offering nobody, and allows no press', async () => {
+      mockResolve.mockRejectedValue(new Error('the platform did not answer'));
+      render(<ActionList widget={SEND} context={context} />);
+      openOn('SPRING-1');
+
+      expect(await screen.findByText('The list to choose from could not be read.')).toBeInTheDocument();
+      expect(within(screen.getByText('SPRING-1').closest('div')!).getByRole('button', { name: 'Send a reader' })).toBeDisabled();
+    });
+  });
+
+  describe('visibleRows', () => {
+    const listOf = (name: string) => screen.getByText(name).closest('div')!.parentElement!;
+
+    beforeEach(() => {
+      mockRows.mockReturnValue([1, 2, 3, 4, 5].map((n) => ({ id: `s${n}`, name: `SPRING-${n}` })));
+    });
+
+    it('caps the list at that many rows and scrolls the rest inside it', () => {
+      render(<ActionList widget={{ ...JUDGE, visibleRows: 3 }} context={context} />);
+
+      expect(listOf('SPRING-1').style.maxHeight).toBe('calc(7.5rem)');
+      expect(listOf('SPRING-1')).toHaveClass('overflow-y-auto');
+    });
+
+    it('keeps every row in the page, so what a person typed in one scrolled away is kept', () => {
+      render(<ActionList widget={{ ...JUDGE, visibleRows: 3 }} context={context} />);
+
+      expect(screen.getByText('SPRING-5')).toBeInTheDocument();
+    });
+
+    it('lets the list grow with its rows where no cap is given', () => {
+      render(<ActionList widget={JUDGE} context={context} />);
+
+      expect(listOf('SPRING-1').style.maxHeight).toBe('');
+      expect(listOf('SPRING-1')).not.toHaveClass('overflow-y-auto');
+    });
   });
 
   it('offers every choice the specification names, beside what the row shows', () => {

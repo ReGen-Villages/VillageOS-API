@@ -32,6 +32,10 @@ describe('the widget schemas', () => {
     expect(slot('divergingBar', 'up')).toMatchObject({ kind: 'group' });
   });
 
+  it('let an action list cap its rows the way a table does', () => {
+    expect(WIDGET_SCHEMAS.action.find((field) => field.key === 'visibleRows')).toMatchObject({ kind: 'number' });
+  });
+
   it('have English words for every key at every depth', () => {
     for (const key of WIDGET_FIELD_KEYS) expect(en.design.widgetField, key).toHaveProperty(key);
     for (const key of BINDING_FIELD_KEYS) expect(en.design.bindingField, key).toHaveProperty(key);

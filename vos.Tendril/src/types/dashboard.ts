@@ -762,7 +762,8 @@ export interface ActionChoice {
   /** The route this choice posts to in place of the widget's, for an act whose route also does
    *  more than record the decision. */
   via?: string;
-  /** What this choice asks for a row before it is pressed, in place of the widget's questions. */
+  /** What this choice asks for a row before it is pressed, in place of the widget's questions. A
+   *  roster here is read when the choice is opened on a row, with that row as `$scope`. */
   asks?: AskedValue[];
 }
 
@@ -771,6 +772,12 @@ export interface ActionChoice {
 export interface DrawnChoices {
   from: Binding;
   predicate: string;
+}
+
+/** A value the minted Thing carries as `property`, read off the row under `reads`. */
+export interface CarriedValue {
+  property: string;
+  reads: string;
 }
 
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
@@ -782,11 +789,14 @@ export interface ActionRecords {
    *  not an outcome. */
   via?: string;
   /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
-   *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
-   *  A press that marks the row itself mints nothing and names none. */
+   *  the endpoint, so the page says what a press writes and the page designer can offer the model's
+   *  kinds. A press that marks the row itself mints nothing and names none. */
   archetype?: string;
   /** The relationship from the minted Thing to the row it is about. */
   predicate?: string;
+  /** Values the minted Thing carries, each read off the row. A declaration: the endpoint the press
+   *  goes to decides what is written, and nothing here sends them. */
+  carries?: CarriedValue[];
   /** Whether a row can be pressed again after an act was recorded against it. Absent, a row is
    *  decided once. An act that administers rather than decides — a grant, a password — is made as
    *  often as needed, and the answer to the last press is shown beside the row until the next. */
@@ -814,6 +824,10 @@ export interface ActionWidget {
   /** What a person supplies for a row before pressing. Read once for the widget, however many rows
    *  ask. */
   asks?: AskedValue[];
+  /** Rows shown before the list scrolls inside its card, as a table's `visibleRows`. Absent, the
+   *  list grows with its rows. Unlike a table, every row stays in the page, because a row holds what
+   *  a person has typed into it. */
+  visibleRows?: number;
   writes: ActionRecords;
   /** The rows already decided about, drawn behind a switch with what was decided and nothing to
    *  press. `decision` names the row value that says what was decided. */
