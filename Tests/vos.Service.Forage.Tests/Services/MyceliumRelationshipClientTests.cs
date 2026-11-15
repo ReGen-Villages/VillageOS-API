@@ -66,21 +66,16 @@ public class MyceliumRelationshipClientTests
     }
 
     [Fact]
-    public async Task RelateAsync_WritesTheRelationshipItNames()
+    public async Task RelateAsync_WritesTheRelationshipItNamesAsAFragmentReplacingNothing()
     {
         var (subject, predicate, target) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        string? body = null;
-        var handler = new MockHttpMessageHandler(request =>
-        {
-            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Json(HttpStatusCode.OK, "{}");
-        });
+        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK, "{}"));
 
         (await Client(handler).RelateAsync(subject, predicate, target, default)).Should().BeTrue();
 
-        using var written = System.Text.Json.JsonDocument.Parse(body!);
-        (written.RootElement.GetProperty("subjectId").GetGuid(), written.RootElement.GetProperty("predicateId").GetGuid(), written.RootElement.GetProperty("targetId").GetGuid())
-            .Should().Be((subject, predicate, target));
+        var write = RelationshipWrite.In(handler.Requests.Should().ContainSingle().Subject);
+        write!.Relationship.Should().Be((subject, predicate, target));
+        write.Replaced.Should().BeEmpty();
     }
 
     [Fact]

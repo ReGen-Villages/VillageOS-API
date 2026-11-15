@@ -5,11 +5,11 @@ namespace vos.Service.Forage.Services;
 
 // The writes this service makes to the model: relating a study to a compute service starts the
 // analysis; relating a subject to the vocabulary member a fetched word names — with the stale relationship
-// removed — is how a discovered word becomes a relationship; and the coverage Things a run records
-// what each call came to on. Separate from the fetcher, which speaks to endpoint services rather than
-// to the model.
+// removed — is how a discovered word becomes a relationship; relating a site to the Place its code names; and the
+// coverage Things a run records what each call came to on. Separate from the fetcher, which speaks to endpoint
+// services rather than to the model.
 //
-// Those writes are fragments because the engine skips a relationship it already holds and passes over a removal
+// Every relationship is written as a fragment because the engine skips a relationship it already holds and passes over a removal
 // already made, so a repeated write succeeds and leaves one copy.
 public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWriter
 {
@@ -45,7 +45,7 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
 
     public Task<bool> RelateAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
-        PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(30), cancellationToken);
+        WriteRelationshipAsync($"{subjectId} -{predicateId}-> {targetId}", subjectId, predicateId, targetId, [], cancellationToken);
 
     // A Fact rather than an Observation: a run asserts what its own call came to, and nothing samples it
     // from a provider. The properties are declared FactOnly, so an observation would be refused.

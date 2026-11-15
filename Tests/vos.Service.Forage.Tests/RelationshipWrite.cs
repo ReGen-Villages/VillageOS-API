@@ -2,8 +2,8 @@ using System.Text.Json;
 
 namespace vos.Service.Forage.Tests;
 
-// How Forage writes an analysis or vocabulary relationship: a fragment declaring no Things, which tells it apart from
-// a coverage record's fragment.
+// How Forage writes a relationship: a fragment declaring no Things, which tells it apart from a coverage record's
+// fragment.
 internal sealed record RelationshipWrite(
     (Guid Subject, Guid Predicate, Guid Target) Relationship,
     IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> Replaced)

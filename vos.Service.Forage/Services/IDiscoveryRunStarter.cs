@@ -18,9 +18,9 @@ public interface IDiscoveryRunStarter
 //
 // A run is held back while another run for the same subject is in flight; runs for different subjects
 // still run together. A run reads which calls the model holds no answer for, then makes them and records
-// what came back, so two runs for one site read the same gaps and both fill them. The coverage, vocabulary and
-// analysis writes are safe to make twice, so the hold saves a second set of calls to the same sources, and a
-// second division relationship, which the model refuses. It holds within one process only.
+// what came back, so two runs for one site read the same gaps and both fill them. Every write a run makes is
+// safe to make twice, so the hold only saves a second set of calls to the same sources. It holds within one
+// process only.
 //
 // At most one run waits. A waiting run reads the model only once the run in flight ends, so a service call
 // arriving while one already waits would find nothing it will not; dropping it keeps a site called
