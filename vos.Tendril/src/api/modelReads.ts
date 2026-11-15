@@ -31,4 +31,7 @@ export interface ModelReads {
   /** Tells the broker a person asked for a change through a widget. Absent where the page holds no
    *  credential and so has nobody to tell. */
   recordAction?(description: string, succeeded: boolean): void;
+  /** This and `stampTime` are absent where the page holds no credential and so cannot write. */
+  relate?(subjectId: string, predicateId: string, targetId: string): Promise<void>;
+  stampTime?(thingId: string, property: string, at: Date): Promise<void>;
 }

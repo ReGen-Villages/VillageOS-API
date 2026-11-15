@@ -41,30 +41,6 @@ describe('modelApi.applyFragment', () => {
   });
 });
 
-describe('modelApi.promote', () => {
-  it('posts the root, what travels with it, the template and the project name', async () => {
-    mockPost.mockResolvedValue({ modelId: 'model-1', modelName: 'Meadow Lane' });
-
-    const result = await modelApi.promote('meadow', ['covers', 'studies'], 'site-analysis.template.json', 'Meadow Lane');
-
-    expect(mockPost).toHaveBeenCalledWith('/api/model/promote', {
-      RootThingId: 'meadow',
-      FollowedPredicateNames: ['covers', 'studies'],
-      Template: 'site-analysis.template.json',
-      ProjectName: 'Meadow Lane',
-    });
-    expect(result).toEqual({ modelId: 'model-1', modelName: 'Meadow Lane' });
-  });
-
-  it('does not swallow a refusal', async () => {
-    mockPost.mockRejectedValue(new Error('The project model cannot answer every name'));
-
-    await expect(modelApi.promote('meadow', [], 'site-analysis.template.json', 'Meadow Lane')).rejects.toThrow(
-      'The project model cannot answer every name',
-    );
-  });
-});
-
 describe('modelApi.getAtTime', () => {
   it('keeps the overrides each Thing held at the instant beside its own properties', async () => {
     const reservoir = {

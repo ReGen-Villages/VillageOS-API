@@ -152,6 +152,8 @@ export function checkDesign(specification: DashboardSpecification, name: string,
       if (unboundSlots(widget).length > 0) warn('widgetBoundToNothing', where);
       if (widget.type === 'table') checkTable(widget, rows, rowKind ? context.propertiesOf(rowKind) : undefined, where, report);
       if (widget.type === 'leaderboard') checkLeaderboard(widget, context, where, report);
+      const relatedAlong = widget.type === 'action' ? widget.writes.choicesFrom?.predicate : undefined;
+      if (relatedAlong !== undefined && !context.isPredicate(relatedAlong)) refuse('namesAnUnknownPredicate', where, relatedAlong);
 
       const bindings: HeldBinding[] = [];
       bindingsOf(widget, rowKind, false, bindings);

@@ -101,7 +101,12 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]);
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
     case 'smallMultiples': return [widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to];
-    case 'action': return [widget.rows, ...(widget.asks ?? []).map((field) => field.options)];
+    case 'action': return [
+      widget.rows,
+      widget.writes.choicesFrom?.from,
+      widget.decided?.rows,
+      ...[...(widget.asks ?? []), ...widget.writes.choices.flatMap((choice) => choice.asks ?? [])].map((field) => field.options),
+    ];
     case 'form': return widget.fields.map((field) => field.options);
   }
 }
@@ -295,12 +300,19 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
       ...NAVIGATION_AND_SETTINGS.names!,
       ...traverse.map((rule) => rule.predicate),
       ...named.names,
+      ...predicatesAPressRelatesAlong(specification),
     ])],
     includeLaterMatches: true,
     includeObservations: true,
   };
   if (traverse.length) selector.traverse = traverse;
   return selector;
+}
+
+function predicatesAPressRelatesAlong(specification: DashboardSpecification): string[] {
+  return specification.sections
+    .flatMap((section) => section.widgets)
+    .flatMap((widget) => (widget.type === 'action' && widget.writes.choicesFrom ? [widget.writes.choicesFrom.predicate] : []));
 }
 
 /** Whether any verdict marks a state as offering levers, each of which names its input by a Thing the

@@ -252,7 +252,10 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         title: tr(widget.title),
         hint: tr(widget.hint),
         asks: localizeFields(widget.asks, tr),
-        writes: { ...widget.writes, choices: widget.writes.choices.map((choice) => ({ ...choice, label: tr(choice.label) })) },
+        writes: {
+          ...widget.writes,
+          choices: widget.writes.choices.map((choice) => ({ ...choice, label: tr(choice.label), asks: localizeFields(choice.asks, tr) })),
+        },
       };
       return w;
     }

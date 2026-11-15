@@ -81,7 +81,7 @@ public class DiscoveredVocabularyResolverTests
         edge.SubjectId.Should().Be(_willowBend);
         edge.PredicateId.Should().Be(_flowsAs);
         edge.MemberId.Should().Be(_steady);
-        edge.Replaces.Should().BeEmpty();
+        edge.ReplacedMemberIds.Should().BeEmpty();
     }
 
     [Fact]
@@ -135,13 +135,12 @@ public class DiscoveredVocabularyResolverTests
     [Fact]
     public void A_changed_word_plans_the_replacement_of_the_stale_edge()
     {
-        var stale = Guid.NewGuid();
         var resolution = DiscoveredVocabularyResolver.Resolve(
-            Declared(Edge(_willowBend, _flowsAs, _flashy, stale)), [Fetched(_willowBend, "steady")]);
+            Declared(Edge(_willowBend, _flowsAs, _flashy)), [Fetched(_willowBend, "steady")]);
 
         var edge = resolution.Edges.Should().ContainSingle().Subject;
         edge.MemberId.Should().Be(_steady);
-        edge.Replaces.Should().Equal(stale);
+        edge.ReplacedMemberIds.Should().Equal(_flashy);
     }
 
     [Fact]
