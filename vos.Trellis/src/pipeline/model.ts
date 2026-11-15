@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship, IsChainLookup } from '@tendril-ui/tendril';
 import { statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
@@ -485,6 +485,19 @@ export class PipelineModel {
 
   thing(id: string): VosThing | undefined {
     return this.byId.get(id);
+  }
+
+  isChainLookup(thingId: string): IsChainLookup {
+    const isParents = new Map<string, string[]>();
+    const waiting = [thingId];
+    while (waiting.length) {
+      const id = waiting.pop()!;
+      if (isParents.has(id)) continue;
+      const parents = this.outgoing(id, 'is').map((parent) => parent.Id);
+      isParents.set(id, parents);
+      waiting.push(...parents);
+    }
+    return { byId: this.byId, isParents };
   }
 
   /** Targets reached from `subjectId` via a predicate matched by name (the built-in is/has). */

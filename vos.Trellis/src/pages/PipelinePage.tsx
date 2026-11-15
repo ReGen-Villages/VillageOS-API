@@ -22,6 +22,9 @@ import { PipelineToolbar } from '../components/pipeline/PipelineToolbar';
 import { RunParametersBar } from '../components/pipeline/RunParametersBar';
 import { EmptyCanvasHint } from '../components/pipeline/EmptyCanvasHint';
 import { FindingsAndRunPanel } from '../components/pipeline/FindingsAndRunPanel';
+import { ConnectionSettingsPanel } from '../components/pipeline/ConnectionSettingsPanel';
+import { useAuthentication } from '../hooks/useAuthentication';
+import { mayChangeData } from '../utils/mayChangeData';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
 
@@ -54,6 +57,8 @@ export function PipelinePage() {
   );
 
   const [error, setError] = useState<string | null>(null);
+  const [settingsOfConnectionId, setSettingsOfConnectionId] = useState<string | null>(null);
+  const { role } = useAuthentication();
   const drawing = usePipelineDrawing({ model, connections, setError });
   const { nodes, edges, setNodes, savedId, editingPipelineId, thingIdByCanvasId, currentNodes, load, save, startNew } = drawing;
   const run = usePipelineRun({ model, savedId, nodes, setNodes, thingIdByCanvasId, setError });
@@ -92,7 +97,7 @@ export function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <CatalystRail groups={catalysts} onPlace={drawing.placeStart} onOpenPipeline={openPipeline} onHandOver={drawing.handOver} />
+      <CatalystRail groups={catalysts} onPlace={drawing.placeStart} onOpenPipeline={openPipeline} onHandOver={drawing.handOver} onShowSettings={setSettingsOfConnectionId} />
       <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={openPipeline} onCreate={onNew} />
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <PipelineToolbar
@@ -168,6 +173,15 @@ export function PipelinePage() {
               takenOn={takenOnOf((selectedEdge.data as WireData | undefined)?.takenOn, model)}
               onSetTakenOn={drawing.setEdgeTakenOn}
               onClose={selection.closeWireInspector}
+            />
+          )}
+          {settingsOfConnectionId && (
+            <ConnectionSettingsPanel
+              key={settingsOfConnectionId}
+              model={model}
+              connectionId={settingsOfConnectionId}
+              mayChange={mayChangeData(role)}
+              onClose={() => setSettingsOfConnectionId(null)}
             />
           )}
           {nodes.length === 0 && <EmptyCanvasHint hasServices={connections.length > 0} />}
