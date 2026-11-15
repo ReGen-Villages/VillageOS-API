@@ -98,26 +98,27 @@ public class ForageResolvesAWordOnceTests : IClassFixture<TheEngine>
 
     private sealed class ReadOnce(ISubscriptionClient engine) : ISubscriptionClient
     {
-        private SubscribeResult? _first;
+        private SnapshotReadResult? _first;
 
         public int Reads { get; private set; }
 
         public event Action? Reconnected { add { } remove { } }
 
-        public async Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default)
+        public async Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
         {
             if (_first is null)
             {
-                _first = await engine.SubscribeAsync(selector, ct);
+                _first = await engine.ReadSnapshotAsync(selector, ct);
                 Reads++;
             }
             return _first;
         }
 
-        public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default) =>
+            engine.SubscribeAsync(selector, ct);
 
-        public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default) =>
-            engine.ReadSnapshotAsync(selector, ct);
+        public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default) =>
+            engine.UnsubscribeAsync(subscriptionId, ct);
 
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default) =>
             engine.AddObjectsAsync(subscriptionId, selector, ct);
