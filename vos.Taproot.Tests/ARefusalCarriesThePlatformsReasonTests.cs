@@ -42,7 +42,7 @@ public class ARefusalCarriesThePlatformsReasonTests
             ["replace the model"] = client => client.SetModelAsync("{}"),
             ["clear the model"] = client => client.ClearModelAsync(),
             ["apply a fragment"] = client => client.ApplyFragmentAsync("{}"),
-            ["promote a group"] = client => client.PromoteAsync(AnyId, [], "project.seed.json", "Willow Bend"),
+            ["promote a group"] = client => client.PromoteAsync(AnyId, "promoted", [], "project.seed.json", "Willow Bend"),
             ["prune a group"] = client => client.PruneAsync(AnyId, []),
             ["engine metrics"] = client => client.GetEngineMetricsAsync(),
             ["engine reactors"] = client => client.GetEngineReactorsAsync(),

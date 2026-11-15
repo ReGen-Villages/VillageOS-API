@@ -154,16 +154,20 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (Identify(model, args[0]) is not { } submission)
             return;
 
+        var promotedTerm = DispositionsIn(model)
+            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) == null);
+        if (promotedTerm == default)
+        {
+            writer.WriteLine("This model declares no disposition that keeps a submission, so a promotion could not be recorded here.");
+            return;
+        }
+
         var followed = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // The project's name is whatever is left, so a model can be called what a planner would call it.
         var promoted = await client!.PromoteAsync(
-            submission.ProposedSite, followed, args[1], string.Join(' ', args[3..]));
+            submission.Id, promotedTerm.Name, followed, args[1], string.Join(' ', args[3..]));
         CommandParser.WriteFormattedJson(writer, promoted);
-
-        var promotedTerm = DispositionsIn(model)
-            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) == null);
-        if (promotedTerm != default)
-            await ResolveAsync(model, submission, promotedTerm);
+        await StampResolvedAtAsync(submission);
     }
 
     // The retention pass: every rejected submission whose period has run leaves the model, and everything
@@ -270,9 +274,11 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
 
         await client!.CreateRelationshipAsync(submission.Id, predicate, disposition.Id);
-        await client.SetPropertyAsync(
-            submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
+        await StampResolvedAtAsync(submission);
     }
+
+    private Task StampResolvedAtAsync(Submission submission) =>
+        client!.SetPropertyAsync(submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
 
     private Submission? Identify(ModelSnapshot model, string named)
     {

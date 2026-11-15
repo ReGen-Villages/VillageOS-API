@@ -11,7 +11,9 @@ copy of its own.**
   model, and against the reads the loaded model cannot answer itself, into a number, a word or rows.
 - **Draws the widgets that write** ([docs/FIELD_GUIDE.md §93](../docs/FIELD_GUIDE.md)):
   - the **action list**: a row for each Thing its binding lists, and a button for each choice. A
-    press records a decision about that row.
+    press records a decision about that row. The choices may be listed in the page description or
+    read from the model, one for each Thing a binding returns; a choice may ask its own questions
+    and post to its own route; the rows already decided can sit behind a switch.
   - the **form**: records something no row on the page lists yet.
   - the **fields** either widget asks a person to fill before a press.
 - **Builds what a press posts**: the body, and the route the widget's `via` names.
