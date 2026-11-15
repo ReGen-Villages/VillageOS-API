@@ -143,6 +143,29 @@ describe('the call settings of the connection behind a state', () => {
     expect(choiceOf(panel)).toHaveValue(id.whenTheServiceReportsCompletion);
   });
 
+  it('writes nothing, and says why, where the model binds no predicate for the choice', async () => {
+    const { panel, id } = openTheSettings((fixture) => {
+      fixture.relationships = fixture.relationships.filter((relationship) => relationship.TargetId !== fixture.id.completesWhen || relationship.PredicateId !== 'binds');
+    });
+    await waitFor(() => expect(choiceOf(panel)).toHaveValue(id.whenTheServiceReportsCompletion));
+
+    fireEvent.change(choiceOf(panel), { target: { value: id.whenTheServiceAnswers } });
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({
+      type: 'error', message: 'The model binds no predicate for this choice, so it cannot be written',
+    })));
+    expect(modelApi.applyFragment).not.toHaveBeenCalled();
+  });
+
+  it('shows a choice the page holds no member for by what the platform answered, rather than another choice', async () => {
+    const { panel } = openTheSettings((fixture) => {
+      fixture.callSettings.completesWhen = { value: 'a member this page does not hold', source: 'builtIn', from: null };
+    });
+
+    await waitFor(() => expect(choiceOf(panel)).toHaveValue('a member this page does not hold'));
+    expect(line(panel, 'completesWhen')).toHaveTextContent("the platform's built-in value");
+  });
+
   it('writes a changed value on the connection, then reads the settings again and says it is set on this connection', async () => {
     const { panel, id, callSettings } = openTheSettings();
     const field = await waitFor(() => within(line(panel, 'callsAgainForNoLongerThanSeconds')).getByRole('spinbutton'));
@@ -262,6 +285,18 @@ describe('the call settings of the connection behind a state', () => {
     const panel = openRefused(new ApiError(403, '{"error":"forbidden"}'));
 
     await waitFor(() => expect(panel).toHaveTextContent('You may not read a Thing one of these settings comes from, so they cannot be shown.'));
+  });
+
+  it('says what went wrong when the read fails without an answer from the platform', async () => {
+    const fixture = connectionSettingsFixture();
+    vi.mocked(thingApi.getEffectiveProperties).mockResolvedValue(fixture.resolved);
+    vi.mocked(callSettingsApi.get).mockRejectedValue('the network is down');
+    useModelStore.setState({ things: fixture.things, relationships: fixture.relationships, loaded: true });
+    render(<PipelinePage />);
+    fireEvent.click(screen.getByRole('button', { name: OPEN_THE_SETTINGS }));
+
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Call settings of Estimate-Rainfall' }))
+      .toHaveTextContent('The call settings could not be read: the network is down'));
   });
 
   it('says in the platform\'s words when the settings cannot be read for another reason', async () => {
