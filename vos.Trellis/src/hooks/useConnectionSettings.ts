@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EffectiveProperty } from '@tendril-ui/tendril';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import type { PipelineModel } from '../pipeline/model';
-import { connectionSettings, type ConnectionSetting } from '../pipeline/connectionSettings';
+import { connectionSettings, declaredType, type ConnectionSetting } from '../pipeline/connectionSettings';
 
 export interface ConnectionSettingLine extends ConnectionSetting {
   /** The type the platform declares; null where it declares none, undefined until it has answered. */
   type: string | null | undefined;
-}
-
-/** The platform keys an inherited property by the path of archetypes it came through. */
-function declaredType(resolved: Record<string, EffectiveProperty>, name: string): string | null {
-  const key = name in resolved ? name : Object.keys(resolved).find((path) => path.endsWith(`.${name}`));
-  return key === undefined ? null : resolved[key].Type;
 }
 
 /** The console's model carries no types, so the platform is asked once for each name not yet asked about. */

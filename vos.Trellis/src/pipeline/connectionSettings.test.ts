@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PipelineModel } from './model';
-import { connectionSettings } from './connectionSettings';
+import { connectionSettings, declaredType } from './connectionSettings';
 import { connectionSettingsFixture } from './connectionSettings.test.fixture';
 
 describe('connectionSettings', () => {
@@ -67,6 +67,24 @@ describe('connectionSettings', () => {
     const names = connectionSettings(new PipelineModel(things, relationships), id.connection).map((setting) => setting.name);
 
     expect(names).toContain('startsAfterSeconds');
+  });
+
+  it('reads the type of an own value by its name and of an inherited one by the last part of its path', () => {
+    const { resolved } = connectionSettingsFixture();
+    const withOwn = { ...resolved, Subdomain: { Value: 'estimate-rainfall', Type: 'vos.String', IsInherited: false } };
+
+    expect(declaredType(withOwn, 'Subdomain')).toBe('vos.String');
+    expect(declaredType(withOwn, 'callsAgainAtMost')).toBe('vos.Integer');
+    expect(declaredType(withOwn, 'startsAfterSeconds')).toBeNull();
+  });
+
+  it('gives one type to a name reached along two paths from one archetype, and none to a name two archetypes declare', () => {
+    const { resolved, id } = connectionSettingsFixture();
+    const twoPaths = { ...resolved, 'Other.ServiceBinding.callsAgainAtMost': { Value: 5, Type: 'vos.Integer', IsInherited: true, InheritedFrom: id.serviceBinding } };
+    const twoArchetypes = { ...resolved, 'Other.callsAgainAtMost': { Value: '5', Type: 'vos.String', IsInherited: true, InheritedFrom: 'other' } };
+
+    expect(declaredType(twoPaths, 'callsAgainAtMost')).toBe('vos.Integer');
+    expect(declaredType(twoArchetypes, 'callsAgainAtMost')).toBeNull();
   });
 
   it('lists nothing for a connection the model no longer holds', () => {

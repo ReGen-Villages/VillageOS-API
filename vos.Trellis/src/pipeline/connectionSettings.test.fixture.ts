@@ -2,14 +2,12 @@ import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/t
 import { ROLE } from './model';
 import { playing, withRoles } from './roles.test.fixture';
 
-/** A Catchment entering OutOfDate, watched by the connection Estimate-Rainfall, which has the service
- *  rainfall-estimator. The connection states nothing itself: every setting it reads is declared on
- *  SiteAnalysisConnection or on ServiceBinding above it. */
+/** The connection states nothing itself: every setting it reads is declared on SiteAnalysisConnection or on ServiceBinding above it. */
 export interface ConnectionSettingsFixture {
   things: VosThing[];
   relationships: VosRelationship[];
   id: Record<'connection' | 'siteAnalysisConnection' | 'serviceBinding' | 'outOfDate' | 'catchment', string>;
-  /** What the platform answers for the connection's resolved properties, by the path it keys each under. */
+  /** The platform's answer for the connection's resolved properties, keyed by the path of archetypes. */
   resolved: Record<string, EffectiveProperty>;
 }
 

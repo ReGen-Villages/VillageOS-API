@@ -1,5 +1,13 @@
-import { effectiveProperties, valueOrigin } from '@tendril-ui/tendril';
+import { effectiveProperties, valueOrigin, type EffectiveProperty } from '@tendril-ui/tendril';
 import type { PipelineModel } from './model';
+
+/** The platform keys an inherited property by the path of archetypes it came through, and refuses a name two
+ *  archetypes declare, so such a name has no type to write with. */
+export function declaredType(resolved: Record<string, EffectiveProperty>, name: string): string | null {
+  if (name in resolved) return resolved[name].Type;
+  const inherited = Object.entries(resolved).filter(([path]) => path.endsWith(`.${name}`)).map(([, property]) => property);
+  return new Set(inherited.map((property) => property.InheritedFrom)).size === 1 ? inherited[0].Type : null;
+}
 
 export interface ConnectionSetting {
   name: string;
