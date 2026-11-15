@@ -47,11 +47,8 @@ const ALLOWED = new Set<string>([]);
 
 const DOMAIN_WORD = new RegExp(`\\b(${DOMAIN.join('|')})`, 'gi');
 
-/** The package's own name is not a word a reader sees. */
-const TENDRIL_PACKAGE = '@villageos/tendril';
-
 function domainWordsIn(text: string): string[] {
-  return [...text.replaceAll(TENDRIL_PACKAGE, '').matchAll(DOMAIN_WORD)]
+  return [...text.matchAll(DOMAIN_WORD)]
     .map((match) => match[0].toLowerCase())
     .filter((word) => !ALLOWED.has(word));
 }
@@ -81,10 +78,6 @@ describe('the dashboard client names no domain of its own', () => {
 
   it('reads Tendril too, where the binding reader and the declarations live', () => {
     expect(FILES.map((file) => relative(SOURCE, file))).toContain('../../vos.Tendril/src/api/dashboardApi.ts');
-  });
-
-  it('reports nothing for the package name in an import', () => {
-    expect(domainWordsIn("import { useBinding } from '@villageos/tendril';")).toEqual([]);
   });
 
   it('reports nothing for a word that merely contains one', () => {

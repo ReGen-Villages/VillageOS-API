@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { relationshipLabel } from './relationshipLabel';
-import type { VosRelationship } from '@villageos/tendril';
+import type { VosRelationship } from '@tendril-ui/tendril';
 
 const names = new Map([
   ['subject-id', 'Kitchen'],

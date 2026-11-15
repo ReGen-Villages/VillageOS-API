@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { configurationApi } from '../../api/configurationApi';
 import { toast } from '../common/toastStore';
-import type { PropertyModeConfiguration } from '@villageos/tendril';
+import type { PropertyModeConfiguration } from '@tendril-ui/tendril';
 
 export function PropertyModePanel() {
   const { t } = useTranslation();

@@ -14,7 +14,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { useIsWide } from '../hooks/useIsWide';
-import { scopeEntities as computeScopeEntities } from '@villageos/tendril';
+import { scopeEntities as computeScopeEntities } from '@tendril-ui/tendril';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from '../api/dashboardSubscription';
 import { localizeSpecification } from '../api/dashboardLocalization';

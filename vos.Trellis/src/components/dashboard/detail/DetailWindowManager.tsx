@@ -4,8 +4,8 @@
  * Stacking order == front-most last; z-index and cascade offset follow that order.
  */
 import { useCallback, useState } from 'react';
-import type { ModelIndex } from '@villageos/tendril';
-import type { DetailSpecification } from '@villageos/tendril';
+import type { ModelIndex } from '@tendril-ui/tendril';
+import type { DetailSpecification } from '@tendril-ui/tendril';
 import { EntityDetailWindow } from './EntityDetailWindow';
 import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 

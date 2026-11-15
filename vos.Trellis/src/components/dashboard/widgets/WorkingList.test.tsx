@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { WorkingList } from './WorkingList';
-import type { WorkingWidget } from '@villageos/tendril';
-import type { ResolveContext } from '@villageos/tendril';
+import type { WorkingWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -10,8 +10,8 @@ vi.mock('react-i18next', () => ({
 
 const resolved = new Map<string, unknown>();
 const stillResolving = { value: false };
-vi.mock('@villageos/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@villageos/tendril')>()),
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBindings: (bindings: { kind: string }[]) =>
     bindings.map((b) => ({
       value: stillResolving.value ? null : resolved.get(b.kind) ?? null,

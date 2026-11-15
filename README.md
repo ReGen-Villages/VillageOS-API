@@ -31,7 +31,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 
 ### Tendril (page reader and writing widgets)
 
-**vos.Tendril** — the package `@villageos/tendril`: the binding reader, the page declarations and the
+**vos.Tendril** — the package `@tendril-ui/tendril`: the binding reader, the page declarations and the
 widgets that write, so an application other than Trellis draws a model's pages the same way. Trellis
 uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/README.md).
 

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AssetImage } from './AssetImage';
 import { assetTicketOf } from '../../utils/assetTicket';
 import { formatDateTime } from '../../utils/formatters';
-import type { PropertyVersion } from '@villageos/tendril';
+import type { PropertyVersion } from '@tendril-ui/tendril';
 
 interface Props {
   versions: PropertyVersion[];

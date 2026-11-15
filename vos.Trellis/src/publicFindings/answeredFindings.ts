@@ -10,9 +10,9 @@
  * service — refuse rather than resolving to nothing, because nothing is how a figure the analysis has
  * not computed reads, and a question this page cannot ask is not that.
  */
-import { buildModelIndex, type ModelIndex } from '@villageos/tendril';
-import type { ModelReads } from '@villageos/tendril';
-import type { DashboardSpecification } from '@villageos/tendril';
+import { buildModelIndex, type ModelIndex } from '@tendril-ui/tendril';
+import type { ModelReads } from '@tendril-ui/tendril';
+import type { DashboardSpecification } from '@tendril-ui/tendril';
 import type {
   TemporalReduceQuery,
   TemporalReduceResponse,
@@ -20,8 +20,8 @@ import type {
   ThingsInStateResponse,
   VosRelationship,
   VosThing,
-} from '@villageos/tendril';
-import { unwrapRelationship, unwrapThing } from '@villageos/tendril';
+} from '@tendril-ui/tendril';
+import { unwrapRelationship, unwrapThing } from '@tendril-ui/tendril';
 
 /** The wire shape, as the broker wrote it and the service passed it on. `States` is a Thing's derived
  *  states, which the application reads from the broker instead and so has no place for. */

@@ -9,7 +9,7 @@ import {
   type TypeStat,
   type TypeGroupStat,
 } from './typeFilter';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 function thing(id: string, name: string): VosThing {
   return { Id: id, Name: name, Properties: {} };

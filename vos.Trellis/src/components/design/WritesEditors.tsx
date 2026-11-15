@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { ActionChoice, ActionRecords, AskedValue, FormWidget } from '@villageos/tendril';
+import type { ActionChoice, ActionRecords, AskedValue, FormWidget } from '@tendril-ui/tendril';
 import { ChoiceField, Field, SwitchField, TextField } from './DesignFields';
 import { OfferedField } from './OfferedField';
 import { BindingEditor } from './BindingEditor';

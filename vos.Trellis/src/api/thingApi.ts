@@ -1,7 +1,7 @@
 import { apiClient, ApiError } from './client';
-import type { VosThing, EffectiveProperty } from '@villageos/tendril';
+import type { VosThing, EffectiveProperty } from '@tendril-ui/tendril';
 import type { VosTypeName } from '../utils/constants';
-import { unwrapThing } from '@villageos/tendril';
+import { unwrapThing } from '@tendril-ui/tendril';
 
 export const thingApi = {
   // `properties` narrows what each Thing carries to the names the model declared it is drawn

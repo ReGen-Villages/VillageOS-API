@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { GripVertical } from 'lucide-react';
-import type { Widget } from '@villageos/tendril';
+import type { Widget } from '@tendril-ui/tendril';
 import { WIDGET_KINDS } from '../../utils/gridLayout';
 
 interface Props {

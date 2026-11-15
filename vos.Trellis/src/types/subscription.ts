@@ -6,7 +6,7 @@
  * therefore says what it is about once, and both what it starts with and what reaches it afterwards
  * follow from that one statement.
  */
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 /** Which way a relationship is followed from the Things selected so far. */
 export type TraverseDirection = 'outgoing' | 'incoming' | 'both';

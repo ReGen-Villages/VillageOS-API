@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { apiClient } from '../api/client';
-import { unwrapThing, unwrapRelationship } from '@villageos/tendril';
+import { unwrapThing, unwrapRelationship } from '@tendril-ui/tendril';
 import { WHOLE_MODEL, type CoveredObjects, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import type { ConnectionState } from '../types/connection';
 import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './streamSilence';
 

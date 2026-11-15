@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { discoverBasemapSources } from '../api/basemapApi';
-import { modelIndexFor } from '@villageos/tendril';
+import { modelIndexFor } from '@tendril-ui/tendril';
 import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { useAuthentication } from '../hooks/useAuthentication';
@@ -24,7 +24,7 @@ import {
   termsBound,
   termWordingBound,
 } from './modelVocabulary';
-import type { TermWording } from '@villageos/tendril';
+import type { TermWording } from '@tendril-ui/tendril';
 
 export function IntakeWizardPage() {
   const { t } = useTranslation();

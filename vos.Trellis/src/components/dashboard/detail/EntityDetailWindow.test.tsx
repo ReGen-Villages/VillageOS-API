@@ -32,12 +32,12 @@ vi.mock('../../../api/thingApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { ROLE } from '../../../pipeline/model';
 import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
-import type { DetailSpecification } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import type { DetailSpecification } from '@tendril-ui/tendril';
 import { formatTimestamp } from '../../../utils/formatters';
 import { EntityDetailWindow } from './EntityDetailWindow';
 

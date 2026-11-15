@@ -1,5 +1,5 @@
 import 'i18next';
-import type { TendrilWords } from '@villageos/tendril';
+import type { TendrilWords } from '@tendril-ui/tendril';
 import type { Resources } from './locales/en';
 
 declare module 'i18next' {

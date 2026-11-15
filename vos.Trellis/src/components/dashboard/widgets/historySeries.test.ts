@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Binding } from '@villageos/tendril';
+import type { Binding } from '@tendril-ui/tendril';
 import { dayOfYearLabel, groupsByKey, monthNames, monthStarts, windowOf } from './historySeries';
 
 const A_DAY = 86_400;

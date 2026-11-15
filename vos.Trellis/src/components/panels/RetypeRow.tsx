@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ThingPicker } from '../common/ThingPicker';
 import { declaredTypes, retypeThing } from '../../utils/retype';
 import { toast } from '../common/toastStore';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 // Retype control: change one of a Thing's types by repointing an is-relationship. Multiple inheritance is
 // preserved — when the Thing has more than one type, a "from" picker chooses which one to replace. Thin

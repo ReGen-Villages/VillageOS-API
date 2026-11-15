@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, X } from 'lucide-react';
-import type { Binding, TableColumn } from '@villageos/tendril';
+import type { Binding, TableColumn } from '@tendril-ui/tendril';
 import { COLUMN_FIELDS, type FieldSpecification } from '../../utils/widgetSchema';
 import { ChoiceField, Field, NumberField, SwitchField, TextField } from './DesignFields';
 import { OfferedField, type Offered } from './OfferedField';

@@ -7,12 +7,12 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ResolveContext } from '@villageos/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useMapStore } from '../stores/mapStore';
 import type { BasemapSource } from '../types/basemap';
-import type { DashboardSection } from '@villageos/tendril';
+import type { DashboardSection } from '@tendril-ui/tendril';
 import type { BoundaryPoint } from '../utils/parcelGeometry';
 import { imagerySource } from './overviewState';
 

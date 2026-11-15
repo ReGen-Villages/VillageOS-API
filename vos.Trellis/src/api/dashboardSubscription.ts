@@ -16,10 +16,10 @@ import {
   type RelationStep,
   type ScopeReference,
   type Widget,
-} from '@villageos/tendril';
-import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@villageos/tendril';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@villageos/tendril';
-import { BINDS_PREDICATE_NAME } from '@villageos/tendril';
+} from '@tendril-ui/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@tendril-ui/tendril';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 

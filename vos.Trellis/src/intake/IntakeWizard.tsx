@@ -45,7 +45,7 @@ import {
   withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
-import { useTermWords, type TermWording } from '@villageos/tendril';
+import { useTermWords, type TermWording } from '@tendril-ui/tendril';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
 

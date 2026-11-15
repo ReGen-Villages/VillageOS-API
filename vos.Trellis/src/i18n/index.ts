@@ -7,7 +7,7 @@ import { fr } from './locales/fr';
 import { it } from './locales/it';
 import { nl } from './locales/nl';
 import { ar } from './locales/ar';
-import { BASE_LANGUAGE, TENDRIL_NAMESPACE, TENDRIL_WORDS } from '@villageos/tendril';
+import { BASE_LANGUAGE, TENDRIL_NAMESPACE, TENDRIL_WORDS } from '@tendril-ui/tendril';
 import { detectInitialLanguage, persistLanguage } from './languages';
 import type { LanguageCode } from './languages';
 

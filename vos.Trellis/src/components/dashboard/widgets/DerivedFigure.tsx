@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Binding, NumberFormat } from '@villageos/tendril';
-import type { ResolveContext } from '@villageos/tendril';
+import type { Binding, NumberFormat } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 import { hasBreakdown } from '../../../api/figureBreakdown';
 import { FigurePanel } from './FigurePanel';
 

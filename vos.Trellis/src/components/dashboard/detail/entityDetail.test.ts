@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildModelIndex } from '@villageos/tendril';
-import type { VosThing, VosRelationship, StateTransition } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship, StateTransition } from '@tendril-ui/tendril';
 import { resolveRelations, buildStateChanges } from './entityDetail';
 
 function thing(id: string, name: string, properties: Record<string, unknown> = {}): VosThing {

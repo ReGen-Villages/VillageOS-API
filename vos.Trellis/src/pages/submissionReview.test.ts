@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { EffectiveProperty, VosRelationship, VosThing } from '@villageos/tendril';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
   COLD_STORAGE_PERIOD_PROPERTY,
   DISPOSITION_ARCHETYPE_ROLE,

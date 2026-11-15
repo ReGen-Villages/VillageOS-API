@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { DetailSpecification } from '@villageos/tendril';
+import type { DetailSpecification } from '@tendril-ui/tendril';
 import { DetailEditor } from './DetailEditor';
 import { catchmentContext } from './testOffers';
 

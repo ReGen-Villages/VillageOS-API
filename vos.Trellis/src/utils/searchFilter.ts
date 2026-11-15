@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 export interface SearchOptions {
   caseSensitive: boolean;

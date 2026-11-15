@@ -1,9 +1,9 @@
 import { apiClient, ApiError } from './client';
-import { buildModelIndex, type ModelIndex } from '@villageos/tendril';
-import { BINDS_PREDICATE_NAME } from '@villageos/tendril';
-import { AWAITED_THING_ROLE_ID, CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@villageos/tendril';
+import { buildModelIndex, type ModelIndex } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { AWAITED_THING_ROLE_ID, CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../pipeline/model';
-import { IS_PREDICATE } from '@villageos/tendril';
+import { IS_PREDICATE } from '@tendril-ui/tendril';
 import type { SubscriptionSelector } from '../types/subscription';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';

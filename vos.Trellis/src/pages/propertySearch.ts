@@ -1,4 +1,4 @@
-import type { EffectiveProperty, VosRelationship } from '@villageos/tendril';
+import type { EffectiveProperty, VosRelationship } from '@tendril-ui/tendril';
 import { formatPropertyValue } from '../utils/formatters';
 import { relationshipLabel } from '../utils/relationshipLabel';
 

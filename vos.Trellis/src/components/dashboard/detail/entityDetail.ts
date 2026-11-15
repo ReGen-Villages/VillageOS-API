@@ -3,10 +3,10 @@
  * (useEntityDetail) fetches; these shape the results. Kept model-agnostic: predicate
  * names, archetypes, and property keys arrive via the {@link DetailSpec}, never hardcoded.
  */
-import type { ModelIndex } from '@villageos/tendril';
-import { effectiveProperties } from '@villageos/tendril';
-import type { RelationSpecification } from '@villageos/tendril';
-import type { StateTransition, VosThing } from '@villageos/tendril';
+import type { ModelIndex } from '@tendril-ui/tendril';
+import { effectiveProperties } from '@tendril-ui/tendril';
+import type { RelationSpecification } from '@tendril-ui/tendril';
+import type { StateTransition, VosThing } from '@tendril-ui/tendril';
 
 /** The one canonical predicate whose name is fixed by the platform (an archetype relationship). */
 const IS_PREDICATE = 'is';

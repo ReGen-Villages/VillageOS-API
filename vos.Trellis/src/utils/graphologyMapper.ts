@@ -1,6 +1,6 @@
 import Graph from 'graphology';
 import { storedTextOf } from './ifcIdentity';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import {
   ROLE_COLORS,
   INSTANCE_PALETTE,

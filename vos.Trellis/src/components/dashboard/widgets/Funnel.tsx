@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { FunnelWidget, TableColumn } from '@villageos/tendril';
-import type { ResolveContext, Row } from '@villageos/tendril';
-import { asNumber, asRows } from '@villageos/tendril';
-import { useBindings } from '@villageos/tendril';
+import type { FunnelWidget, TableColumn } from '@tendril-ui/tendril';
+import type { ResolveContext, Row } from '@tendril-ui/tendril';
+import { asNumber, asRows } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { DataTable } from './DataTable';
 import { formatNumber } from './format';

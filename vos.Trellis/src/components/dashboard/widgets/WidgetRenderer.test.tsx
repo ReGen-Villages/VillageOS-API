@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Widget } from '@villageos/tendril';
-import type { ResolveContext } from '@villageos/tendril';
+import type { Widget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 
-vi.mock('@villageos/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@villageos/tendril')>()),
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBinding: () => ({ loading: false, error: false, value: null }),
   useBindings: (bindings: unknown[]) => bindings.map(() => ({ loading: false, error: false, value: null })),
 }));

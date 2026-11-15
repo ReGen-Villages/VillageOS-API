@@ -1,6 +1,6 @@
-import type { NumberFormat, TableColumn } from '@villageos/tendril';
-import type { OriginKind } from '@villageos/tendril';
-import type { Row } from '@villageos/tendril';
+import type { NumberFormat, TableColumn } from '@tendril-ui/tendril';
+import type { OriginKind } from '@tendril-ui/tendril';
+import type { Row } from '@tendril-ui/tendril';
 import { numberIn } from '../../../i18n/numbers';
 
 export function formatNumber(value: number | null | undefined, fmt?: NumberFormat): string {

@@ -1,4 +1,4 @@
-import { BASE_LANGUAGE, primarySubtag } from '@villageos/tendril';
+import { BASE_LANGUAGE, primarySubtag } from '@tendril-ui/tendril';
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Binding } from '@villageos/tendril';
-import type { ResolveContext } from '@villageos/tendril';
+import type { Binding } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 import { breakdownOf, type FigureBreakdown } from '../api/figureBreakdown';
 
 /** What a figure is made of. Called from the panel a reader opened, so a page nobody has clicked

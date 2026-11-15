@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Binding, DashboardSpecification, Widget } from '@villageos/tendril';
+import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import { checkDesign, type DesignCheckContext, type DesignFindingCode } from './designFindings';
 
 /** A catchment: springs (flow, a long note) and reservoirs (capacity), springs feed reservoirs. */

@@ -5,10 +5,10 @@ import type {
   RangeDto,
   ThingRangesResponse,
   CriteriaComparisonDto,
-} from '@villageos/tendril';
-import type { Binding } from '@villageos/tendril';
-import type { ModelReads } from '@villageos/tendril';
-import type { StateNarrowing } from '@villageos/tendril';
+} from '@tendril-ui/tendril';
+import type { Binding } from '@tendril-ui/tendril';
+import type { ModelReads } from '@tendril-ui/tendril';
+import type { StateNarrowing } from '@tendril-ui/tendril';
 
 vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
@@ -32,8 +32,8 @@ import { temporalApi } from './temporalApi';
 // stub port here would prove nothing about what the running application asks the broker — and the
 // sharing a refresh generation does now belongs to this object rather than to the context.
 import { brokerModelReads } from './brokerModelReads';
-import { PAGE_ROLE_ID } from '@villageos/tendril';
-import { PROPERTY_NAME_ROLE } from '@villageos/tendril';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
+import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
 import {
   discoverDashboards,
   scopeEntities,
@@ -45,7 +45,7 @@ import {
   asNumber,
   type ResolveContext,
   type Row,
-} from '@villageos/tendril';
+} from '@tendril-ui/tendril';
 
 /** These fixtures are bare graphs, so stamp the declaration a real model carries the way
  *  `vos.SeedValidate --fix` does — on every Thing something `is`. A type with no members cannot be

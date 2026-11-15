@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import {
   applyThingPropertyUpdate,
   applyRelationshipPropertyUpdate,

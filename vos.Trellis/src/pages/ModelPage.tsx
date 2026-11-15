@@ -13,13 +13,13 @@ import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { toast } from '../components/common/toastStore';
 import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
-import type { VosThing } from '@villageos/tendril';
+import type { VosThing } from '@tendril-ui/tendril';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
 import { sceneVisibilityFor } from '../components/model/sceneVisibility';
 import { ifcGlobalIdOf } from '../utils/ifcIdentity';
 import { modelCentre } from '../utils/modelPosition';
 import { discoverBasemapSources } from '../api/basemapApi';
-import { modelIndexFor } from '@villageos/tendril';
+import { modelIndexFor } from '@tendril-ui/tendril';
 
 const BimFragmentsViewer = lazy(() =>
   import('../components/model/BimFragmentsViewer').then((m) => ({ default: m.BimFragmentsViewer })),

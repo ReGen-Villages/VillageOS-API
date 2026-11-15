@@ -1,5 +1,5 @@
-import type { VosThing, VosRelationship } from '@villageos/tendril';
-import { statedProperties } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.

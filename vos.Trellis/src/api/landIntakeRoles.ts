@@ -6,7 +6,7 @@
  * Thing it binds. Each identifier is the standard version 5 identifier of the role's word; the intake service
  * and the command line read the same ones.
  */
-import { PROPERTY_NAME_ROLE } from '@villageos/tendril';
+import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
 
 export const LAND_INTAKE_ROLE = {
   SiteStudy: 'e9036a23-21c1-5956-b0d8-a212e8ad8272',

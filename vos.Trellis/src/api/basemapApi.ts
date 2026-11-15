@@ -6,10 +6,10 @@
  * Which provider a deployment uses, and what its licence obliges the page to display, are answers the
  * model gives — no address or credit is written here.
  */
-import type { ModelIndex } from '@villageos/tendril';
-import { thingsOfArchetypeBoundBy } from '@villageos/tendril';
+import type { ModelIndex } from '@tendril-ui/tendril';
+import { thingsOfArchetypeBoundBy } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
-import { effectiveProperties } from '@villageos/tendril';
+import { effectiveProperties } from '@tendril-ui/tendril';
 import { basemapSourcesFrom, statedText } from '../utils/basemapSources';
 import {
   BASEMAP_ATTRIBUTION_PROPERTY,

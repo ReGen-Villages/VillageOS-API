@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { thingsContainedBy } from './containment';
-import { CONTAINMENT_ROLE_ID } from '@villageos/tendril';
-import { BINDS_PREDICATE_NAME } from '@villageos/tendril';
-import { IS_PREDICATE } from '@villageos/tendril';
-import type { VosRelationship, VosThing } from '@villageos/tendril';
+import { CONTAINMENT_ROLE_ID } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { IS_PREDICATE } from '@tendril-ui/tendril';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing {
   return { Id, Name, Properties } as VosThing;

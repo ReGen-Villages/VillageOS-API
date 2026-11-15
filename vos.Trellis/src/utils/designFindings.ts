@@ -1,4 +1,4 @@
-import type { Binding, DashboardSpecification, Widget } from '@villageos/tendril';
+import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';

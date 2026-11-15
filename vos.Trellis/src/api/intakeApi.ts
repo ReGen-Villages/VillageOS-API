@@ -1,8 +1,8 @@
 import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
-import type { DeclaredTheme } from '@villageos/tendril';
+import type { DeclaredTheme } from '@tendril-ui/tendril';
 import { basemapSourcesFrom } from '../utils/basemapSources';
-import type { TermWording } from '@villageos/tendril';
+import type { TermWording } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 import { refusalFrom } from './refusals';
 

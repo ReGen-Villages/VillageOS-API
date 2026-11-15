@@ -7,7 +7,7 @@ import type {
   RangeDto,
   CreateRangeRequest,
   CriteriaValidationResult,
-} from '@villageos/tendril';
+} from '@tendril-ui/tendril';
 
 export const rangeApi = {
   getSummary: (thingId: string) =>

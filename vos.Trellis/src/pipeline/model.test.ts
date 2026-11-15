@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';

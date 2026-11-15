@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildModelIndex } from '@villageos/tendril';
-import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { serviceEdgesOn, serviceCallsFrom } from './serviceHandling';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {

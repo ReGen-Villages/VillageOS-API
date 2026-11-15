@@ -1,7 +1,7 @@
 import { apiClient } from './client';
-import type { VosRelationship, EffectiveProperty } from '@villageos/tendril';
+import type { VosRelationship, EffectiveProperty } from '@tendril-ui/tendril';
 import type { VosTypeName } from '../utils/constants';
-import { unwrapRelationship } from '@villageos/tendril';
+import { unwrapRelationship } from '@tendril-ui/tendril';
 
 async function writeProperty(id: string, name: string, type: VosTypeName, value: unknown) {
   const relationship = await apiClient.action(`set property "${name}" on relationship ${id}`, () =>

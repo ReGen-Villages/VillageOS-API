@@ -10,7 +10,7 @@ import {
   type ModelIndex,
   type ModelReads,
   type ResolveContext,
-} from '@villageos/tendril';
+} from '@tendril-ui/tendril';
 import { useModelStore } from '../stores/modelStore';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { useUiStore } from '../stores/uiStore';

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { DashboardDescriptor } from '@villageos/tendril';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { DashboardDescriptor } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 vi.mock('../../api/dashboardPages', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/dashboardPages')>()),
@@ -10,8 +10,8 @@ vi.mock('../../api/dashboardPages', async (importOriginal) => ({
 }));
 
 import { dashboardPages } from '../../api/dashboardPages';
-import { buildModelIndex } from '@villageos/tendril';
-import { PAGE_ROLE_ID } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
 import { ComposedPageControls } from './ComposedPageControls';
 
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {

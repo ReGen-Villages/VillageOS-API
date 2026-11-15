@@ -21,7 +21,7 @@ import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/toastStore';
 import { relationshipLabel } from '../utils/relationshipLabel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import type { VosThing } from '@villageos/tendril';
+import type { VosThing } from '@tendril-ui/tendril';
 import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 import type { DeletableEntity } from './graphDeletions';

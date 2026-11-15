@@ -1,4 +1,4 @@
-import type { NumberFormat } from '@villageos/tendril';
+import type { NumberFormat } from '@tendril-ui/tendril';
 import { formatNumber } from './format';
 
 /**

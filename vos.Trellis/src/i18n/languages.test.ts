@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { BASE_LANGUAGE } from '@villageos/tendril';
+import { BASE_LANGUAGE } from '@tendril-ui/tendril';
 import {
   detectInitialLanguage,
   directionFor,

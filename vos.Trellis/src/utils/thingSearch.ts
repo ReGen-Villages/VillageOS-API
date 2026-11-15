@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
 /** Property keys excluded from the preview and own-property count. */

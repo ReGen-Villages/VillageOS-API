@@ -1,4 +1,4 @@
-import { SCOPE_REFERENCE, type Binding, type Widget } from '@villageos/tendril';
+import { SCOPE_REFERENCE, type Binding, type Widget } from '@tendril-ui/tendril';
 import { slotsOf } from './dashboardSubscription';
 
 /** Whether a binding has nothing to start from until one compared entity is selected. A `property`

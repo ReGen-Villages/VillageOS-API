@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { DetailSpecification, RelationSpecification } from '@villageos/tendril';
+import type { DetailSpecification, RelationSpecification } from '@tendril-ui/tendril';
 import { STEP_DIRECTIONS } from '../../utils/widgetSchema';
 import { kindReachedBy } from './designOffers';
 import type { BindingContext } from './bindingContext';

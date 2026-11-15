@@ -9,8 +9,8 @@ import {
   extractNumberDisplaySettings,
   NUMBER_DISPLAY_DEFAULTS,
 } from './guiSettings';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
-import { DISPLAY_SETTINGS_ROLE_ID } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID } from '@tendril-ui/tendril';
 
 let idCounter = 0;
 function uniqueId() {

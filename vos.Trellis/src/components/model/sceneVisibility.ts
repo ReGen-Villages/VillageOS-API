@@ -6,7 +6,7 @@
 // covers a fraction of the scene, and cannot express "show nothing" at all —
 // which is why unchecking every type once left the model on screen.
 
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { applyTypeFilter } from '../../utils/typeFilter';
 import { ifcGlobalIdOf } from '../../utils/ifcIdentity';
 

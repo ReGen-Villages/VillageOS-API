@@ -7,7 +7,7 @@ import {
   type Row,
   type TableWidget,
   type Widget,
-} from '@villageos/tendril';
+} from '@tendril-ui/tendril';
 import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
 import { widgetNeedsOneEntity } from '../../../api/selectedEntity';
 import { KpiCard } from './KpiCard';

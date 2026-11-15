@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { breakdownTable } from './breakdownTable';
-import type { Row } from '@villageos/tendril';
+import type { Row } from '@tendril-ui/tendril';
 
 function keys(rows: Row[], measure: string | null = null): string[] {
   return breakdownTable(rows, measure, 'Name').columns.map((c) => c.key);

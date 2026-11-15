@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import type { DashboardSpecification } from '@villageos/tendril';
+import type { DashboardSpecification } from '@tendril-ui/tendril';
 import { displayStringsOf } from '../../api/dashboardLocalization';
-import { BASE_LANGUAGE, primarySubtag } from '@villageos/tendril';
+import { BASE_LANGUAGE, primarySubtag } from '@tendril-ui/tendril';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useWrittenWhenLeft } from '../../hooks/useWrittenWhenLeft';
 

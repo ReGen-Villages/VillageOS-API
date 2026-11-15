@@ -38,8 +38,8 @@ import type {
   ActionWidget,
   AskedValue,
   FormWidget,
-} from '@villageos/tendril';
-import { primarySubtag } from '@villageos/tendril';
+} from '@tendril-ui/tendril';
+import { primarySubtag } from '@tendril-ui/tendril';
 
 export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 

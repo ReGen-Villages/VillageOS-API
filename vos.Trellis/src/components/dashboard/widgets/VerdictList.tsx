@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { VerdictCandidate, VerdictRow, VerdictWidget } from '@villageos/tendril';
-import { wordsInLanguage } from '@villageos/tendril';
-import type { Lever, ResolveContext, Row } from '@villageos/tendril';
-import { asRows, nullableNumber } from '@villageos/tendril';
-import { useBindings } from '@villageos/tendril';
+import type { VerdictCandidate, VerdictRow, VerdictWidget } from '@tendril-ui/tendril';
+import { wordsInLanguage } from '@tendril-ui/tendril';
+import type { Lever, ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows, nullableNumber } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { verdictSentence } from './verdictSentence';
 

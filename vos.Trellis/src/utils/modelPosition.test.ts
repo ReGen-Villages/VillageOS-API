@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { VosThing } from '@villageos/tendril';
+import type { VosThing } from '@tendril-ui/tendril';
 import { modelCentre } from './modelPosition';
 
 function thing(Id: string, Properties: Record<string, unknown>): VosThing {

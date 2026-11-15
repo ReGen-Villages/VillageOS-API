@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { relationshipApi } from '../api/relationshipApi';
-import type { EffectiveProperty } from '@villageos/tendril';
+import type { EffectiveProperty } from '@tendril-ui/tendril';
 
 /**
  * A relationship's properties as the platform resolves them — own and inherited together, each

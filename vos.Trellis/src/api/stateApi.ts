@@ -3,8 +3,8 @@ import type {
   ThingsInStateResponse,
   StateTransitionsResponse,
   StateOccurrencesResponse,
-} from '@villageos/tendril';
-import { thingsInStatePath, type StateNarrowing } from '@villageos/tendril';
+} from '@tendril-ui/tendril';
+import { thingsInStatePath, type StateNarrowing } from '@tendril-ui/tendril';
 
 function withWindow(path: string, from?: string, to?: string): string {
   const query = new URLSearchParams();

@@ -1,10 +1,10 @@
 import { thingApi } from './thingApi';
 import { relationshipApi } from './relationshipApi';
 import { modelApi } from './modelApi';
-import { parseSpecification, thingIdBoundBy, type ModelIndex } from '@villageos/tendril';
-import { PAGE_ROLE_ID } from '@villageos/tendril';
-import type { VosRelationship } from '@villageos/tendril';
-import { DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '@villageos/tendril';
+import { parseSpecification, thingIdBoundBy, type ModelIndex } from '@tendril-ui/tendril';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
+import type { VosRelationship } from '@tendril-ui/tendril';
+import { DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
 /**

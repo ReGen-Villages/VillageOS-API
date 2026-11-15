@@ -9,10 +9,10 @@ vi.mock('../../../api/thingApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
-import type { VosRelationship, VosThing } from '@villageos/tendril';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { useDecisionExplanations } from './useDecisionExplanations';
 import { decisionsOn, instantReadKey } from './decisionExplanation';
 

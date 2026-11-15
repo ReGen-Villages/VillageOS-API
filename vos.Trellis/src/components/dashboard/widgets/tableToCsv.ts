@@ -1,5 +1,5 @@
-import type { TableColumn } from '@villageos/tendril';
-import type { Row } from '@villageos/tendril';
+import type { TableColumn } from '@tendril-ui/tendril';
+import type { Row } from '@tendril-ui/tendril';
 
 /** The rows a table shows, as comma-separated text a spreadsheet opens.
  *

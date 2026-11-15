@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildModelIndex } from '@villageos/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
-import type { VosRelationship, VosThing } from '@villageos/tendril';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
   comparisonsOf,
   decisionsOn,

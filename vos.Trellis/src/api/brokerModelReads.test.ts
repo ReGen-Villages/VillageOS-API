@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ThingRangesResponse, ThingsInStateResponse } from '@villageos/tendril';
+import type { ThingRangesResponse, ThingsInStateResponse } from '@tendril-ui/tendril';
 
 // Only the calls are stubbed. The request builder these share by lives in stateQuery and is left
 // alone: the shared-request key is the path a narrowed read asks for, so a stubbed builder would

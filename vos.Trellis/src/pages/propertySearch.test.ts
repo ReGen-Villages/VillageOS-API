@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { searchProperties } from './propertySearch';
-import type { EffectiveProperty, VosRelationship } from '@villageos/tendril';
+import type { EffectiveProperty, VosRelationship } from '@tendril-ui/tendril';
 
 const effectiveProperty = (value: unknown, isInherited: boolean, inheritedFrom?: string): EffectiveProperty => ({
   Value: value,

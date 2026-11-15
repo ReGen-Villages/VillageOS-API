@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { Binding, StackedSharesWidget } from '@villageos/tendril';
-import type { BindingResult, ResolveContext } from '@villageos/tendril';
+import type { Binding, StackedSharesWidget } from '@tendril-ui/tendril';
+import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
 const values = new Map<string, BindingResult>();
 
-vi.mock('@villageos/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@villageos/tendril')>()),
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBindings: (bindings: (Binding | undefined)[]) =>
     bindings.map((binding) => ({
       loading: false,

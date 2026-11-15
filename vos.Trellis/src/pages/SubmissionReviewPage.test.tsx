@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import type { EffectiveProperty, VosRelationship, VosThing } from '@villageos/tendril';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
   COLD_STORAGE_PERIOD_PROPERTY,
   DISPOSITION_ARCHETYPE_ROLE,

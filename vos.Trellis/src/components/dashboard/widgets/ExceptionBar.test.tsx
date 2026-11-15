@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Binding, ExceptionBucket, ExceptionWidget } from '@villageos/tendril';
-import type { ResolveContext } from '@villageos/tendril';
+import type { Binding, ExceptionBucket, ExceptionWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 
 const counts = new Map<string, number>();
 
-vi.mock('@villageos/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@villageos/tendril')>()),
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBindings: (bindings: Binding[]) =>
     bindings.map((binding) => ({ loading: false, error: false, value: counts.get(JSON.stringify(binding)) ?? null })),
 }));

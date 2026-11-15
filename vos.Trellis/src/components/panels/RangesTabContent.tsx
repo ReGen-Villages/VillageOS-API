@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ThingRangesResponse, ThingStates, RangeDto, RangeEvaluation, InheritedRangeSetDto, PropertyBindingDto } from '@villageos/tendril';
+import type { ThingRangesResponse, ThingStates, RangeDto, RangeEvaluation, InheritedRangeSetDto, PropertyBindingDto } from '@tendril-ui/tendril';
 import { Badge } from '../common/Badge';
 import { WindmillSpinner } from '../common/WindmillSpinner';
-import { stateColor, rangeBindingColor } from '@villageos/tendril';
+import { stateColor, rangeBindingColor } from '@tendril-ui/tendril';
 import { rangeApi } from '../../api/rangeApi';
 import { toast } from '../common/toastStore';
 import { Trash2, Plus, Check, X } from 'lucide-react';

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { subscriptionForSpecification } from '../../src/api/dashboardSubscription';
-import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type VosThing } from '@villageos/tendril';
+import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type VosThing } from '@tendril-ui/tendril';
 import type { SubscriptionSelector } from '../../src/types/subscription';
 
 // A dashboard now says what it is about and the platform answers with that and no more, which is

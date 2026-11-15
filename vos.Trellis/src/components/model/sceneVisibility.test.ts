@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sceneVisibilityFor, hiddenSceneItemsFor, type SceneVisibility } from './sceneVisibility';
 import { NO_TYPE_ID } from '../../utils/typeFilter';
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 function thing(id: string, name: string, ifcGlobalId?: string): VosThing {
   return { Id: id, Name: name, Properties: ifcGlobalId ? { ifcGlobalId } : {} };

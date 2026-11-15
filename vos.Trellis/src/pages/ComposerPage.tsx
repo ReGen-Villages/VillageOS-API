@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import type { ComposedColumn, Composition, PropertyFilter } from '@villageos/tendril';
+import type { ComposedColumn, Composition, PropertyFilter } from '@tendril-ui/tendril';
 import { WHOLE_MODEL } from '../types/subscription';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { dashboardPages, dashboardWriteContext } from '../api/dashboardPages';

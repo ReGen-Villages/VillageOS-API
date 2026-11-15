@@ -1,4 +1,4 @@
-import type { VosThing } from '@villageos/tendril';
+import type { VosThing } from '@tendril-ui/tendril';
 
 export interface Position {
   latitude: number;

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PropertyModeConfiguration } from '@villageos/tendril';
+import type { PropertyModeConfiguration } from '@tendril-ui/tendril';
 
 export const configurationApi = {
   getDefaultPropertyMode: () =>

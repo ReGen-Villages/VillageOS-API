@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINDING_FIELDS, unimplementedWordsIn } from './bindingVocabulary';
-import type { Widget } from '@villageos/tendril';
+import type { Widget } from '@tendril-ui/tendril';
 
 const VOCABULARY = join(dirname(fileURLToPath(import.meta.url)), '../../../vos.Tendril/src/types/dashboard.ts');
 

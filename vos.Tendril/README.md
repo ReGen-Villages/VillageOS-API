@@ -46,8 +46,9 @@ offers. An application registers the namespace at start-up and can override any 
 ## Versions and where it is published
 
 Versions are semantic. While the version starts with `0.`, a minor version may still change a
-declaration. Tendril is published to the ReGenVillages organization's private package feed;
-installing it needs a read-only token for that feed.
+declaration. Tendril is published as `@tendril-ui/tendril` to the ReGenVillages organization's
+private package feed; installing it needs a read-only token for that feed, and an npm configuration
+that sends the `@tendril-ui` scope to it.
 
 ## Licence
 

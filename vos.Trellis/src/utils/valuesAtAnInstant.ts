@@ -1,4 +1,4 @@
-import type { InheritedPropertySetAtAnInstant, ValuesAtAnInstant } from '@villageos/tendril';
+import type { InheritedPropertySetAtAnInstant, ValuesAtAnInstant } from '@tendril-ui/tendril';
 
 /**
  * Every value an object held at an instant, flat, keyed the way the resolved-properties read keys

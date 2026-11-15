@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '@villageos/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 /** Return a new VosThing with one property merged/overwritten. */
 export function applyThingPropertyUpdate(

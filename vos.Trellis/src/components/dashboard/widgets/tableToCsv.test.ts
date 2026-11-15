@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TableColumn } from '@villageos/tendril';
+import type { TableColumn } from '@tendril-ui/tendril';
 import { csvFileName, tableToCsv } from './tableToCsv';
 
 const columns: TableColumn[] = [

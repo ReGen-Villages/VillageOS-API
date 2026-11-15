@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { DashboardSpecification, Widget } from '@villageos/tendril';
+import type { DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import type { DesignSelection } from '../../utils/designEdits';
 import { DesignPropertiesPanel } from './DesignPropertiesPanel';
 import { catchmentContext } from './testOffers';

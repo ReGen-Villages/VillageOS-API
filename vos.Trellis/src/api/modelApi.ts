@@ -1,6 +1,6 @@
 import { apiClient } from './client';
-import { unwrapProperties } from '@villageos/tendril';
-import type { TemporalSnapshot, VosThing } from '@villageos/tendril';
+import { unwrapProperties } from '@tendril-ui/tendril';
+import type { TemporalSnapshot, VosThing } from '@tendril-ui/tendril';
 
 /** The project model a promotion carried the group into. Promoting the same group twice answers with
  *  the same model, because the server derives its identifier rather than generating one. */

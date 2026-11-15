@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { DISPLAY_SETTINGS_ROLE_ID } from '@villageos/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID } from '@tendril-ui/tendril';
 
 const mockGetAllThings = vi.fn();
 const mockGetAllRelationships = vi.fn();
