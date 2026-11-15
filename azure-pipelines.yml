@@ -304,6 +304,36 @@ jobs:
   # every problem rather than one per push. They sit ahead of the wiki publish, whose succeeded()
   # condition then stops a red GUI from being published.
   - script: npm ci
+    displayName: 'Install Tendril dependencies'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run lint
+    displayName: 'Lint Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run typecheck
+    displayName: 'Type-check Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run test -- --coverage --testTimeout=30000 --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/tendril-junit.xml
+    displayName: 'Test Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - task: PublishTestResults@2
+    displayName: 'Publish Tendril Test Results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(testResultsDirectory)/tendril-junit.xml'
+      testRunTitle: 'Tendril'
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+    condition: always()
+
+  - script: npm ci
     displayName: 'Install Trellis dependencies'
     workingDirectory: vos.Trellis
     condition: always()
@@ -344,6 +374,7 @@ jobs:
       summaryFileLocation: |
         $(testResultsDirectory)/**/coverage.cobertura.xml
         $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
+        $(Build.SourcesDirectory)/vos.Tendril/coverage/cobertura-coverage.xml
     condition: succeededOrFailed()
 
   # Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this

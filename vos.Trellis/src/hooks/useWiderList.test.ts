@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { CoveredObjects } from '../types/subscription';
-import type { VosRelationship, VosThing } from '../types/vos';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 
 const handlers = new Map<string, (data: unknown) => void>();
 vi.mock('./useSse', () => ({

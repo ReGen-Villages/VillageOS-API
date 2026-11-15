@@ -38,8 +38,8 @@ import type {
   ActionWidget,
   AskedValue,
   FormWidget,
-} from '../types/dashboard';
-import { primarySubtag } from '../i18n/languages';
+} from '@tendril-ui/tendril';
+import { primarySubtag } from '@tendril-ui/tendril';
 
 export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 

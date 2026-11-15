@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import {
   buildThingSearchIndex,
   scoreThingMatch,

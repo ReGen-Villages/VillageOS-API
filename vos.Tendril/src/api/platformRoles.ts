@@ -1,5 +1,7 @@
 import type { VosRelationship, VosThing } from '../types/vos';
-import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
+
+/** The platform's own predicate a role Thing reaches the Thing playing it along, and so found by name. */
+export const BINDS_PREDICATE_NAME = 'binds';
 
 /** The platform's roles the console reads a model's pages and display settings through. Each identifier is
  *  the standard version 5 identifier of the role's word, so every model declares the same role Thing, and the

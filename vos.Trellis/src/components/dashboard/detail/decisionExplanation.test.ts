@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildModelIndex } from '../../../api/dashboardApi';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
-import type { VosRelationship, VosThing } from '../../../types/vos';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
   comparisonsOf,
   decisionsOn,

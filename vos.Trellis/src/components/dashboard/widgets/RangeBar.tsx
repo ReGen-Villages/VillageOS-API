@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { RangeBarWidget, RangeSeries } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { asNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { RangeBarWidget, RangeSeries } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
+import { asNumber } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';

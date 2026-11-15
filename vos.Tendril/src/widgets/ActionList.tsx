@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import type { ActionChoice, ActionWidget } from '../../../types/dashboard';
-import { asRows, type ResolveContext, type Row } from '../../../api/dashboardApi';
-import { postToEndpoint } from '../../../api/dashboardWrites';
-import { useBindings } from '../../../hooks/useDashboard';
-import { useAskedOptions } from '../../../hooks/useAskedOptions';
-import { WidgetCard } from './WidgetCard';
+import type { ActionChoice, ActionWidget } from '../types/dashboard';
+import { asRows, type ResolveContext, type Row } from '../api/dashboardApi';
+import { postToEndpoint } from '../api/dashboardWrites';
+import { useBindings } from '../hooks/useBinding';
+import { useAskedOptions } from '../hooks/useAskedOptions';
 import { AskedFields } from './AskedFields';
 import { actionRequest, complete, nameOf, type Entered } from './writeRequest';
 
@@ -49,7 +48,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
   }
 
   return (
-    <WidgetCard title={widget.title} hint={widget.hint}>
+    <>
       {refusal && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{refusal}</p>}
       <div className="mt-2 flex flex-col gap-3">
         {rows.map((row) => {
@@ -97,6 +96,6 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
           );
         })}
       </div>
-    </WidgetCard>
+    </>
   );
 }

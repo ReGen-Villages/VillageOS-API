@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { VerdictCandidate, VerdictRow, VerdictWidget } from '../../../types/dashboard';
-import { wordsInLanguage } from '../../../i18n/termWording';
-import type { Lever, ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows, nullableNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { VerdictCandidate, VerdictRow, VerdictWidget } from '@tendril-ui/tendril';
+import { wordsInLanguage } from '@tendril-ui/tendril';
+import type { Lever, ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows, nullableNumber } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { verdictSentence } from './verdictSentence';
 

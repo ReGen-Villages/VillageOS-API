@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Copy, Trash2, Pencil } from 'lucide-react';
-import type { VosRelationship, VosThing, ThingRangesResponse, ThingStates } from '../../types/vos';
+import type { VosRelationship, VosThing, ThingRangesResponse, ThingStates } from '@tendril-ui/tendril';
 import { formatGuid } from '../../utils/formatters';
 import { relationshipLabel } from '../../utils/relationshipLabel';
 import { toast } from '../common/toastStore';

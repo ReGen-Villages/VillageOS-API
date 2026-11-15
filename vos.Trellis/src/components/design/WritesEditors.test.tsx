@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { ActionRecords, AskedValue, FormWidget } from '../../types/dashboard';
+import type { ActionRecords, AskedValue, FormWidget } from '@tendril-ui/tendril';
 import { ActionWritesEditor, AskedEditor, FormWritesEditor, PreviewEditor } from './WritesEditors';
 import { catchmentContext } from './testOffers';
 

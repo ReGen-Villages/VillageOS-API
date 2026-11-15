@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { ALLOCATION_CATEGORY_ROLE, boundBy, termsBound, type ModelReading } from './modelVocabulary';
 
 // Every name here is spelled differently from the shipped land-intake template, so a reader answering

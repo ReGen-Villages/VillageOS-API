@@ -1,6 +1,6 @@
-import type { GanttWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { useBinding } from '../../../hooks/useDashboard';
+import type { GanttWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
+import { useBinding } from '@tendril-ui/tendril';
 import { useTranslation } from 'react-i18next';
 import { WidgetCard } from './WidgetCard';
 

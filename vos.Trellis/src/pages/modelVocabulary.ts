@@ -8,9 +8,10 @@
  * offered it without a line changing here.
  */
 
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
-import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
-import { wordingIn, type TermWording } from '../i18n/termWording';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import { wordingIn, type TermWording } from '@tendril-ui/tendril';
 
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
  *  under whichever archetype this role binds. */

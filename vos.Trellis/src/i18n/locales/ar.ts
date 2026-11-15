@@ -394,7 +394,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     signIn: 'تسجيل الدخول',
   },
   widgets: {
-    stateCountMissing: "تعذّرت قراءة عدد الأشياء في «{{state}}».",
     chooseOneEntity: "يُعرض لخيار واحد من «{{label}}» في كل مرة: اختر واحدًا في الأعلى.",
     funnel: {
       rows: "الصفوف",

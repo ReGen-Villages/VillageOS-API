@@ -1,5 +1,5 @@
-import type { Binding, NumberFormat, Widget } from '../types/dashboard';
-import type { HistoryFold, HistoryFunction } from '../types/vos';
+import type { Binding, NumberFormat, Widget } from '@tendril-ui/tendril';
+import type { HistoryFold, HistoryFunction } from '@tendril-ui/tendril';
 import { en } from '../i18n/locales/en';
 
 /**

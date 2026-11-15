@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { RetypeRow } from './RetypeRow';
-import type { VosThing } from '../../types/vos';
+import type { VosThing } from '@tendril-ui/tendril';
 
 vi.mock('../common/toastStore', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 

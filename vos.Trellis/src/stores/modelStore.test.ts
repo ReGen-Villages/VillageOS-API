@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useModelStore, useThingStates } from './modelStore';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const thing = (id: string, name: string) => ({
   Id: id, Name: name, Properties: {}, InheritedOverrides: {},

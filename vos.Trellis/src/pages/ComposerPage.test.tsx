@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 vi.mock('../hooks/useSse', () => ({
   useSse: () => ({ connection: 'live', on: () => () => {} }),
@@ -19,7 +19,7 @@ import { stateApi } from '../api/stateApi';
 import { rangeApi } from '../api/rangeApi';
 import { modelApi } from '../api/modelApi';
 import { useModelStore } from '../stores/modelStore';
-import { PAGE_ROLE_ID } from '../api/platformRoles';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
 import { ComposerPage } from './ComposerPage';
 
 function t(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {

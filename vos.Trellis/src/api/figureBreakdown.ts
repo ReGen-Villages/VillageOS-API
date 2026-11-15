@@ -10,7 +10,7 @@
  * Nothing here names a domain. The words in {@link FigureTerms} are the model's own and reach the
  * reader untranslated, exactly as state names, archetypes and property keys do everywhere else.
  */
-import { SCOPE_REFERENCE, type Binding, type PropertyFilter } from '../types/dashboard';
+import { SCOPE_REFERENCE, type Binding, type PropertyFilter } from '@tendril-ui/tendril';
 import {
   type ResolveContext,
   type Row,
@@ -24,7 +24,7 @@ import {
   resolveBinding,
   rowOfThing,
   thingsOfArchetype,
-} from './dashboardApi';
+} from '@tendril-ui/tendril';
 
 /** How the rows became the figure. `read` is the one that reduces nothing: the figure is a value a
  *  Thing already carries, and the row behind it is that Thing. */

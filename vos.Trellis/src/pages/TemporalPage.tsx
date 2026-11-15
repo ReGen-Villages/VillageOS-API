@@ -6,7 +6,7 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { toast } from '../components/common/toastStore';
 import { ImageryTimeline } from '../components/assets/ImageryTimeline';
-import type { ModelMutations, MutationDto, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
+import type { ModelMutations, MutationDto, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '@tendril-ui/tendril';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { relationshipLabel } from '../utils/relationshipLabel';

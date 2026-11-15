@@ -1,4 +1,4 @@
-import type { Binding, Widget } from '../types/dashboard';
+import type { Binding, Widget } from '@tendril-ui/tendril';
 
 /**
  * The rows a widget draws, and the kind those rows are. Two things want the answer — the panel that

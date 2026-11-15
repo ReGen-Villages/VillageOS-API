@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { TypeFilterPanel } from './TypeFilterPanel';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { stubScreenWidth } from '../../testScreenWidth';
 
 /** The same layout guard as PredicateFilterPanel.test.tsx: both panels share the filter-cluster layout. */

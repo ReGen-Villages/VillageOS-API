@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Binding, ExceptionBucket, ExceptionWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
+import type { Binding, ExceptionBucket, ExceptionWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 
 const counts = new Map<string, number>();
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBindings: (bindings: Binding[]) =>
     bindings.map((binding) => ({ loading: false, error: false, value: counts.get(JSON.stringify(binding)) ?? null })),
 }));

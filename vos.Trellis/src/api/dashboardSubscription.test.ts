@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
-import type { DashboardSpecification } from '../types/dashboard';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
-import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from './landIntakeRoles';
-import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
+import type { DashboardSpecification } from '@tendril-ui/tendril';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@tendril-ui/tendril';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 

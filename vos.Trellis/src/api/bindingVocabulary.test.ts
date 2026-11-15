@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINDING_FIELDS, unimplementedWordsIn } from './bindingVocabulary';
-import type { Widget } from '../types/dashboard';
+import type { Widget } from '@tendril-ui/tendril';
 
-const VOCABULARY = join(dirname(fileURLToPath(import.meta.url)), '..', 'types', 'dashboard.ts');
+const VOCABULARY = join(dirname(fileURLToPath(import.meta.url)), '../../../vos.Tendril/src/types/dashboard.ts');
 
 function tileShowing(value: unknown): Widget {
   return { type: 'kpi', title: 'a figure', value } as Widget;

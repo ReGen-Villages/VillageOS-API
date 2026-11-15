@@ -1,6 +1,6 @@
 import type { AskedValue } from '../types/dashboard';
 import { asRows, type ResolveContext, type Row } from '../api/dashboardApi';
-import { useBindings } from './useDashboard';
+import { useBindings } from './useBinding';
 
 /** The Things each choice field offers, read once for the widget that asks — a list of rows each
  *  asking for the same reader would otherwise read the roster once per row. A field that chooses

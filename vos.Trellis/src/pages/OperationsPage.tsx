@@ -2,7 +2,7 @@
  * Generic, configuration-driven operations dashboard.
  *
  * Contains NO domain vocabulary. It discovers a model-resident `Dashboard`
- * configuration Thing (see src/types/dashboard.ts), renders its sections of generic
+ * configuration Thing (see vos.Tendril/src/types/dashboard.ts), renders its sections of generic
  * widgets, and resolves every widget's bindings through the generic resolver.
  * A model with no Dashboard configuration shows guidance instead.
  */
@@ -14,7 +14,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { useIsWide } from '../hooks/useIsWide';
-import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
+import { scopeEntities as computeScopeEntities } from '@tendril-ui/tendril';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from '../api/dashboardSubscription';
 import { localizeSpecification } from '../api/dashboardLocalization';

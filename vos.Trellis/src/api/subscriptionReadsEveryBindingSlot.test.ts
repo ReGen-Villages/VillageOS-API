@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
  */
 
 const API_DIRECTORY = dirname(fileURLToPath(import.meta.url));
-const VOCABULARY = join(API_DIRECTORY, '..', 'types', 'dashboard.ts');
+const VOCABULARY = join(API_DIRECTORY, '../../../vos.Tendril/src/types/dashboard.ts');
 const COLLECTOR = join(API_DIRECTORY, 'dashboardSubscription.ts');
 
 const INTERFACE = /export interface (\w+)\s*\{([\s\S]*?)\n\}/g;
