@@ -4,6 +4,7 @@ import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { FragmentsModels as BimFragmentsModels, type FragmentsModel as BimFragmentsModel } from '@thatopen/fragments';
+import { startBimFragments } from './bimFragmentsWorker';
 import { LoadingOverlay, type LoadingStage } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
@@ -202,10 +203,7 @@ function BimFragmentsScene({
 
     (async () => {
       onProgress('fetchingWorker', 0.05);
-      const workerURL = await BimFragmentsModels.getWorker();
-      if (cancelled) return;
-
-      const bimFragments = new BimFragmentsModels(workerURL);
+      const bimFragments = startBimFragments();
       bimFragmentsReference.current = bimFragments;
 
       const loaded = await bimFragments.load(bytes, {
