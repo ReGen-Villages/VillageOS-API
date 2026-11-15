@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Phloem.Model;
+using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Execution;
 
@@ -41,8 +42,10 @@ public interface IMyceliumGateway
     // A run another run's end started reaches that run along the predicate the startingRun role binds, and a run a
     // person started again reaches the run it repeats along the predicate the repeatedRun role binds.
     // A refused run is written finished with its refusal, so a run nobody awaits still says in the model why it never ran.
+    // A run a state entry started is held even when refused, so a restart can still send its report.
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null);
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null,
+        Guid? callRecordId = null);
 
     // Upsert a NodeRun Thing and set its status — running before its service is called, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
@@ -66,7 +69,14 @@ public interface IMyceliumGateway
 
     // The reason travels with a failure, so a run started by a state entry — one nobody awaits — still
     // says in the model why it failed.
-    Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null);
+    // A finished run that still owes its call record a report stays held, so a restart sends that report again.
+    Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null, bool heldUntilReported = false);
+
+    Task ReleaseRunAsync(Guid runId, CancellationToken cancellationToken);
+
+    Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken cancellationToken);
 
     // Store the pipeline's published result (the Output boundary node's collected inputs) on the
     // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.

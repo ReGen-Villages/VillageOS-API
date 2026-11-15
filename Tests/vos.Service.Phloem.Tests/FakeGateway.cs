@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
+using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Tests;
 
@@ -84,12 +85,13 @@ internal sealed class FakeGateway : IMyceliumGateway
     public bool RunCreationStarted { get; private set; }
 
     public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
-        string? refusal = null, bool rehearsal = false, Guid? repeats = null)
+        string? refusal = null, bool rehearsal = false, Guid? repeats = null, Guid? callRecordId = null)
     {
         RunCreationStarted = true;
         await RunCreationHeldUntil;
         if (RunCreationFailure is not null) throw RunCreationFailure;
         if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
+        if (callRecordId is { } callRecord) lock (_model) CallRecordsOfRuns[runId] = callRecord;
         lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy, repeats));
         if (refusal is not null)
         {
@@ -249,7 +251,7 @@ internal sealed class FakeGateway : IMyceliumGateway
             Guid? repeatedBy;
             lock (RunsCreated) repeatedBy = RunsCreated.Where(created => created.Repeats == runId).Select(created => (Guid?)created.RunId).FirstOrDefault();
             return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running),
-                repeatedBy));
+                repeatedBy, CallRecordsOfRuns.TryGetValue(runId, out var callRecord) ? callRecord : null));
         }
     }
 
@@ -350,15 +352,47 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public string? RunError { get; private set; }
 
-    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null)
+    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null, bool heldUntilReported = false)
     {
         StatusUpdates.Add(status);
         if (error != null) RunError = error;
-        lock (_model) RunStatuses[runId] = status;
+        lock (_model)
+        {
+            RunStatuses[runId] = status;
+            if (RunStatus.IsFinished(status) && heldUntilReported) HeldUntilReported.Add(runId);
+        }
         return Task.CompletedTask;
     }
 
     public Dictionary<Guid, string> RunStatuses { get; } = new();
+
+    public Dictionary<Guid, Guid> CallRecordsOfRuns { get; } = new();
+    public HashSet<Guid> HeldUntilReported { get; } = new();
+    public List<Guid> Released { get; } = new();
+
+    public Task ReleaseRunAsync(Guid runId, CancellationToken ct)
+    {
+        lock (Released) Released.Add(runId);
+        return Task.CompletedTask;
+    }
+
+    public List<(Guid CallRecordId, CallReport Report)> ReportsSent { get; } = new();
+    public Func<Guid, CallReport, Task> OnReport { get; set; } = (_, _) => Task.CompletedTask;
+
+    public async Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken ct = default)
+    {
+        lock (ReportsSent) ReportsSent.Add((callRecordId, report));
+        await OnReport(callRecordId, report);
+    }
+
+    public List<(Guid CallRecordId, CallReport Report)> ReportsSentSoFar()
+    {
+        lock (ReportsSent) return ReportsSent.ToList();
+    }
+
+    public List<OwedReport> Owed { get; } = new();
+
+    public Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<OwedReport>>(Owed.ToList());
 
     public string? RunStatusOf(Guid runId)
     {

@@ -23,6 +23,7 @@ public sealed class PipelineExecutor
     private readonly int _maxConcurrency;
     private readonly ModelClock _clock;
     private readonly RunTurns _turns = new();
+    private readonly CallReporter _reports;
     // A stop asked for a run whose sweep is under way here, read between its steps and by a pause between attempts.
     // Held only while the sweep or the stop that set it is working, so nothing outlives a run.
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource<StopRequested>> _stops = new();
@@ -37,6 +38,7 @@ public sealed class PipelineExecutor
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
         _clock = clock;
+        _reports = new CallReporter(gateway, logger);
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
@@ -46,7 +48,7 @@ public sealed class PipelineExecutor
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
-        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false)
+        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false, Guid? callRecordId = null)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
@@ -56,17 +58,28 @@ public sealed class PipelineExecutor
         var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, new Start(runParams, rehearsal));
         try
         {
-            await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal);
+            await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal,
+                callRecordId: callRecordId);
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogError(error, "Run {RunId} of pipeline {PipelineId} could not be recorded, so it does not start", rid, pipelineId);
+            Report(rid, callRecordId, RunStatus.Failed, refusal ?? error.Message);
             return PipelineRunResult.Failed(rid, pipelineId, refusal ?? error.Message);
         }
+        Report(rid, callRecordId, dag is null ? RunStatus.Refused : RunStatus.Running, refusal);
         if (dag is null) return PipelineRunResult.Failed(rid, pipelineId, refusal!);
 
-        return await SweepAsync(rid, dag, runParams, new Progress(_clock), rehearsal, cancellationToken);
+        return await SweepAsync(rid, dag, runParams, new Progress(_clock), rehearsal, callRecordId, cancellationToken);
     }
+
+    private void Report(Guid runId, Guid? callRecordId, string status, string? error)
+    {
+        if (callRecordId is { } callRecord)
+            _ = _reports.SendAsync(runId, callRecord, CallReporter.ReportFor(status, error));
+    }
+
+    public Task<int> SendOwedReportsAsync(CancellationToken cancellationToken) => _reports.SendOwedAsync(cancellationToken);
 
     public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
         _gateway.IsStopAsync(relationshipId, cancellationToken);
@@ -110,8 +123,10 @@ public sealed class PipelineExecutor
             await PersistStatusAsync(record.RunId, new NodeRunResult(nodeId, name, RunStatus.Cancelled, NoOutputs, request.Reason), cancellationToken,
                 recorded?.Watching);
         }
-        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Cancelled, cancellationToken, request.Reason), "set run stopped");
+        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Cancelled, cancellationToken, request.Reason,
+            heldUntilReported: record.CallRecordId is not null), "set run stopped");
         await BestEffort(() => _gateway.RelateStoppedByAsync(record.RunId, request.RequestId, cancellationToken), "relate the stop");
+        Report(record.RunId, record.CallRecordId, RunStatus.Cancelled, request.Reason);
     }
 
     private static TaskCompletionSource<StopRequested> NewStop() => new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -134,14 +149,14 @@ public sealed class PipelineExecutor
         var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
         if (dag is null)
         {
-            await FailRunAsync(record.RunId, record.PipelineId, refusal!, cancellationToken);
+            await FailRunAsync(record,refusal!, cancellationToken);
             return ResumeOutcome.Resumed;
         }
 
         var (progress, cannotResume) = ProgressFrom(dag, record, "resume");
         if (cannotResume is not null)
         {
-            await FailRunAsync(record.RunId, record.PipelineId, cannotResume, cancellationToken);
+            await FailRunAsync(record,cannotResume, cancellationToken);
             return ResumeOutcome.Resumed;
         }
 
@@ -160,12 +175,12 @@ public sealed class PipelineExecutor
                 outputs: resumed.Outputs, watch: watch), "fail the wait");
             if (!carriedOn && AnswerReachingNoWire(dag, resumed) is { } unhandled)
             {
-                await FailRunAsync(record.RunId, record.PipelineId, unhandled, cancellationToken);
+                await FailRunAsync(record,unhandled, cancellationToken);
                 return ResumeOutcome.Resumed;
             }
         }
 
-        await SweepAsync(record.RunId, dag, record.Parameters, progress, record.Rehearsal, cancellationToken);
+        await SweepAsync(record.RunId, dag, record.Parameters, progress, record.Rehearsal, record.CallRecordId, cancellationToken);
         return ResumeOutcome.Resumed;
     }
 
@@ -254,7 +269,7 @@ public sealed class PipelineExecutor
         }
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, wait.NodeId, name, RunStatus.Failed, failure, cancellationToken,
             watch: wait.Watching), "fail the wait");
-        await FailRunAsync(record.RunId, record.PipelineId, failure, cancellationToken);
+        await FailRunAsync(record,failure, cancellationToken);
         return false;
     }
 
@@ -297,7 +312,7 @@ public sealed class PipelineExecutor
             if (failure is not null)
             {
                 await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, trying.NodeId, name, RunStatus.Interrupted, failure, cancellationToken), "mark the caught node interrupted");
-                await FailRunAsync(record.RunId, record.PipelineId, failure, cancellationToken);
+                await FailRunAsync(record,failure, cancellationToken);
                 continue;
             }
 
@@ -307,7 +322,7 @@ public sealed class PipelineExecutor
                 try
                 {
                     using var ownTurn = await _turns.TakeAsync(record.RunId, CancellationToken.None);
-                    await SweepAsync(record.RunId, dag!, record.Parameters, progress!, record.Rehearsal, CancellationToken.None);
+                    await SweepAsync(record.RunId, dag!, record.Parameters, progress!, record.Rehearsal, record.CallRecordId, CancellationToken.None);
                 }
                 catch (Exception ex) { _logger.LogError(ex, "Carrying on run {RunId} from its trying node failed", record.RunId); }
             });
@@ -334,7 +349,7 @@ public sealed class PipelineExecutor
             try
             {
                 using var ownTurn = await _turns.TakeAsync(runId, CancellationToken.None);
-                await SweepAsync(runId, dag, record.Parameters, progress, record.Rehearsal, CancellationToken.None);
+                await SweepAsync(runId, dag, record.Parameters, progress, record.Rehearsal, record.CallRecordId, CancellationToken.None);
             }
             catch (Exception ex) { _logger.LogError(ex, "Carrying on run {RunId} for a person failed", runId); }
         });
@@ -362,7 +377,7 @@ public sealed class PipelineExecutor
             _ = Task.Run(async () =>
             {
                 using var ownTurn = freshTurn;
-                try { await SweepAsync(fresh, dag, record.Parameters, new Progress(_clock), record.Rehearsal, CancellationToken.None); }
+                try { await SweepAsync(fresh, dag, record.Parameters, new Progress(_clock), record.Rehearsal, null, CancellationToken.None); }
                 catch (Exception ex) { _logger.LogError(ex, "Starting run {RunId} again as {FreshRunId} failed", runId, fresh); }
             });
             return (fresh, null);
@@ -514,11 +529,11 @@ public sealed class PipelineExecutor
     }
 
     private async Task<PipelineRunResult> SweepAsync(
-        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, Guid? callRecordId, CancellationToken cancellationToken)
     {
         try
         {
-            return await SweepUntilSettledAsync(rid, dag, runParams, progress, rehearsal, cancellationToken);
+            return await SweepUntilSettledAsync(rid, dag, runParams, progress, rehearsal, callRecordId, cancellationToken);
         }
         finally
         {
@@ -527,14 +542,14 @@ public sealed class PipelineExecutor
     }
 
     private async Task<PipelineRunResult> SweepUntilSettledAsync(
-        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, Guid? callRecordId, CancellationToken cancellationToken)
     {
         var swept = await RunUntilNothingIsReadyAsync(rid, dag, runParams, progress, rehearsal, cancellationToken);
         var (paused, ended) = await PauseWhileWaitingAsync(rid, dag, progress, swept, cancellationToken);
         if (paused is not null)
             return paused;
         await RecordNeverReachedAsync(rid, dag, progress, ended, cancellationToken);
-        return await CloseRunAsync(rid, dag, runParams, progress, rehearsal, ended, cancellationToken);
+        return await CloseRunAsync(rid, dag, runParams, progress, rehearsal, callRecordId, ended, cancellationToken);
     }
 
     private sealed record SweepEnd(bool Halted, string? Unhandled, StopRequested? Stopped, List<DagNode> Pending);
@@ -715,7 +730,7 @@ public sealed class PipelineExecutor
     }
 
     private async Task<PipelineRunResult> CloseRunAsync(
-        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, SweepEnd ended,
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, Guid? callRecordId, SweepEnd ended,
         CancellationToken cancellationToken)
     {
         var pipelineId = dag.PipelineId;
@@ -736,8 +751,11 @@ public sealed class PipelineExecutor
             : !verdict.Passes ? RunStatus.Failed
             : rehearsal ? RunStatus.Rehearsed
             : RunStatus.Succeeded;
-        await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken, stopped?.Reason), "set run status");
+        var recordedError = stopped?.Reason ?? (runStatus == RunStatus.Failed ? unhandled ?? verdict.Reason : null);
+        await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken, recordedError, heldUntilReported: callRecordId is not null),
+            "set run status");
         if (stopped is not null) await BestEffort(() => _gateway.RelateStoppedByAsync(rid, stopped.RequestId, cancellationToken), "relate the stop");
+        Report(rid, callRecordId, runStatus, recordedError);
 
         var success = runStatus is RunStatus.Succeeded or RunStatus.Rehearsed;
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
@@ -761,7 +779,7 @@ public sealed class PipelineExecutor
 
         return new PipelineRunResult(rid, pipelineId, success, ordered,
             success ? null
-                : stopped is not null ? $"Run stopped: {stopped.Reason}"
+                : stopped is not null ? RunStatus.StoppedBecause(stopped.Reason)
                 : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
                 : unhandled ?? verdict.Reason,
             runResult);
@@ -789,10 +807,11 @@ public sealed class PipelineExecutor
         };
     }
 
-    private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
+    private async Task FailRunAsync(RunRecord record, string error, CancellationToken cancellationToken)
     {
-        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken, error), "set run failed");
-        return PipelineRunResult.Failed(runId, pipelineId, error);
+        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Failed, cancellationToken, error,
+            heldUntilReported: record.CallRecordId is not null), "set run failed");
+        Report(record.RunId, record.CallRecordId, RunStatus.Failed, error);
     }
 
     // A resumed run reads every settled node back from the model, so the record is made whole before the sweep lets go of

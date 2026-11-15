@@ -163,7 +163,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null,
+        Guid? callRecordId = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -181,13 +182,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             [ModelNames.Rehearsal] = rehearsal ? "true" : "false",
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
+        if (callRecordId is { } callRecord) properties[ModelNames.CallRecordId] = callRecord.ToString();
         var runKind = await BoundAsync(PipelineRoles.PipelineRun, cancellationToken);
         var relationships = new List<(Guid, Guid, Guid)>
         {
             (runId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), runKind),
             (runId, await ResolveByNameAsync(ModelNames.Of, cancellationToken), pipelineId),
         };
-        if (refusal is null) relationships.AddRange(await HoldingAsync(runId, cancellationToken));
+        if (refusal is null || callRecordId is not null) relationships.AddRange(await HoldingAsync(runId, cancellationToken));
         await WriteThingInOneFragmentAsync(runId, RunName(runId), properties, relationships, cancellationToken);
 
         if (startedBy is { } starter) await RelateIfBoundAsync(runId, PipelineRoles.StartingRun, starter, cancellationToken);
@@ -319,14 +321,15 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     // The broker takes an edge it already holds as nothing new, so holding the run travels in the status fragment at
     // no extra call.
-    public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
+    public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null, bool heldUntilReported = false)
     {
         var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
         if (error != null) changed[ModelNames.Error] = error;
         var finished = RunStatus.IsFinished(status);
         if (finished) changed[ModelNames.FinishedUtc] = DateTime.UtcNow.ToString("o");
-        await WriteThingInOneFragmentAsync(runId, RunName(runId), changed, finished ? [] : await HoldingAsync(runId, cancellationToken), cancellationToken);
-        if (finished) await ReleaseAsync(runId, cancellationToken);
+        var released = finished && !heldUntilReported;
+        await WriteThingInOneFragmentAsync(runId, RunName(runId), changed, released ? [] : await HoldingAsync(runId, cancellationToken), cancellationToken);
+        if (released) await ReleaseRunAsync(runId, cancellationToken);
     }
 
     private async Task<IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)>> HoldingAsync(Guid runId, CancellationToken cancellationToken)
@@ -341,7 +344,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     }
 
     // The broker names the edge, so it has to be found among the orchestrator's relationships before it can be deleted.
-    private async Task ReleaseAsync(Guid runId, CancellationToken cancellationToken)
+    public async Task ReleaseRunAsync(Guid runId, CancellationToken cancellationToken)
     {
         if (await TryBoundAsync(PipelineRoles.Orchestrator, cancellationToken) is not { } orchestrator) return;
         var selector = new
@@ -416,7 +419,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             if (nodes.TryGetValue(nodeId, out var aggregate))
                 nodes[nodeId] = aggregate with { Items = ofNode.Values.ToList() };
         return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
-            run.PropertyString(ModelNames.Status) ?? string.Empty, repeatedBy);
+            run.PropertyString(ModelNames.Status) ?? string.Empty, repeatedBy, CallRecordOf(run));
     }
 
     private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)
@@ -518,14 +521,29 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         new(graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
             graph.RelationshipsAlong(nodeRun, PipelineRoles.StateWatch).Select(rel => (Guid?)rel.TargetId).FirstOrDefault());
 
-    // The platform marks its record of calling the node run's connection Done once this orchestrator answered the call.
+    // The platform marks its record of calling the node run's connection Completed once this orchestrator answered the call.
     private static WaitAnswer AnswerOf(PipelineGraph graph, GraphThing nodeRun) =>
         graph.RelationshipsIntoAlong(nodeRun, PipelineRoles.CallRecord).FirstOrDefault() is not { } record ? WaitAnswer.None
         : record.Properties.TryGetValue(CallStateProperty, out var state) && state.ValueKind == JsonValueKind.String && state.GetString() == CallDone ? WaitAnswer.Done
         : WaitAnswer.Underway;
 
     private const string CallStateProperty = "__CallState";
-    private const string CallDone = "Done";
+    private const string CallDone = "Completed";
+
+    private static Guid? CallRecordOf(GraphThing run) =>
+        Guid.TryParse(run.PropertyString(ModelNames.CallRecordId), out var callRecordId) ? callRecordId : null;
+
+    public async Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken cancellationToken)
+    {
+        var graph = await HeldRunsAsync(cancellationToken);
+        if (graph.Bound(PipelineRoles.Orchestrator) is not { } orchestrator) return [];
+        return graph.OutgoingTargets(orchestrator, ModelNames.Has)
+            .Select(run => CallRecordOf(run) is { } callRecordId
+                ? new OwedReport(run.Id, callRecordId, run.PropertyString(ModelNames.Status) ?? string.Empty, run.PropertyString(ModelNames.Error))
+                : null)
+            .OfType<OwedReport>()
+            .ToList();
+    }
 
     private async Task<PipelineGraph> HeldRunsAsync(CancellationToken cancellationToken)
     {
