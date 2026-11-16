@@ -240,6 +240,15 @@ describe('ActionList', () => {
     expect(await screen.findByText('no sample on record')).toBeInTheDocument();
   });
 
+  it('shows a refusal in the words the application gives it', async () => {
+    mockPost.mockResolvedValueOnce({ error: 'refused', rolesNeeded: ['steward'] });
+    const wording = { ...context, wordRefusal: () => 'Needs the steward role' } as ResolveContext;
+    render(<ActionList widget={JUDGE} context={wording} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
+
+    expect(await screen.findByText('Needs the steward role')).toBeInTheDocument();
+  });
+
   it('says what the endpoint said once it has taken the press, and offers no second press on the row', async () => {
     render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
