@@ -99,6 +99,7 @@ PREDICATE_ROLE = {
     "stoppedBy": "stoppedBy",
     "startedBy": "startingRun",
     "repeats": "repeatedRun",
+    "notifies": "notifiedConnection",
 }
 
 # The two results a wire is taken on, and the error port every service node has without declaring it.
@@ -275,6 +276,17 @@ def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, req
     return pid
 
 
+def graph_connection_notified_by(k, v, predicate, graph, service, connection_id):
+    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`. Until the
+    platform reads it there, the predicate stays a connection too, with the same trigger and service."""
+    connection = k.thing(connection_id, f"{k.things[predicate]['Name']} connection")
+    k.rel(connection, v.is_, v.Connection)
+    k.rel(connection, v.triggered_by, graph)
+    k.rel(connection, v.has, service)
+    k.rel(predicate, k.predicate("notifies"), connection)
+    return connection
+
+
 def place_under_roots(k, v, configured=(), operational=()):
     """The three roots every archetype sits under, and where each Thing declared so far goes: the drawing
     vocabulary and `configured` under Configuration, `operational` under Operation, every predicate under
@@ -361,6 +373,8 @@ def build():
     k.rel(stops, is_, Connection)
     k.rel(stops, triggered_by, graph)
     k.rel(stops, has, orchestrator)
+    stops_connection = graph_connection_notified_by(k, v, stops, graph, orchestrator, stable_id(_TAG, "connection", "stops connection"))
+    k.held_by_shared[stops_connection] = stops
 
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
     # entry, carrying the Subdomain it is called at).
@@ -415,6 +429,8 @@ def build():
             k.rel(through_id, is_, Connection)
             k.rel(through_id, triggered_by, graph)
             k.rel(through_id, has, service_by_key[system["toldThrough"]])
+            graph_connection_notified_by(k, v, through_id, graph, service_by_key[system["toldThrough"]],
+                                         stable_id(_TAG, "told-through", system["key"], "connection"))
             k.rel(system_id, told_through, through_id)
         system_by_key[system["key"]] = system_id
 
