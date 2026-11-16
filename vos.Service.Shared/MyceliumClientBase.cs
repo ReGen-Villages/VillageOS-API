@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared.Contracts.Validation;
+using vos.Service.Shared.ServiceCalls;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Shared;
@@ -195,6 +196,23 @@ public abstract class MyceliumClientBase
         }
 
         throw await FailureAsync("Fact write", response);
+    }
+
+    public async Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken cancellationToken = default)
+    {
+        var json = report.Reason is { } reason
+            ? JsonSerializer.Serialize(new { report = report.Word, reason })
+            : JsonSerializer.Serialize(new { report = report.Word });
+
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.PostAsync(
+            $"{MyceliumUrl}{MyceliumRoutes.CallReport(callRecordId)}",
+            new StringContent(json, Encoding.UTF8, "application/json"), cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new CallRecordNoLongerWaitingException(callRecordId, report, await response.Content.ReadAsStringAsync(cancellationToken));
+        if (!response.IsSuccessStatusCode)
+            throw await FailureAsync("Call report", response);
     }
 
     // Record one Observation (queued/batched, 202). Pass observedAt for

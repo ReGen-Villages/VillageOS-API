@@ -106,6 +106,16 @@ describe('RecordForm', () => {
     expect((screen.getByLabelText('Litres') as HTMLInputElement).value).toBe('12.5');
   });
 
+  it('shows a refusal in the words the application gives it', async () => {
+    mockPost.mockResolvedValueOnce({ error: 'refused', rolesNeeded: ['steward'] });
+    const wording = { ...context, wordRefusal: () => 'Needs the steward role' } as ResolveContext;
+    render(<RecordForm widget={BOOK} context={wording} />);
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+
+    expect(await screen.findByText('Needs the steward role')).toBeInTheDocument();
+  });
+
   it('says what the endpoint said once it has taken the press, and clears the form', async () => {
     render(<RecordForm widget={BOOK} context={context} />);
     fill();

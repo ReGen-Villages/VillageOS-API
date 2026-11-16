@@ -399,6 +399,10 @@ export interface ResolveContext {
    *  changed. A write to the model announces itself on the stream; a write the platform records
    *  outside the model — an account — does not, and this is the only word the page gets. */
   wrote?: () => void;
+  /** The application's words for an endpoint's refusal, from the whole answer — the roles a press
+   *  needs, say — in its own language. Nothing returned, or no function, shows the endpoint's own
+   *  `error`. */
+  wordRefusal?: (answer: Record<string, unknown>) => string | undefined;
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a

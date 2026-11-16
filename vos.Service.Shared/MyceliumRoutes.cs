@@ -14,4 +14,6 @@ public static class MyceliumRoutes
     // otherwise be posted to a route that does not exist.
     public static string ThingPropertyFacts(Guid thingId, string property) =>
         $"/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
+
+    public static string CallReport(Guid callRecordId) => $"/api/relationships/{callRecordId}/report";
 }

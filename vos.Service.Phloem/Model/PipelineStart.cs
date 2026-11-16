@@ -1,7 +1,7 @@
 namespace vos.Service.Phloem.Model;
 
 // What a relationship's target turned out to start: the pipeline, or why none.
-public sealed record StartResolution(Guid? PipelineId, string? Refusal)
+public sealed record StartResolution(Guid? PipelineId, string? Refusal, Guid? CallRecordId = null)
 {
     public bool Started => PipelineId is not null;
 }

@@ -597,6 +597,80 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task CreateRunAsync_StartedByAStateEntry_CarriesTheCallRecord_AndIsHeldEvenWhenRefused()
+    {
+        var callRecord = Guid.NewGuid();
+        var refusedRun = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, callRecordId: callRecord);
+        await gateway.CreateRunAsync(refusedRun, Guid.NewGuid(), CancellationToken.None, refusal: "Pipeline is invalid: it has no Output node.",
+            callRecordId: callRecord);
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var created = (await CreatedThings(handler)).Select(run => run.GetProperty("properties")).ToList();
+        created[0].GetProperty(ModelNames.CallRecordId).GetProperty("value").GetString().Should().Be(callRecord.ToString());
+        created[2].TryGetProperty(ModelNames.CallRecordId, out _).Should().BeFalse();
+        (await CreatedRelationships(handler)).Should().Contain((OrchestratorId, PredicateId, refusedRun));
+    }
+
+    [Fact]
+    public async Task SetRunStatusAsync_FinishedWhileOwingAReport_StaysHeld()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, callRecordId: Guid.NewGuid());
+        var writtenBefore = handler.Requests.Count;
+
+        await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None, heldUntilReported: true);
+
+        var change = handler.Requests.Skip(writtenBefore).Should().ContainSingle("nothing is released").Subject;
+        (await ReadJson(change)).GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Equal((OrchestratorId, PredicateId, runId));
+    }
+
+    [Fact]
+    public async Task OwedReportsAsync_ReadsEachHeldRunCarryingACallRecord_WithItsStatusAndError()
+    {
+        var binds = Guid.NewGuid();
+        var has = Guid.NewGuid();
+        var stateEntryRun = Guid.NewGuid();
+        var personsRun = Guid.NewGuid();
+        var callRecord = Guid.NewGuid();
+        object Thing(Guid id, string name, object properties) => new { id, name, isArchetype = false, properties, states = Array.Empty<string>() };
+        object Text(string value) => new { value, typeInfo = "vos.String" };
+        object Edge(Guid subject, Guid predicate, Guid target) => new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    Thing(PipelineRoles.Orchestrator.Id, "orchestrator role", new { }),
+                    Thing(binds, ModelNames.Binds, new { }),
+                    Thing(has, ModelNames.Has, new { }),
+                    Thing(OrchestratorId, "Phloem", new { }),
+                    Thing(stateEntryRun, "PipelineRun", new { status = Text(RunStatus.Failed), error = Text("'Estimate' failed, and no fail wire leaves it."),
+                        callRecordId = Text(callRecord.ToString()) }),
+                    Thing(personsRun, "PipelineRun", new { status = Text(RunStatus.Running) }),
+                },
+                relationships = new[]
+                {
+                    Edge(PipelineRoles.Orchestrator.Id, binds, OrchestratorId),
+                    Edge(OrchestratorId, has, stateEntryRun),
+                    Edge(OrchestratorId, has, personsRun),
+                },
+            },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        var owed = await gateway.OwedReportsAsync(CancellationToken.None);
+
+        owed.Should().Equal(new OwedReport(stateEntryRun, callRecord, RunStatus.Failed, "'Estimate' failed, and no fail wire leaves it."));
+    }
+
+    [Fact]
     public async Task WaitingAndUnfinishedNodeRunsAreReadFromWhatTheOrchestratorHolds()
     {
         var (gateway, handler) = NewGateway(request =>
@@ -1301,7 +1375,7 @@ public class MyceliumGatewayTests
     }
 
     [Theory]
-    [InlineData("Done", WaitAnswer.Done)]
+    [InlineData("Completed", WaitAnswer.Done)]
     [InlineData("Pending", WaitAnswer.Underway)]
     [InlineData("Failed", WaitAnswer.Underway)]
     [InlineData(null, WaitAnswer.None)]

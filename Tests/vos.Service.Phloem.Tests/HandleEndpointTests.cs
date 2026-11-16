@@ -44,6 +44,22 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_AStateEntry_ReportsToItsCallRecord_AndARunsRelationshipReportsToNothing()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var callRecord = Guid.NewGuid();
+
+        await client.PostAsync("/handle", StateEntry(target: Watching, relationship: callRecord));
+        await client.PostAsync("/handle", StateEntry(target: Drawn));
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 2, "both runs are recorded");
+        await Settle.UntilAsync(() => factory.ReportRoutesPosted().Contains($"/api/relationships/{callRecord}/report"),
+            "the state entry's run reports to its call record");
+
+        factory.ReportRoutesPosted().Should().OnlyContain(route => route == $"/api/relationships/{callRecord}/report");
+    }
+
+    [Fact]
     public async Task Handle_TheAnswerToAWaitingNodeRun_ResumesItsRunRatherThanStartingOne()
     {
         await using var factory = new PhloemWebApplicationFactory();
@@ -346,6 +362,11 @@ public class HandleEndpointTests
             .Select(body => JsonDocument.Parse(body).RootElement)
             .Select(body => body.TryGetProperty("things", out var things) ? things[0].GetRawText() : body.GetRawText())
             .Single();
+
+        public IReadOnlyList<string> ReportRoutesPosted() => _broker.Requests
+            .Where(request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath.EndsWith("/report", StringComparison.Ordinal))
+            .Select(request => request.RequestUri!.AbsolutePath)
+            .ToList();
 
         private static bool IsACreation(HttpRequestMessage request) =>
             request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath is "/api/things" or "/api/model/fragment";
