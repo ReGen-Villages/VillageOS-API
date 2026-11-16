@@ -39,7 +39,7 @@ const ADD_ACCOUNT: FormWidget = {
 const mockPost = vi.fn();
 const mockWrote = vi.fn();
 const context = {
-  reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
+  reads: { press: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
   wrote: () => mockWrote(),
 } as unknown as ResolveContext;
 
@@ -104,6 +104,16 @@ describe('RecordForm', () => {
 
     expect(await screen.findByText('SPRING-1 is dry this month')).toBeInTheDocument();
     expect((screen.getByLabelText('Litres') as HTMLInputElement).value).toBe('12.5');
+  });
+
+  it('says so and sends nothing where the page cannot press', async () => {
+    const fromService = vi.fn();
+    render(<RecordForm widget={BOOK} context={{ ...context, reads: { fromService } } as unknown as ResolveContext} />);
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+
+    expect(await screen.findByText('This page cannot send changes.')).toBeInTheDocument();
+    expect(fromService).not.toHaveBeenCalled();
   });
 
   it('shows a refusal in the words the application gives it', async () => {

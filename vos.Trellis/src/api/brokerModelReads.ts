@@ -60,9 +60,7 @@ export function brokerModelReads(): ModelReads {
       return request;
     },
 
-    // Shared only while in flight, unlike a state read: a widget that writes travels through this
-    // same port, and a press answered from an earlier press's reply would record nothing and say
-    // it had. Widgets of one refresh ask together, so their one question is still asked once.
+    // Widgets of one refresh ask together, so sharing a question while it is in flight asks it once.
     fromService(endpoint, body) {
       const question = `${endpoint} ${JSON.stringify(body)}`;
       const inFlight = services.get(question);
@@ -72,6 +70,8 @@ export function brokerModelReads(): ModelReads {
       request.then(() => services.delete(question), () => services.delete(question));
       return request;
     },
+
+    press: (endpoint, body) => apiClient.post<unknown>(endpoint, body),
 
     recordAction(description, succeeded) {
       void apiClient.reportAction(description, succeeded);

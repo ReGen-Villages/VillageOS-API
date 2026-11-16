@@ -57,11 +57,22 @@ describe('what one refresh generation asks the broker', () => {
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 
-  it('asks again once an answer has landed, so a press through the same port is never answered by an earlier one', async () => {
+  it('asks a service again once its answer has landed', async () => {
     const reads = brokerModelReads();
 
     await reads.fromService('/api/endpoints/readings', { view: 'book' });
     await reads.fromService('/api/endpoints/readings', { view: 'book' });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends every press, two identical presses in flight included', async () => {
+    const reads = brokerModelReads();
+
+    await Promise.all([
+      reads.press!('/api/endpoints/readings', { view: 'book' }),
+      reads.press!('/api/endpoints/readings', { view: 'book' }),
+    ]);
 
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });

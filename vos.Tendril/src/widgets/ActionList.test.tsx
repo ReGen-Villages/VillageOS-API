@@ -69,7 +69,7 @@ const ADMINISTER: ActionWidget = {
 const mockPost = vi.fn();
 const mockWrote = vi.fn();
 const context = {
-  reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
+  reads: { press: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
   wrote: () => mockWrote(),
 } as unknown as ResolveContext;
 
@@ -95,6 +95,16 @@ describe('ActionList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
     await screen.findByText('no sample on record');
+    expect(mockWrote).not.toHaveBeenCalled();
+  });
+
+  it('says so and sends nothing where the page cannot press', async () => {
+    const fromService = vi.fn();
+    render(<ActionList widget={JUDGE} context={{ ...context, reads: { fromService } } as unknown as ResolveContext} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
+
+    expect(await screen.findByText('This page cannot send changes.')).toBeInTheDocument();
+    expect(fromService).not.toHaveBeenCalled();
     expect(mockWrote).not.toHaveBeenCalled();
   });
 
