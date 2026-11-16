@@ -24,6 +24,30 @@ public class PipelineStarterTests
         gateway.RelationshipsRead.Should().BeEmpty("a state's call record names its connection as the target");
     }
 
+    [Fact]
+    public async Task ResolveAsync_AStateEntry_AnswersItsCallRecordToReportTo_AndNoOtherStartDoes()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var catchment = fixture.Fixture.Thing("Catchment 3");
+        var gateway = new FakeGateway(fixture.Fixture.Build());
+        var starter = new PipelineStarter(gateway);
+        var callRecord = Guid.NewGuid();
+        var writtenAlongTheConnection = Guid.NewGuid();
+        gateway.PredicatesByRelationship[writtenAlongTheConnection] = fixture.WatchingConnectionId;
+
+        var stateEntry = await starter.ResolveAsync(fixture.WatchingConnectionId, callRecord, null, CancellationToken.None);
+        var runsWrite = await starter.ResolveAsync(fixture.DrawnPipelineId, Guid.NewGuid(), null, CancellationToken.None);
+        var writeAlongAConnection = await starter.ResolveAsync(catchment.Id, writtenAlongTheConnection, null, CancellationToken.None);
+        var noRelationship = await starter.ResolveAsync(fixture.WatchingConnectionId, null, null, CancellationToken.None);
+
+        stateEntry.CallRecordId.Should().Be(callRecord);
+        runsWrite.Started.Should().BeTrue();
+        runsWrite.CallRecordId.Should().BeNull();
+        writeAlongAConnection.Started.Should().BeTrue();
+        writeAlongAConnection.CallRecordId.Should().BeNull();
+        noRelationship.CallRecordId.Should().BeNull();
+    }
+
     private static (GraphThing Arriving, GraphThing System) ArrivingFromTheWaterBoard(GraphFixture fx)
     {
         var system = fx.Thing("water board system");
