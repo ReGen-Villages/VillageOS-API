@@ -1,7 +1,7 @@
 const CLASS_NAME = /^[a-z0-9!-][a-z0-9:/.[\]()%#_,!-]*$/i;
 
-/** The expression a `className` is given: a quoted string, or a braced expression up to its
- *  matching brace. */
+/** The expression a `className` is given — a quoted string, or a braced expression up to its
+ *  matching brace — and the value of every constant named `…_CLASS`, which a className then names. */
 function classNameExpressions(source) {
   const found = [];
   for (const match of source.matchAll(/className=(["{])/g)) {
@@ -12,6 +12,7 @@ function classNameExpressions(source) {
     }
     found.push(source.slice(start, closingBrace(source, start)));
   }
+  for (const match of source.matchAll(/\bconst\s+[A-Z][A-Z_]*_CLASS\s*=\s*([^;]*);/g)) found.push(match[1]);
   return found;
 }
 
