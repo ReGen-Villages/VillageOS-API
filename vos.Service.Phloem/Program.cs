@@ -64,6 +64,9 @@ try
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
             var executor = app.Services.GetRequiredService<PipelineExecutor>();
+            // Sent first, so a run that the recovery below ends reports its start before its end.
+            var owed = await executor.SendOwedReportsAsync(CancellationToken.None);
+            if (owed > 0) Log.Information("Sending again the reports {Count} run(s) started by a state entry still owe", owed);
             var waits = await executor.RecoverWaitsAsync(CancellationToken.None);
             if (waits.Resumed > 0) Log.Information("Resumed {Count} run(s) whose wait was answered while the orchestrator was away", waits.Resumed);
             if (waits.WatchedAgain > 0) Log.Information("Watched again for {Count} waiting node run(s) whose watch was missing a relationship", waits.WatchedAgain);
@@ -178,9 +181,10 @@ try
                 var pipelineId = start.PipelineId!.Value;
                 var runParameters = trigger.Parameters;
                 var subject = trigger.Subject;
+                var callRecordId = start.CallRecordId;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(pipelineId, runParameters,CancellationToken.None, subject: subject, requestId: requestId); }
+                    try { await executor.RunAsync(pipelineId, runParameters, CancellationToken.None, subject: subject, requestId: requestId, callRecordId: callRecordId); }
                     catch (Exception ex) { Log.Error(ex, "Pipeline run {PipelineId} started by the broker failed", pipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });

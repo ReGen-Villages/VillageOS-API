@@ -20,7 +20,10 @@ public sealed class PipelineStarter
         IReadOnlyCollection<Guid> arrivingRelatesTo = subjectId is { } subject ? await _gateway.RelatedFromAsync(subject, cancellationToken) : [];
         var graph = await _gateway.LoadStartSubgraphAsync(targetId, arrivingRelatesTo, cancellationToken);
         if (relationshipId is null || NamesWhatStarts(graph, targetId))
-            return PipelineStart.Resolve(graph, targetId, arrivingRelatesTo);
+            return PipelineStart.Resolve(graph, targetId, arrivingRelatesTo) with
+            {
+                CallRecordId = graph.Thing(targetId) is { } target && graph.IsOf(target, PipelineRoles.Connection) ? relationshipId : null,
+            };
 
         if (await _gateway.PredicateOfAsync(relationshipId.Value, cancellationToken) is { } predicateId)
         {

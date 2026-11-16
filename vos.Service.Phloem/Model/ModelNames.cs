@@ -73,6 +73,8 @@ public static class ModelNames
     public const string Due = "due";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
+    // Held as an identifier because a call record is a relationship, and a relationship cannot be the target of another.
+    public const string CallRecordId = "callRecordId";
     public const string Payload = "payload";
     public const string Error = "error";
     public const string Decision = "decision";

@@ -28,6 +28,8 @@ public static class RunStatus
     public const string CannotRehearse = "cannotRehearse";
 
     public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
+
+    public static string StoppedBecause(string? reason) => $"Run stopped: {reason}";
 }
 
 // Decision is the decision path a successful answer named. Items holds each item's own answer when the node ran
