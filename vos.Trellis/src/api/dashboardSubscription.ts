@@ -17,7 +17,7 @@ import {
   type ScopeReference,
   type Widget,
 } from '@tendril-ui/tendril';
-import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from '@tendril-ui/tendril';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, PREDICATE_ROLE_ID } from '@tendril-ui/tendril';
 import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
 import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
@@ -50,10 +50,11 @@ const DECISION_ROLES_A_DETAIL_CARD_READS = [
  *
  * A predicate is a Thing, and the client reads a relationship's predicate by looking that Thing up, so a
  * relationship whose predicate is missing is one nothing can name — which for `is` means no Thing can be
- * told what it is. Every predicate a page follows is asked for alongside the Things it joins.
+ * told what it is. Every predicate a page follows is asked for alongside the Things it joins. The predicate
+ * role travels too, so a predicate the model declares is known before any relationship runs along it.
  */
 export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
-  ids: [PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID],
+  ids: [PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID, PREDICATE_ROLE_ID],
   boundTypes: [PAGE_ROLE_ID],
   boundArchetypes: [DISPLAY_SETTINGS_ROLE_ID],
   names: [IS_PREDICATE, BINDS_PREDICATE_NAME],
@@ -101,7 +102,12 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]);
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
     case 'smallMultiples': return [widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to];
-    case 'action': return [widget.rows, ...(widget.asks ?? []).map((field) => field.options)];
+    case 'action': return [
+      widget.rows,
+      widget.writes.choicesFrom?.from,
+      widget.decided?.rows,
+      ...[...(widget.asks ?? []), ...widget.writes.choices.flatMap((choice) => choice.asks ?? [])].map((field) => field.options),
+    ];
     case 'form': return widget.fields.map((field) => field.options);
   }
 }
@@ -295,12 +301,19 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
       ...NAVIGATION_AND_SETTINGS.names!,
       ...traverse.map((rule) => rule.predicate),
       ...named.names,
+      ...predicatesAPressRelatesAlong(specification),
     ])],
     includeLaterMatches: true,
     includeObservations: true,
   };
   if (traverse.length) selector.traverse = traverse;
   return selector;
+}
+
+function predicatesAPressRelatesAlong(specification: DashboardSpecification): string[] {
+  return specification.sections
+    .flatMap((section) => section.widgets)
+    .flatMap((widget) => (widget.type === 'action' && widget.writes.choicesFrom ? [widget.writes.choicesFrom.predicate] : []));
 }
 
 /** Whether any verdict marks a state as offering levers, each of which names its input by a Thing the

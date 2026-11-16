@@ -1,6 +1,6 @@
 {
   "name": "@tendril-ui/tendril",
-  "version": "0.1.0-alpha",
+  "version": "0.4.0",
   "description": "The console's binding reader and the widgets that write, for any application that draws a model's pages",
   "license": "(AGPL-3.0-only OR LicenseRef-Commercial)",
   "type": "module",
@@ -10,7 +10,8 @@
   "files": [
     "src",
     "!src/**/*.test.ts",
-    "!src/**/*.test.tsx"
+    "!src/**/*.test.tsx",
+    "!src/setupTests.ts"
   ],
   "scripts": {
     "lint": "eslint .",

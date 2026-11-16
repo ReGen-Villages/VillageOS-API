@@ -31,6 +31,45 @@ describe('postToEndpoint', () => {
     expect(await postToEndpoint(reads, 'readings', {})).toEqual({ error: 'already booked' });
   });
 
+  describe('with the application wording refusals', () => {
+    const wordRefusal = vi.fn();
+
+    beforeEach(() => {
+      wordRefusal.mockReset();
+    });
+
+    it('words a refusal from the endpoint’s whole answer', async () => {
+      fromService.mockResolvedValue({ error: 'refused', rolesNeeded: ['steward'] });
+      wordRefusal.mockReturnValue('Needs the steward role');
+
+      expect(await postToEndpoint(reads, 'readings', {}, wordRefusal)).toEqual({ error: 'Needs the steward role', rolesNeeded: ['steward'] });
+      expect(wordRefusal).toHaveBeenCalledWith({ error: 'refused', rolesNeeded: ['steward'] });
+    });
+
+    it('words a refusal the port threw from its message', async () => {
+      fromService.mockRejectedValue(new Error('already booked'));
+      wordRefusal.mockReturnValue('Someone else booked it first');
+
+      expect(await postToEndpoint(reads, 'readings', {}, wordRefusal)).toEqual({ error: 'Someone else booked it first' });
+      expect(wordRefusal).toHaveBeenCalledWith({ error: 'already booked' });
+    });
+
+    it('keeps the endpoint’s own words where the application has none for this refusal', async () => {
+      fromService.mockResolvedValue({ error: 'no sample on record' });
+      wordRefusal.mockReturnValue(undefined);
+
+      expect(await postToEndpoint(reads, 'readings', {}, wordRefusal)).toEqual({ error: 'no sample on record' });
+    });
+
+    it('is not asked about a press that was taken', async () => {
+      fromService.mockResolvedValue({ said: 'taken' });
+
+      await postToEndpoint(reads, 'readings', {}, wordRefusal);
+
+      expect(wordRefusal).not.toHaveBeenCalled();
+    });
+  });
+
   it('reads an empty answer as a press taken with nothing said', async () => {
     fromService.mockResolvedValue(null);
 

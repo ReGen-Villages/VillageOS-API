@@ -43,7 +43,7 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import { tendrilWord } from '../i18n/words';
 import { wordingIn } from '../i18n/termWording';
-import { BINDS_PREDICATE_NAME, PAGE_ROLE_ID } from './platformRoles';
+import { BINDS_PREDICATE_NAME, PAGE_ROLE_ID, PREDICATE_ROLE_ID } from './platformRoles';
 import {
   NAMED_PROPERTY,
   NAMES_PROPERTY_OF_PREDICATE,
@@ -94,6 +94,31 @@ export interface ModelIndex {
   propertyNames: Map<string, Map<string, Readonly<Record<string, string>>>> | null;
 }
 
+/** Every Thing beneath the root the predicate role binds, so a predicate the model declares is known
+ *  before any relationship runs along it. */
+function declaredPredicates(
+  relationships: readonly VosRelationship[],
+  predicateNameToId: ReadonlyMap<string, string>,
+  isChildren: ReadonlyMap<string, string[]>,
+  byId: ReadonlyMap<string, VosThing>,
+): VosThing[] {
+  const bindsId = predicateNameToId.get(BINDS_PREDICATE_NAME);
+  const root = relationships.find((r) => r.SubjectId === PREDICATE_ROLE_ID && r.PredicateId === bindsId)?.TargetId;
+  if (!bindsId || !root) return [];
+  const found: VosThing[] = [];
+  const seen = new Set<string>([root]);
+  const waiting = [...(isChildren.get(root) ?? [])];
+  while (waiting.length > 0) {
+    const id = waiting.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const held = byId.get(id);
+    if (held) found.push(held);
+    waiting.push(...(isChildren.get(id) ?? []));
+  }
+  return found;
+}
+
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
   const byId = new Map<string, VosThing>();
   const byName = new Map<string, VosThing>();
@@ -137,6 +162,10 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
       if (parents) parents.push(r.TargetId);
       else isParents.set(r.SubjectId, [r.TargetId]);
     }
+  }
+  for (const predicate of declaredPredicates(relationships, predicateNameToId, isChildren, byId)) {
+    predicateIdToName.set(predicate.Id, predicate.Name);
+    if (!predicateNameToId.has(predicate.Name)) predicateNameToId.set(predicate.Name, predicate.Id);
   }
   return {
     byId, byName, otherTypesByName, relationships, relationshipsByPredicate,
@@ -370,6 +399,10 @@ export interface ResolveContext {
    *  changed. A write to the model announces itself on the stream; a write the platform records
    *  outside the model — an account — does not, and this is the only word the page gets. */
   wrote?: () => void;
+  /** The application's words for an endpoint's refusal, from the whole answer — the roles a press
+   *  needs, say — in its own language. Nothing returned, or no function, shows the endpoint's own
+   *  `error`. */
+  wordRefusal?: (answer: Record<string, unknown>) => string | undefined;
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a

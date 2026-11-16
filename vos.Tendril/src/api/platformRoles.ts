@@ -9,6 +9,7 @@ export const BINDS_PREDICATE_NAME = 'binds';
 export const PAGE_ROLE_ID = 'a18768bc-b4e7-513c-864f-842d674c1858';
 export const DISPLAY_SETTINGS_ROLE_ID = '1cb6206a-2726-5008-8188-698b299f5665';
 export const CONTAINMENT_ROLE_ID = 'd89c4c7d-c865-5db7-8c55-80df8cb254ec';
+export const PREDICATE_ROLE_ID = '86743302-6588-5a93-b6a5-0dde78b092c1';
 
 /** What a detail card reads a state entry's service call through: the predicate a Thing waiting for another reaches
  *  it along, the predicate naming the connection a waiting Thing or its archetype is answered through, and the

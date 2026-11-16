@@ -45,6 +45,11 @@ describe('a widget', () => {
     each('namesAnUnknownKind', page(figure('a', { kind: 'stateCount', state: 'flowing', archetype: 'Dam' })));
     each('namesAnUnknownPredicate', page(figure('a', { kind: 'stateCount', state: 'flowing', archetype: 'Spring', scope: { viaPredicate: 'drains' } })));
     each('namesAnUnknownPredicate', page(figure('a', { kind: 'related', via: [{ predicate: 'drains' }], thing: '$scope' })));
+    each('namesAnUnknownPredicate', page({
+      type: 'action',
+      rows: { kind: 'thingList', archetype: 'Spring' },
+      writes: { choicesFrom: { from: { kind: 'thingList', archetype: 'Spring' }, predicate: 'drains' }, choices: [] },
+    }));
     each('namesAnUnknownState', page(figure('a', { kind: 'stateCount', state: 'gushing', archetype: 'Spring' })));
     each('namesAnUnknownState', page(figure('a', { kind: 'stateOf', states: ['overflowing'], thing: '$scope' })));
     each('namesAnUnknownState', page({ type: 'table', title: 't', columns: [], visibleRows: 5, rows: { kind: 'thingList', archetype: 'Spring', computed: [{ key: 'c', value: { kind: 'stateOf', states: ['gushing'], thing: '$scope' } }] } }));
