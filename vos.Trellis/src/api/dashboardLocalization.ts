@@ -16,6 +16,7 @@ import type {
   Binding,
   BoxPlotWidget,
   BulletWidget,
+  DepthProfileWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -187,6 +188,16 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         hint: tr(widget.hint),
         note: tr(widget.note),
         buckets: widget.buckets.map((bucket) => ({ ...bucket, label: tr(bucket.label) })),
+      };
+      return w;
+    }
+    case 'depthProfile': {
+      const w: DepthProfileWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        parts: widget.parts.map((part) => ({ ...part, label: tr(part.label) })),
       };
       return w;
     }

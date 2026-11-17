@@ -495,6 +495,23 @@ describe('subscriptionForSpec over a boxPlot widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a depthProfile widget', () => {
+  it('asks for the rows it draws', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'depthProfile',
+              title: 'Soil',
+              rows: { kind: 'aggregate', archetype: 'Layers', reduction: 'count' },
+              labelKey: 'name',
+              parts: [{ label: 'Sand', key: 'sand', colour: '#e0b973' }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Layers']));
+  });
+});
+
 describe('subscriptionForSpec over a lineSeries widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(

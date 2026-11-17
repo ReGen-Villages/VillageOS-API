@@ -4,6 +4,7 @@ import type {
   Binding,
   BoxPlotWidget,
   DashboardSpecification,
+  DepthProfileWidget,
   FunnelWidget,
   KpiWidget,
   LeaderboardWidget,
@@ -361,6 +362,30 @@ describe('localizeSpecification over a boxPlot widget', () => {
     expect(localized.hint).toBe('por mes');
     expect(localized.unit).toBe('grados');
     expect(localized.bands?.[0].label).toBe('Peligro');
+  });
+});
+
+describe('localizeSpecification over a depthProfile widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'depthProfile',
+              title: 'Soil texture',
+              hint: 'by depth',
+              unit: 'per cent',
+              rows: { kind: 'const', value: 1 },
+              labelKey: 'name',
+              parts: [{ label: 'Sand', key: 'sandPercent', colour: '#e0b973' }],
+            } satisfies DepthProfileWidget] }],
+    translations: { es: { 'Soil texture': 'Textura del suelo', 'by depth': 'por profundidad', 'per cent': 'por ciento', 'Sand': 'Arena' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as DepthProfileWidget;
+
+  it('translates the wording the widget shows, and keeps the keys it reads', () => {
+    expect(localized.title).toBe('Textura del suelo');
+    expect(localized.hint).toBe('por profundidad');
+    expect(localized.unit).toBe('por ciento');
+    expect(localized.parts[0]).toEqual({ label: 'Arena', key: 'sandPercent', colour: '#e0b973' });
   });
 });
 

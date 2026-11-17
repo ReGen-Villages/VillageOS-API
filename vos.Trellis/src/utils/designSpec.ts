@@ -56,6 +56,7 @@ export function emptyWidget(kind: Widget['type'], title: string): Widget {
     case 'exceptionBar': return { type: 'exceptionBar', title, buckets: [] };
     case 'rangeBar': return { type: 'rangeBar', title, months: UNBOUND };
     case 'boxPlot': return { type: 'boxPlot', title, months: UNBOUND };
+    case 'depthProfile': return { type: 'depthProfile', title, rows: UNBOUND, labelKey: '', parts: [] };
     case 'lineSeries': return { type: 'lineSeries', title, series: [] };
     case 'heatmap': return { type: 'heatmap', title, value: UNBOUND };
     case 'stackedShares': return { type: 'stackedShares', title, classes: [] };
@@ -75,6 +76,7 @@ export function unboundSlots(widget: Widget): string[] {
     case 'table':
     case 'gantt':
     case 'action':
+    case 'depthProfile':
       return widget.rows ? [] : ['rows'];
     case 'leaderboard': return widget.entities ? [] : ['entities'];
     case 'rangeBar':

@@ -647,6 +647,31 @@ export interface BoxPlotWidget {
   ceiling?: number;
 }
 
+/** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
+export interface DepthProfilePart {
+  label: string;
+  key: string;
+  colour: string;
+}
+
+/** One row a layer, top down by `orderKey` (or in the order the rows arrive), each named by `labelKey`.
+ *  Several parts stack across a row; one part draws a bar from the floor. A row holding no number for
+ *  any part is left out. `floor` and `ceiling` fix the axis; absent, it runs from nought to the largest
+ *  row. */
+export interface DepthProfileWidget {
+  type: 'depthProfile';
+  title?: string;
+  hint?: string;
+  rows: Binding;
+  labelKey: string;
+  orderKey?: string;
+  parts: DepthProfilePart[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
 export interface LineSeriesEntry {
@@ -923,6 +948,7 @@ export type Widget = Placed & (
   | ExceptionWidget
   | RangeBarWidget
   | BoxPlotWidget
+  | DepthProfileWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

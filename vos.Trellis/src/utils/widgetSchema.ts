@@ -133,6 +133,10 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   exceptionBar: [title, hint, list('buckets', [text('label'), binding('value', 'number'), choice('severity', SEVERITIES)]), text('note')],
   rangeBar: [title, hint, group('months', rangeSeries), group('annual', rangeSeries), list('bands', rangeBand), format, unit, floor, ceiling],
   boxPlot: [title, hint, group('months', boxSeries), group('annual', boxSeries), list('bands', rangeBand), format, unit, floor, ceiling],
+  depthProfile: [
+    title, hint, binding('rows', 'rows'), text('labelKey', 'rowKey', true), text('orderKey', 'rowKey', true),
+    list('parts', [text('label'), text('key', 'rowKey', true), text('colour', undefined, true)]), format, unit, floor, ceiling,
+  ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),
