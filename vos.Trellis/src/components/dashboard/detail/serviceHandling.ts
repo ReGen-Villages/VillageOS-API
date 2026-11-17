@@ -24,6 +24,19 @@ const CALLED_AT = '__CallLastAttemptAt';
 const CALL_STATE = '__CallState';
 const CALL_ERROR = '__CallLastError';
 
+export const CALL_STATES = ['Pending', 'Sent', 'Received', 'Completed', 'Failed', 'Refused', 'Blocked'] as const;
+
+export type CallState = (typeof CALL_STATES)[number];
+
+export function isCallState(word: string): word is CallState {
+  return (CALL_STATES as readonly string[]).includes(word);
+}
+
+/** The platform refuses a retry of a call in any other state. */
+export function mayBeRetried(call: ServiceCall): boolean {
+  return call.state === 'Failed' || call.state === 'Blocked';
+}
+
 /** A relationship on the Thing that a service is called through, and the service it reaches. */
 export interface ServiceEdge {
   relationshipId: string;
@@ -39,9 +52,9 @@ export interface ServiceEdge {
 export interface ServiceCall extends ServiceEdge {
   /** When the platform last called it, or absent where it no longer holds a time. */
   at?: string;
-  /** Pending, Inflight, Done, Failed or Refused — the platform's own word, shown as it stands. */
+  /** One of {@link CALL_STATES}, as the platform wrote it. */
   state?: string;
-  /** What a service said when it turned the service call down or failed it. */
+  /** Why the service call failed, was refused or was blocked. */
   error?: string;
 }
 

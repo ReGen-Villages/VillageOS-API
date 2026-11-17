@@ -3,7 +3,7 @@ import { buildModelIndex } from '@tendril-ui/tendril';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
-import { serviceEdgesOn, serviceCallsFrom } from './serviceHandling';
+import { serviceEdgesOn, serviceCallsFrom, mayBeRetried, CALL_STATES } from './serviceHandling';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
@@ -72,7 +72,7 @@ function site() {
       relationship('w9', 'stage', 'tells', 'springWhenDry'),
 
       relationship('e1', 'catchment', 'measures', 'reservoir', {
-        __CallState: 'Done',
+        __CallState: 'Completed',
         __CallLastAttemptAt: '2026-08-27T08:09:32Z',
       }),
       relationship('e2', 'spring', 'record', 'springWhenDry', {
@@ -82,7 +82,7 @@ function site() {
       }),
       relationship('e3', 'spring', 'record', 'unbound'),
       relationship('e4', 'well', 'record', 'review', {
-        __CallState: 'Done',
+        __CallState: 'Completed',
         __CallLastAttemptAt: '2026-08-27T08:11:00Z',
       }),
     ],
@@ -137,7 +137,7 @@ describe('serviceEdgesOn', () => {
   it('finds nothing where the model binds no connection archetype, rather than guessing at one', () => {
     const index = buildModelIndex(
       [thing('is', 'is'), thing('measures', 'measures'), thing('catchment', 'CATCHMENT-1'), thing('reservoir', 'RESERVOIR-1')],
-      [relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Done' })],
+      [relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Completed' })],
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
@@ -212,7 +212,7 @@ describe('serviceEdgesOn', () => {
         relationship('b1', ROLE.Connection, 'binds', 'wiring'),
         relationship('b2', ROLE.Connection, 'binds', 'rival'),
         relationship('w1', 'measures', 'is', 'wiring'),
-        relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Done' }),
+        relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Completed' }),
       ],
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
@@ -246,5 +246,17 @@ describe('serviceCallsFrom', () => {
     expect(call.at).toBeUndefined();
     expect(call.state).toBeUndefined();
     expect(call.serviceName).toBe('metering service');
+  });
+});
+
+describe('mayBeRetried', () => {
+  const call = (state?: string) => ({ relationshipId: 'record', serviceName: 'rainfall-estimator', connectionName: 'Estimate-Rainfall', state });
+
+  it('offers a retry for a failed or blocked call and for no other state', () => {
+    expect(CALL_STATES.filter((state) => mayBeRetried(call(state)))).toEqual(['Failed', 'Blocked']);
+  });
+
+  it('offers no retry for a call the platform holds no state for', () => {
+    expect(mayBeRetried(call())).toBe(false);
   });
 });

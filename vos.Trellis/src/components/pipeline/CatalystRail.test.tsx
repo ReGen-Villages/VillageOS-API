@@ -9,8 +9,9 @@ function rail() {
   const onPlace = vi.fn();
   const onOpenPipeline = vi.fn();
   const onHandOver = vi.fn();
-  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} onHandOver={onHandOver} />);
-  return { id, onPlace, onOpenPipeline, onHandOver };
+  const onShowSettings = vi.fn();
+  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} onHandOver={onHandOver} onShowSettings={onShowSettings} />);
+  return { id, onPlace, onOpenPipeline, onHandOver, onShowSettings };
 }
 
 describe('CatalystRail', () => {
@@ -49,7 +50,7 @@ describe('CatalystRail', () => {
       id: 'state:dry', kind: 'state', who: 'Reservoir', what: 'dry', standsForId: 'dry', today: '',
       starts: { id: 'p', name: 'Refill' }, handling: { connectionId: 'c', byOrchestrator: false }, offersOrchestrator: true,
     };
-    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [row] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [row] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} onShowSettings={vi.fn()} />);
     expect(screen.getByText('drawn: Refill · nothing happens today')).toBeInTheDocument();
   });
 
@@ -82,7 +83,20 @@ describe('CatalystRail', () => {
   });
 
   it('says a side holds nothing rather than drawing an empty list', () => {
-    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} onShowSettings={vi.fn()} />);
     expect(screen.getAllByText('Nothing is declared')).toHaveLength(2);
+  });
+
+  it('offers the call settings of a state watched through one connection, and nothing else', () => {
+    const { id, onShowSettings } = rail();
+    expect(screen.getAllByRole('button', { name: /^Show the call settings of / }).map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Show the call settings of Reservoir · drought',
+      'Show the call settings of Reservoir · dry',
+      'Show the call settings of Reservoir · running low',
+      'Show the call settings of Reservoir · surplus',
+      'Show the call settings of Reservoir · overdue · every 60 s',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Show the call settings of Reservoir · running low' }));
+    expect(onShowSettings).toHaveBeenCalledWith(id.watchesRunningLow);
   });
 });
