@@ -70,7 +70,7 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
   const names = monthNames(i18n.language);
   const periods = [
     ...names.map((name, month) => ({ name, statistics: statisticsOf(monthSeries, String(month + 1)) })),
-    ...(widget.annual ? [{ name: t('widgets.rangeBar.annual'), statistics: statisticsOf(annualSeries, null) }] : []),
+    ...(widget.annual ? [{ name: t('widgets.history.annual'), statistics: statisticsOf(annualSeries, null) }] : []),
   ]
     .map((period, at) => ({ ...period, at, annual: at === 12 }))
     .filter((period) => Object.keys(period.statistics).length > 0);
@@ -113,7 +113,7 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
           height={plotBottom + AXIS_BAND}
           viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
           role="img"
-          aria-label={widget.title ?? t('widgets.rangeBar.annual')}
+          aria-label={widget.title ?? t('widgets.history.annual')}
           className="block max-w-full"
         >
           {bands.map((band, at) => {

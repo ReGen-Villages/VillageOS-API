@@ -380,6 +380,7 @@ export const de: PartialResources = {
       lastYears_other: 'letzte {{count}} Jahre',
       lastDays_one: 'letzter Tag',
       lastDays_other: 'letzte {{count}} Tage',
+      annual: 'Jahr',
     },
     divergingBar: {
       above: 'über {{threshold}}',
@@ -399,7 +400,6 @@ export const de: PartialResources = {
       averageLow: 'Mittleres Tief',
       designLow: 'Auslegungstief',
       recordedLow: 'Tiefstwert',
-      annual: 'Jahr',
     },
     bullet: { target: 'Ziel', healthyBand: 'gesunder Bereich', warning: 'Warnung', critical: 'kritisch' },
     kpi: { onTarget: 'im Ziel', watch: 'beobachten', peak: 'Spitze', trough: 'Tief' },

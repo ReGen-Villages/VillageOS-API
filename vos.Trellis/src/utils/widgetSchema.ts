@@ -134,7 +134,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
     format, unit, floor, ceiling,
   ],
-  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number')])],
+  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [

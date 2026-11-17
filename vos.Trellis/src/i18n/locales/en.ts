@@ -378,6 +378,7 @@ export const en = {
       lastYears_other: 'last {{count}} years',
       lastDays_one: 'last day',
       lastDays_other: 'last {{count}} days',
+      annual: 'Annual',
     },
     divergingBar: {
       above: 'above {{threshold}}',
@@ -397,7 +398,6 @@ export const en = {
       averageLow: 'Average low',
       designLow: 'Design low',
       recordedLow: 'Recorded low',
-      annual: 'Annual',
     },
     bullet: { target: 'target', healthyBand: 'healthy band', warning: 'warning', critical: 'critical' },
     kpi: { onTarget: 'on target', watch: 'watch', peak: 'peak', trough: 'trough' },

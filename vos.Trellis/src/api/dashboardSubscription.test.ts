@@ -514,13 +514,13 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
               title: 'Cover',
               classes: [
                 { label: 'Trees', colour: '#080', share: { kind: 'aggregate', archetype: 'Trees', reduction: 'count' } },
-                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', reduction: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', reduction: 'count' } },
+                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', reduction: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', reduction: 'count' }, annual: { kind: 'aggregate', archetype: 'GrassAllYear', reduction: 'count' } },
               ],
             }),
       null,
     );
 
-    expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'GrassColour', 'Grass']));
+    expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'GrassColour', 'Grass', 'GrassAllYear']));
   });
 });
 

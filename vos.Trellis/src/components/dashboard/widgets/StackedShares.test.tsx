@@ -131,6 +131,34 @@ describe('the stacked percentage bar', () => {
     expect(screen.queryByText('slight cold')).toBeNull();
   });
 
+  it('draws an annual column after the months from each class\'s share of the whole window', () => {
+    const annual = (label: string, share: number): Binding => {
+      const binding: Binding = { kind: 'history', property: label, windowSeconds: TEN_YEARS, steps: [{ fold: 'all', function: 'ShareWithin' }] };
+      values.set(JSON.stringify(binding), [{ key: 'all', value: share }]);
+      return binding;
+    };
+    const { container } = draw({
+      ...widget,
+      classes: widget.classes.map((entry, at) => ({ ...entry, annual: annual(entry.label, [0.25, 0.35, 0.4][at]) })),
+    });
+
+    const column = container.querySelector('[data-month="all"]')!;
+    const heights = [...column.querySelectorAll('rect[data-class]')].map((segment) => Number(segment.getAttribute('height')));
+    expect(heights[0] / heights[2]).toBeCloseTo(0.25 / 0.4, 5);
+    expect(Number(column.querySelector('rect[data-class]')!.getAttribute('x')))
+      .toBeGreaterThan(Number(container.querySelector('[data-month="12"] rect[data-class]')!.getAttribute('x')));
+    expect(within(column as HTMLElement).getByText('Annual')).toBeInTheDocument();
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(14);
+    expect(rows[13].textContent).toBe('Annual25%35%40%');
+  });
+
+  it('draws no annual column where no class binds one', () => {
+    const { container } = draw();
+
+    expect(container.querySelector('[data-month="all"]')).toBeNull();
+  });
+
   it('leaves out a month no class was answered for, and a class the platform answered nothing for', () => {
     const { container } = draw({
       ...widget,

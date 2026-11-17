@@ -675,6 +675,8 @@ export interface StackedSharesClass {
   /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
   colour: string | Binding;
   share: Binding;
+  /** Its share of the whole window: the same question folded by `all`, drawn as a column after December. */
+  annual?: Binding;
 }
 
 /** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at

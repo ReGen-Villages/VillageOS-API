@@ -421,6 +421,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       lastDays_few: "آخر {{count}} أيام",
       lastDays_many: "آخر {{count}} يومًا",
       lastDays_other: "آخر {{count}} يوم",
+      annual: "سنوي",
     },
     divergingBar: {
       above: "فوق {{threshold}}",
@@ -440,7 +441,6 @@ export const ar: WithArabicPluralForms<Resources> = {
       averageLow: "متوسط الحد الأدنى",
       designLow: "الحد الأدنى التصميمي",
       recordedLow: "أدنى قيمة مسجّلة",
-      annual: "سنوي",
     },
     bullet: { target: 'الهدف', healthyBand: 'النطاق الصحي', warning: 'تحذير', critical: 'حرج' },
     kpi: { onTarget: 'ضمن الهدف', watch: 'مراقبة', peak: 'الذروة', trough: 'القاع' },

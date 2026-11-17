@@ -380,6 +380,7 @@ export const nl: PartialResources = {
       lastYears_other: 'afgelopen {{count}} jaar',
       lastDays_one: 'afgelopen dag',
       lastDays_other: 'afgelopen {{count}} dagen',
+      annual: 'Jaar',
     },
     divergingBar: {
       above: 'boven {{threshold}}',
@@ -399,7 +400,6 @@ export const nl: PartialResources = {
       averageLow: 'Gemiddeld minimum',
       designLow: 'Ontwerpminimum',
       recordedLow: 'Laagste meting',
-      annual: 'Jaar',
     },
     bullet: { target: 'doel', healthyBand: 'gezonde band', warning: 'waarschuwing', critical: 'kritiek' },
     kpi: { onTarget: 'op doel', watch: 'let op', peak: 'piek', trough: 'dal' },
