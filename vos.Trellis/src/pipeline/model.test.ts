@@ -340,6 +340,59 @@ describe('typesCompatible', () => {
   });
 });
 
+// A kind that declares the names a run writes stores each value as an override, not among the run's own values.
+describe('a run whose kind declares the names it writes', () => {
+  const declared = (values: Record<string, unknown>) =>
+    ({ InheritedOverrides: { kind: { SourceId: 'kind', SourceName: 'NodeRunKind', Properties: values } } });
+
+  function overriddenRun() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, overrides: Record<string, unknown>, own: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: own, ...declared(overrides) };
+      things.push(t);
+      return t;
+    };
+    const has = T('has', {});
+    const pipeline = T('Discover a site', {});
+    const of = T('of', {});
+    const run = T('PipelineRun', { status: 'failed', startedUtc: '2030-06-01T12:00:00Z', error: 'stopped mid-call', requestId: 'request 7' });
+    things.push({ Id: 'run-kind', Name: 'RunKind', Properties: playing(ROLE.PipelineRun), IsArchetype: true });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: 'is', TargetId: 'run-kind', Properties: {} });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: of.Id, TargetId: pipeline.Id, Properties: {} });
+    things.push({ Id: 'is', Name: 'is', Properties: {} });
+    const aggregate = T('NodeRun Fetch', { nodeId: 'node-fetch', status: 'interrupted' });
+    const item = T('NodeRun Fetch #0', { nodeId: 'node-fetch', status: 'succeeded', index: '0', total: '2' });
+    for (const nodeRun of [aggregate, item])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
+    return { model: new PipelineModel(...withRoles(things, relationships)), run, pipeline };
+  }
+
+  it('reads the run, node-run and item values held as overrides', () => {
+    const { model, run, pipeline } = overriddenRun();
+
+    expect(model.runStatus(run.Id)).toBe('failed');
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-fetch': 'interrupted' });
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-fetch': { done: 1, reached: 1, spreadOver: 2 } });
+    expect(model.runsOf(pipeline.Id)).toEqual([{ runId: run.Id, status: 'failed', startedUtc: '2030-06-01T12:00:00Z', requestId: 'request 7' }]);
+    expect(model.runsARestartStopped()).toEqual([
+      { runId: run.Id, pipelineName: 'Discover a site', startedUtc: '2030-06-01T12:00:00Z', reason: 'stopped mid-call' },
+    ]);
+  });
+
+  it('takes a live value, filed among own values, over the override it replaces', () => {
+    const things: VosThing[] = [
+      { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'run', Name: 'PipelineRun', Properties: {} },
+      { Id: 'node-run', Name: 'NodeRun Fetch', Properties: { status: 'succeeded' }, ...declared({ nodeId: 'node-fetch', status: 'running' }) },
+    ];
+    const relationships: VosRelationship[] = [{ Id: 'r1', Name: '', SubjectId: 'run', PredicateId: 'has', TargetId: 'node-run', Properties: {} }];
+
+    expect(new PipelineModel(...withRoles(things, relationships)).nodeRunStatuses('run')).toEqual({ 'node-fetch': 'succeeded' });
+  });
+});
+
 describe('run animation source', () => {
   it('reads overall run status and per-node status from the live model', () => {
     const things: VosThing[] = [];
