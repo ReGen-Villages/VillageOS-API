@@ -29,16 +29,18 @@ public sealed class RunClearingKeeper(IMyceliumGateway gateway, ModelClock clock
         catch (OperationCanceledException) { }
     }
 
-    // A run that cannot be cleared is left for the next look.
+    // A run that cannot be cleared, and each due run past the look's cap, is left for the next look.
     public async Task<(int Runs, int Things)> ClearOnceAsync(CancellationToken cancellationToken)
     {
         var judged = await gateway.RunsToJudgeAsync(cancellationToken);
         var now = clock.GetUtcNow();
+        var due = judged.Runs
+            .Where(run => RunRetention.IsDue(run, judged.Kind, run.PipelineId is { } pipelineId ? judged.Pipelines.GetValueOrDefault(pipelineId) : null, now))
+            .OrderBy(run => run.FinishedAt);
         var (runs, things) = (0, 0);
-        foreach (var run in judged.Runs)
+        foreach (var run in due)
         {
-            var pipeline = run.PipelineId is { } pipelineId ? judged.Pipelines.GetValueOrDefault(pipelineId) : null;
-            if (!RunRetention.IsDue(run, judged.Kind, pipeline, now)) continue;
+            if (runs == judged.RunsPerLook) break;
             try
             {
                 things += await gateway.ClearRunAsync(run.RunId, cancellationToken);

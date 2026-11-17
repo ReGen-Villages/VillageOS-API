@@ -22,7 +22,10 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
-        var kindPeriods = new Dictionary<string, object?> { [ModelNames.KeepRunsForDays] = 30, [ModelNames.KeepFailedRunsForDays] = 90 };
+        var kindPeriods = new Dictionary<string, object?>
+        {
+            [ModelNames.KeepRunsForDays] = 30, [ModelNames.KeepFailedRunsForDays] = 90, [ModelNames.ClearsAtMostRunsPerLook] = 200,
+        };
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true, kindPeriods), binds);
         await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true), binds);
         await BindOnceAsync(PipelineRoles.Attempt, await _engine.DeclareOnceAsync("Attempt", isArchetype: true), binds);
@@ -50,6 +53,7 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         var judged = await gateway.RunsToJudgeAsync(CancellationToken.None);
 
         judged.Kind.Should().Be(new KeepPeriods(30, 90));
+        judged.RunsPerLook.Should().Be(200);
         judged.Pipelines[pipelineId].Should().Be(new KeepPeriods(7, null));
         var failedRun = judged.Runs.Single(run => run.RunId == failed);
         failedRun.Should().BeEquivalentTo(new { PipelineId = (Guid?)pipelineId, Status = RunStatus.Failed, Held = false });

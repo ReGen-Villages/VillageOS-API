@@ -859,7 +859,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
-        if (graph.Bound(PipelineRoles.PipelineRun) is not { } kind) return new RunsToJudge([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>());
+        if (graph.Bound(PipelineRoles.PipelineRun) is not { } kind)
+            return new RunsToJudge([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>(), RunRetention.RunsPerLookOf(null));
         var orchestrator = graph.Bound(PipelineRoles.Orchestrator);
 
         var runs = new List<RunToJudge>();
@@ -873,14 +874,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                     ? finished : null,
                 orchestrator is not null && graph.RelationshipsInto(run, ModelNames.Has).Any(held => held.SubjectId == orchestrator.Id)));
         }
-        return new RunsToJudge(runs, PeriodsOf(kind), pipelines);
+        return new RunsToJudge(runs, PeriodsOf(kind), pipelines, RunRetention.RunsPerLookOf(NumberOf(kind, ModelNames.ClearsAtMostRunsPerLook)));
     }
 
     private static KeepPeriods PeriodsOf(GraphThing holder) =>
-        new(Days(holder, ModelNames.KeepRunsForDays), Days(holder, ModelNames.KeepFailedRunsForDays));
+        new(NumberOf(holder, ModelNames.KeepRunsForDays), NumberOf(holder, ModelNames.KeepFailedRunsForDays));
 
-    private static double? Days(GraphThing holder, string property) =>
-        double.TryParse(holder.PropertyString(property), NumberStyles.Float, CultureInfo.InvariantCulture, out var days) && days >= 0 ? days : null;
+    private static double? NumberOf(GraphThing holder, string property) =>
+        double.TryParse(holder.PropertyString(property), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && number >= 0 ? number : null;
 
     // Deepest first, so no Thing is left held by one already gone if a delete fails part way.
     public async Task<int> ClearRunAsync(Guid runId, CancellationToken cancellationToken)

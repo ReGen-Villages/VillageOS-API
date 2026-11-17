@@ -98,6 +98,39 @@ public class RunClearingTests
     }
 
     [Fact]
+    public async Task A_look_with_more_runs_due_than_its_cap_clears_the_cap_oldest_first_and_leaves_the_rest_for_the_next()
+    {
+        var thirtyOne = Run(RunStatus.Succeeded, 31);
+        var forty = Run(RunStatus.Succeeded, 40);
+        var thirtyFive = Run(RunStatus.Succeeded, 35);
+        var recent = Run(RunStatus.Succeeded, 1);
+        var gateway = new FakeGateway(new GraphFixture().Build())
+        {
+            RunsJudged = new RunsToJudge([thirtyOne, recent, forty, thirtyFive], Template, new Dictionary<Guid, KeepPeriods>(), RunsPerLook: 2),
+        };
+
+        var cleared = await Keeper(gateway).ClearOnceAsync(CancellationToken.None);
+
+        cleared.Runs.Should().Be(2);
+        gateway.Cleared.Should().Equal(forty.RunId, thirtyFive.RunId);
+    }
+
+    [Theory]
+    [InlineData(null, 500)]
+    [InlineData(200.0, 200)]
+    [InlineData(0.0, 500)]
+    [InlineData(2.5, 500)]
+    public void A_look_clears_at_most_the_whole_number_the_run_kind_states_and_500_where_it_states_none(double? stated, int cap) =>
+        RunRetention.RunsPerLookOf(stated).Should().Be(cap);
+
+    private static RunClearingKeeper Keeper(FakeGateway gateway)
+    {
+        var clock = new ModelClock(new FakeTimeProvider(new DateTimeOffset(2026, 11, 17, 23, 0, 0, TimeSpan.Zero)));
+        clock.AnchorTo(Now, 1);
+        return new RunClearingKeeper(gateway, clock, NullLogger<RunClearingKeeper>.Instance);
+    }
+
+    [Fact]
     public async Task One_look_clears_the_runs_past_their_period_and_leaves_one_that_cannot_be_cleared_for_the_next()
     {
         var old = Run(RunStatus.Succeeded, 31);
@@ -106,7 +139,7 @@ public class RunClearingTests
         var running = Run(RunStatus.Running, 100);
         var gateway = new FakeGateway(new GraphFixture().Build())
         {
-            RunsJudged = new RunsToJudge([old, refusing, recent, running], Template, new Dictionary<Guid, KeepPeriods>()),
+            RunsJudged = new RunsToJudge([old, refusing, recent, running], Template, new Dictionary<Guid, KeepPeriods>(), RunsPerLook: 500),
         };
         gateway.RefusesToClear.Add(refusing.RunId);
         var clock = new ModelClock(new FakeTimeProvider(new DateTimeOffset(2026, 11, 17, 23, 0, 0, TimeSpan.Zero)));

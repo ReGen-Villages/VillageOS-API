@@ -43,6 +43,7 @@ public static class ModelNames
     public const string FinishedUtc = "finishedUtc";
     public const string KeepRunsForDays = "keepRunsForDays";
     public const string KeepFailedRunsForDays = "keepFailedRunsForDays";
+    public const string ClearsAtMostRunsPerLook = "clearsAtMostRunsPerLook";
     public const string Outputs = "outputs";
     public const string StartedRun = "startedRun";
     // On a node, how many attempts its policy allows; on a node run, how many were made. An attempt carries its number.

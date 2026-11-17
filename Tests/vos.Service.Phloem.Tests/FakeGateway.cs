@@ -215,7 +215,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (Cadences) return Task.FromResult<IReadOnlyList<Cadence>>(Cadences.ToList());
     }
 
-    public RunsToJudge RunsJudged { get; set; } = new([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>());
+    public RunsToJudge RunsJudged { get; set; } = new([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>(), RunRetention.RunsPerLookOf(null));
     public List<Guid> Cleared { get; } = new();
     public HashSet<Guid> RefusesToClear { get; } = new();
 
