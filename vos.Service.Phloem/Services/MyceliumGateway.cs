@@ -835,6 +835,81 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         _cadences.MarkDue(cadenceId, due);
     }
 
+    // Every run arrives, which is what the clearing is for; it runs once an hour, not per node run.
+    public async Task<RunsToJudge> RunsToJudgeAsync(CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { PipelineRoles.PipelineRun.Id, PipelineRoles.Orchestrator.Id },
+            names = new[] { ModelNames.Binds, ModelNames.Is, ModelNames.Of, ModelNames.Has },
+            boundTypes = new[] { PipelineRoles.PipelineRun.Id },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Of, direction = "outgoing", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicate = ModelNames.Is, direction = "outgoing" },
+                new { predicate = ModelNames.Of, direction = "outgoing" },
+                new { predicate = ModelNames.Has, direction = "incoming" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
+        if (graph.Bound(PipelineRoles.PipelineRun) is not { } kind) return new RunsToJudge([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>());
+        var orchestrator = graph.Bound(PipelineRoles.Orchestrator);
+
+        var runs = new List<RunToJudge>();
+        var pipelines = new Dictionary<Guid, KeepPeriods>();
+        foreach (var run in graph.RelationshipsInto(kind, ModelNames.Is).Select(edge => graph.Thing(edge.SubjectId)).OfType<GraphThing>())
+        {
+            var pipeline = graph.OutgoingTargets(run, ModelNames.Of).FirstOrDefault();
+            if (pipeline is not null) pipelines.TryAdd(pipeline.Id, PeriodsOf(pipeline));
+            runs.Add(new RunToJudge(run.Id, pipeline?.Id, run.PropertyString(ModelNames.Status) ?? string.Empty,
+                DateTimeOffset.TryParse(run.PropertyString(ModelNames.FinishedUtc), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var finished)
+                    ? finished : null,
+                orchestrator is not null && graph.RelationshipsInto(run, ModelNames.Has).Any(held => held.SubjectId == orchestrator.Id)));
+        }
+        return new RunsToJudge(runs, PeriodsOf(kind), pipelines);
+    }
+
+    private static KeepPeriods PeriodsOf(GraphThing holder) =>
+        new(Days(holder, ModelNames.KeepRunsForDays), Days(holder, ModelNames.KeepFailedRunsForDays));
+
+    private static double? Days(GraphThing holder, string property) =>
+        double.TryParse(holder.PropertyString(property), NumberStyles.Float, CultureInfo.InvariantCulture, out var days) && days >= 0 ? days : null;
+
+    // Deepest first, so no Thing is left held by one already gone if a delete fails part way.
+    public async Task<int> ClearRunAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        var graph = await LoadSnapshotAsync(new
+        {
+            ids = new[] { runId },
+            names = new[] { ModelNames.Has },
+            traverse = new object[] { new { predicate = ModelNames.Has, direction = "outgoing", depth = 2 } },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[] { new { predicate = ModelNames.Has, direction = "outgoing" } },
+        }, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(runId) is not { } run) return 0;
+
+        var held = graph.OutgoingTargets(run, ModelNames.Has).ToList();
+        var order = held.SelectMany(child => graph.OutgoingTargets(child, ModelNames.Has)).Concat(held).Append(run)
+            .Select(thing => thing.Id).Distinct().ToList();
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        foreach (var thingId in order)
+        {
+            var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}", cancellationToken);
+            if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+                throw new HttpRequestException($"The platform refused to retract {thingId}: {await ErrorOfAsync(response, cancellationToken)}",
+                    null, response.StatusCode);
+        }
+        return order.Count;
+    }
+
     // The Thing playing a role, found through the role Thing rather than by a name this orchestrator was told.
     // Asked for on its own: boundTypes would answer with every Thing that already `is` it, which for a run
     // archetype is every run ever recorded. This runs once per node run, so the answer is kept for the process.
