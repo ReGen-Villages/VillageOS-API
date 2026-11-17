@@ -22,7 +22,7 @@ const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
 const SEVERITIES = ['good', 'warning', 'critical'] as const;
 const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
 const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
-const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all'];
+const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value'];
 const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
 export const STEP_DIRECTIONS = ['out', 'in'] as const;
@@ -136,6 +136,10 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   depthProfile: [
     title, hint, binding('rows', 'rows'), text('labelKey', 'rowKey', true), text('orderKey', 'rowKey', true),
     list('parts', [text('label'), text('key', 'rowKey', true), text('colour', undefined, true)]), format, unit, floor, ceiling,
+  ],
+  polarShares: [
+    title, hint, binding('counts', 'series'), binding('cells', 'rows'), text('bearingKey', 'rowKey', true),
+    text('classOrderKey', 'rowKey', true), text('classLabelKey', 'rowKey', true), text('classColourKey', 'rowKey', true),
   ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [

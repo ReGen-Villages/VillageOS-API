@@ -647,6 +647,23 @@ export interface BoxPlotWidget {
   ceiling?: number;
 }
 
+/** Hours counted under each cell Thing, drawn as a rose: each cell sits in the sector its row's `bearingKey`
+ *  names (degrees, nought north, clockwise) and stacks outward by `classOrderKey`, coloured and labelled by
+ *  its row. `counts` is a `history` binding folded by `value` (one rose) or `monthOfYear,value` (a rose a
+ *  month, all on one scale) and counted; `cells` is a row binding, one row per cell Thing, whose `id` the
+ *  counts are keyed by. Each wedge's reach is its share of the hours counted under a declared cell. */
+export interface PolarSharesWidget {
+  type: 'polarShares';
+  title?: string;
+  hint?: string;
+  counts: Binding;
+  cells: Binding;
+  bearingKey: string;
+  classOrderKey: string;
+  classLabelKey: string;
+  classColourKey: string;
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 export interface DepthProfilePart {
   label: string;
@@ -949,6 +966,7 @@ export type Widget = Placed & (
   | RangeBarWidget
   | BoxPlotWidget
   | DepthProfileWidget
+  | PolarSharesWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

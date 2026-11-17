@@ -495,6 +495,23 @@ describe('subscriptionForSpec over a boxPlot widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a polarShares widget', () => {
+  it('asks for the counts and the cells it draws', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'polarShares',
+              title: 'Rose',
+              counts: { kind: 'aggregate', archetype: 'Counted', reduction: 'count' },
+              cells: { kind: 'aggregate', archetype: 'Cells', reduction: 'count' },
+              bearingKey: 'centreDegrees', classOrderKey: 'order', classLabelKey: 'name', classColourKey: 'colour',
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Counted', 'Cells']));
+  });
+});
+
 describe('subscriptionForSpec over a depthProfile widget', () => {
   it('asks for the rows it draws', () => {
     const selector = subscriptionForSpecification(
