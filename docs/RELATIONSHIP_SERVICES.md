@@ -495,7 +495,9 @@ Every call a handler makes to Mycelium carries a JWT as a bearer. Which one it p
 
 1. **The bearer of the request in hand.** Mycelium signs each `/handle` call with a JWT that lasts five minutes and names the request's model. A handler calling back during that request presents the same token, so a daemon shared by several models writes to the model the request was about.
 2. **The token exchanged for the service's API key**, where it holds one in the `ApiKey` setting. The key is exchanged at `POST /api/auth/token` in the `X-API-Key` header for a JWT that lasts five minutes, and exchanged again shortly before that expires.
-3. **The `Token` setting.** Mycelium mints a service JWT that lasts a day and sets it on the environment of every daemon it launches, so a launched daemon can authenticate at once.
+3. **The `Token` setting.** Mycelium mints a service JWT that lasts a day and sets it on the environment of every daemon it launches, so a launched daemon can authenticate at once. A `Token` that is a service token is swapped two hours before it runs out; one that is not, such as a token minted for a key, is not renewed, and the service logs one information line saying so.
+
+A service holds an `ApiKey` or a `Token`, not both: one given the two refuses to start.
 
 A service started by hand with neither an `ApiKey` nor a `Token` has nothing to present, since `POST /api/auth/token` answers `401` to a call that carries no key. It therefore makes no call for a token: its registration logs that neither setting is set, and a call that needs a token fails with that reason.
 
@@ -509,9 +511,9 @@ A service started by hand with neither an `ApiKey` nor a `Token` has nothing to 
 | `https://localhost:7243/api/things/{id}/properties/{propertyName}/decrements` | POST | Decrement numeric property (used by `consumes`) |
 | `https://localhost:7243/api/things/{id}/properties/by-path/{path}` | GET | Get property by path |
 | `https://localhost:7243/api/relationships/{id}/properties/{propertyName}/increments` | POST | Increment a relationship property |
-| `https://localhost:7243/api/relationships/{id}/acknowledgement` | POST | Acknowledge a service call whose connection waits for one (see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md)) |
+| `https://localhost:7243/api/relationships/{id}/report` | POST | Report how a service call went — `received`, `completed`, or `failed` with a reason — where the connection finishes its calls on the service's report (see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md)) |
 | `https://localhost:7243/api/mycelium/register` | POST | Register handler with Mycelium |
-| `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration (admin-only) |
+| `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration: the service's own, or any for an administrator |
 
 ### Quantity Endpoint Payload
 
@@ -572,6 +574,8 @@ Normally Mycelium auto-starts handler daemons via the daemon lifecycle manager. 
 | `--issuer=<issuer>` | No | JWT issuer Mycelium signs with. Must match for `/handle` authentication |
 | `--audience=<audience>` | No | This service's own recipient name, which an inbound token must carry. Must match for `/handle` authentication |
 | `--logDirectory=<folder>` | No | The folder the service writes its log file to; four levels above the build output by default |
+| `--serviceCallLimitSeconds=<n>` | No | How long Mycelium waits for the service to answer a service call, in whole seconds; absent or unusable reads as no limit |
+| `--passedOnRequestLimitSeconds=<n>` | No | The same for a request Mycelium passes on to the service |
 | `--mode=<mode>` | Metabolism only | `consumes` or `produces` |
 
 #### Credential settings
@@ -622,7 +626,8 @@ Create an API key with the `service` role ([`SERVICES.md` §12](SERVICES.md) has
 export ApiKey=vos_sk_...
 ```
 
-To hand over a `Token` instead, exchange the key yourself. The token lasts five minutes:
+To hand over a `Token` instead, exchange the key yourself. The token lasts five minutes, and the
+service does not renew it, because it is not a service token:
 
 ```bash
 export Token=$(curl -s -X POST "https://localhost:7243/api/auth/token" -H "X-API-Key: vos_sk_..." \
