@@ -1,6 +1,5 @@
 using vos.Service.Auth;
 using vos.Service.Shared;
-using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.EnergyBalance.Services;
@@ -47,17 +46,6 @@ try
         new EnergyBalanceNode(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
-    builder.Services.AddSingleton(sp =>
-        new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, sp.GetRequiredService<ModelClock>(),
-            launchToken, apiKey: apiKey));
-    builder.Services.AddModelClock<EnergyBalanceReactiveHandler>("EnergyBalance");
-
-    // Recompute when an input moves, so a study's result never presents a stale number as current.
-    builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
-        "EnergyBalance", myceliumUrl, launchToken, _ => EnergyBalanceReactiveHandler.InputProperties,
-        (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
-
     builder.Services.AddMyceliumRegistration("EnergyBalance", servicePort);
 
     var app = builder.Build();
@@ -69,25 +57,13 @@ try
         app.UseMyceliumModelToken();
     }
 
-    var handle = app.MapPost("/handle", async (HttpContext ctx, EnergyBalanceNode node, EnergyBalanceReactiveHandler reactive,
-        InputChangeRecomputeService following) =>
+    var handle = app.MapPost("/handle", async (HttpContext ctx, EnergyBalanceNode node) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
-
-        switch (request.Kind)
-        {
-            case HandleRequestKind.NodeEnvelope:
-                return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
-
-            case HandleRequestKind.RelationshipSubject:
-                following.Watch(request.SubjectId);
-                var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
-                return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
-
-            default:
-                return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("EnergyBalance") });
-        }
+        return request.Kind == HandleRequestKind.NodeEnvelope
+            ? Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted))
+            : Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope("EnergyBalance") });
     });
     if (authEnabled) handle.RequireAuthorization();
 
