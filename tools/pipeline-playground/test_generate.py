@@ -280,7 +280,8 @@ class CatalystVocabularyTests(unittest.TestCase):
         [connection_archetype] = self.bound("connection")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
-        for connection in connections - set(self.told_through().values()) - set(self.bound("runStopping")):
+        notified = {r["Target"] for r in self.kit.rels.values() if r["Predicate"] in self.bound("notifiedConnection")}
+        for connection in connections - set(self.told_through().values()) - set(self.bound("runStopping")) - notified:
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
     def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
@@ -293,6 +294,37 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertEqual(self.triggers_of(connection), ["graph"], self.kit.things[system]["Name"])
             bound = [r for r in self.kit.rels.values() if r["Subject"] == connection and r["Predicate"] == has]
             self.assertEqual(len(bound), 1, self.kit.things[system]["Name"])
+
+    def held_by(self, holder):
+        [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
+        return [r["Target"] for r in self.kit.rels.values() if r["Subject"] == holder and r["Predicate"] == has]
+
+    def test_stops_and_each_told_through_predicate_notify_a_connection_with_its_trigger_and_service(self):
+        [notifies] = self.bound("notifiedConnection")
+        [connection_archetype] = self.bound("connection")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        predicates = [*self.bound("runStopping"), *self.told_through().values()]
+        notified = {r["Subject"]: r["Target"] for r in self.kit.rels.values() if r["Predicate"] == notifies}
+        self.assertEqual(set(notified), set(predicates))
+        for predicate in predicates:
+            name, connection = self.kit.things[predicate]["Name"], notified[predicate]
+            self.assertEqual(self.kit.things[connection]["Name"], f"{name} connection")
+            self.assertIn((connection, is_, connection_archetype), self.kit.rels, name)
+            self.assertEqual(self.triggers_of(connection), self.triggers_of(predicate), name)
+            self.assertEqual(self.held_by(connection), self.held_by(predicate), name)
+
+    def test_merge_adds_no_connection_for_a_stopping_predicate_the_target_binds(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-binds", "Name": "binds", "Properties": {}},
+                           {"Id": G.role_id("runStopping"), "Name": "RunStopping", "Properties": {}},
+                           {"Id": "target-stops", "Name": "halts", "Properties": {}}],
+                "Relationships": [{"Id": "target-binding", "Name": "", "Subject": G.role_id("runStopping"),
+                                   "Predicate": "target-binds", "Target": "target-stops", "Properties": {}}]}
+        G.merge_into(self.kit, seed)
+
+        self.assertEqual([t for t in seed["Things"] if t["Name"] == "stops connection"], [])
+        notifies = bound_in_seed(seed, "notifiedConnection")
+        self.assertEqual([r for r in seed["Relationships"] if r["Subject"] == "target-stops" and r["Predicate"] in notifies], [])
 
     def test_a_node_binding_inputs_to_run_parameters_spells_the_property_in_full(self):
         bound = [t for t in self.kit.things.values() if value(t.get("Properties"), "parameterBindings")]
