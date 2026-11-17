@@ -11,8 +11,9 @@ trigger:
       - develop
       - main
 
-# A pull request is built against its merge commit. One from outside the organisation waits for an
-# owner's comment and never receives the secret values; both are pipeline settings, not in this file.
+# A pull request is built against its merge commit. One from a fork is never built, so outside code
+# never runs on the pool's machines (a project setting, not in this file): an owner who has read it
+# pushes its commits to a branch here and opens the pull request from that branch.
 pr:
   branches:
     include:
