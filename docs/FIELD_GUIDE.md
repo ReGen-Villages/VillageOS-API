@@ -3175,7 +3175,7 @@ runs it during a play and keeps the file with its readings.
 | Quantifiers over related Things | `ANY` (default), `ALL`, `NONE` | `ALL [feeds].quantity > 0` |
 | Totals over related Things | `MIN`, `MAX`, `SUM`, `AVG`, `COUNT` over `[path.Kind].property`, on the left of a comparison | `SUM [<-is.SolarArray].area > 5000` |
 | A trailing window | `OVER instant LAST seconds` after a total | `COUNT [feeds] OVER flowed_at LAST 900 > 20` |
-| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all` | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
+| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product, and scaling the whole term takes brackets | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
 | The clock | `elapsed(x)` in seconds, `Now()` | `elapsed(lastInspected) > 86400` |
 | The smaller of two figures | `min(a, b)`; unknown when either is | `min(harvestM3PerYear, demandM3PerYear)` |
 | The first figure with a number | `firstKnown(a, b, …)`, in the order written; an unknown, a text or a path reaching several Things is passed over, and zero is an answer | `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` |
