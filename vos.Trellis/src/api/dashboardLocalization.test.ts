@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { localizeSpecification, displayStringsOf } from './dashboardLocalization';
 import type {
   Binding,
+  BoxPlotWidget,
   DashboardSpecification,
   FunnelWidget,
   KpiWidget,
@@ -336,6 +337,30 @@ describe('localizeSpecification over an origin binding', () => {
   it('never rewrites the origin the wording is keyed by, nor the property it reads', () => {
     expect(Object.keys(binding.reads)).toEqual(['measured', 'unknown']);
     expect(binding.property).toBe('rainfallMillimetresPerYear');
+  });
+});
+
+describe('localizeSpecification over a boxPlot widget', () => {
+  const one = { kind: 'const', value: 1 } as const;
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'boxPlot',
+              title: 'Wet bulb',
+              hint: 'by month',
+              unit: 'degrees',
+              months: { whiskerLow: one, boxLow: one, median: one, boxHigh: one, whiskerHigh: one },
+              bands: [{ label: 'Danger', colour: '#f00' }],
+            } satisfies BoxPlotWidget] }],
+    translations: { es: { 'Wet bulb': 'Bulbo húmedo', 'by month': 'por mes', 'degrees': 'grados', 'Danger': 'Peligro' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as BoxPlotWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Bulbo húmedo');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('grados');
+    expect(localized.bands?.[0].label).toBe('Peligro');
   });
 });
 

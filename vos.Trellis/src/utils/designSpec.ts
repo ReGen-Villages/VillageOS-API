@@ -55,6 +55,7 @@ export function emptyWidget(kind: Widget['type'], title: string): Widget {
     case 'working': return { type: 'working', title, rows: [] };
     case 'exceptionBar': return { type: 'exceptionBar', title, buckets: [] };
     case 'rangeBar': return { type: 'rangeBar', title, months: UNBOUND };
+    case 'boxPlot': return { type: 'boxPlot', title, months: UNBOUND };
     case 'lineSeries': return { type: 'lineSeries', title, series: [] };
     case 'heatmap': return { type: 'heatmap', title, value: UNBOUND };
     case 'stackedShares': return { type: 'stackedShares', title, classes: [] };
@@ -76,7 +77,9 @@ export function unboundSlots(widget: Widget): string[] {
     case 'action':
       return widget.rows ? [] : ['rows'];
     case 'leaderboard': return widget.entities ? [] : ['entities'];
-    case 'rangeBar': return widget.months ? [] : ['months'];
+    case 'rangeBar':
+    case 'boxPlot':
+      return widget.months ? [] : ['months'];
     case 'divergingBar': return [widget.up ? null : 'up', widget.down ? null : 'down'].filter((slot): slot is string => slot !== null);
     case 'smallMultiples': return [widget.bars ? null : 'bars', widget.line ? null : 'line'].filter((slot): slot is string => slot !== null);
     default: return [];

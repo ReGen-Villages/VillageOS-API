@@ -14,6 +14,7 @@
  */
 import type {
   Binding,
+  BoxPlotWidget,
   BulletWidget,
   DashboardSection,
   DashboardSpecification,
@@ -189,8 +190,9 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       };
       return w;
     }
-    case 'rangeBar': {
-      const w: RangeBarWidget = {
+    case 'rangeBar':
+    case 'boxPlot': {
+      const w: RangeBarWidget | BoxPlotWidget = {
         ...widget,
         title: tr(widget.title),
         hint: tr(widget.hint),

@@ -97,6 +97,12 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
         : []),
       ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
     ];
+    case 'boxPlot': return [
+      ...[widget.months, widget.annual].flatMap((period) => period
+        ? [period.whiskerLow, period.boxLow, period.median, period.boxHigh, period.whiskerHigh]
+        : []),
+      ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
+    ];
     case 'lineSeries': return widget.series.map((entry) => entry.value);
     case 'heatmap': return [
       widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds,

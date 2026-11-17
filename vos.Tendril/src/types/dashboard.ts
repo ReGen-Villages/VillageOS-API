@@ -619,6 +619,34 @@ export interface RangeBarWidget {
   ceiling?: number;
 }
 
+/** The five figures a box plot draws for one period, each a binding resolving to groups, one per month for
+ *  the monthly boxes and one for the whole window for the annual box. Which percentile each is, is the
+ *  binding's own step; the 5th, 25th, 50th, 75th and 95th are the usual five. */
+export interface BoxSeries {
+  whiskerLow: Binding;
+  boxLow: Binding;
+  median: Binding;
+  boxHigh: Binding;
+  whiskerHigh: Binding;
+}
+
+/** Twelve boxes, one a month, against bands the model declares, with the same figures over the whole
+ *  window as one box beside them. Each box runs from `boxLow` to `boxHigh` with the median across it,
+ *  and a line from `whiskerLow` to `whiskerHigh` through it. `floor` and `ceiling` fix the axis; absent,
+ *  it fits the data and the bands. */
+export interface BoxPlotWidget {
+  type: 'boxPlot';
+  title?: string;
+  hint?: string;
+  months: BoxSeries;
+  annual?: BoxSeries;
+  bands?: RangeBand[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
 export interface LineSeriesEntry {
@@ -894,6 +922,7 @@ export type Widget = Placed & (
   | WorkingWidget
   | ExceptionWidget
   | RangeBarWidget
+  | BoxPlotWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

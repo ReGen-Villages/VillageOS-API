@@ -90,3 +90,34 @@ export function SeriesTable({
     </div>
   );
 }
+
+/** The bands a chart draws behind its marks, each between the bounds the model states; a bound left
+ *  unbound runs to the edge of the domain. */
+export function ChartBands({
+  bands,
+  domain,
+  y,
+  left,
+  right,
+}: {
+  bands: { label: string; colour: string; from: number | null; to: number | null }[];
+  domain: [number, number];
+  y: (value: number) => number;
+  left: number;
+  right: number;
+}) {
+  return bands.map((band, at) => {
+    const top = y(band.to ?? domain[1]);
+    const bottom = y(band.from ?? domain[0]);
+    // Labels alternate ends, so two bands that overlap do not write over each other's name.
+    const atTheRight = at % 2 === 1;
+    return (
+      <g key={band.label}>
+        <rect data-band={band.label} x={left} y={top} width={right - left} height={Math.max(0, bottom - top)} fill={band.colour} opacity={0.3} />
+        <text x={atTheRight ? right - 4 : left + 4} y={top + 11} fontSize={10} textAnchor={atTheRight ? 'end' : 'start'} fill="var(--chart-ink-muted)">
+          {band.label}
+        </text>
+      </g>
+    );
+  });
+}

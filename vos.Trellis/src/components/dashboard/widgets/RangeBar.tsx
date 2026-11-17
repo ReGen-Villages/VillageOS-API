@@ -6,7 +6,7 @@ import { asNumber } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
+import { ChartBands, ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
 import { linearScale, niceTicks, paddedDomain } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
@@ -116,34 +116,7 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
           aria-label={widget.title ?? t('widgets.history.annual')}
           className="block max-w-full"
         >
-          {bands.map((band, at) => {
-            const top = y(band.to ?? domain[1]);
-            const bottom = y(band.from ?? domain[0]);
-            // Labels alternate ends, so two bands that overlap do not write over each other's name.
-            const atTheRight = at % 2 === 1;
-            return (
-              <g key={band.label}>
-                <rect
-                  data-band={band.label}
-                  x={LEFT_GUTTER}
-                  y={top}
-                  width={width - LEFT_GUTTER - RIGHT_GUTTER}
-                  height={Math.max(0, bottom - top)}
-                  fill={band.colour}
-                  opacity={0.3}
-                />
-                <text
-                  x={atTheRight ? width - RIGHT_GUTTER - 4 : LEFT_GUTTER + 4}
-                  y={top + 11}
-                  fontSize={10}
-                  textAnchor={atTheRight ? 'end' : 'start'}
-                  fill="var(--chart-ink-muted)"
-                >
-                  {band.label}
-                </text>
-              </g>
-            );
-          })}
+          <ChartBands bands={bands} domain={domain} y={y} left={LEFT_GUTTER} right={width - RIGHT_GUTTER} />
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />

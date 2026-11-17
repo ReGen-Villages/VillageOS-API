@@ -475,6 +475,26 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a boxPlot widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const part = (archetype: string) => ({ kind: 'aggregate', archetype, reduction: 'count' }) as const;
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'boxPlot',
+              title: 'Wet bulb',
+              months: { whiskerLow: part('Low'), boxLow: part('BoxLow'), median: part('Median'), boxHigh: part('BoxHigh'), whiskerHigh: part('High') },
+              annual: { whiskerLow: part('YearLow'), boxLow: part('YearBoxLow'), median: part('YearMedian'), boxHigh: part('YearBoxHigh'), whiskerHigh: part('YearHigh') },
+              bands: [{ label: 'Danger', from: part('DangerFrom'), to: part('DangerTo'), colour: '#f00' }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining([
+      'Low', 'BoxLow', 'Median', 'BoxHigh', 'High', 'YearLow', 'YearBoxLow', 'YearMedian', 'YearBoxHigh', 'YearHigh', 'DangerFrom', 'DangerTo',
+    ]));
+  });
+});
+
 describe('subscriptionForSpec over a lineSeries widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(
