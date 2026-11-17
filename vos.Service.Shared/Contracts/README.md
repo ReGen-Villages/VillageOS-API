@@ -22,7 +22,7 @@ Contracts/
 ## Where the validator runs
 
 - **Inbound `/handle` bodies**, through the `UseRequestContractValidation` middleware, on a route that opts in with `RequireContract<T>()`. Metabolism's `/handle` does.
-- **Outbound calls in `MyceliumClientBase`**: the registration body, the token response, and the body of each write helper.
+- **Outbound calls in `MyceliumClientBase`**: the registration body and the body of each write helper. The token-response schema is kept, but no client checks a reply against it.
 - **Metabolism's own outbound calls**: the quantity adjustment and the relationship increment.
 
 A violation throws in a Debug build and logs a warning in a Release build. See `docs/SERVICES.md` §9 for the whole of it.
