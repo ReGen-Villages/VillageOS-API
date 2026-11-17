@@ -15,6 +15,7 @@ vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn().mockResol
 vi.mock('../api/thingApi', () => ({ thingApi: { create: vi.fn(), addProperty: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 vi.mock('../api/relationshipApi', () => ({ relationshipApi: { create: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 vi.mock('../pipeline/stop', () => ({ stopRun: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../hooks/useAuthentication', () => ({ useAuthentication: () => ({ role: 'editor' }) }));
 
 import { MemoryRouter } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';

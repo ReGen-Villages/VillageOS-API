@@ -14,7 +14,7 @@ const PIPELINE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
  *  shows nothing of that kind, so the list is read off the sources rather than kept by hand. */
 function rolesReadAsKinds(): Set<string> {
   const roles = new Set<string>();
-  for (const file of ['model.ts', 'catalysts.ts', 'serialize.ts', 'stop.ts', 'handOver.ts']) {
+  for (const file of ['model.ts', 'catalysts.ts', 'serialize.ts', 'stop.ts', 'handOver.ts', 'connectionSettings.ts']) {
     const source = readFileSync(join(PIPELINE_DIRECTORY, file), 'utf8');
     for (const [, role] of source.matchAll(/\b(?:thingsOf|isOf)\((?:[^,()]+,\s*)?ROLE\.(\w+)\)/g)) roles.add(role);
   }
