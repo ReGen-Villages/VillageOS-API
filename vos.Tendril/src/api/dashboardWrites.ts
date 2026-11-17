@@ -10,8 +10,8 @@ export interface EndpointAnswer {
 
 /**
  * The post a writing widget makes: the body to the route the specification names, through the
- * application's `press`, which says who is pressing where the application knows. A page that supplies
- * no `press` cannot press, and is refused in Tendril's words without anything being sent.
+ * application's `press`. A page that supplies no `press` cannot press, and is refused in Tendril's
+ * words without anything being sent.
  *
  * A refusal reaches the widget whichever way the endpoint refuses — with a refusing status, whose
  * body the client already reads the error out of, or with an answer carrying `error` — in the
