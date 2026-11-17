@@ -12,13 +12,13 @@ public record Coverage(
     IReadOnlyList<RecordedCoverage> Recorded,
     CoverageVocabulary? Vocabulary);
 
-// A site's: the sources covering it, the analysis to start once the run has fetched, and what the run
+// A site's: the sources covering it, the studies that study it, and what the run
 // needs to work out a division the model supplies none of — the two lookups to call, the address a
 // call about the site itself is made with, which says both where the site is and whether anything already
 // supplies a division code, and every Place stating a code the site may turn out to stand in.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
-    SiteAnalysis? Analysis,
+    IReadOnlyList<Study> Studies,
     IReadOnlyList<RecordedCoverage> Recorded,
     CoverageVocabulary? Vocabulary,
     DivisionLookup? Lookup,
@@ -57,7 +57,7 @@ public sealed class CoveringSourceService
                 var lookup = CoveringSourceResolver.DivisionLookupIn(snapshot);
                 return new SiteCoverage(
                     CoveringSourceResolver.Resolve(snapshot, siteId),
-                    CoveringSourceResolver.AnalysisOf(snapshot, siteId),
+                    CoveringSourceResolver.StudiesOf(snapshot, siteId),
                     CoveringSourceResolver.RecordedCoverageIn(snapshot),
                     CoveringSourceResolver.CoverageVocabularyIn(snapshot),
                     lookup,

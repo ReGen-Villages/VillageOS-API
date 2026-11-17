@@ -36,7 +36,6 @@ public static class LandIntakeRoles
     public static readonly Role ParcelLookup = new("parcelLookup", new("b4094d7a-944f-52ca-8ec5-856526b76195"));
     public static readonly Role PlaceSearch = new("placeSearch", new("cdb5e35c-ba1d-5e9f-be4e-330b3b234223"));
     public static readonly Role SourceCoverage = new("sourceCoverage", new("2b8de5b8-d8ff-503d-86d8-38b53c00d438"));
-    public static readonly Role SiteAnalysisConnection = new("siteAnalysisConnection", new("b79434df-2c42-58a2-bdaa-db241a458804"));
     public static readonly Role DiscoveredVocabulary = new("discoveredVocabulary", new("7f80ce0e-0cc2-58c4-a1ad-92df27b2cbbd"));
     public static readonly Role StudiedSite = new("studiedSite", new("84e004bc-835c-5888-81ab-2a8c70c1a086"));
     public static readonly Role ServiceOrder = new("serviceOrder", new("f5c493f4-5c42-5d83-9948-9850d3e41869"));
@@ -64,7 +63,7 @@ public static class LandIntakeRoles
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
         ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, RootPlace, PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
-        PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
+        PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
         SourcedFrom, ShownUnder,

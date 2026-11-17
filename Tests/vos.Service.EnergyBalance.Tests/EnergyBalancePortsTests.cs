@@ -1,45 +1,28 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.EnergyBalance.Tests;
 
-// What the one service the site analysis still calls reads and writes.
-//
-// These two claims were held across the analysis's services while there were several, in a test project
-// of their own. The model works every figure out for itself now except the energy verdict — a boolean
-// where a formula yields a number — so there is one service left and no pair to hold against each other.
-// The claims are still worth making of it alone.
 public class EnergyBalancePortsTests
 {
-    // The figure the handler reads and the figure its arithmetic takes are one name, so no step between
-    // them can reinterpret it. The unit is in the name, which is what makes a move from megawatt-hours to
-    // kilowatt-hours a rename both sides have to follow rather than a silent factor of a thousand.
-    [Theory]
-    [InlineData("solarPvAreaM2")]
-    [InlineData("solarResourceKwhPerM2PerYear")]
-    [InlineData("moduleEfficiency")]
-    [InlineData("performanceRatio")]
-    [InlineData("annualConsumptionMwhPerYear")]
-    public void It_takes_each_figure_it_reads_under_the_name_it_read_it_by(string figure)
-    {
-        EnergyBalanceReactiveHandler.InputProperties.Should().Contain(figure);
-        TakenBy<EnergyBalanceInputs>().Should().Contain(figure);
-    }
-
-    // A figure moving wakes the handler, which writes its verdict onto the study it was woken by, and
-    // nothing is woken after that. That is why a planner moving a programme share settles in one round
-    // rather than running up against the model's round limit.
+    // The in port and the calculator's parameter are one name, so no step between them can reinterpret a figure.
+    // The unit is in the name, which is what makes a move from megawatt-hours to kilowatt-hours a rename both
+    // sides have to follow rather than a silent factor of a thousand.
     [Fact]
-    public void It_is_not_woken_by_what_it_writes()
+    public void Each_figure_the_node_takes_in_is_one_the_calculator_takes_by_the_same_name()
     {
-        EnergyBalanceReactiveHandler.InputProperties.Should()
-            .NotIntersectWith(DeclaredOutputs.Of<EnergyBalanceReactiveHandler>());
+        var node = new EnergyBalanceNode(new PerCallHttpClientFactory(new HttpClientHandler()), NullLogger<EnergyBalanceNode>.Instance,
+            "http://localhost", new LaunchToken("token"));
+
+        node.Ports.Where(port => port.Direction == "in").Select(port => port.PortName)
+            .Should().BeEquivalentTo(TakenBy<EnergyBalanceInputs>());
     }
 
-    // A calculator takes its figures as a record and the handler passes each one under the name of the
-    // property it was read from, so the parameter names are those property names with an upper initial.
+    // A calculator takes its figures as a record, so the parameter names are the port names with an upper initial.
     private static IEnumerable<string> TakenBy<TInputs>() =>
         typeof(TInputs).GetConstructors().Single().GetParameters()
             .Select(parameter => char.ToLowerInvariant(parameter.Name![0]) + parameter.Name[1..]);

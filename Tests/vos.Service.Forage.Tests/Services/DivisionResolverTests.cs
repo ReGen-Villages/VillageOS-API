@@ -96,7 +96,7 @@ public class DivisionResolverTests
                         }),
                 ]),
             ],
-            null, [], null, lookup,
+            [], [], null, lookup,
             address.ToDictionary(stated => stated.Name, stated => stated.Value, StringComparer.OrdinalIgnoreCase));
 
     private static SiteCoverage AtWillowBend() =>

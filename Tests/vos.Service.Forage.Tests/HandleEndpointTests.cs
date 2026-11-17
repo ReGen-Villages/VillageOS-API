@@ -183,11 +183,11 @@ public class HandleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetches.Should().Be(0, "a coverage read that failed selected no sources, and no source is not none");
-        writes.Should().Be(0, "starting the analysis would claim a discovery that never happened");
+        writes.Should().Be(0, "a relationship written now would claim a discovery that never happened");
     }
 
     // The same rule one read later: the subject was read as a site, and it is the read of what covers it
-    // that fails. Told by the mark the site's read asks for, so that the read failing is the one meant.
+    // that fails. Told by a role only the site's read asks for, so that the read failing is the one meant.
     [Fact]
     public async Task Handle_TheSitesCoverageReadFails_WritesNothingRatherThanReportingNoCoverage()
     {
@@ -202,7 +202,7 @@ public class HandleEndpointTests
             if (request.Method == HttpMethod.Post
                 && request.RequestUri!.AbsolutePath == "/api/snapshots"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
-                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionRole.Id.ToString(), StringComparison.Ordinal))
+                    .Contains(CoveringSourceResolver.PlaceArchetypeRole.Id.ToString(), StringComparison.Ordinal))
             {
                 coverageReads++;
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
