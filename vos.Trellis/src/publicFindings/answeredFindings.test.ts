@@ -161,6 +161,10 @@ describe('the findings a submitter is answered with', () => {
     await expect(reads.fromService('/api/endpoints/metrics', {})).rejects.toThrow();
   });
 
+  it('cannot press', () => {
+    expect(findingsFrom(answered()).reads.press).toBeUndefined();
+  });
+
   it('answers with nothing for a Thing whose ranges the service could not read', async () => {
     const { reads } = findingsFrom(answered({ ranges: {} }));
 

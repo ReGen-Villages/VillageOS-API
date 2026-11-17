@@ -2,11 +2,11 @@ import { useId } from 'react';
 import type { AskedValue } from '../types/dashboard';
 import type { Row } from '../api/dashboardApi';
 import type { Entered } from './writeRequest';
+import { FIELD_BORDER_CLASS, FIELD_SURFACE_CLASS, MUTED_CLASS, TEXT_CLASS } from './roleClasses';
 
 const INPUT_TYPES = { text: 'text', number: 'number', datetime: 'datetime-local', secret: 'password' } as const;
 
-const FIELD_CLASS =
-  'w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100';
+const FIELD_CLASS = `w-full rounded border ${FIELD_BORDER_CLASS} ${FIELD_SURFACE_CLASS} px-2 py-1 text-sm ${TEXT_CLASS}`;
 
 /** How many rows of a list stand open at once. Enough to choose a few out of without scrolling for
  *  the first one, and short enough that the field beside it stays on the same card. */
@@ -55,7 +55,7 @@ export function AskedFields({
         const set = (next: string | string[]) => onChange({ ...entered, [field.key]: next });
         return (
           <label key={field.key} htmlFor={id} className={inline ? 'flex items-center gap-1.5 text-xs' : 'block text-sm'}>
-            <span className={inline ? 'text-zinc-500 dark:text-zinc-400' : 'block text-xs text-zinc-500 dark:text-zinc-400'}>{field.label}</span>
+            <span className={inline ? MUTED_CLASS : `block text-xs ${MUTED_CLASS}`}>{field.label}</span>
             {field.kind === 'multichoice' ? (
               <select
                 id={id}

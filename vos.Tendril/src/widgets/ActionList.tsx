@@ -9,6 +9,7 @@ import { rostersForRow, useAskedOptions } from '../hooks/useAskedOptions';
 import { wordingIn, wordsInLanguage } from '../i18n/termWording';
 import { tendrilWord } from '../i18n/words';
 import { AskedFields } from './AskedFields';
+import { ACTION_CLASS, MUTED_CLASS, QUIET_CLASS, REFUSAL_CLASS, TEXT_CLASS } from './roleClasses';
 import { actionRequest, asksOf, complete, nameOf, offeredChoices, routeFor, type Entered, type OfferedChoice } from './writeRequest';
 
 /* A row is a button's line and padding tall, with the gap between rows, in rem so the cap follows
@@ -121,7 +122,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded px-3 py-1.5 text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+      className={`rounded px-3 py-1.5 text-sm ${ACTION_CLASS} disabled:opacity-50`}
     >
       {label}
     </button>
@@ -136,9 +137,9 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
 
   return (
     <>
-      {refusal && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{refusal}</p>}
+      {refusal && <p className={`mt-2 text-sm ${REFUSAL_CLASS}`}>{refusal}</p>}
       {widget.decided && (
-        <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+        <label className={`mt-2 flex items-center gap-2 text-sm ${QUIET_CLASS}`}>
           <input type="checkbox" checked={showingDecided} onChange={(event) => setShowingDecided(event.target.checked)} />
           {tendrilWord('showDecided')}
         </label>
@@ -152,15 +153,15 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
           const askingHere = asking?.rowId === id ? asking : null;
           return (
             <div key={id} className="flex flex-wrap items-center gap-2" data-decided={Boolean(already)}>
-              <span className="min-w-40 text-sm text-zinc-900 dark:text-zinc-100">{nameOf(widget, row)}</span>
-              <span className="flex-1 text-sm text-zinc-500 dark:text-zinc-400">{shown(row)}</span>
-              {already && <span className="text-sm text-zinc-500 dark:text-zinc-400">{already}</span>}
+              <span className={`min-w-40 text-sm ${TEXT_CLASS}`}>{nameOf(widget, row)}</span>
+              <span className={`flex-1 text-sm ${MUTED_CLASS}`}>{shown(row)}</span>
+              {already && <span className={`text-sm ${MUTED_CLASS}`}>{already}</span>}
               {pressable && askingHere && (
                 <>
                   {fieldsFor(id, asksOf(widget, askingHere.offered.choice), askingHere.rosters)}
-                  {askingHere.unreadable && <span className="text-sm text-red-600 dark:text-red-400">{tendrilWord('rosterUnreadable')}</span>}
+                  {askingHere.unreadable && <span className={`text-sm ${REFUSAL_CLASS}`}>{tendrilWord('rosterUnreadable')}</span>}
                   {button('confirm', askingHere.offered.choice.label, writing !== null || askingHere.unreadable || !complete(asksOf(widget, askingHere.offered.choice), asked), () => void press(row, askingHere.offered))}
-                  <button type="button" onClick={() => setAsking(null)} className="rounded px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  <button type="button" onClick={() => setAsking(null)} className={`rounded px-3 py-1.5 text-sm ${QUIET_CLASS}`}>
                     {tendrilWord('cancel')}
                   </button>
                 </>
@@ -182,9 +183,9 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
         {showingDecided &&
           decidedRows.map((row) => (
             <div key={String(row.id ?? '')} className="flex flex-wrap items-center gap-2" data-decided>
-              <span className="min-w-40 text-sm text-zinc-900 dark:text-zinc-100">{nameOf(widget, row)}</span>
-              <span className="flex-1 text-sm text-zinc-500 dark:text-zinc-400">{shown(row)}</span>
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">{String(row[widget.decided!.decision] ?? '')}</span>
+              <span className={`min-w-40 text-sm ${TEXT_CLASS}`}>{nameOf(widget, row)}</span>
+              <span className={`flex-1 text-sm ${MUTED_CLASS}`}>{shown(row)}</span>
+              <span className={`text-sm ${MUTED_CLASS}`}>{String(row[widget.decided!.decision] ?? '')}</span>
             </div>
           ))}
       </div>

@@ -1111,6 +1111,17 @@ describe('service bindings carry the selected scope', () => {
     expect(v).toEqual([1, 2, 3]);
   });
 
+  it('reads through the read function, never through the application’s press', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ series: [4] });
+    const press = vi.fn();
+    const context = contextFor('vil1');
+
+    const value = await resolveBinding(binding, { ...context, reads: { ...context.reads, press } });
+
+    expect(value).toEqual([4]);
+    expect(press).not.toHaveBeenCalled();
+  });
+
   it('sends a null scope when All is selected, so the service answers for everything', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ series: [] });
 
