@@ -33,6 +33,8 @@ export const DEFAULT_SIZE: Record<Widget['type'], { width: number; height: numbe
   working: { width: 6, height: 5 },
   exceptionBar: { width: 12, height: 3 },
   rangeBar: { width: 6, height: 7 },
+  boxPlot: { width: 6, height: 7 },
+  depthProfile: { width: 6, height: 5 },
   lineSeries: { width: 6, height: 7 },
   heatmap: { width: 6, height: 7 },
   stackedShares: { width: 6, height: 4 },

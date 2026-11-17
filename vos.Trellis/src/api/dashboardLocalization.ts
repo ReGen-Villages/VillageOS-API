@@ -14,7 +14,9 @@
  */
 import type {
   Binding,
+  BoxPlotWidget,
   BulletWidget,
+  DepthProfileWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -189,8 +191,19 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       };
       return w;
     }
-    case 'rangeBar': {
-      const w: RangeBarWidget = {
+    case 'depthProfile': {
+      const w: DepthProfileWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        parts: widget.parts.map((part) => ({ ...part, label: tr(part.label) })),
+      };
+      return w;
+    }
+    case 'rangeBar':
+    case 'boxPlot': {
+      const w: RangeBarWidget | BoxPlotWidget = {
         ...widget,
         title: tr(widget.title),
         hint: tr(widget.hint),
@@ -210,7 +223,13 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       return w;
     }
     case 'heatmap': {
-      const w: HeatmapWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
+      const w: HeatmapWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        classes: widget.classes?.map((entry) => ({ ...entry, label: tr(entry.label) })),
+      };
       return w;
     }
     case 'divergingBar': {
