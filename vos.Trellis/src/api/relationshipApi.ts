@@ -35,6 +35,11 @@ export const relationshipApi = {
   remove: (id: string) =>
     apiClient.action(`delete relationship ${id}`, () => apiClient.del<{ message: string }>(`/api/relationships/${id}`)),
 
+  retry: (recordId: string, reason?: string) =>
+    apiClient.action(`retry the service call on relationship ${recordId}`, () =>
+      apiClient.post<{ state: string }>(`/api/relationships/${recordId}/retry`, reason ? { reason } : {}),
+    ),
+
   setProperty: writeProperty,
 
   // A relationship has no separate create route: the one call creates the property when it is

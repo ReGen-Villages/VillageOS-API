@@ -19,7 +19,7 @@ import { ROLE } from './model';
 export const KINDS_READ = [
   ROLE.Pipeline, ROLE.PipelineNode, ROLE.PipelineInput, ROLE.PipelineOutput, ROLE.Connection, ROLE.Service,
   ROLE.Port, ROLE.PipelineWire, ROLE.DecisionPath, ROLE.PipelineRun, ROLE.NodeRun, ROLE.Range,
-  ROLE.ExternalSystem, ROLE.MessageKind, ROLE.Cadence, ROLE.Orchestrator,
+  ROLE.ExternalSystem, ROLE.MessageKind, ROLE.Cadence, ROLE.Orchestrator, ROLE.CallCompletion,
 ] as const;
 
 export const FOLLOWED_ONE_STEP = [ROLE.StandsFor, ROLE.Choice, ROLE.ComparesWith, ROLE.Trigger, ROLE.JudgedThing] as const;

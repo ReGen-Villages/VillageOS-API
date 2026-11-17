@@ -14,6 +14,7 @@ vi.mock('../api/stateApi', async (importOriginal) => ({
 vi.mock('../api/rangeApi', () => ({ rangeApi: { getAll: vi.fn() } }));
 vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn(), getAtTime: vi.fn() } }));
 vi.mock('../hooks/useDeclaredPropertyTypes', () => ({ useDeclaredPropertyTypes: () => ({}) }));
+vi.mock('../hooks/useAuthentication', () => ({ useAuthentication: () => ({ role: 'viewer' }) }));
 
 import { stateApi } from '../api/stateApi';
 import { rangeApi } from '../api/rangeApi';

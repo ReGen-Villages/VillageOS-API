@@ -231,7 +231,7 @@ describe('the vocabulary the editor holds', () => {
   // why the editor holds none of these words.
   const NAMES_A_MODEL_MAY_CHANGE = [
     'Pipeline', 'PipelineNode', 'PipelineInput', 'PipelineOutput', 'PlatformServiceConnection',
-    'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun',
+    'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun', 'CallCompletion',
   ];
 
   for (const path of editorSources)
@@ -245,11 +245,13 @@ describe('the vocabulary the editor holds', () => {
    *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
    *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
    *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
-   *  named by the node run's archetype, so the orchestrator never looks it up. */
+   *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
+   *  platform's to judge, so the orchestrator reads none of its choices either. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
+    ROLE.CallCompletion, ROLE.CompletesWhen,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -267,6 +269,8 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.GraphTrigger, 'graphTrigger'],
     [ROLE.StateTrigger, 'stateTrigger'],
     [ROLE.RunResumption, 'runResumption'],
+    [ROLE.CallCompletion, 'callCompletion'],
+    [ROLE.CompletesWhen, 'completesWhen'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });

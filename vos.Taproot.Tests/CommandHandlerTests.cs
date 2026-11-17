@@ -98,6 +98,27 @@ public class CommandHandlerTests
     }
 
     [Fact]
+    public void ShowHelp_ListsTheRetryCommand()
+    {
+        var writer = new StringWriter();
+        CreateHandler(new StringReader(""), writer).ShowHelp();
+
+        Assert.Contains("retry call <recordId> [reason]", writer.ToString());
+    }
+
+    [Fact]
+    public async Task HandleCommandAsync_Retry_IsRoutedToTheRetryHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+
+        await handler.HandleCommandAsync("retry", "call not-an-id");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("not a record identifier", writer.ToString());
+    }
+
+    [Fact]
     public void ShowHelp_ListsTheActiveAccountsCommand()
     {
         var writer = new StringWriter();
