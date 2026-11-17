@@ -897,8 +897,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         if (graph.Thing(runId) is not { } run) return 0;
 
         var held = graph.OutgoingTargets(run, ModelNames.Has).ToList();
-        var order = held.SelectMany(child => graph.OutgoingTargets(child, ModelNames.Has)).Concat(held).Append(run)
-            .Select(thing => thing.Id).Distinct().ToList();
+        var requests = RunRetention.StopRequestsGoingWith(runId, await RunsNamedByStopRequestsOfAsync(runId, cancellationToken));
+        var order = held.SelectMany(child => graph.OutgoingTargets(child, ModelNames.Has)).Concat(held).Select(thing => thing.Id)
+            .Concat(requests).Append(runId).Distinct().ToList();
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         foreach (var thingId in order)
         {
@@ -908,6 +909,40 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                     null, response.StatusCode);
         }
         return order.Count;
+    }
+
+    // Read again for each run cleared, so a stop that ended many runs is read once for each of them.
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>> RunsNamedByStopRequestsOfAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        var graph = await LoadSnapshotAsync(new
+        {
+            ids = new[] { runId, PipelineRoles.RequestedBy.Id, PipelineRoles.StoppedBy.Id },
+            names = new[] { ModelNames.Binds },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.RequestedBy.Id, direction = "incoming", depth = 1 },
+                new { predicateRole = PipelineRoles.StoppedBy.Id, direction = "outgoing", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.RequestedBy.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.StoppedBy.Id, direction = "incoming" },
+            },
+        }, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(runId) is not { } run) return new Dictionary<Guid, IReadOnlySet<Guid>>();
+
+        var requests = graph.RelationshipsIntoAlong(run, PipelineRoles.RequestedBy).Select(along => along.SubjectId)
+            .Concat(graph.RelationshipsAlong(run, PipelineRoles.StoppedBy).Select(along => along.TargetId))
+            .Distinct()
+            .Select(graph.Thing).OfType<GraphThing>();
+        return requests.ToDictionary(request => request.Id, request => (IReadOnlySet<Guid>)graph.RelationshipsAlong(request, PipelineRoles.RequestedBy)
+            .Select(along => along.TargetId)
+            .Concat(graph.RelationshipsIntoAlong(request, PipelineRoles.StoppedBy).Select(along => along.SubjectId))
+            .ToHashSet());
     }
 
     // The Thing playing a role, found through the role Thing rather than by a name this orchestrator was told.

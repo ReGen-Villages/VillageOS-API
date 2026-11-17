@@ -19,4 +19,8 @@ public static class RunRetention
         var days = failed ? pipeline?.FailedDays ?? kind.FailedDays : pipeline?.PassedDays ?? kind.PassedDays;
         return days is { } kept && now - finishedAt > TimeSpan.FromDays(kept);
     }
+
+    // A stop request names the run whose stop box wrote it and each run it stopped, and goes once none but this one is left.
+    public static IReadOnlyList<Guid> StopRequestsGoingWith(Guid runId, IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> runsEachRequestNames) =>
+        runsEachRequestNames.Where(request => request.Value.All(named => named == runId)).Select(request => request.Key).ToList();
 }

@@ -84,6 +84,36 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         (await gateway.ClearRunAsync(runId, CancellationToken.None)).Should().Be(0, "a run already gone has nothing left to clear");
     }
 
+    [FactAgainstTheEngine]
+    public async Task A_stop_request_is_cleared_once_with_the_last_run_it_names_and_not_before()
+    {
+        var gateway = await AGatewayAsync();
+        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
+        var requestedBy = await _engine.DeclareOnceAsync("requestedBy");
+        var stoppedBy = await _engine.DeclareOnceAsync("stoppedBy");
+        await BindOnceAsync(PipelineRoles.RequestedBy, requestedBy, binds);
+        await BindOnceAsync(PipelineRoles.StoppedBy, stoppedBy, binds);
+        var pipelineId = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
+        var requester = await ARunOfAsync(gateway, pipelineId, RunStatus.Succeeded);
+        var first = await ARunOfAsync(gateway, pipelineId, RunStatus.Cancelled);
+        var last = await ARunOfAsync(gateway, pipelineId, RunStatus.Cancelled);
+        var requestName = $"StopRequest {Guid.NewGuid():N}";
+        var request = await _engine.DeclareAsync(requestName);
+        await _engine.RelateAsync(request, requestedBy, requester);
+        await _engine.RelateAsync(first, stoppedBy, request);
+        await _engine.RelateAsync(last, stoppedBy, request);
+
+        var clearedFirst = await gateway.ClearRunAsync(first, CancellationToken.None);
+        var clearedRequester = await gateway.ClearRunAsync(requester, CancellationToken.None);
+        var keptAfterTwo = await _engine.FindAsync(requestName);
+        var clearedLast = await gateway.ClearRunAsync(last, CancellationToken.None);
+
+        (clearedFirst, clearedRequester).Should().Be((1, 1));
+        keptAfterTwo.Should().Be(request, "the last run it stopped is still kept");
+        clearedLast.Should().Be(2, "the last run and the stop request with it");
+        (await _engine.FindAsync(requestName)).Should().BeNull();
+    }
+
     private async Task BindOnceAsync(Role role, Guid played, Guid binds)
     {
         if (await _engine.FindAsync($"{role.Word} role") is not null) return;

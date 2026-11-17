@@ -55,6 +55,49 @@ public class RunClearingTests
         RunRetention.IsDue(Run(RunStatus.Succeeded, 10_000), new KeepPeriods(null, null), null, Now).Should().BeFalse();
 
     [Fact]
+    public void A_stop_request_goes_with_the_last_run_it_names()
+    {
+        var run = Guid.NewGuid();
+        var request = Guid.NewGuid();
+
+        RunRetention.StopRequestsGoingWith(run, new Dictionary<Guid, IReadOnlySet<Guid>> { [request] = new HashSet<Guid> { run } })
+            .Should().Equal(request);
+    }
+
+    [Fact]
+    public void A_stop_request_stays_while_another_run_it_names_is_kept()
+    {
+        var run = Guid.NewGuid();
+        var kept = Guid.NewGuid();
+
+        RunRetention.StopRequestsGoingWith(run, new Dictionary<Guid, IReadOnlySet<Guid>> { [Guid.NewGuid()] = new HashSet<Guid> { run, kept } })
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_stop_that_ended_many_runs_of_one_subject_goes_once_after_the_last_of_them()
+    {
+        var requester = Guid.NewGuid();
+        var stopped = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        var request = Guid.NewGuid();
+        var named = new Dictionary<Guid, HashSet<Guid>> { [request] = [requester, .. stopped] };
+        var clearedWith = new List<(Guid Run, Guid Request)>();
+
+        foreach (var run in stopped.Prepend(requester))
+        {
+            var linked = named.Where(entry => entry.Value.Contains(run)).ToDictionary(entry => entry.Key, entry => (IReadOnlySet<Guid>)entry.Value);
+            foreach (var going in RunRetention.StopRequestsGoingWith(run, linked))
+            {
+                clearedWith.Add((run, going));
+                named.Remove(going);
+            }
+            foreach (var runs in named.Values) runs.Remove(run);
+        }
+
+        clearedWith.Should().Equal((stopped[^1], request));
+    }
+
+    [Fact]
     public async Task One_look_clears_the_runs_past_their_period_and_leaves_one_that_cannot_be_cleared_for_the_next()
     {
         var old = Run(RunStatus.Succeeded, 31);

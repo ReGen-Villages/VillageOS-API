@@ -119,6 +119,7 @@ public interface IMyceliumGateway
     // Every run of the run kind, with how long the kind and each pipeline keep finished runs.
     Task<RunsToJudge> RunsToJudgeAsync(CancellationToken cancellationToken);
 
-    // Retracts the run and everything it holds along `has`, two levels deep, and answers how many Things went.
+    // Retracts the run, everything it holds along `has` two levels deep, and each stop request that names no other run,
+    // and answers how many Things went.
     Task<int> ClearRunAsync(Guid runId, CancellationToken cancellationToken);
 }
