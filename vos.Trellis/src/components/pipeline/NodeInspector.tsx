@@ -27,7 +27,6 @@ interface Props {
   onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
   onSetChoices: (nodeId: string, choices: EditorChoice[]) => void;
   onSetRule: (nodeId: string, rule: string | undefined) => void;
-  /** The states a wait box may wait for, and the predicates it may follow from what a state judges. */
   waitChoices: WaitChoices;
   onSetWait: (nodeId: string, wait: WaitSetting) => void;
   onClose: () => void;

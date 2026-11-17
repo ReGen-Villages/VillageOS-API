@@ -298,7 +298,6 @@ export class PipelineModel {
       relationship.PredicateId === predicateId && this.byId.has(relationship.TargetId));
   }
 
-  /** Every state the model declares, with the kind it judges, sorted by kind and then name. */
   declaredStates(): DeclaredState[] {
     return this.thingsOf(ROLE.Range)
       .map((state) => {
@@ -308,7 +307,6 @@ export class PipelineModel {
       .sort((a, b) => a.judgedKindName.localeCompare(b.judgedKindName) || a.name.localeCompare(b.name));
   }
 
-  /** The predicates relationships from Things of the kind are written along, or every Predicate where they are none. */
   predicatesFollowedFrom(kindId: string | undefined): VosThing[] {
     const builtIn = new Set(['is', 'has'].map((name) => this.predicateIdByName(name)));
     const along = new Set<string>();
@@ -319,7 +317,6 @@ export class PipelineModel {
     return (found.length > 0 ? found : this.thingsOf(PREDICATE_ROLE_ID)).sort((a, b) => a.Name.localeCompare(b.Name));
   }
 
-  /** What a wait box names: the state it waits for and the predicate it follows, each with its relationship. */
   waitOf(nodeId: string): { state?: RelationshipAndTarget; follows?: RelationshipAndTarget; awaitsThrough: RelationshipAndTarget[] } {
     return {
       state: this.relationshipsAndTargetsAlong(nodeId, ROLE.CompletionRange)[0],
