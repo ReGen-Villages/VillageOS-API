@@ -1425,6 +1425,8 @@ export const en = {
       tell: "tell",
       followOn: "follow-on",
       stop: "stop",
+      wait: "wait",
+      relate: "relate",
     },
     endKind: {
       messageKind: "message",

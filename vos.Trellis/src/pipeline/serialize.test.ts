@@ -277,6 +277,74 @@ describe('savePipeline — boundary nodes', () => {
   });
 });
 
+// Drawn as land intake draws "Wait until the site is discovered": the box's ports are its kind's, and it names its
+// state along the completion-range predicate and its in port along the awaits-through predicate.
+function buildModelWithAWaitBox(): PipelineModel {
+  const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
+  T('arch-wait', 'Pause', playing(ROLE.PipelineWait)); R('arch-wait', 'is', 'arch-node');
+  port('wait.thing.in', 'thing', 'in', 'arch-wait');
+  port('wait.thing.out', 'thing', 'out', 'arch-wait');
+  port('wait.reached', 'reached', 'out', 'arch-wait');
+  T('proven-by', 'settledBy', playing('8855f3e8-6717-542a-9d49-2d91880d2751'));
+  T('awaits-through', 'heldAt', playing('4dd13e97-1305-566e-a922-7333e514aa64'));
+  T('discovered', 'SiteDiscovered');
+
+  T('SP', 'A submission'); R('SP', 'is', 'arch-pipeline');
+  T('IN', 'A submission arrives'); R('IN', 'is', 'arch-input'); R('SP', 'has', 'IN');
+  port('IN.subject', 'subject', 'out', 'IN');
+  T('WAIT', 'Wait until the site is discovered'); R('WAIT', 'is', 'arch-wait'); R('SP', 'has', 'WAIT');
+  R('WAIT', 'proven-by', 'discovered'); R('WAIT', 'awaits-through', 'wait.thing.in');
+  T('OUT', 'Discovered'); R('OUT', 'is', 'arch-output'); R('SP', 'has', 'OUT');
+  port('OUT.site', 'site', 'in', 'OUT');
+  heldWire('INTO-WAIT', 'IN', 'IN.subject', 'WAIT', 'wait.thing.in');
+  heldWire('OUT-OF-WAIT', 'WAIT', 'wait.thing.out', 'OUT', 'OUT.site');
+  return new PipelineModel(...withRoles(things, relationships));
+}
+
+describe('a box the orchestrator runs itself, opened and saved unchanged', () => {
+  it('keeps a wait box, its ports, what it waits for and both its wires', async () => {
+    const model = buildModelWithAWaitBox();
+    const loaded = loadPipeline('SP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'SP');
+
+    expect(thingRemove.mock.calls.map((call) => call[0])).toEqual([]);
+    expect(relationshipRemove).not.toHaveBeenCalled();
+    expect(thingCreate).not.toHaveBeenCalled();
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Relationships.filter((r) => r.Subject === 'WAIT' && r.Name === 'has')).toEqual([]);
+    expect(loaded.nodes.find((n) => n.id === 'WAIT')!.ports.map((p) => p.portId))
+      .toEqual(['wait.thing.in', 'wait.thing.out', 'wait.reached']);
+  });
+
+  it('keeps a relate box, its ports and what it stands for', async () => {
+    const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
+    T('arch-relate', 'Link up', playing(ROLE.PipelineRelate)); R('arch-relate', 'is', 'arch-node');
+    port('relate.thing.in', 'thing', 'in', 'arch-relate');
+    port('relate.thing.out', 'thing', 'out', 'arch-relate');
+    port('relate.written', 'written', 'out', 'arch-relate');
+    T('works-out', 'worksOut connection'); R('works-out', 'is', 'arch-connection');
+    T('DP', 'Discover a site'); R('DP', 'is', 'arch-pipeline');
+    T('IN', 'A site awaits discovery'); R('IN', 'is', 'arch-input'); R('DP', 'has', 'IN');
+    port('IN.subject', 'subject', 'out', 'IN');
+    T('RELATE', 'Work the climate out'); R('RELATE', 'is', 'arch-relate'); R('DP', 'has', 'RELATE');
+    R('RELATE', 'stands-for', 'works-out');
+    heldWire('INTO-RELATE', 'IN', 'IN.subject', 'RELATE', 'relate.thing.in');
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const loaded = loadPipeline('DP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'DP');
+
+    expect(thingRemove).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Relationships.filter((r) => r.Subject === 'RELATE' && r.Name === 'has')).toEqual([]);
+    const relate = loaded.nodes.find((n) => n.id === 'RELATE')!;
+    expect(relate.standsForId).toBe('works-out');
+    expect(relate.ports.map((p) => p.portId)).toEqual(['relate.thing.in', 'relate.thing.out', 'relate.written']);
+  });
+});
+
 describe('loadPipeline — boundary nodes', () => {
   it('reconstructs a boundary node kind and its declared ports', () => {
     // A pipeline BP → an Output boundary node OUT that declares an input port `result`.
