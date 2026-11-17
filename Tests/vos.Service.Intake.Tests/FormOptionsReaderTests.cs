@@ -231,8 +231,7 @@ public class FormOptionsReaderTests
             new DeclaredLayerKind("brook-or-wadi", null, ["Vegetation", "Water"]),
             new DeclaredLayerKind("flood-extent", null, ["Water"]),
             new DeclaredLayerKind("other-layer", null, []),
-        ]);
-        options.LayerKinds[0].Themes.Should().Equal("Vegetation", "Water");
+        ], strictly => strictly.WithStrictOrdering());
         FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.ShownUnder.Id,
             "the predicate is known only through the role that binds it");
     }

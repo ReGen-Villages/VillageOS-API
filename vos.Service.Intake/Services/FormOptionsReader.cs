@@ -96,7 +96,10 @@ public static class FormOptionsReader
                 .Select(kind => new DeclaredLayerKind(
                     kind.Name,
                     Text(thingsById[kind.Id], ColourProperty),
-                    [.. themes.Where(theme => kindAndTheme.Contains((kind.Id, theme.Id))).Select(theme => theme.Name ?? string.Empty)])),
+                    [
+                        .. themes.Where(theme => kindAndTheme.Contains((kind.Id, theme.Id)))
+                            .Select(theme => theme.Name ?? string.Empty),
+                    ])),
         ];
     }
 
