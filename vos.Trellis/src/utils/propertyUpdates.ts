@@ -24,7 +24,7 @@ export function applyThingPropertyRemoval(thing: VosThing, propertyPath: string)
   const overrides = withoutOverride(thing.InheritedOverrides, propertyPath);
   if (!(propertyPath in thing.Properties) && overrides === thing.InheritedOverrides) return thing;
   const { [propertyPath]: _removed, ...remaining } = thing.Properties;
-  return { ...thing, Properties: remaining, ...(overrides === undefined ? {} : { InheritedOverrides: overrides }) };
+  return { ...thing, Properties: remaining, ...(overrides && { InheritedOverrides: overrides }) };
 }
 
 /** A set left empty is dropped because the platform drops it, so a reload would not bring it back. */
