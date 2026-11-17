@@ -27,7 +27,7 @@ copy of its own.**
 - **The loaded model and the reads it cannot answer**, through ports the application fills.
 - **The words for a refusal.** The endpoint's whole answer goes to `wordRefusal(answer)` on the
   context, beside `wrote`. Without one, the endpoint's own words are shown.
-- **Colours.** Tendril reads them from eight CSS custom properties, one per role: `--tendril-text`,
+- **Colours.** Tendril reads them from CSS custom properties, one per role: `--tendril-text`,
   `--tendril-muted`, `--tendril-refusal`, `--tendril-action`, `--tendril-action-hover`,
   `--tendril-action-text`, `--tendril-field-border` and `--tendril-field`. Each class falls back to
   the console's colour in light and in dark mode. A property is the same in both modes, so an

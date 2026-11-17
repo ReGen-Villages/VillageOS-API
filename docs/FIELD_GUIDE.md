@@ -725,7 +725,7 @@ service by hand; what started a run is a fact in the model afterwards.
   not sent again, one sent before the restart is given its window from that attempt, and one never
   sent is sent at once.
 - **When a call is finished is a choice the model makes.** The connection, or the service it has, or
-  that service's kind, relates along `completesWhen` to one of three Things: *when the service
+  that service's kind, relates along `completesWhen` to one of these Things: *when the service
   answers*; *when the Thing reaches its done state*, the **completion range** the connection names,
   which the service's own last write usually causes; or *when the service reports it has finished*,
   for work that outlives the call, which the service reports as received, completed or failed. With no
@@ -2969,7 +2969,7 @@ translated. No request: the definition travels with the Thing.
 **Who the platform ran on a Thing.** The detail window's *Handled by* section lists every service
 called on a Thing — the connection, when the platform last tried, the call's state, and what the
 service said — read from the handled relationships and call records the platform leaves in the
-model. A call is in one of seven states, some still going (Pending, Sent, Received), then Completed,
+model. A call is in one of these states, some still going (Pending, Sent, Received), then Completed,
 Failed, Refused or Blocked; a Failed or Blocked one also shows the reason the platform recorded.
 Anyone who may change the model (an editor or an administrator) sees **Retry** beside a Failed or
 Blocked call: press it, type why if you want to, and press **Send the retry**. The reason is kept in
