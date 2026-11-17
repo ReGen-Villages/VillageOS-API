@@ -140,6 +140,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   polarShares: [
     title, hint, binding('counts', 'series'), binding('cells', 'rows'), text('bearingKey', 'rowKey', true),
     text('classOrderKey', 'rowKey', true), text('classLabelKey', 'rowKey', true), text('classColourKey', 'rowKey', true),
+    text('classWordingKey', 'rowKey', true),
   ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
@@ -151,7 +152,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')]),
     group('counted', [
       binding('counts', 'series'), binding('annual', 'series'), binding('groups', 'rows'), text('orderKey', 'rowKey', true),
-      text('labelKey', 'rowKey', true), text('colourKey', 'rowKey', true),
+      text('labelKey', 'rowKey', true), text('colourKey', 'rowKey', true), text('wordingKey', 'rowKey', true),
     ]),
   ],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],

@@ -662,6 +662,9 @@ export interface PolarSharesWidget {
   classOrderKey: string;
   classLabelKey: string;
   classColourKey: string;
+  /** A column holding the class Thing's `wording`; its words in the page language label the class, and
+   *  the `classLabelKey` column does where it has none. */
+  classWordingKey?: string;
 }
 
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
@@ -769,6 +772,9 @@ export interface StackedSharesCounted {
   orderKey: string;
   labelKey: string;
   colourKey: string;
+  /** A column holding the group Thing's `wording`; its words in the page language label the group, and
+   *  the `labelKey` column does where it has none. */
+  wordingKey?: string;
 }
 
 export interface StackedSharesWidget {

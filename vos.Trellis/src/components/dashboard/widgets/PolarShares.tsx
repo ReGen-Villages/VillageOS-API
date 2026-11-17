@@ -6,7 +6,7 @@ import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { groupsByKey, monthNames, windowOf } from './historySeries';
+import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
 const FALLBACK_WIDTH = 480;
@@ -23,7 +23,7 @@ type SpeedClass = { order: number; label: string; colour: string };
 type Cell = { bearing: number; speed: SpeedClass };
 type Rose = { key: string; name: string; total: number; hours: Map<number, Map<number, number>> };
 
-function cellsById(rows: Record<string, unknown>[], widget: PolarSharesWidget): Map<string, Cell> {
+function cellsById(rows: Record<string, unknown>[], widget: PolarSharesWidget, language: string): Map<string, Cell> {
   const cells = new Map<string, Cell>();
   for (const row of rows) {
     const bearing = nullableNumber(row[widget.bearingKey]);
@@ -31,7 +31,11 @@ function cellsById(rows: Record<string, unknown>[], widget: PolarSharesWidget): 
     if (typeof row.id !== 'string' || bearing === null || order === null) continue;
     cells.set(row.id.toLowerCase(), {
       bearing,
-      speed: { order, label: String(row[widget.classLabelKey] ?? ''), colour: String(row[widget.classColourKey] ?? '') },
+      speed: {
+        order,
+        label: rowLabel(row, widget.classLabelKey, widget.classWordingKey, language),
+        colour: String(row[widget.classColourKey] ?? ''),
+      },
     });
   }
   return cells;
@@ -68,7 +72,7 @@ export function PolarShares({ widget, context }: { widget: PolarSharesWidget; co
   const [active, setActive] = useState<{ rose: string; bearing: number } | null>(null);
   const [counts, cellRows] = useBindings([widget.counts, widget.cells], context);
 
-  const cells = cellsById(asRows(cellRows.value), widget);
+  const cells = cellsById(asRows(cellRows.value), widget, i18n.language);
   const byMonth = widget.counts.kind === 'history' && widget.counts.steps[0]?.fold === 'monthOfYear,value';
   const months = monthNames(i18n.language);
   const roses = rosesOf(groupsByKey(counts.value), cells, byMonth, months, t('widgets.history.annual'));

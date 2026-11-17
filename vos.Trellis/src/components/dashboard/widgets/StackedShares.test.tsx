@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import type { Binding, StackedSharesWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
+import i18n from '../../../i18n';
 
 const values = new Map<string, BindingResult>();
 
@@ -224,5 +225,50 @@ describe('the stacked percentage bar from hours counted under each group Thing',
     expect(Number(annual[0].getAttribute('height')) / Number(annual[1].getAttribute('height'))).toBeCloseTo(350 / 550, 5);
     expect(within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent))
       .toEqual(['Comfortable as it is', 'Cooling system needed']);
+  });
+
+  describe('on a page in another language', () => {
+    function wordedGroups(archetype: string, comfort: string | undefined, cooling: string | undefined): Binding {
+      const binding: Binding = { kind: 'thingList', archetype };
+      values.set(JSON.stringify(binding), [
+        { id: 'G-COOLING', order: 7, name: 'cooling-system-needed', wording: cooling, colour: '#c0392b' },
+        { id: 'G-COMFORT', order: 1, name: 'comfortable-as-it-is', wording: comfort, colour: '#27ae60' },
+      ]);
+      return binding;
+    }
+
+    async function drawIn(language: string, groupsBinding: Binding) {
+      await act(() => i18n.changeLanguage(language));
+      return draw({ ...counted, counted: { ...counted.counted!, groups: groupsBinding, labelKey: 'name', wordingKey: 'wording' } });
+    }
+
+    const legend = () => within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent);
+
+    afterEach(async () => {
+      await act(() => i18n.changeLanguage('en'));
+    });
+
+    it('labels each group in the legend, the tooltip and the table with its words in the page language', async () => {
+      await drawIn('de', wordedGroups('GermanGroups',
+        JSON.stringify({ en: 'Comfortable as it is', de: 'Behaglich ohne Maßnahmen' }),
+        JSON.stringify({ en: 'Cooling system needed', de: 'Kühlanlage nötig' })));
+
+      expect(legend()).toEqual(['Behaglich ohne Maßnahmen', 'Kühlanlage nötig']);
+      expect(within(screen.getByRole('table')).getAllByRole('columnheader').map((header) => header.textContent)).toContain('Kühlanlage nötig');
+      fireEvent.focus(screen.getByRole('img', { name: /^Jan/ }));
+      expect(within(screen.getByRole('tooltip')).getByText('Behaglich ohne Maßnahmen')).toBeInTheDocument();
+    });
+
+    it('falls back to the English words, then to the label column, where the page language has none', async () => {
+      await drawIn('de', wordedGroups('EnglishOnlyGroups', JSON.stringify({ en: 'Comfortable as it is' }), undefined));
+
+      expect(legend()).toEqual(['Comfortable as it is', 'cooling-system-needed']);
+    });
+
+    it('reads a wording column that is not words by language as no wording, and shows the label column', async () => {
+      await drawIn('de', wordedGroups('MalformedGroups', '{"de": ', JSON.stringify(['Kühlanlage nötig'])));
+
+      expect(legend()).toEqual(['comfortable-as-it-is', 'cooling-system-needed']);
+    });
   });
 });

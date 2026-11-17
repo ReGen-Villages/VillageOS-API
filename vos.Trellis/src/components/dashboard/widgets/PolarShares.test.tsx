@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import type { Binding, PolarSharesWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
+import i18n from '../../../i18n';
 
 const values = new Map<string, BindingResult>();
 
@@ -124,5 +125,44 @@ describe('the polar share chart', () => {
     const { container } = draw({ ...widget, counts: { kind: 'const', value: 0 } });
 
     expect(container.querySelectorAll('[data-sector]')).toHaveLength(0);
+  });
+});
+
+describe('the polar share chart on a page in another language', () => {
+  function wordedCells(archetype: string, wordingOf: (order: number) => string | undefined): Binding {
+    const binding: Binding = { kind: 'thingList', archetype };
+    values.set(JSON.stringify(binding), cellRows.map((row) => ({ ...row, classWording: wordingOf(row.classOrder) })));
+    return binding;
+  }
+
+  async function drawIn(language: string, cellsBinding: Binding) {
+    await act(() => i18n.changeLanguage(language));
+    return draw({ ...widget, cells: cellsBinding, classWordingKey: 'classWording' });
+  }
+
+  afterEach(async () => {
+    await act(() => i18n.changeLanguage('en'));
+  });
+
+  it('labels each class in the legend, the tooltip and the table with its words in the page language', async () => {
+    await drawIn('de', wordedCells('GermanCells', (order) => JSON.stringify(
+      order === 1 ? { en: 'Calm', de: 'Windstill' } : { en: 'Breeze', de: 'Brise' })));
+
+    expect(within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Windstill', 'Brise']);
+    expect(within(screen.getByRole('table')).getAllByRole('columnheader').map((header) => header.textContent)).toContain('Windstill');
+    fireEvent.focus(screen.getByRole('img', { name: /^0°/ }));
+    expect(within(screen.getByRole('tooltip')).getByText('Brise')).toBeInTheDocument();
+  });
+
+  it('falls back to the English words, then to the label column, where the page language has none', async () => {
+    await drawIn('de', wordedCells('EnglishOnlyCells', (order) => (order === 1 ? JSON.stringify({ en: 'Calm' }) : undefined)));
+
+    expect(within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Calm', 'breeze']);
+  });
+
+  it('reads a wording column that is not words by language as no wording, and shows the label column', async () => {
+    await drawIn('de', wordedCells('MalformedCells', (order) => (order === 1 ? '{"de": ' : JSON.stringify(['Brise']))));
+
+    expect(within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['calm', 'breeze']);
   });
 });

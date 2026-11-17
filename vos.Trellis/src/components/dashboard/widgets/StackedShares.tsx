@@ -7,7 +7,7 @@ import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
 import { ANNUAL, linearScale, monthSlots } from './chartScale';
-import { groupsByKey, monthNames, windowOf } from './historySeries';
+import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
 const PLOT_HEIGHT = 220;
@@ -28,13 +28,13 @@ type DrawnClass = { label: string; colour: string; groups: Map<string, number>; 
 /** Each declared group's share of the hours counted under a declared group, a month at a time and over the
  *  whole window, in the groups' order; a group nothing was counted under is left out. */
 function countedClasses(
-  counted: StackedSharesCounted, rows: Row[], byMonth: Map<string, number>, wholeWindow: Map<string, number>,
+  counted: StackedSharesCounted, rows: Row[], byMonth: Map<string, number>, wholeWindow: Map<string, number>, language: string,
 ): DrawnClass[] {
   const groups = rows
     .map((row) => ({
       id: typeof row.id === 'string' ? row.id.toLowerCase() : '',
       order: nullableNumber(row[counted.orderKey]) ?? Infinity,
-      label: String(row[counted.labelKey] ?? ''),
+      label: rowLabel(row, counted.labelKey, counted.wordingKey, language),
       colour: String(row[counted.colourKey] ?? ''),
     }))
     .filter((group) => group.id !== '')
@@ -79,7 +79,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
   const classes: DrawnClass[] = widget.counted
     ? countedClasses(
       widget.counted, asRows(resolved[countedAt + 2]?.value ?? null),
-      groupsByKey(resolved[countedAt]?.value ?? null), groupsByKey(resolved[countedAt + 1]?.value ?? null))
+      groupsByKey(resolved[countedAt]?.value ?? null), groupsByKey(resolved[countedAt + 1]?.value ?? null), i18n.language)
     : listed
       .map((entry, at) => ({
         label: entry.label,
