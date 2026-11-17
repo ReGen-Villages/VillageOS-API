@@ -139,7 +139,7 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 | A run starts | A site's coordinates are written and its coverage has never been matched |
 | A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageMatchedAt` on the site; once no coverage is outstanding the site leaves the state on its own |
 | A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the call record waits out its `done_within`, the run is driven again, and it asks only that source |
-| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load calls the service again — bounded by the platform's oscillation guard |
+| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load calls the service again — bounded by the connection's call-again limits |
 | A source added to the catalogue later | Has the service called about it, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
