@@ -325,7 +325,7 @@ of your own. This guide lives in the public repository.
 | **Derived value** | A property the platform works out: a total over related Things, or a formula over a Thing's own values |
 | **Role** | A Thing with a fixed identifier standing for something the platform asks for, which reaches the one Thing playing it along `binds`, so the platform finds that Thing without knowing its name (chapter 18) |
 | **Service** | A separate program the server starts and calls, in any programming language, that does the work a relationship, a state or a request asks for |
-| **Connection** | The Thing that routes to a service: named by a predicate, reached at a request address, or watching a state |
+| **Connection** | The Thing that binds a predicate, a state or a request address to a service |
 | **Pipeline** | A drawing of services joined by typed wires, run by the orchestrator |
 
 ### 15. Things, kinds and inheritance
@@ -365,12 +365,12 @@ Predicates come in two flavours:
 | Flavour | What it does | Examples |
 | --- | --- | --- |
 | **Structural** | Describes how things are arranged. The platform reads it, pages draw it, ranges can follow it, and nothing else happens | `contains`, `has`, `feeds`, `powers`, `isIn` |
-| **Handled** | Names a connection along `notifies`. Creating a relationship through it calls that connection's service with the subject and the target | `consumes`, `produces`, `runs` |
+| **Handled** | Bound to a service. Creating a relationship through it starts that service with the subject and the target | `consumes`, `produces`, `runs` |
 
 Two predicates have behaviour built into the server: `is`, whose behaviour is inheritance, and
 `binds`, along which a role Thing reaches the one Thing playing that role. Every other behaviour is a
-service (Part V). This is the platform's extension point: a new capability ships as a service bound
-to a connection the predicate names, and the server does not change.
+service (Part V). This is the platform's extension point: a new
+capability ships as a service bound to a predicate, and the server does not change.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
 binding them to the `containment` role. Every read that narrows to "what is within this building"
@@ -844,7 +844,7 @@ starts automatically.
 
 | Trigger | What starts the service | What it is sent |
 | --- | --- | --- |
-| **graph** | Creating a relationship whose predicate names the connection along `notifies` | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
+| **graph** | Creating a relationship whose predicate is the connection | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
 | **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is, under a pass that also names the caller; the reply returned to the caller directly |
 | **state** | A Thing entering the range the connection watches | The Thing as subject (chapter 28) |
 

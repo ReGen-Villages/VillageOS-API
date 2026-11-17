@@ -68,12 +68,11 @@ Field Guide's chapter *Serving it to people* describes its settings.
 
 **Two kinds of predicates — the extension point.** Two predicates are built into Mycelium and
 neither calls a service: `is`, which gives inheritance, and `binds`, along which a role Thing reaches
-the one Thing playing that role; **every other predicate that does work is a *Handled Predicate***:
-it names a connection along the predicate the `notifiedConnection` role binds (`notifies` in the
-shipped templates), and that connection's microservice is called. That is the platform's extension
-point: a new capability — simulation, integration, computation — ships as a microservice bound to a
-connection the predicate names, with no change to Mycelium (Metabolism backs `consumes`/`produces`;
-a pipeline node and the `runs` spawn-trigger are the same pattern). The service-call machinery is load-bearing even with a single handler — don't flatten it, and
+the one Thing playing that role; **every other predicate that does work is a *Handled Predicate***
+whose microservice is called. That is the platform's extension point: a new capability — simulation, integration,
+computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
+backs `consumes`/`produces`; a pipeline node and the `runs` spawn-trigger are the same
+pattern). The service-call machinery is load-bearing even with a single handler — don't flatten it, and
 don't add a third built-in predicate beside `is` and `binds`. The full relationship-service handler model,
 the Mycelium API handlers use, and worked examples are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
@@ -1368,8 +1367,8 @@ model never starts it — a state, a relationship, a cadence or a follow-on node
 and a draft runs only as a rehearsal.
 
 **Spawn — graph (`X runs Pipeline`, fire-and-forget).** A pipeline can also be spawned **from the model**,
-like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that names, along
-`notifies`, a **graph Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
+like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that is a **graph
+Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
 forward the relationship envelope (`{relationshipId, subjectId, targetId, properties}`) to the same
 `/handle`; a body carrying `pipelineId` is an http spawn, and any other is resolved against the model
 (`PipelineStart`): a pipeline runs itself, a connection runs the pipeline drawn from it (chosen as
@@ -1380,8 +1379,8 @@ graph-triggered call only its service call limit (fifteen seconds by default), i
 **fire-and-forget**: Phloem ACKs immediately and runs the pipeline in the background, persisting the
 result to the `PipelineRun`.
 
-**Spawn — graph (any other predicate naming a Phloem connection).** A relationship written along a
-predicate that names a connection bound to Phloem, other than `runs`, starts a pipeline whose start node stands for
+**Spawn — graph (any other predicate bound to Phloem).** A relationship written along a connection's
+predicate that is bound to Phloem, other than `runs`, starts a pipeline whose start node stands for
 what the relationship reaches. The envelope names the relationship, and the orchestrator reads it by
 its id.
 
