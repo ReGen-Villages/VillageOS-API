@@ -25,7 +25,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     public PhloemRecordsARunTests(TheEngine engine) => _engine = engine;
 
     private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     // What the gateway needs to find before it can write: the built-in predicates by name,
     // and an archetype for each run role, found through the role Thing that binds it.

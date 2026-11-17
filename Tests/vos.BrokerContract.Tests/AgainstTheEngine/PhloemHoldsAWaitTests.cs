@@ -23,7 +23,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
         transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
-        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private sealed record Village(Guid PipelineId, Guid Plot, Guid Decided);
 

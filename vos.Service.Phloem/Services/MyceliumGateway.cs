@@ -32,8 +32,13 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     public TimeSpan CadenceStreamRetry { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan DisposeWait { get; init; } = TimeSpan.FromSeconds(5);
 
-    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
+    private readonly TimeProvider _clock;
+
+    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, TimeProvider clock,
+        LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) => _clock = clock;
+
+    private string Now() => _clock.GetUtcNow().ToString("o");
 
     public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
 
@@ -169,7 +174,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
         // only at the end is a run that can never be given one.
-        var now = DateTime.UtcNow.ToString("o");
+        var now = Now();
         var properties = new Dictionary<string, string?>
         {
             [ModelNames.Status] = refusal is null ? RunStatus.Running : RunStatus.Refused,
@@ -219,7 +224,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         {
             // First status for this NodeRun — create the Thing and wire it into the run, declaring every
             // property a later transition writes.
-            var now = DateTime.UtcNow.ToString("o");
+            var now = Now();
             var properties = new Dictionary<string, string?>
             {
                 [ModelNames.Status] = status,
@@ -251,11 +256,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     }
 
     // Changed on the same Thing, so the view watching it sees each property change rather than a new node.
-    private static Dictionary<string, string?> ChangedOnANodeRun(string status, string? error, IReadOnlyDictionary<string, JsonElement>? outputs, Guid? decision)
+    private Dictionary<string, string?> ChangedOnANodeRun(string status, string? error, IReadOnlyDictionary<string, JsonElement>? outputs, Guid? decision)
     {
         var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
         if (error != null) changed[ModelNames.Error] = error;
-        if (RunStatus.IsFinished(status)) changed[ModelNames.FinishedUtc] = DateTime.UtcNow.ToString("o");
+        if (RunStatus.IsFinished(status)) changed[ModelNames.FinishedUtc] = Now();
         if (outputs is not null) changed[ModelNames.Outputs] = OutputsText(outputs);
         if (decision is { } decided) changed[ModelNames.Decision] = decided.ToString();
         return changed;
@@ -326,7 +331,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
         if (error != null) changed[ModelNames.Error] = error;
         var finished = RunStatus.IsFinished(status);
-        if (finished) changed[ModelNames.FinishedUtc] = DateTime.UtcNow.ToString("o");
+        if (finished) changed[ModelNames.FinishedUtc] = Now();
         var released = finished && !heldUntilReported;
         await WriteThingInOneFragmentAsync(runId, RunName(runId), changed, released ? [] : await HoldingAsync(runId, cancellationToken), cancellationToken);
         if (released) await ReleaseRunAsync(runId, cancellationToken);
