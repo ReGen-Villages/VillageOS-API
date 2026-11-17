@@ -13,9 +13,10 @@ interface EditorHistoryInputs {
 }
 
 /**
- * Undo + optimistic rollback. The history records the editor state *before* each mutation (undo),
- * and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
- * drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
+ * Undo, and putting the canvas back after a refused save. The history records the editor's state before
+ * each change, and keeps the last state the platform confirmed as the point a refused save returns to.
+ * `canUndo` and `dirty` drive the toolbar. A reference holds the latest nodes and edges, so any handler
+ * can copy the current state.
  */
 export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }: EditorHistoryInputs) {
   const historyReference = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
@@ -37,7 +38,8 @@ export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }:
     setEdges(structuredClone(s.edges));
   }, [setNodes, setEdges]);
 
-  // Baseline = the last server-confirmed state; also clears the undo stack (a fresh save/load/new is the floor).
+  // The last state the platform confirmed. It also empties the undo history, because nothing before a save,
+  // a load or a new pipeline can be undone.
   const commitBaseline = useCallback((s: EditorSnapshot) => {
     historyReference.current.commit(structuredClone(s));
     setCanUndo(false);
@@ -53,7 +55,7 @@ export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }:
     onUndone();
   }, [applySnapshot, onUndone]);
 
-  /** Puts the last server-confirmed state back after a rejected save; false when there is none. */
+  /** Puts the last state the platform confirmed back after a refused save; false when there is none. */
   const rollBack = useCallback(() => {
     const target = historyReference.current.rollbackTarget();
     if (!target) return false;
@@ -65,7 +67,7 @@ export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }:
 
   const current = useCallback(() => stateReference.current, []);
 
-  // Ctrl/Cmd+Z undoes the last editor change. Ignored while typing in a field so it doesn't hijack text undo.
+  // Control-Z or Command-Z undoes the last editor change, except while typing in a field, where it undoes the typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {

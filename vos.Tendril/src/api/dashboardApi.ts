@@ -1004,7 +1004,7 @@ async function resolveStateList(binding: Extract<Binding, { kind: 'stateList' }>
     list = list.filter((t) => members.has(t.Id));
     if (binding.limit) list = list.slice(0, binding.limit);
   }
-  // Rows are what the platform sent, because looking each one up locally made a table of ten rows read every Thing in the model.
+  // Rows are what the platform sent, because looking each one up here would make a table of ten rows read every Thing in the model.
   const rows = list.map((reference) => ({ id: reference.Id, name: reference.Name, ...(reference.Properties ?? {}) }) as Row);
   return withComputedColumns(rows, binding.computed, context);
 }

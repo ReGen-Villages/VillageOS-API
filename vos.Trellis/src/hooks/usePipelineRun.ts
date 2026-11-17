@@ -55,9 +55,9 @@ export function usePipelineRun({ model, savedId, nodes, setNodes, thingIdByCanva
     setError(null);
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
     try {
-      // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
-      // Param values are parsed as JSON when valid (so a list `["a","b"]` drives fan-out, `42`→number),
-      // otherwise passed through as a plain string.
+      // Started without waiting: the run's identifier comes back at once, and the effect below lights up the
+      // nodes as the run goes. A parameter that reads as JSON is passed as that value, so a list such as
+      // `["a","b"]` runs once per item and `42` is a number; anything else is passed as text.
       const parameters = Object.fromEntries(parameterKeys.map((k) => [k, parseParameterValue(runParameterValues[k] ?? '')]));
       const accepted = await pipelineApi.spawnAsync(savedId, parameters);
       setRunId(accepted.runId);
@@ -75,9 +75,9 @@ export function usePipelineRun({ model, savedId, nodes, setNodes, thingIdByCanva
     }
   }, [runId, setError, t, model]);
 
-  // Drive the live animation: as Phloem writes NodeRun statuses, the model store updates over SSE → this
-  // recomputes and paints each node's status ring (PipelineNodeView). Canvas ids map to Thing ids via the
-  // save/load map so each NodeRun (keyed by Thing id) finds its node.
+  // As Phloem writes each node run's status, the model store updates from the broker's event stream and this
+  // paints each node's status ring (PipelineNodeView). A node run is keyed by its Thing's identifier, which the
+  // save and load map ties to its node on the canvas.
   useEffect(() => {
     if (!runId) return;
     const statuses = model.nodeRunStatuses(runId);

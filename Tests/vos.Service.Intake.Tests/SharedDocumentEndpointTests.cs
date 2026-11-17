@@ -339,7 +339,7 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         File.Exists(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf")).Should().BeTrue();
     }
 
-    // Read as the host stopping, the client's own timeout once ended the hourly pass for good.
+    // The client's own timeout is not the host stopping, so it must not end the hourly pass.
     [Fact]
     public async Task The_hourly_pass_survives_a_broker_slower_than_the_clients_own_timeout()
     {

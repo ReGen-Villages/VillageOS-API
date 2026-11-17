@@ -15,7 +15,8 @@ def length_of(geometry):
     return sum(GEOD.inv(a[0], a[1], b[0], b[1])[2] for a, b in zip(coordinates, coordinates[1:]))
 
 
-# degrees_grid holds r*10+c over lon 0..10, lat 0..10: row 2 is lat 7..8, so along lat 7.5 the cell values are 20, 21, 22, ...
+# degrees_grid holds r*10+c over longitude 0..10 and latitude 0..10: row 2 is latitude 7..8, so along latitude 7.5
+# the cell values are 20, 21, 22, ...
 ALONG_A_ROW = line((0.5, 7.5), (4.5, 7.5))
 
 

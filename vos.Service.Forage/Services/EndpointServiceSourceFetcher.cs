@@ -39,7 +39,7 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
     {
         // Mycelium's limit on the passed-on request ends a fetch from a provider that goes quiet, as a 504.
         // This bound is the backstop for a broker that does not answer at all, which would otherwise keep
-        // one of the few sources a run fetches at once waiting for good.
+        // one of the few sources a run fetches at once waiting with no end.
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         bounded.CancelAfter(_sourceTimeout);
 

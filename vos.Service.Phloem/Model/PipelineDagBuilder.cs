@@ -43,7 +43,7 @@ public static class PipelineDagBuilder
 
         // A wire leaving the pipeline, or touching a node that could not be read, is left out; the node's problem is
         // already listed. Nothing legitimate relates two nodes of one pipeline to each other, so a node-to-node
-        // relationship along anything but `is` or `has` is a wire drawn in the old shape; the drawing read carries no
+        // relationship along anything but `is` or `has` is a wire held as an edge; the drawing read carries no
         // predicate to judge it by.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
