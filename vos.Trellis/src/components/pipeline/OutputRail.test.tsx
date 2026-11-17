@@ -4,12 +4,14 @@ import { catalystFixture } from '../../pipeline/catalysts.test.fixture';
 import { outputRail } from '../../pipeline/catalysts';
 import { OutputRail } from './OutputRail';
 
-function rail() {
+function rail(offersWait = false) {
   const { model, id } = catalystFixture();
   const onPlaceOutput = vi.fn();
   const onAddService = vi.fn();
-  render(<OutputRail outputs={outputRail(model, id.readingsArrive)} connections={model.connections()} onPlaceOutput={onPlaceOutput} onAddService={onAddService} />);
-  return { id, onPlaceOutput, onAddService };
+  const onPlaceWait = vi.fn();
+  render(<OutputRail outputs={outputRail(model, id.readingsArrive)} connections={model.connections()} onPlaceOutput={onPlaceOutput} onAddService={onAddService}
+    offersWait={offersWait} onPlaceWait={onPlaceWait} />);
+  return { id, onPlaceOutput, onAddService, onPlaceWait };
 }
 
 describe('OutputRail', () => {
@@ -37,10 +39,22 @@ describe('OutputRail', () => {
   it('says a system told through a connection is told nothing yet, and offers no stopping where the model binds no stop kind', () => {
     const { model } = catalystFixture({ bindsTellFollowOnAndStop: false });
     const silent = { id: 'office', kind: 'externalSystem' as const, name: 'Quiet office', told: [] };
-    render(<OutputRail outputs={[...outputRail(model, null), silent]} connections={[]} onPlaceOutput={vi.fn()} onAddService={vi.fn()} />);
+    render(<OutputRail outputs={[...outputRail(model, null), silent]} connections={[]} onPlaceOutput={vi.fn()} onAddService={vi.fn()}
+      offersWait={false} onPlaceWait={vi.fn()} />);
 
     expect(screen.getByText('told nothing yet')).toBeInTheDocument();
     expect(screen.queryByText('Stopping runs')).toBeNull();
+  });
+
+  it('offers a wait box beside the services where the model binds the wait kind, and places one when pressed', () => {
+    const { onPlaceWait } = rail(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Place a wait box' }));
+    expect(onPlaceWait).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no wait box where the model binds no wait kind', () => {
+    rail(false);
+    expect(screen.queryByRole('button', { name: 'Place a wait box' })).toBeNull();
   });
 
   it('lists every service a node may call under the outputs', () => {

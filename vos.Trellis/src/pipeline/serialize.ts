@@ -37,6 +37,9 @@ export interface EditorNode {
   chosen?: Record<string, string>;
   /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
   rule?: string;
+  /** A wait box's state, and the predicate whose reached Things it hands on once the state is entered. */
+  waitsFor?: string;
+  follows?: string;
 }
 
 export type EditorChoice = ChoiceInformation;
@@ -111,6 +114,7 @@ export async function savePipeline(
     : [];
   await saveWires(edges, nodes, nodeThingId, persistedNodeIds, roles, model);
   await relateEachChoice(nodes, nodeThingId, model);
+  await relateEachWait(nodes, nodeThingId, model);
   await retractWhatTheCanvasDropped(fragment, nodeThingId, persistedNodeIds, model);
 
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
@@ -171,6 +175,10 @@ function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles 
   const comparesWithId = model.boundTo(ROLE.ComparesWith);
   if (nodes.some((n) => n.choices?.some((choice) => choice.comparesWith.length)) && !comparesWithId)
     throw new Error(i18n.t('pipeline.noComparesWithRole'));
+  const waits = nodes.filter((n) => n.kind === 'wait');
+  if ((waits.length > 0 && (!model.boundTo(ROLE.CompletionRange) || !model.boundTo(ROLE.AwaitsThrough)))
+      || (waits.some((n) => n.follows) && !model.boundTo(ROLE.ReachedAlong)))
+    throw new Error(i18n.t('pipeline.noWaitRoles'));
 
   return {
     isId, hasId, wireId, pipelineArchetype, nodeArchetype, wireArchetype, inputConnector, outputConnector, takenOnId,
@@ -357,6 +365,17 @@ async function retractWhatTheCanvasDropped(
     }
 }
 
+async function relateEachWait(nodes: EditorNode[], nodeThingId: Map<string, string>, model: PipelineModel): Promise<void> {
+  for (const n of nodes) {
+    if (n.kind !== 'wait') continue;
+    const thingId = nodeThingId.get(n.id)!;
+    const inPort = n.ports.find((port) => port.direction === 'in');
+    await relateToExactly(thingId, ROLE.CompletionRange, n.waitsFor ? [n.waitsFor] : [], model);
+    await relateToExactly(thingId, ROLE.AwaitsThrough, inPort ? [inPort.portId] : [], model);
+    await relateToExactly(thingId, ROLE.ReachedAlong, n.follows ? [n.follows] : [], model);
+  }
+}
+
 async function relateToExactly(subjectId: string, roleId: string, wanted: string[], model: PipelineModel): Promise<void> {
   const held = model.relationshipsAndTargetsAlong(subjectId, roleId);
   const reached = new Set(held.map((relationship) => relationship.thingId));
@@ -402,9 +421,11 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       const stood = model.standsFor(t.Id);
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
       const ports = portsAreTheKinds(kind) ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
+      const wait = kind === 'wait' ? model.waitOf(t.Id) : undefined;
       return {
         ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),
+        ...(wait?.state ? { waitsFor: wait.state.thingId } : {}), ...(wait?.follows ? { follows: wait.follows.thingId } : {}),
       };
     }
 

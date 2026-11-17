@@ -287,7 +287,10 @@ function buildModelWithAWaitBox(): PipelineModel {
   port('wait.reached', 'reached', 'out', 'arch-wait');
   T('proven-by', 'settledBy', playing('8855f3e8-6717-542a-9d49-2d91880d2751'));
   T('awaits-through', 'heldAt', playing('4dd13e97-1305-566e-a922-7333e514aa64'));
+  T('reached-along', 'handsOnAlong', playing(ROLE.ReachedAlong));
   T('discovered', 'SiteDiscovered');
+  T('reviewed', 'SiteReviewed');
+  T('decided-by', 'decidedBy');
 
   T('SP', 'A submission'); R('SP', 'is', 'arch-pipeline');
   T('IN', 'A submission arrives'); R('IN', 'is', 'arch-input'); R('SP', 'has', 'IN');
@@ -315,6 +318,51 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     expect(frag.Relationships.filter((r) => r.Subject === 'WAIT' && r.Name === 'has')).toEqual([]);
     expect(loaded.nodes.find((n) => n.id === 'WAIT')!.ports.map((p) => p.portId))
       .toEqual(['wait.thing.in', 'wait.thing.out', 'wait.reached']);
+  });
+
+  it('saves a new wait box with the state it waits for, the in port it waits through and the predicate it follows', async () => {
+    const model = buildModelWithAWaitBox();
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait for a review', connectionId: '', x: 0, y: 0, kind: 'wait',
+      ports: model.resolvePorts('arch-wait'), waitsFor: 'reviewed', follows: 'decided-by',
+    };
+
+    await savePipeline('A review', [placed], [], model);
+
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'proven-by', 'reviewed');
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'awaits-through', 'wait.thing.in');
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'reached-along', 'decided-by');
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.map((t) => t.Id)).not.toContain('wait.thing.in');
+  });
+
+  it('moves a loaded wait box to another state by replacing its one state relationship', async () => {
+    const model = buildModelWithAWaitBox();
+    const loaded = loadPipeline('SP', model)!;
+    const waitingFor = model.waitOf('WAIT').state!.relationshipId;
+    const moved = loaded.nodes.map((n) => (n.id === 'WAIT' ? { ...n, waitsFor: 'reviewed' } : n));
+
+    await savePipeline(loaded.name, moved, loaded.edges, model, 'SP');
+
+    expect(loaded.nodes.find((n) => n.id === 'WAIT')!.waitsFor).toBe('discovered');
+    expect(relationshipRemove.mock.calls.map((call) => call[0])).toEqual([waitingFor]);
+    expect(relationshipCreate.mock.calls).toEqual([['WAIT', 'proven-by', 'reviewed']]);
+  });
+
+  it('refuses to save a wait box that follows a predicate in a model binding no role to save that with', async () => {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('arch-wait', 'Pause', playing(ROLE.PipelineWait)); R('arch-wait', 'is', 'arch-node');
+    port('wait.thing.in', 'thing', 'in', 'arch-wait');
+    T('proven-by', 'settledBy', playing(ROLE.CompletionRange));
+    T('awaits-through', 'heldAt', playing(ROLE.AwaitsThrough));
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait', connectionId: '', x: 0, y: 0, kind: 'wait', ports: model.resolvePorts('arch-wait'),
+      waitsFor: 'some state', follows: 'some predicate',
+    };
+
+    await expect(savePipeline('A review', [placed], [], model)).rejects.toThrow(/wait box/);
+    expect(applyFragment).not.toHaveBeenCalled();
   });
 
   it('keeps a relate box, its ports and what it stands for', async () => {

@@ -115,3 +115,24 @@ describe('validateEnds', () => {
     ], [])).toEqual([]);
   });
 });
+
+describe('a wait box before a run', () => {
+  const wait = (waitsFor?: string): ValidationNode => ({
+    id: 'wait', label: 'Wait until discovered', kind: 'wait', ports: [port('thing', 'in'), port('thing', 'out', false, 'thing.out')], waitsFor,
+  });
+  const intoTheWait: ValidationEdge = { source: 'start', sourceHandle: 'subject', target: 'wait', targetHandle: 'thing' };
+  const start = node('start', [port('subject', 'out')]);
+
+  it('reports a wait box that names no state', () => {
+    expect(validatePipeline([start, wait()], [intoTheWait]).map((issue) => issue.kind)).toEqual(['wait-without-state']);
+  });
+
+  it('reports a wait box with nothing wired into its port, even one bound to a run parameter', () => {
+    const bound = { ...wait('discovered'), parameterBindings: { thing: 'site' } };
+    expect(validatePipeline([start, bound], []).map((issue) => issue.kind)).toEqual(['wait-without-thing']);
+  });
+
+  it('accepts a wait box that names a state and is wired', () => {
+    expect(validatePipeline([start, wait('discovered')], [intoTheWait])).toEqual([]);
+  });
+});

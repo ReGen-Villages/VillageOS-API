@@ -10,6 +10,9 @@ interface Props {
   /** Place the node the row stands for: the Output node, a follow-on, tell or stop node. */
   onPlaceOutput: (row: OutputRow) => void;
   onAddService: (connection: ConnectionInformation) => void;
+  /** Offered only where the model binds the wait role, since the orchestrator refuses a wait it cannot read. */
+  offersWait: boolean;
+  onPlaceWait: () => void;
 }
 
 const RAIL_BOUNDS = { initial: 232, min: 168, max: 480 };
@@ -18,7 +21,7 @@ const ROW = 'w-full text-left rounded-md border border-zinc-200 dark:border-zinc
 
 /** What a run may leave behind — the answer, another pipeline started, an external system told, runs stopped — and
  *  under it every service a node may call, read from the connections and ports the model declares. */
-export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }: Props) {
+export function OutputRail({ outputs, connections, onPlaceOutput, onAddService, offersWait, onPlaceWait }: Props) {
   const { t } = useTranslation();
   const answer = outputs.find((row) => row.kind === 'answer');
   const pipelines = outputs.filter((row) => row.kind === 'pipeline');
@@ -85,6 +88,28 @@ export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }
             <h3 className={HEADING}>{t('pipeline.outputs.stops')}</h3>
             <ul className="space-y-1 p-2 pt-0">
               {placeButton(stop, t('pipeline.outputs.stop'), t('pipeline.outputs.stopBody'), 'hover:border-amber-400', t('pipeline.outputs.placeStop'))}
+            </ul>
+          </>
+        )}
+        {offersWait && (
+          <>
+            <h3 className={`${HEADING} border-t border-zinc-200 dark:border-zinc-700`}>{t('pipeline.outputs.steps')}</h3>
+            <ul className="space-y-1 p-2 pt-0">
+              <li>
+                <button
+                  type="button"
+                  onClick={onPlaceWait}
+                  aria-label={t('pipeline.outputs.placeWait')}
+                  title={t('pipeline.outputs.placeWait')}
+                  className={`${ROW} hover:border-amber-400`}
+                >
+                  <span className="flex items-center gap-1">
+                    <Plus size={12} className="shrink-0 text-zinc-400" />
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{t('pipeline.outputs.wait')}</span>
+                  </span>
+                  <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 break-words">{t('pipeline.outputs.waitBody')}</span>
+                </button>
+              </li>
             </ul>
           </>
         )}

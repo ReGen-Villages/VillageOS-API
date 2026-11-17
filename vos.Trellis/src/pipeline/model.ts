@@ -1,5 +1,5 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
-import { statedProperties } from '@tendril-ui/tendril';
+import { PREDICATE_ROLE_ID, statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -70,6 +70,10 @@ export const ROLE = {
   PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
   PipelineWait: 'b5023bc8-1030-596b-8aa1-0b2f876a786a',
   PipelineRelate: 'a1066623-6cef-5404-80fc-cc222fceee59',
+  // A wait box names its state, the in port whose Thing must enter it, and optionally a predicate it follows after.
+  CompletionRange: '8855f3e8-6717-542a-9d49-2d91880d2751',
+  AwaitsThrough: '4dd13e97-1305-566e-a922-7333e514aa64',
+  ReachedAlong: 'ff5b3754-1bf3-5be9-8515-349c20d8192b',
   ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
   // When a connection's call counts as finished: the choices, and the predicate a connection or its service names one along.
   CallCompletion: 'cbb25882-3197-56fd-9bab-2ebcc1a000bf',
@@ -219,6 +223,13 @@ export interface ChoiceInformation {
   comparesWith: string[];
 }
 
+export interface DeclaredState {
+  id: string;
+  name: string;
+  judgedKindId?: string;
+  judgedKindName: string;
+}
+
 export interface ConnectionInformation {
   connectionId: string;
   name: string;
@@ -285,6 +296,36 @@ export class PipelineModel {
     const predicateId = this.boundTo(roleId);
     return (this.bySubject.get(subjectId) ?? []).filter((relationship) =>
       relationship.PredicateId === predicateId && this.byId.has(relationship.TargetId));
+  }
+
+  /** Every state the model declares, with the kind it judges, sorted by kind and then name. */
+  declaredStates(): DeclaredState[] {
+    return this.thingsOf(ROLE.Range)
+      .map((state) => {
+        const judged = this.reachedAlong(state.Id, ROLE.JudgedThing)[0];
+        return { id: state.Id, name: state.Name, judgedKindId: judged?.Id, judgedKindName: judged?.Name ?? '' };
+      })
+      .sort((a, b) => a.judgedKindName.localeCompare(b.judgedKindName) || a.name.localeCompare(b.name));
+  }
+
+  /** The predicates relationships from Things of the kind are written along, or every Predicate where they are none. */
+  predicatesFollowedFrom(kindId: string | undefined): VosThing[] {
+    const builtIn = new Set(['is', 'has'].map((name) => this.predicateIdByName(name)));
+    const along = new Set<string>();
+    for (const member of kindId ? this.thingsOfKinds([kindId]) : [])
+      for (const relationship of this.bySubject.get(member.Id) ?? [])
+        if (!builtIn.has(relationship.PredicateId)) along.add(relationship.PredicateId);
+    const found = [...along].map((id) => this.byId.get(id)).filter((thing): thing is VosThing => thing !== undefined);
+    return (found.length > 0 ? found : this.thingsOf(PREDICATE_ROLE_ID)).sort((a, b) => a.Name.localeCompare(b.Name));
+  }
+
+  /** What a wait box names: the state it waits for and the predicate it follows, each with its relationship. */
+  waitOf(nodeId: string): { state?: RelationshipAndTarget; follows?: RelationshipAndTarget; awaitsThrough: RelationshipAndTarget[] } {
+    return {
+      state: this.relationshipsAndTargetsAlong(nodeId, ROLE.CompletionRange)[0],
+      follows: this.relationshipsAndTargetsAlong(nodeId, ROLE.ReachedAlong)[0],
+      awaitsThrough: this.relationshipsAndTargetsAlong(nodeId, ROLE.AwaitsThrough),
+    };
   }
 
   choicesOf(nodeId: string): ChoiceInformation[] {

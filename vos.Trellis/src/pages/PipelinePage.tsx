@@ -45,6 +45,11 @@ export function PipelinePage() {
   const theme = useThemeStore((s) => s.theme);
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
+  const offersWait = useMemo(() => model.boundTo(ROLE.PipelineWait) !== undefined, [model]);
+  const waitChoices = useMemo(
+    () => ({ states: model.declaredStates(), predicatesFrom: (kindId: string | undefined) => model.predicatesFollowedFrom(kindId) }),
+    [model],
+  );
   const pipelines = useMemo(
     () => model.thingsOf(ROLE.Pipeline)
       .map((pipeline) => ({
@@ -160,6 +165,8 @@ export function PipelinePage() {
               onSetChosen={drawing.setChosen}
               onSetChoices={drawing.setChoices}
               onSetRule={drawing.setRule}
+              waitChoices={waitChoices}
+              onSetWait={drawing.setWait}
               onClose={selection.closeNodeInspector}
             />
           )}
@@ -195,7 +202,10 @@ export function PipelinePage() {
           nodes={nodes}
         />
       </div>
-      <OutputRail outputs={outputs} connections={connections} onPlaceOutput={drawing.placeOutput} onAddService={drawing.addNode} />
+      <OutputRail
+        outputs={outputs} connections={connections} onPlaceOutput={drawing.placeOutput} onAddService={drawing.addNode}
+        offersWait={offersWait} onPlaceWait={drawing.placeWait}
+      />
     </div>
   );
 }
