@@ -163,7 +163,9 @@ answers about the graph as it stood rather than the graph as it is now:
 | At or after it was retracted | Left out — the same answer as before it arrived |
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
-a relationship and inserting it later dates it from the insertion.
+a relationship and inserting it later dates it from the insertion. A Thing joining for the first time
+also has the values it arrives with — its own properties and the overrides it inherits — dated by the
+model clock at that moment.
 
 Both `GET /api/things/{id}?timestamp=` and `GET /api/model?timestamp=` leave out what was retracted
 since the instant, so the answer does not depend on whether the server still holds it. Add
