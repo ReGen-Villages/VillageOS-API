@@ -1,4 +1,5 @@
 import type { ModelReads } from './modelReads';
+import { tendrilWord } from '../i18n/words';
 
 /** What an endpoint answers a press with: a refusal in its own words, or what it said on taking
  *  the press — where it says anything. */
@@ -8,10 +9,9 @@ export interface EndpointAnswer {
 }
 
 /**
- * The post a writing widget makes: the body to the route the specification names, through the same port a
- * `service` binding reads through, so a page holding no credential decides for itself what a post
- * does. Nothing here says who is asking; the platform holds the session and is what an endpoint
- * would have to be told the caller by.
+ * The post a writing widget makes: the body to the route the specification names, through the
+ * application's `press`. A page that supplies no `press` cannot press, and is refused in Tendril's
+ * words without anything being sent.
  *
  * A refusal reaches the widget whichever way the endpoint refuses — with a refusing status, whose
  * body the client already reads the error out of, or with an answer carrying `error` — in the
@@ -23,9 +23,10 @@ export async function postToEndpoint(
   body: Record<string, unknown>,
   wordRefusal?: (answer: Record<string, unknown>) => string | undefined,
 ): Promise<EndpointAnswer> {
+  if (!reads.press) return { error: tendrilWord('cannotPress') };
   let answer: Record<string, unknown>;
   try {
-    answer = ((await reads.fromService(routeOf(via), body)) as Record<string, unknown> | null) ?? {};
+    answer = ((await reads.press(routeOf(via), body)) as Record<string, unknown> | null) ?? {};
   } catch (refusal) {
     answer = { error: refusal instanceof Error ? refusal.message : String(refusal) };
   }

@@ -28,6 +28,9 @@ export interface ModelReads {
   aggregate(query: TemporalAggregateQuery): Promise<TemporalAggregateResponse>;
   reduce(query: TemporalReduceQuery): Promise<TemporalReduceResponse>;
   fromService(endpoint: string, body: unknown): Promise<unknown>;
+  /** Where a writing widget posts a press, apart from where a `service` binding reads, because a press
+   *  carries who is pressing and a read does not. Absent where the page cannot press. */
+  press?(endpoint: string, body: Record<string, unknown>): Promise<unknown>;
   /** Tells the broker a person asked for a change through a widget. Absent where the page holds no
    *  credential and so has nobody to tell. */
   recordAction?(description: string, succeeded: boolean): void;
