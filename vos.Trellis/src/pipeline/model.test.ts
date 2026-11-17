@@ -24,7 +24,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  const is = T('is'), has = T('has'), carries = T('carries');
+  const is = T('is'), has = T('has'), carries = T('carries', playing(ROLE.WirePredicate));
   const pipelineA = T('Workflow', playing(ROLE.Pipeline)),
     nodeA = T('Step', playing(ROLE.PipelineNode)),
     connA = T('Endpoint', playing(ROLE.Connection)),
@@ -33,7 +33,6 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
     wireA = T('Link', playing(ROLE.PipelineWire)),
     takesFrom = T('takesFrom', playing(ROLE.InputConnector)),
     deliversTo = T('deliversTo', playing(ROLE.OutputConnector));
-  R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
   R(proto.Id, is.Id, serviceA.Id);
@@ -99,8 +98,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
 
   const wireOne = T('w.echo');
   const wireTwo = T('w.trace');
-  const carries = T('carries');
-  R(carries.Id, is.Id, wireA.Id);
+  const carries = T('carries', playing(ROLE.WirePredicate));
 
   const gen = T('Generate'), ech = T('Echo');
   R(gen.Id, is.Id, nodeA.Id);
@@ -125,7 +123,7 @@ describe('PipelineModel', () => {
     expect(gen.ports.find((p) => p.portName === 'echo')?.direction).toBe('out');
   });
 
-  it('identifies the wire predicate by the role its archetype is bound to, not by name', () => {
+  it('identifies the wire predicate by the role that binds it, not by name', () => {
     const { model } = demoModel();
     expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
   });
@@ -163,22 +161,6 @@ describe('PipelineModel', () => {
 
     expect(model.outgoing(pipeline.Id, 'has')).toEqual([]);
     expect(model.predicateIdByName('has')).toBeUndefined();
-  });
-
-  it('counts a wire Thing as held only along a predicate named exactly "has"', () => {
-    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
-    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
-    const wireArchetype: VosThing = { Id: 'wire', Name: 'Channel', Properties: playing(ROLE.PipelineWire) };
-    const first: VosThing = { Id: 'first', Name: 'First channel', Properties: {} };
-    const second: VosThing = { Id: 'second', Name: 'Second channel', Properties: {} };
-    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
-    const model = new PipelineModel(...withRoles([is, recased, wireArchetype, first, second, node], [
-      { Id: 'first is', Name: '', SubjectId: first.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
-      { Id: 'second is', Name: '', SubjectId: second.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
-      { Id: 'node Has first', Name: '', SubjectId: node.Id, PredicateId: recased.Id, TargetId: first.Id, Properties: {} },
-    ]));
-
-    expect(model.wirePredicateId()).toBe(first.Id);
   });
 
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
@@ -246,12 +228,13 @@ describe('the vocabulary the editor holds', () => {
    *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
    *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
    *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either. */
+   *  platform's to judge, so the orchestrator reads none of its choices either. The orchestrator follows any
+   *  relationship from a wire to a node, so only the page, which writes new wires, needs the wire predicate. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
-    ROLE.CallCompletion, ROLE.CompletesWhen,
+    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -271,6 +254,7 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.RunResumption, 'runResumption'],
     [ROLE.CallCompletion, 'callCompletion'],
     [ROLE.CompletesWhen, 'completesWhen'],
+    [ROLE.WirePredicate, 'wirePredicate'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });
@@ -588,11 +572,10 @@ describe('a saved port is read from what it states', () => {
   });
 });
 
-// The playground ships its pipelines drawn, so the wire predicate was always in use before it was
-// asked for. A model built from templates declares the predicate and draws nothing, and the first
-// pipeline anyone drew on it could not be saved.
+// A model built from templates declares the predicate and draws nothing, so the first wire anyone draws on
+// it is saved along a predicate nothing has used yet.
 describe('the wire predicate before any wire is drawn', () => {
-  function vocabularyAndNoWire() {
+  function vocabularyAndNoWire(carries: Record<string, unknown>) {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -600,32 +583,16 @@ describe('the wire predicate before any wire is drawn', () => {
     const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
     T('is', 'is'); T('has', 'has');
     T('arch-wire', 'Link', playing(ROLE.PipelineWire));
-    T('arch-node', 'Step', playing(ROLE.PipelineNode));
-    T('carries', 'carries'); R('carries', 'is', 'arch-wire');
-    return { things, relationships, T, R };
+    T('carries', 'carries', carries); R('carries', 'is', 'arch-wire');
+    return new PipelineModel(...withRoles(things, relationships));
   }
 
-  it('finds the predicate by its shape when nothing has used it yet', () => {
-    const { things, relationships } = vocabularyAndNoWire();
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
+  it('finds the predicate the wire predicate role binds', () => {
+    expect(vocabularyAndNoWire(playing(ROLE.WirePredicate)).wirePredicateId()).toBe('carries');
   });
 
-  it('still never mistakes a held wire for the predicate, whichever the model lists first', () => {
-    const { things, relationships, T, R } = vocabularyAndNoWire();
-    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
-    T('N2', 'Node2'); R('N2', 'is', 'arch-node');
-    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
-    things.reverse();
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
-  });
-
-  it('finds nothing where the model holds only wires and no predicate', () => {
-    const { things, relationships, T, R } = vocabularyAndNoWire();
-    things.splice(things.findIndex((t) => t.Id === 'carries'), 1);
-    relationships.splice(0, relationships.length);
-    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
-    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBeUndefined();
+  it('takes nothing of the wire kind for the predicate where the model binds no wire predicate role', () => {
+    expect(vocabularyAndNoWire({}).wirePredicateId()).toBeUndefined();
   });
 });
 

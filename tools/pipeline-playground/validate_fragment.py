@@ -162,8 +162,10 @@ class Model:
                             "in": [p["Id"] for p in self.reached_along(held["Id"], OUTPUT_CONNECTOR)]})
         return out
 
+    # Nothing legitimate relates one node to another but `is` and `has`, as PipelineDagBuilder reads it, so
+    # the wire predicate need not be found to spot a wire drawn as a relationship.
     def relationship_wires(self, subj):
-        return [r["Target"] for r in self.bysubj.get(subj, []) if self.is_of(r["Predicate"], PIPELINE_WIRE)]
+        return [r["Target"] for r in self.bysubj.get(subj, []) if self.name(r["Predicate"]) not in ("is", "has")]
 
 
 def main():

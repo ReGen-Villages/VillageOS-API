@@ -272,8 +272,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire); // the carries predicate is a pipeline wire
+        fx.Thing("carries");
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -342,8 +341,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -440,8 +438,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
         if (bindsRequestedBy) fx.Playing("requestedBy", PipelineRoles.RequestedBy);
 
         GraphThing Port(GraphThing holder, string name, string direction, string type, bool required = false)
@@ -509,8 +506,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var echoPrototype = perItem ? CollectionInPrototype(fx, vocabulary, "EchoProto") : InputOutputPrototype(fx, vocabulary, "EchoProto");
         var echo = ServiceNode(fx, vocabulary, echoPrototype, "Echo", "ech", policy);
@@ -567,8 +563,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var starts = fx.Playing("starts", PipelineRoles.PipelineStart);
 
@@ -647,8 +642,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -676,8 +670,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -857,8 +850,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var decideProto = InputOutputPrototype(fx, vocabulary, "DecideProto");
         var echoProto = InputOutputPrototype(fx, vocabulary, "EchoProto");
@@ -958,8 +950,7 @@ public static class TestGraphs
 
         if (wiredFromASource)
         {
-            var carries = fx.Thing("carries");
-            fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+            fx.Thing("carries");
             var source = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "SourceProto"), "Source", "source");
             fx.Rel(pipe, vocabulary.Has, source);
             fx.Wire(source, "out", node, "strategy");
@@ -975,8 +966,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var sourceProto = InputOutputPrototype(fx, vocabulary, "SourceProto");
         var gatherProto = fx.Thing("GatherProto");
@@ -1021,8 +1011,7 @@ public static class TestGraphs
         var vocabulary = fx.DeclareVocabulary();
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var awaitsThrough = fx.Playing("awaitsThrough", PipelineRoles.AwaitsThrough);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var reviewProto = fx.Thing("ReviewProto");
         fx.Rel(reviewProto, vocabulary.Is, vocabulary.Service);
@@ -1115,8 +1104,7 @@ public static class TestGraphs
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var awaitsThrough = fx.Playing("awaitsThrough", PipelineRoles.AwaitsThrough);
         var reachedAlong = fx.Playing("reachedAlong", PipelineRoles.ReachedAlong);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         GraphThing Port(GraphThing holder, string name, string direction)
         {
@@ -1178,8 +1166,7 @@ public static class TestGraphs
         var vocabulary = fx.DeclareVocabulary();
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         GraphThing Port(GraphThing holder, string name, string direction)
         {
@@ -1472,8 +1459,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var transformProto = fx.Thing("TransformProto");
         fx.Rel(transformProto, vocabulary.Is, vocabulary.Service);

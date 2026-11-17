@@ -91,6 +91,7 @@ PREDICATE_ROLE = {
     "about": "runSubject",
     "offers": "choice",
     "produced": "producedThing",
+    "carries": "wirePredicate",
     "inputConnector": "inputConnector",
     "outputConnector": "outputConnector",
     "takenOn": "takenOn",
@@ -239,7 +240,6 @@ def declare_dag_vocabulary(k):
     v.PipelineWire = k.archetype("PipelineWire")
     v.DecisionPath = k.archetype("DecisionPath")
 
-    k.rel(v.carries, v.is_, v.PipelineWire)
     # Every service's connection is an HTTP connection at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
     v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)

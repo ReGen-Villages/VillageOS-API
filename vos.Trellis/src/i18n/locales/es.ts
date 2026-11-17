@@ -1215,7 +1215,7 @@ export const es: PartialResources = {
       pipelineArchetype: "arquetipo vinculado al rol de pipeline",
       nodeArchetype: "arquetipo vinculado al rol de nodo de pipeline",
       wireArchetype: "arquetipo vinculado al rol de conexión",
-      wirePredicate: "predicado de conexión (un predicado del arquetipo de conexión que ningún nodo contiene)",
+      wirePredicate: "predicado vinculado al rol predicado de conexión (de una conexión al nodo que alimenta)",
       inputConnector: "predicado vinculado al rol de conector de entrada (de una conexión al puerto de salida del que toma su valor)",
       outputConnector: "predicado vinculado al rol de conector de salida (de una conexión al puerto de entrada al que entrega su valor)",
       takenOnPredicate: "predicado vinculado al rol de «tomada con» (de una conexión al resultado o la opción con que continúa)",

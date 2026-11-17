@@ -177,8 +177,7 @@ public class PipelineModelTests
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary(namePrefix: "Renamed");
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var prototype = fx.Thing("proto");
         fx.Rel(prototype, vocabulary.Is, vocabulary.Service);

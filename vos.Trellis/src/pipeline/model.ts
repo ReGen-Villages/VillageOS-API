@@ -24,6 +24,7 @@ export const ROLE = {
   PipelineWire: 'adfe0071-bbaf-5e7f-abc3-255c08d8735a',
   InputConnector: '1f13d260-b2cc-5757-a475-7eb9b7d2323f',
   OutputConnector: '7788a338-5eb6-5733-a208-0cf90b4269dd',
+  WirePredicate: '6ded5aad-1641-5a11-9045-142c1ca4cceb',
   // A wire reaches the result its node must answer, success or fail, or the node's choice it must name, for the wire to carry.
   TakenOn: '840892f9-2d05-5e98-b573-0699851760c9',
   Success: 'ffb97ba6-4853-5257-92e4-b71a87b79691',
@@ -223,10 +224,6 @@ export class PipelineModel {
   private readonly byId: Map<string, VosThing>;
   // Relationships indexed by subject, so a traversal costs a node's own relationships rather than every relationship in the model.
   private readonly bySubject: Map<string, VosRelationship[]>;
-  // The Things this model uses as a predicate. A wire held as a Thing is of the wire archetype exactly as
-  // the wire predicate is, so being of that archetype no longer tells the two apart — being used as a
-  // predicate does.
-  private readonly usedAsPredicate: Set<string>;
   private readonly roleCache = new Map<string, boolean>();
   private readonly boundCache = new Map<string, string | undefined>();
   private readonly statedCache = new WeakMap<VosThing, Record<string, unknown>>();
@@ -239,7 +236,6 @@ export class PipelineModel {
     this.byId = new Map(things.map((t) => [t.Id, t]));
     this.bySubject = new Map();
     this.byTarget = new Map();
-    this.usedAsPredicate = new Set();
     for (const relationship of relationships) {
       const arr = this.bySubject.get(relationship.SubjectId);
       if (arr) arr.push(relationship);
@@ -247,7 +243,6 @@ export class PipelineModel {
       const incoming = this.byTarget.get(relationship.TargetId);
       if (incoming) incoming.push(relationship);
       else this.byTarget.set(relationship.TargetId, [relationship]);
-      this.usedAsPredicate.add(relationship.PredicateId);
     }
   }
 
@@ -625,18 +620,9 @@ export class PipelineModel {
     return this.things.find((t) => t.Name === name)?.Id;
   }
 
-  /** Id of the wire predicate — the predicate Thing of the archetype the model binds as holding wires.
-   *  A wire held as a Thing is of that same archetype, so being of it does not tell the two apart. The
-   *  one the model already uses as a predicate answers first; before any wire is drawn nothing uses it,
-   *  so the shape decides: a held wire is always held by a node along `has`, and a predicate never is. */
+  /** The predicate a wire reaches the node it feeds along. */
   wirePredicateId(): string | undefined {
-    const ofTheWireArchetype = this.things.filter((t) => this.isOf(t.Id, ROLE.PipelineWire));
-    return ofTheWireArchetype.find((t) => this.usedAsPredicate.has(t.Id))?.Id
-      ?? ofTheWireArchetype.find((t) => !this.isHeld(t.Id))?.Id;
-  }
-
-  private isHeld(thingId: string): boolean {
-    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name === 'has');
+    return this.boundTo(ROLE.WirePredicate);
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
