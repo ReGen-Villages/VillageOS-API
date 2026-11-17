@@ -27,8 +27,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [name, setName] = useState(() => t('pipeline.newPipelineName'));
   const [savedId, setSavedId] = useState<string | null>(null);
-  // The persistent id of the pipeline being edited — kept across edits (which clear savedId to mark the
-  // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate.
+  // The pipeline being edited. It is kept across edits, which clear savedId to mark the canvas changed, so a
+  // save updates the loaded pipeline in place instead of making a copy.
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
@@ -199,8 +199,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
 
   /** Answers whether the save went through. */
   const save = useCallback(async () => {
-    // Optimistic rollback: remember the state we are trying to save so a rejected save can revert
-    // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
+    // Copied before the save, so the state the platform confirms is the one sent, whatever the canvas holds by then.
     const attempt = structuredClone(current());
     setBusy(true);
     setError(null);
@@ -210,11 +209,11 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       setSavedId(saved.pipelineId);
       setThingIdByCanvasId(saved.nodeIdMap);
       setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
-      commitBaseline(attempt); // the saved canvas is the new baseline; undo history clears
+      commitBaseline(attempt);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
-      // Only a pipeline already saved has a server-confirmed state to go back to; a never-saved canvas keeps the user's work.
+      // Only a pipeline already saved has a confirmed state to go back to; a canvas never saved keeps what was drawn.
       if (editingPipelineId && rollBack()) setSavedId(editingPipelineId);
       return false;
     } finally {
@@ -290,8 +289,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
-  // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.
+  // Recorded once when a node drag starts, not on every move, and before a delete, so undo restores the canvas
+  // as it was. A delete also marks the canvas changed since the last save.
   const onNodeDragStart = useCallback(() => recordSnapshot(), [recordSnapshot]);
   const onNodesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);
   const onEdgesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);

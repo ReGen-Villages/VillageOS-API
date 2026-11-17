@@ -68,7 +68,7 @@ internal sealed class ModelClockFollower : BackgroundService
 
         if (heard || cancellationToken.IsCancellationRequested) return;
 
-        // Once, not once a reconnect: a broker away for an hour would otherwise write the same warning
+        // Once, not once per reconnect: a broker away for an hour would otherwise write the same warning
         // many hundred times, and the clock goes on answering from its last reading.
         if (!_unreachable)
             _logger.LogWarning("{Service} cannot read the model clock; it stamps the last reading it "

@@ -26,8 +26,7 @@ public sealed class SubscriptionSelector
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
 
-    // The broker's own default, so a selector that leaves it unset asks for what it asked for before the
-    // member existed.
+    // The broker's own default, so a selector that leaves it unset still receives the snapshot.
     public bool IncludeSnapshot { get; set; } = true;
 
     // Which relationships the snapshot carries and the stream admits. Without rules, IncludeRelationships

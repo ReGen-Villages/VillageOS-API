@@ -89,7 +89,7 @@ public sealed class SubmissionIntakeService(
     }
 
     // The vocabularies a submitted word is resolved against, read from the model rather than listed in code: a
-    // term added to the model reaches the next submission once the held declarations have run their time.
+    // term added to the model reaches the next submission once the held declarations expire.
     private Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation) =>
         declarations.ReadAsync(DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, cancellation);
 

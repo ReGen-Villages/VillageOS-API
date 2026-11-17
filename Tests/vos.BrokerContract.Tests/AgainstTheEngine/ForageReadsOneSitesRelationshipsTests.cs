@@ -7,7 +7,7 @@ using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Only the engine resolves the selector; without relationship rules one site's read grew with every other
+// Only the engine resolves the selector; without relationship rules one site's read grows with every other
 // site's isIn into the shared Place.
 public class ForageReadsOneSitesRelationshipsTests : IClassFixture<TheEngine>
 {

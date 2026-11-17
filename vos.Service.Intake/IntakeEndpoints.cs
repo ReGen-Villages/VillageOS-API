@@ -349,10 +349,10 @@ internal static class IntakeEndpoints
                 var accepted = await intake.SubmitAsync(submission, context.RequestAborted);
                 logger.LogInformation("Submission {Reference} was written into the model", accepted.Reference);
 
-                // A fresh ticket rides back on every act performed with a live one, so a person adjusting
-                // their submission stays in the exchange they already completed while an abandoned ticket
-                // still dies at the age it always did. The address is the one the presented ticket was
-                // checked against above.
+                // Every request made with a live ticket is answered with a fresh one, so a person adjusting
+                // their submission stays in the exchange they already completed, while an abandoned ticket
+                // still expires at its usual age. The address is the one the presented ticket was checked
+                // against above.
                 context.Response.Headers[SubmissionTicket.HeaderName] =
                     tickets.Issue(submission.Contact!.EmailAddress!.Trim());
                 return Results.Ok(new { reference = accepted.Reference });
@@ -378,7 +378,7 @@ internal static class IntakeEndpoints
 
     private static void MapFindings(WebApplication app)
     {
-        // The one thing the platform gives back. A submission ends at a reference today, and everything the
+        // The one thing the platform gives back. A submission ends at a reference, and everything the
         // analysis made of the land is visible only to somebody signed in — so this answers the person who
         // submitted it, and nobody else.
         //
@@ -438,7 +438,7 @@ internal static class IntakeEndpoints
 
     private static void MapFindingsReduction(WebApplication app)
     {
-        // The two reads the tile design adds to the public page, proxied because the page holds no credential
+        // Two more reads the public page makes, proxied because the page holds no credential
         // and reaches this service alone. The reduction is under the ticket and about the submission's own
         // site, which the service supplies; the tiles are anonymous like the position lookups, since the
         // opening map is drawn before anything has been verified.
