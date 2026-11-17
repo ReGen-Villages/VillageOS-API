@@ -7,7 +7,7 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartBands, ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale, niceTicks, paddedDomain } from './chartScale';
+import { ANNUAL, linearScale, monthSlots, niceTicks, paddedDomain } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
@@ -24,9 +24,6 @@ const RIGHT_GUTTER = 8;
 const FALLBACK_WIDTH = 480;
 const WIDEST_BOX = 24;
 const TICK_COUNT = 5;
-/** The annual box stands apart from the months with room for its label, as the range bar's does. */
-const ANNUAL_SLOTS = 1.6;
-const ANNUAL = 12;
 const CAP_SHARE = 0.5;
 
 function figuresOf(series: Map<string, number>[], key: string | null): Figures {
@@ -77,9 +74,8 @@ export function BoxPlot({ widget, context }: { widget: BoxPlotWidget; context: R
   const plotTop = TOP_GUTTER;
   const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
   const y = linearScale(domain, [plotBottom, plotTop]);
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / (widget.annual ? 12 + ANNUAL_SLOTS : 12);
+  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, !!widget.annual);
   const boxWidth = Math.min(WIDEST_BOX, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at === ANNUAL ? 12 + ANNUAL_SLOTS / 2 : at + 0.5);
   const ticks = niceTicks(domain[0], domain[1], TICK_COUNT).filter((tick) => tick >= domain[0] && tick <= domain[1]);
   const figure = (value: number | undefined) =>
     value === undefined ? '—' : `${formatNumber(value, widget.format)}${widget.unit ? ` ${widget.unit}` : ''}`;

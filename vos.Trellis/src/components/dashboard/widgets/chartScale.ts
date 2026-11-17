@@ -6,6 +6,20 @@
 
 export type Scale = (value: number) => number;
 
+/** Where a chart by month draws the column for the whole window, after the twelve months. */
+export const ANNUAL = 12;
+/** The annual column stands apart from the months with room for its label. */
+const ANNUAL_SLOTS = 1.6;
+
+/** The width of a month's slot across `[left, right]`, and the centre of each month and of the annual column. */
+export function monthSlots(left: number, right: number, withAnnual: boolean): { slotWidth: number; centreOf: (at: number) => number } {
+  const slotWidth = (right - left) / (withAnnual ? 12 + ANNUAL_SLOTS : 12);
+  return {
+    slotWidth,
+    centreOf: (at) => left + slotWidth * (at === ANNUAL ? 12 + ANNUAL_SLOTS / 2 : at + 0.5),
+  };
+}
+
 /** A value on `[from, to]` placed on `[start, end]`; the range may run either way. A flat domain
  *  places every value at the middle rather than dividing by nothing. */
 export function linearScale([from, to]: [number, number], [start, end]: [number, number]): Scale {

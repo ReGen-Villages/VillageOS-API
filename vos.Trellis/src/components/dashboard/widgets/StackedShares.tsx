@@ -6,7 +6,7 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale } from './chartScale';
+import { ANNUAL, linearScale, monthSlots } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
@@ -21,9 +21,6 @@ const WIDEST_BAR = 28;
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
 /** A thin ring in the surface colour is the gap between stacked segments. */
 const SURFACE_GAP = 1;
-/** The annual column stands apart from the months with room for its label, as the range bar's does. */
-const ANNUAL_SLOTS = 1.6;
-const ANNUAL = 12;
 const BINDINGS_PER_CLASS = 3;
 
 export function StackedShares({ widget, context }: { widget: StackedSharesWidget; context: ResolveContext }) {
@@ -57,9 +54,8 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
   const plotTop = TOP_GUTTER;
   const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
   const y = linearScale([0, 1], [plotBottom, plotTop]);
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / (hasAnnual ? 12 + ANNUAL_SLOTS : 12);
+  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, hasAnnual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at === ANNUAL ? 12 + ANNUAL_SLOTS / 2 : at + 0.5);
   const figure = (share: number | undefined) => share === undefined ? '—' : formatNumber(share, 'percent');
   const readOut = (month: (typeof months)[number]) =>
     `${month.name}: ${month.shares.map((entry) => `${entry.label} ${figure(entry.share)}`).join(', ')}`;

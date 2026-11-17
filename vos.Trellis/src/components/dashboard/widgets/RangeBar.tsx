@@ -7,7 +7,7 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartBands, ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale, niceTicks, paddedDomain } from './chartScale';
+import { ANNUAL, linearScale, monthSlots, niceTicks, paddedDomain } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
@@ -34,8 +34,6 @@ const RIGHT_GUTTER = 8;
 const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 24;
 const TICK_COUNT = 5;
-/** The annual bar stands apart from the months with room for its label, as a panel of its own would. */
-const ANNUAL_SLOTS = 1.6;
 /** A thin ring in the surface colour is the gap between stacked segments and around the circles. */
 const SURFACE_GAP = 2;
 const MARKER_RADIUS = 4;
@@ -72,7 +70,7 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
     ...names.map((name, month) => ({ name, statistics: statisticsOf(monthSeries, String(month + 1)) })),
     ...(widget.annual ? [{ name: t('widgets.history.annual'), statistics: statisticsOf(annualSeries, null) }] : []),
   ]
-    .map((period, at) => ({ ...period, at, annual: at === 12 }))
+    .map((period, at) => ({ ...period, at, annual: at === ANNUAL }))
     .filter((period) => Object.keys(period.statistics).length > 0);
 
   const bands = (widget.bands ?? []).map((band, at) => ({
@@ -92,10 +90,8 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
   const plotTop = TOP_GUTTER;
   const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
   const y = linearScale(domain, [plotBottom, plotTop]);
-  const slots = widget.annual ? 12 + ANNUAL_SLOTS : 12;
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / slots;
+  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, !!widget.annual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at === 12 ? 12 + ANNUAL_SLOTS / 2 : at + 0.5);
   const ticks = niceTicks(domain[0], domain[1], TICK_COUNT).filter((tick) => tick >= domain[0] && tick <= domain[1]);
   const figure = (value: number | undefined) =>
     value === undefined ? '—' : `${formatNumber(value, widget.format)}${widget.unit ? ` ${widget.unit}` : ''}`;
