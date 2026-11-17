@@ -1064,7 +1064,10 @@ the same managed daemon lifecycle as relationship services, and act as
 pass-through proxies — Mycelium forwards request bodies as-is to the service's
 `/handle` endpoint. Mycelium also exposes per-subdomain request metrics (count,
 avg response time, errors), and a connection may carry
-`AcceptsAnonymousCallers` to admit a caller with no credential.
+`AcceptsAnonymousCallers` to admit a caller with no credential, or `acceptsCallerKeys` to admit a
+caller key, each as its own property. The token Mycelium forwards under also names the caller:
+`vos:caller`, and for a person `vos:caller_account` and `vos:caller_application_roles`; an anonymous
+call names nobody. A service checks the token's signature before trusting them.
 
 Full implementation details: the *Services* chapter of the Field Guide on the
 VillageOS repository's wiki.
@@ -1229,6 +1232,10 @@ POST /handle                                     {
 }
 ```
 
+A `fail` answer may also carry `"retry": {}`, optionally `{ "afterSeconds": n }`, to say the failure can
+be tried again (§16.3); a C# node throws `FailureCanBeTriedAgainException` to answer so, and
+`NodeFailedException` for a `fail` answer that carries outputs.
+
 A request is a node invocation **only when it carries both `runId` and `nodeId`**. Anything else is a
 graph or http body the service handles as its own; the two never collide. A rehearsal adds
 `"rehearsal": true`, sent only then. A service declares `rehearses` (on itself or a kind above it) when
@@ -1250,8 +1257,9 @@ its first answer, so a restart that caught the call may make it again (§16.3).
   that input from the spawn's `parameters` before calling the node (an explicit wire into the same port
   wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
-- **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
-  — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
+- **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`,
+  and `collection: true` on a collection port, left out when false (`PortDescriptor.Input(..., collection: true)`
+  in C#) — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
   `rehearses` (the service writes nothing but its answer, so a rehearsal may call it) and list `settings`,
   each `{ name, required, values, default }`: the values a node carries as properties and the service
   reads from `params`. `tools/pipeline-playground/declare_service.py` reads the manifest to declare the
@@ -1360,8 +1368,8 @@ model never starts it — a state, a relationship, a cadence or a follow-on node
 and a draft runs only as a rehearsal.
 
 **Spawn — graph (`X runs Pipeline`, fire-and-forget).** A pipeline can also be spawned **from the model**,
-like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that is a **graph
-Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
+like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that names, along
+`notifies`, a **graph Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
 forward the relationship envelope (`{relationshipId, subjectId, targetId, properties}`) to the same
 `/handle`; a body carrying `pipelineId` is an http spawn, and any other is resolved against the model
 (`PipelineStart`): a pipeline runs itself, a connection runs the pipeline drawn from it (chosen as
@@ -1372,8 +1380,8 @@ graph-triggered call only its service call limit (fifteen seconds by default), i
 **fire-and-forget**: Phloem ACKs immediately and runs the pipeline in the background, persisting the
 result to the `PipelineRun`.
 
-**Spawn — graph (any other predicate bound to Phloem).** A relationship written along a connection's
-predicate that is bound to Phloem, other than `runs`, starts a pipeline whose start node stands for
+**Spawn — graph (any other predicate naming a Phloem connection).** A relationship written along a
+predicate that names a connection bound to Phloem, other than `runs`, starts a pipeline whose start node stands for
 what the relationship reaches. The envelope names the relationship, and the orchestrator reads it by
 its id.
 
@@ -1382,6 +1390,23 @@ starts a pipeline drawn from it when a Thing enters the state it watches, with t
 the run's `subject` — the name the Pipelines page gives a start node's port, carrying the Thing's id and
 name, which a wire narrows by its from-path. The run relates to that Thing along the predicate the
 `runSubject` role binds.
+
+**A run a state entry starts reports how it went.** The Phloem prototype declares
+`whenTheServiceReportsCompletion`, so the state entry's call stays open while the run goes. A state
+entry is the call whose target is a connection; the request's `relationshipId` is then the call record,
+and the run keeps it as its `callRecordId` property. The orchestrator reports `received` once the run is
+recorded, then `completed` when the run succeeds, or `failed` with the run's reason when it fails, is
+refused at its start, or is stopped (the reason reads `Run stopped: <the stop's reason>`); a failed run
+also records its reason in its `error` property. A run started by hand, by a `runs` relationship, by a
+cadence or by another pipeline reports nothing, which is why `runsPipeline`, `stops` and `resumesRun`
+each declare `whenTheServiceAnswers`. Reports for one call record go in order. A report that does not
+reach the broker, or that the broker fails on with a `5xx`, is sent again after a pause that starts at
+one second, doubles each time and stops growing at five minutes, until the broker takes it; a `409` or
+`404` stops the sending, and any other `4xx` stops it with a warning, since the same report would be
+refused again. A run with a call record stays held by the orchestrator along `has` until its last
+report is taken, even when the run is refused at its start, and on start, before recovering waits and
+unfinished runs, the orchestrator sends again what each such run owes: `received` for one still going,
+its end for one that has ended.
 
 **Spawn — cadence.** The orchestrator holds every Thing of the archetype the `cadence` role binds from
 one subscription on that archetype, which carries each change and each cadence made later, and a
@@ -1473,8 +1498,10 @@ and carries on. The run a request is `requestedBy` is never stopped by it.
 
 **Retrying.** A node carrying `attempts` (with optional `pauseMinutes`,
 `pauseGrowth`, `pauseSpread` and `tryingMinutes`) calls again while a call never reaches its service —
-a transport failure, a timeout, a server error from the broker; any answer from the service is final,
-a refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
+a transport failure, a timeout, a server error from the broker — and when the service answers `fail`
+with `"retry": {}`, optionally `{ "afterSeconds": n }`; the wait asked for is taken in real time when
+it is longer than the policy's pause, and counts against the trying time. Any other answer from the
+service is final, a refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
 relationship as one fragment, its count on the node run's `attempts`, and the node run stands at
 `trying` between them. The pause is in model minutes. A node that gives up fails like any other.
 
@@ -1514,7 +1541,7 @@ through the connection its archetype names along `notifies` (the template declar
 arrives while the placing sweep still holds the run resumes it once that sweep ends. Resuming is one
 write: the node run succeeds, both relationships are retracted and the run is running again. Any other
 status that ends the wait retracts both relationships in its own write. On start the orchestrator
-resumes a waiting node run whose call record is `Done`, leaves one the platform is still answering,
+resumes a waiting node run whose call record is `Completed`, leaves one the platform is still answering,
 and writes both relationships again for one missing either, reading the awaited Thing from its port
 when the `awaits` relationship is gone; a wait whose Thing or range is gone fails, saying which. A
 node that waits runs once, so a collection port on it is refused, and so is a wait through a port
