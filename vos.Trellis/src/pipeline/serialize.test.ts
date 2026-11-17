@@ -348,6 +348,27 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: 90 });
   });
 
+  it('writes the limit of a loaded wait box empty once the field is cleared, so the box waits with no limit', async () => {
+    const model = buildModelWithAWaitBox(90);
+    const loaded = loadPipeline('SP', model)!;
+    const cleared = loaded.nodes.map((n) => (n.id === 'WAIT' ? { ...n, waitsAtMostMinutes: undefined } : n));
+
+    await savePipeline(loaded.name, cleared, loaded.edges, model, 'SP');
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: null });
+  });
+
+  it('writes no limit for a wait box that carries none of its own', async () => {
+    const model = buildModelWithAWaitBox();
+    const loaded = loadPipeline('SP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'SP');
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties).not.toHaveProperty('waitsAtMostMinutes');
+  });
+
   it('saves the most minutes a new wait box waits as a whole number', async () => {
     const model = buildModelWithAWaitBox();
     const placed: EditorNode = {

@@ -215,7 +215,11 @@ function pipelineFragment(
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
-    if (n.kind === 'wait' && n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
+    if (n.kind === 'wait') {
+      // A fragment keeps a value it leaves out, so a cleared limit is written empty, and the orchestrator reads empty as none.
+      if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
+      else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
+    }
     fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.

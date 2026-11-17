@@ -355,7 +355,7 @@ public static class PipelineDagBuilder
 
     private static TimeSpan? LimitOf(GraphThing nodeThing)
     {
-        if (nodeThing.PropertyString(ModelNames.WaitsAtMostMinutes) is not { } written) return null;
+        if (nodeThing.PropertyString(ModelNames.WaitsAtMostMinutes) is not { } written || string.IsNullOrWhiteSpace(written)) return null;
         return long.TryParse(written, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) && minutes > 0
             ? TimeSpan.FromMinutes(minutes)
             : throw new PipelineModelException(
