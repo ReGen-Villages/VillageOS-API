@@ -1632,7 +1632,8 @@ same things.
 The **API keys** page lists every key with whether it is in use, revoked or expired. **Issue a key**
 takes a name, a role, optionally the model the key is confined to, and optionally the days until it
 expires — a fraction of a day is accepted, so `0.5` is twelve hours — and shows the raw key once, in
-the reply. **Revoke a key** names a key in use, so a name belongs to one key in use at a time: a name a
+the reply. A service key is issued **For service**: it names the service's Thing and that Thing's
+model, and its token carries that service's grants; a caller key names its model. **Revoke a key** names a key in use, so a name belongs to one key in use at a time: a name a
 key in use already has is refused, and a revoked or expired key frees its name. The first
 administrator key the server wrote at its first start can be revoked here once nothing uses it.
 
