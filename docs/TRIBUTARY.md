@@ -5,6 +5,15 @@ in Mycelium, it resolves that endpoint's effective properties, performs the HTTP
 (with optional auth and pagination), optionally reshapes the response with a JSONata
 expression, and ingests the readings as time-series observations on each entity's series.
 
+It also answers the orchestrator's step request, so a fetch can be a box on a pipeline canvas. Its
+`call` input is a collection, so a list runs once per item, and holds `endpointName`, `subjectId` and
+`addressParameters`; its `outcome` output holds the call as handed plus `written`, or `reason` on a
+failure. `GET /manifest` declares both. As a step, a refusal is a `fail` answer whose error is
+`<status>: <words>`. It may be tried again — `retry`, with the provider's `Retry-After` as
+`afterSeconds` — for 408, 425, 429, every 5xx, the provider-away 404, and a provider that could not
+be reached or did not answer in time. Any other refusal, and a registration whose settings will not
+do, is final.
+
 It is deliberately **source-agnostic** — there is no per-API code. A specific source
 (ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint, a map-tile server) is expressed
 entirely as an endpoint *template* plus a registration, never as a branch in Tributary.
@@ -80,7 +89,7 @@ value and whether it is expected to be overridden.
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible because the template declares it; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParameter`, `pageSizeParameter`, `hasMorePath`, `itemsPath` |
-| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s; an endpoint whose `timeout` is not shorter than `--passedOnRequestLimitSeconds` is warned about once, the first time it is used, naming both numbers and the property to change), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
 | **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
@@ -451,8 +460,20 @@ Tributary's contract is **fetch-and-shape**:
    A broker whose readings queue is full refuses the batch whole with 503 and `Retry-After`; Tributary
    waits the seconds given and sends the same batch again, a bounded number of times, and only then
    drops it and reports the ingest as failed. A refusal that names no wait, or a wait too long for the
-   retries to fit inside the call the broker is waiting on, is not sent again, and if the broker gives
-   up on the call first Tributary stops waiting and drops the batch.
+   retries to fit inside the call the broker is waiting on, is not sent again.
+
+   **The deadline.** When Mycelium passes `--passedOnRequestLimitSeconds`, Tributary gives each request
+   it is passed one deadline: that limit minus 2 seconds from when it arrives. Every call made while
+   answering gets the time left — the reads of the endpoint's settings, the token exchange, the fetch
+   and its pages, the readings write, and keeping the response. At the deadline Tributary answers
+   `504` with what it was still waiting on, for example "The broker had not accepted the readings
+   within 28 of the 30 seconds the platform allows a passed-on request.", and logs the same. A call
+   the deadline cuts off logs no error of its own, so that "Answered the request for endpoint … at its
+   deadline" line is the one record; a failure not caused by the deadline still logs as an error. At
+   a limit of 2 seconds or less the deadline is the whole limit, with no margin, and Tributary logs
+   once at start-up "The platform allows N seconds for a passed-on request, too short to leave
+   Tributary 2 seconds to answer with its own reason. Raise Mycelium's
+   DaemonLauncher:PassedOnRequestLimitSeconds above 2." With no limit given there is no deadline.
 
 **What decides ingest** is the expression *in effect*: the one on the registration, or the one it
 inherits from its template. An endpoint with none fetches and returns the body unchanged — a plain

@@ -36,7 +36,8 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
   system sends, a cadence, a request. Click one to place a start node standing for it; **By hand** places a start
   filled from the run's parameters. A state row whose entries go to a service other than the
   orchestrator names the drawing and that service, and offers **Handle with the orchestrator**, which
-  rebinds the state's connection so entering the state starts the drawing.
+  rebinds the state's connection so entering the state starts the drawing. A state row watched through
+  one connection also offers **Call settings**, the settings of that connection's calls.
 - **Roster (left, beside the catalysts)** — the model's pipelines. Click one to open it.
 - **Outputs (right)** — the answer, which places the Output node; the other pipelines, each placing a
   follow-on node; the external systems told through a connection, each placing a tell node; and a stop

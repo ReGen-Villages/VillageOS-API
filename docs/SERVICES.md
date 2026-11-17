@@ -131,12 +131,20 @@ every service needs. There is one implementation; no service writes its own.
 
 - **Required flags:** `--port`, `--myceliumUrl`
 - **Optional flags:** `--issuer`, `--audience`, `--logDirectory` (the folder the service writes its
-  log file to; four folders above the build output by default)
+  log file to; four folders above the build output by default), `--serviceCallLimitSeconds` and
+  `--passedOnRequestLimitSeconds` (how long Mycelium waits for the service to answer a service call,
+  and a request it passes on). Each limit is a positive whole number of seconds; absent or unusable,
+  it is read as no limit (`ServiceLaunchSettings.ServiceCallLimit` and `PassedOnRequestLimit` are
+  `null`), and the service is free to keep a limit of its own or none
 - **Credentials, which are never flags:** `Token` (pre-minted service JWT for
   **outbound** Mycelium calls), `ApiKey` (a key exchanged for short-lived
-  tokens, for a service that outlives any one token — §12) and
+  tokens, for a service Mycelium does not launch — §12) and
   `VerificationKey` (base64 of Mycelium's public signing key, for checking
-  **inbound** Mycelium requests)
+  **inbound** Mycelium requests). A service holds `Token` or `ApiKey`, never both, and refuses to
+  start given the two. A launch `Token` lasts 24 hours; one that is a service token is swapped at
+  `POST /api/auth/service-token` once two hours or less are left (`AddLaunchToken`, checked every 15
+  minutes), and one that is not, such as a token minted for a key, is not renewed and the service logs
+  one line saying so
 
 Every flag can also come from configuration or the environment under its
 Pascal-case name — `Port`, `MyceliumUrl` and so on — so a service can be
@@ -195,7 +203,8 @@ service-agnostic plumbing:
 
 `vos.Service.Shared.Subscriptions.SubscriptionClient` (also a
 `MyceliumClientBase` subclass) is how a service gets its working set **without a
-GET storm** and follows changes afterward.
+GET storm**: once, with `ReadSnapshotAsync(selector)`, or as a subscription it follows afterward,
+with `SubscribeAsync(selector)` and `StreamAsync`.
 
 ```csharp
 var sub = new SubscriptionClient(httpFactory, logger, myceliumUrl, token);
@@ -218,9 +227,12 @@ on every reconnect, so delivery is gap-free and exactly-once across drops. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
 semantics are documented in [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions.
 
-**A service that reads once and never follows the stream does not subscribe.** It posts the same
-selector to `POST /api/snapshots`, which answers `{ watermark, snapshot }` and registers nothing, as
-Phloem does for every read of a drawing and a run, and Intake for every declaration and findings read. The broker checks every registered subscription on
+**A service that reads once and never follows the stream does not subscribe.** It calls
+`ReadSnapshotAsync(selector)`, which posts the same selector to `POST /api/snapshots`, answers a
+`SnapshotReadResult` — the watermark and the snapshot — and registers nothing. Phloem reads every
+drawing and run this way through its own gateway, and Intake every declaration and findings read;
+Tributary's endpoint read, Delta's template read, Forage's coverage and vocabulary reads and the
+console's detail card read the same route. The broker checks every registered subscription on
 every write until it is deleted, so a subscription opened only to be read once costs every writer
 until somebody deletes it.
 
@@ -291,8 +303,9 @@ a service that writes no file sends none. A service started with `--logDirectory
 `logDirectory`, that folder's full path; one writing to the default folder sends none. The broker
 refuses a folder outside the parent it allows (its `ServiceLogs:ParentDirectory` setting).
 
-A service does not withdraw its own registration: the removal route is
-admin-only, so the call would be refused whatever the service holds.
+A service may delete the registration it made itself, at `DELETE /api/mycelium/services/{id}`;
+another service's is refused with `403`. The liveness monitor still removes one that stops
+answering.
 
 ## 6. Helpers — pulling logic out of Program.cs
 
@@ -505,7 +518,7 @@ What makes it work:
   building model exists or somebody states one. `StudyInputs.WaitingFor` says which of a handler's inputs the study
   holds no number under — one it does not carry, and one carried with its number withheld — and a handler
   that finds any writes nothing, logs the names, and answers a `RecomputeAnswer` carrying them. The call
-  is recorded done and the watch above is what recomputes the study when the figure lands. A handler that
+  is recorded completed and the watch above is what recomputes the study when the figure lands. A handler that
   threw instead would have its call recorded `__CallState=Failed` and called again on every
   reconciliation for the life of the model, which reads in the log exactly like a service that is broken.
   Text where a number belongs is refused: that is a model to fix rather than a figure to wait for.
@@ -547,9 +560,9 @@ declares and Mycelium supervises is shown as stopped while its process is not
 running — a dormant state, not a stale registration — and stays listed so that
 it can be started.
 
-A service does not deregister itself: the removal route is admin-only, so the
-call would be refused whatever the service holds. A stopped service stays
-listed until the monitor removes it.
+A service may delete the registration it made itself; another service's is
+refused with `403`. A stopped service that did not stays listed until the
+monitor removes it.
 
 A service that holds a subscription stream open counts as alive while the
 stream is active, even when one `/health` poll goes unanswered.
@@ -566,7 +579,7 @@ it. Nothing else in the body is relied on.
 | Trigger | Mechanism |
 |---|---|
 | Liveness failure (3× `/health` timeout) on a self-registered service | Mycelium auto-deregisters |
-| An administrator removing the entry | `DELETE /api/mycelium/services/{handlerId}` (admin-only) |
+| An administrator, or the service itself for its own registration, removing the entry | `DELETE /api/mycelium/services/{handlerId}` |
 
 A service that exits — on SIGTERM, on `POST /shutdown`, or stopped by Mycelium —
 stays registered until the liveness monitor notices it is gone.
@@ -957,15 +970,14 @@ Full reference: the **Field Guide** on the VillageOS repository's wiki
 
 Microservices authenticate with a pre-minted JWT supplied through the `Token`
 setting (Mycelium mints it and sets it on the daemon's environment when it
-launches the daemon). A service nobody launches on demand — the public intake
-service most of all — needs a credential that does not expire, so a service can
-hold an **API key** instead, supplied through the `ApiKey` setting
-(configuration or environment, never the command line). `ServiceCredential`
-exchanges it at `POST /api/auth/token` with the `X-API-Key` header, holds the
-minted token, and exchanges again shortly before it expires — never per call.
-When both `ApiKey` and `Token` are set the key answers, because it is the
-durable credential and may be confined to one model; a failed exchange answers
-nothing rather than falling back to a broader credential.
+launches the daemon, and the service swaps it before it expires, §4). A service
+Mycelium does not launch — the public intake service most of all — holds an
+**API key** instead, supplied through the `ApiKey` setting (configuration or
+environment, never the command line). `ServiceCredential` exchanges it at
+`POST /api/auth/token` with the `X-API-Key` header, holds the minted token, and
+exchanges again shortly before it expires — never per call. A service holds one
+of the two: given both `ApiKey` and `Token`, it refuses to start. A failed
+exchange answers nothing rather than falling back to a broader credential.
 
 Every service presents what `ServiceCredential` answers, whether it calls
 through the shared client or builds the request itself, so a service written
@@ -982,9 +994,12 @@ TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
 curl -s -H "Authorization: Bearer $TOKEN" \
   -X POST https://localhost:7243/api/auth/keys \
   -H "Content-Type: application/json" \
-  -d '{"name":"my-service-key","role":"service"}' | jq
+  -d '{"name":"my-service-key","role":"service","modelId":"<model id>","serviceId":"<service Thing id>"}' | jq
 ```
 
+A service key names its service's Thing in `serviceId` and that Thing's model in
+`modelId`; one naming neither is refused with `400`, and start-up revokes an older
+service key that names no service. The key's token carries that service's grants.
 The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
 it is only shown once. Give it to a service through the `ApiKey` setting, or
 exchange it yourself via `POST /api/auth/token` (`X-API-Key: <rawKey>`) and
@@ -1048,7 +1063,10 @@ the same managed daemon lifecycle as relationship services, and act as
 pass-through proxies — Mycelium forwards request bodies as-is to the service's
 `/handle` endpoint. Mycelium also exposes per-subdomain request metrics (count,
 avg response time, errors), and a connection may carry
-`AcceptsAnonymousCallers` to admit a caller with no credential.
+`AcceptsAnonymousCallers` to admit a caller with no credential, or `acceptsCallerKeys` to admit a
+caller key, each as its own property. The token Mycelium forwards under also names the caller:
+`vos:caller`, and for a person `vos:caller_account` and `vos:caller_application_roles`; an anonymous
+call names nobody. A service checks the token's signature before trusting them.
 
 Full implementation details: the *Services* chapter of the Field Guide on the
 VillageOS repository's wiki.
@@ -1213,6 +1231,10 @@ POST /handle                                     {
 }
 ```
 
+A `fail` answer may also carry `"retry": {}`, optionally `{ "afterSeconds": n }`, to say the failure can
+be tried again (§16.3); a C# node throws `FailureCanBeTriedAgainException` to answer so, and
+`NodeFailedException` for a `fail` answer that carries outputs.
+
 A request is a node invocation **only when it carries both `runId` and `nodeId`**. Anything else is a
 graph or http body the service handles as its own; the two never collide. A rehearsal adds
 `"rehearsal": true`, sent only then. A service declares `rehearses` (on itself or a kind above it) when
@@ -1234,8 +1256,9 @@ its first answer, so a restart that caught the call may make it again (§16.3).
   that input from the spawn's `parameters` before calling the node (an explicit wire into the same port
   wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
-- **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
-  — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
+- **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`,
+  and `collection: true` on a collection port, left out when false (`PortDescriptor.Input(..., collection: true)`
+  in C#) — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
   `rehearses` (the service writes nothing but its answer, so a rehearsal may call it) and list `settings`,
   each `{ name, required, values, default }`: the values a node carries as properties and the service
   reads from `params`. `tools/pipeline-playground/declare_service.py` reads the manifest to declare the
@@ -1367,6 +1390,23 @@ the run's `subject` — the name the Pipelines page gives a start node's port, c
 name, which a wire narrows by its from-path. The run relates to that Thing along the predicate the
 `runSubject` role binds.
 
+**A run a state entry starts reports how it went.** The Phloem prototype declares
+`whenTheServiceReportsCompletion`, so the state entry's call stays open while the run goes. A state
+entry is the call whose target is a connection; the request's `relationshipId` is then the call record,
+and the run keeps it as its `callRecordId` property. The orchestrator reports `received` once the run is
+recorded, then `completed` when the run succeeds, or `failed` with the run's reason when it fails, is
+refused at its start, or is stopped (the reason reads `Run stopped: <the stop's reason>`); a failed run
+also records its reason in its `error` property. A run started by hand, by a `runs` relationship, by a
+cadence or by another pipeline reports nothing, which is why `runsPipeline`, `stops` and `resumesRun`
+each declare `whenTheServiceAnswers`. Reports for one call record go in order. A report that does not
+reach the broker, or that the broker fails on with a `5xx`, is sent again after a pause that starts at
+one second, doubles each time and stops growing at five minutes, until the broker takes it; a `409` or
+`404` stops the sending, and any other `4xx` stops it with a warning, since the same report would be
+refused again. A run with a call record stays held by the orchestrator along `has` until its last
+report is taken, even when the run is refused at its start, and on start, before recovering waits and
+unfinished runs, the orchestrator sends again what each such run owes: `received` for one still going,
+its end for one that has ended.
+
 **Spawn — cadence.** The orchestrator holds every Thing of the archetype the `cadence` role binds from
 one subscription on that archetype, which carries each change and each cadence made later, and a
 dropped stream subscribes and reads again. It looks at what it holds once a real second, and starts the pipeline drawn from it (its start node stands for the cadence) for
@@ -1457,8 +1497,10 @@ and carries on. The run a request is `requestedBy` is never stopped by it.
 
 **Retrying.** A node carrying `attempts` (with optional `pauseMinutes`,
 `pauseGrowth`, `pauseSpread` and `tryingMinutes`) calls again while a call never reaches its service —
-a transport failure, a timeout, a server error from the broker; any answer from the service is final,
-a refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
+a transport failure, a timeout, a server error from the broker — and when the service answers `fail`
+with `"retry": {}`, optionally `{ "afterSeconds": n }`; the wait asked for is taken in real time when
+it is longer than the policy's pause, and counts against the trying time. Any other answer from the
+service is final, a refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
 relationship as one fragment, its count on the node run's `attempts`, and the node run stands at
 `trying` between them. The pause is in model minutes. A node that gives up fails like any other.
 
@@ -1498,7 +1540,7 @@ through the connection its archetype names along `notifies` (the template declar
 arrives while the placing sweep still holds the run resumes it once that sweep ends. Resuming is one
 write: the node run succeeds, both relationships are retracted and the run is running again. Any other
 status that ends the wait retracts both relationships in its own write. On start the orchestrator
-resumes a waiting node run whose call record is `Done`, leaves one the platform is still answering,
+resumes a waiting node run whose call record is `Completed`, leaves one the platform is still answering,
 and writes both relationships again for one missing either, reading the awaited Thing from its port
 when the `awaits` relationship is gone; a wait whose Thing or range is gone fails, saying which. A
 node that waits runs once, so a collection port on it is refused, and so is a wait through a port
