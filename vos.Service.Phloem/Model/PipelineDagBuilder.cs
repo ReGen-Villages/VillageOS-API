@@ -242,7 +242,7 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through its port '{portName}' but names no state for it to enter.");
         if (port is not { IsInput: true })
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through '{portName}', which is not an in port of it.");
-        return new DagWait(states[0].Id, states[0].Name, port.PortName);
+        return new DagWait(states[0].Id, states[0].Name, port.PortName, LimitOf(nodeThing));
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
@@ -349,7 +349,17 @@ public static class PipelineDagBuilder
                 + "so the run could not tell when the work is done.");
         if (states.Count > 1)
             throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names two states its work is proven by.");
-        return (new Relating(connection.Id, connection.Name, service.Id), new DagWait(states[0].Id, states[0].Name, ModelNames.Thing));
+        return (new Relating(connection.Id, connection.Name, service.Id),
+            new DagWait(states[0].Id, states[0].Name, ModelNames.Thing, LimitOf(nodeThing)));
+    }
+
+    private static TimeSpan? LimitOf(GraphThing nodeThing)
+    {
+        if (nodeThing.PropertyString(ModelNames.WaitsAtMostMinutes) is not { } written) return null;
+        return long.TryParse(written, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) && minutes > 0
+            ? TimeSpan.FromMinutes(minutes)
+            : throw new PipelineModelException(
+                $"Node '{nodeThing.Name}' waits at most '{written}' minutes, which is not a whole number of minutes above zero.");
     }
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.

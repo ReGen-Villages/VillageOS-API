@@ -1108,7 +1108,8 @@ public static class TestGraphs
     // Publish then runs on the Thing waited for, or on what that Thing reaches along `resolvedAs` when the box follows it.
     // The box's ports are declared once on its kind, as the shared site template declares them. reportsAFailure adds
     // Report, reached along the box's fail wire.
-    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true, bool reportsAFailure = false)
+    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true, bool reportsAFailure = false,
+        object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1131,7 +1132,7 @@ public static class TestGraphs
         var awaited = Port(waitKind, WaitBoxPort, "in");
         Port(waitKind, WaitBoxPort, "out");
         Port(waitKind, ModelNames.Reached, "out");
-        var wait = fx.Thing(WaitBox);
+        var wait = waitsAtMostMinutes is null ? fx.Thing(WaitBox) : fx.Thing(WaitBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(wait, vocabulary.Is, waitKind);
         var decided = fx.Thing("decided");
         if (namesAState) fx.Rel(wait, provenBy, decided);
@@ -1172,7 +1173,7 @@ public static class TestGraphs
     // A start node hands the run's subject to a relate box standing for the connection `balancesEnergy`, which relates
     // the subject to the connection's service and waits for the state the connection is proven by; Publish then runs on
     // what the box hands on. provesByAState false leaves the connection naming no such state.
-    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true)
+    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true, object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1203,7 +1204,7 @@ public static class TestGraphs
         var workedOut = fx.Thing("EnergyWorkedOut");
         if (provesByAState) fx.Rel(connection, provenBy, workedOut);
 
-        var relate = fx.Thing(RelateBox);
+        var relate = waitsAtMostMinutes is null ? fx.Thing(RelateBox) : fx.Thing(RelateBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(relate, vocabulary.Is, relateKind);
         fx.Rel(relate, standsFor, connection);
 
