@@ -1307,7 +1307,6 @@ beside it, and closes again once a page is chosen.
 | **Compose** | A table built from what the model declares for a kind — its properties, its links and its states — kept as a page of the model's own |
 | **Design** | A page laid out on a grid from the palette every seeded page was drawn with, and kept as a page of the model's own (chapter 53) |
 | **Land intake** | The five-step wizard that describes a piece of land, shown where an intake service is configured |
-| **Submissions** | What has arrived, and what a reviewer decides about it |
 | **Graph** | The model as a picture: search, clustering, the 3D view of one building, and every create, edit and delete |
 | **Model** | The whole building model in 3D, with filtering by element type and a map of where the site is |
 | **Pipelines** | The canvas where a pipeline is drawn, wired, run and watched (Part VI) |
@@ -1718,29 +1717,29 @@ model's own dashboard, with every personal detail withheld — share survey file
 on the satellite imagery the model declares with the report's sections as tabs along the bottom.
 
 ### 58. Reviewing what has arrived
-The **Submissions** page lists what has arrived in this model: when, what it proposes, and what
-has been decided about it — **Waiting** for no decision. Decided rows leave the queue; **Show
-decided** brings them back. On a model that takes no submissions the page says so rather than
-listing nothing.
+The land-intake template declares a **Submissions** page, listed in the rail with the model's other
+pages. It lists what has arrived in this model: when, what it proposes, and what has been decided
+about it — **Waiting** for no decision. Decided rows leave the queue; **Show decided** brings them
+back.
 
-![The Submissions page on a model that takes no submissions: it says so rather than listing nothing](assets/trellis-submissions.png)
+- **A button for each decision the model holds.** The buttons are the Things under the
+  `SubmissionDisposition` kind, each labelled by its wording, so a disposition added to the model is
+  offered with no change to the page. A press relates the submission to that disposition along
+  `resolvedAs` and records when the decision was made; the row leaves the queue and stays gone,
+  because the decision is in the model rather than on the page. **Reject** is the button of the
+  disposition that names a retention period.
+- **Promote** is listed by hand, and asks its questions on the row: the template, what travels with
+  the site — the predicates the land-intake template marks as followed by a promotion — and the
+  project's name. Its route copies the site the submission proposes, never the record of the
+  arrival, into a project model built from that template, and records the decision once the copy has
+  landed, so a refused copy leaves the submission waiting. Promoting the same submission twice
+  produces one project and one decision, because the server derives the project's identifier from
+  the submission.
 
-- **Reject** relates the submission to the disposition that names a retention period, and records
-  when the decision was made. The row leaves the queue and stays gone, because the decision is in
-  the model rather than on the page.
-- **Promote** copies the site the submission proposes — never the record of the arrival — into a
-  project model built from a template, then marks the submission promoted. The dialog asks for the
-  template, what travels with the site (offered from the predicates the model actually asserts
-  through), and the project's name. Promoting the same submission twice produces one project,
-  because the server derives the project's identifier from the submission; the button stays enabled
-  and the server keeps the promise.
-
-The same three actions are `submissions list`, `reject` and `promote` in Taproot, so a staging
-model can be worked from a browser or a terminal. Clearing rejected submissions once their period
-has run is `submissions dispose`, a retention pass with no page.
-
-The page finds all of this through the roles the model binds to its own vocabulary, never by name.
-A model that binds no predicate to the role of reaching a proposed site says so in place of the list.
+The same work is `submissions list`, `decide`, `reject` and `promote` in Taproot, so a staging model
+can be worked from a browser or a terminal; `decide` records any disposition the model holds.
+Clearing rejected submissions once their period has run is `submissions dispose`, a retention pass
+with no page.
 
 ### 59. Keyboard and mouse reference
 | Input | Action |
@@ -1840,6 +1839,7 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its running state, endpoint, health, request statistics (count, average milliseconds, errors, last request) and, while running, its process id, whether it was started outside the Mycelium and its last contact; a failure count when not zero |
 | `start service <service>`, `stop service <service>` | Start a service's process; stop it |
 | `call endpoint <subdomain> <json>`, `call service <handler> <json>` | Post the rest of the line as a JSON body to the endpoint service at that subdomain, or to the handler's daemon (started if needed), and print the answer, formatted when it is JSON; a body that is not JSON is refused before anything is sent, and a service answering with an error status is reported as `Error:` followed by its status and body |
+| `retry call <recordId> [reason]` | Ask the platform to send a Failed or Blocked call again, with the rest of the line as the reason it keeps in the record's history, and print its answer; a `409` is reported as "no longer failed or blocked" and a `403` as "may not change the model", each beside the platform's words |
 | `pipeline list`, `pipeline run <pipeline> [json parameters] [--wait]`, `pipeline cancel <run-id> [reason]`, `pipeline history <pipeline>` | Every pipeline, found through the role that binds its archetype; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); write a stop request for a run that is running, waiting or trying; the runs, newest first, a run started by a request ending with `request <id>`, the request-log entry it started from |
 | `requests latest [--limit=N] [--connection=<connection>]`, `requests follow [--for=SECONDS] [--connection=<connection>]`, `requests download [--hour=yyyyMMddHH] [file]`, `requests show <request-id>` | The request log: the newest requests the server passed to services in the last day; entries as they are recorded for the given seconds (default 30); one hour's file; one entry in full, or that it is no longer kept once past the log's retention period. A connection is named by identifier or by a unique name |
 | `events watch [--for=SECONDS]` | Each model event as it arrives — time, name, payload — for the given number of seconds (default 30), then return; a watch that received nothing says so |
@@ -1853,7 +1853,7 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `model list`, `model switch <id or name>` | The models the server holds; move the session to another |
 | `config mode [Mode]`, `config mode get <thing> <property>`, `config mode set <thing> <property> <Mode>` | Retention: the default, and one property's. With the default, `--versionsinmemory=N` and `--secondsinmemory=N` set for the whole model how many versions a full-history property keeps in memory and for how long; one property's mode refuses them |
 | `mycelium status`, `mycelium endpoints` | Startup progress; the request connections the model registers |
-| `submissions list`, `submissions reject <id>`, `submissions promote <id> <template> <predicates> <name>`, `submissions dispose <predicates>` | Review, and the retention pass |
+| `submissions list`, `submissions decide <disposition> <id>`, `submissions reject <id>`, `submissions promote <id> <template> <predicates> <name>`, `submissions dispose <predicates>` | Review — `decide` records any disposition the model holds — and the retention pass |
 | `user list` | Every account, its role, the models it may enter, whether its password must change, and when it was created |
 | `user active` | How many accounts are active now, then each one with when it was last seen and whether it is still connected. Active means a request open now, or one in the last five minutes, made with the account's own credentials; services and API keys are not counted |
 | `user create <username> <role> [<model name>]` | Add an account, prompting for its first password, which the person must change at first sign-in |
@@ -2530,7 +2530,6 @@ effects on a live change, the decimal precisions, and which properties a load se
 | `/compose` | Compose |
 | `/design`, `/design/{page}` | Design: a new page, or one of the model's opened for editing |
 | `/intake` | The land-intake wizard |
-| `/submissions` | The review page |
 | `/graph`, `/model`, `/temporal`, `/things`, `/properties`, `/pipelines`, `/logs` | As chapter 46 describes them |
 | `/requests` | The request log; `?connection=` narrows it to one connection and `?entry=` opens one request |
 
@@ -2559,7 +2558,8 @@ server.
   Thing, because it stays live with the stream and costs no request per Thing.
 - **The detail panel and the property search** need the complete resolved view, inherited defaults
   included, and read it from the server: one Thing's resolved properties, or every Thing's in one
-  call.
+  call. The Pipelines page's call settings panel reads one connection's resolved view too, for the
+  types alone (chapter 86a).
 - **The declaration travels with the value.** Unwrapping a property keeps the write kind it was
   declared with beside the value, which is the client's only record of how a figure came to be one,
   and what the origin line reads. The server's *inherited* flag does not answer that question: a
@@ -2575,6 +2575,54 @@ Every write names a type from the platform's own set, checked when the code comp
 property *reports* arrives over the network and is narrowed against that set before a write, and a
 property outside it is refused naming the type rather than sent for an opaque rejection. An edit
 sends the type the platform reports for the property; nothing infers a type from the typed text.
+
+### 86a. The call settings of a connection
+A connection carries the settings of the calls it makes: whether a call waits for the service, when
+a call counts as finished, how long it may take, and whether and how soon it is made again while its
+Thing stays in the state. The Pipelines page shows them and lets you change them, without editing the
+model by hand.
+
+- **Open it.** In the catalysts rail on the left, find the state, for example
+  *Catchment · OutOfDate*, and press **Call settings** under it. The panel opens over the canvas,
+  titled with the connection's name, for example *Call settings of Estimate-Rainfall*. A state
+  watched by several connections offers no **Call settings**, since there is no one connection to
+  show.
+- **Read where a value comes from.** Each line names a setting, shows the value that applies, and
+  says where it comes from: *set on this connection*; *set on its service rainfall-estimator*;
+  *set on rainfall-estimator prototype, the archetype of its service*; or *the platform's built-in
+  value*, used when the model declares none.
+- **Choose when the call is finished.** The first line, *When the call is finished*, offers the
+  choices the model declares, each in the page's language: *When the service answers*, *When the
+  Thing reaches its done state*, or *When the service reports it has finished*. Pick one and the
+  choice is written on this connection in place of any it held, in one change, so the connection
+  never holds two.
+- **Change a value.** Type a new value and press Enter, or leave the field; tick or untick a true or
+  false value. The value is written on this connection, and the line then says *set on this
+  connection*. The service and its archetype are not changed, so other connections keep their value.
+- **Remove a value set here.** On a line set on this connection, press **Remove from this
+  connection**. The value then comes from the service, its archetype or the built-in value again.
+- **Values are entered by their type.** A true or false value is a tick box, a whole number a
+  number field, anything else text.
+- **Who may change them.** An editor or an administrator. Anyone else sees the same panel with every
+  value and nothing to change it with.
+
+**How the panel reads and writes.** The panel reads
+`GET /api/connections/{connectionId}/call-settings`, which answers each setting with its value and its
+source — `connection`, `service`, `serviceArchetype` or `builtIn`, naming the Thing for the first
+three — so the order the platform reads them in lives once, in the platform. A `404` (no connection
+the caller may read) and a `403` (a Thing a setting comes from the caller may not read) are said in
+plain words; any other refusal shows the platform's sentence. It reads again when the connection's or
+its service's own values or choices change on the stream. The store carries no types, so the panel
+still reads the connection's resolved properties once for the types it writes values with.
+
+A change is the console's ordinary property write (`PUT /api/things/{id}/properties`) on the
+connection, and removing a value is the property delete (`DELETE /api/things/{id}/properties/{name}`);
+neither touches the store, and the change arrives on the stream. The choices are the members of the
+archetype the `callCompletion` role binds, each shown in its `wording` for the page language, or by
+its name. Choosing one applies one fragment that retracts the connection's own relationship along the
+predicate the `completesWhen` role binds and writes the new one; the platform applies a fragment whole
+and refuses a second `completesWhen` on a Thing, so the old one is never kept beside the new. The
+read-only rule is the one the dashboard uses: an editor or an administrator may change data.
 
 ### 87. Live updates
 Two streams. The **object stream** carries changes to one subscription's membership, resumable
@@ -2673,14 +2721,13 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `events watch` | The Dashboard page's activity feed, without the pause, the filters or the colours |
 | `logs tail`, `logs follow`, `logs download` | The Logs page's tail, live stream and download |
 | `requests latest`, `requests follow`, `requests download`, `requests show` | The Requests page's list, live stream, hour download and entry panel; the Pipelines history panel links a chosen run to its request |
-| `submissions list` | The Submissions page; **Show decided** widens it |
-| `submissions reject` | **Reject** on a row |
-| `submissions promote` | **Promote** on a row, with the dialog for the template, what travels, and the name |
+| `submissions list` | The Submissions page the land-intake template declares; **Show decided** widens it |
+| `submissions decide` | A disposition's button on a row |
+| `submissions reject` | **Reject** on a row: the button of the disposition that names a retention period |
+| `submissions promote` | **Promote** on a row, which asks its questions there: the template, what travels, and the name |
 | `submissions dispose` | None, by design: the retention pass is not a decision a reviewer makes on a row |
+| `retry call` | **Retry** beside a Failed or Blocked call in a Thing's detail window, for those who may change the model, with a box for the reason |
 | `serialize`, `deserialize`, `clear model` | None; the command line and the request interface |
-
-A test reads every `submissions` subcommand off the command line's own handler and checks this
-table names it, so a command added on one branch cannot leave the table quietly incomplete.
 
 ### 89. Authoring a page: the description and its navigation
 A page is a Thing of the kind the `page` role binds, which the platform's templates name
@@ -2913,9 +2960,18 @@ rows and the widget says the model was given the figure. Formula and input names
 translated. No request: the definition travels with the Thing.
 
 **Who the platform ran on a Thing.** The detail window's *Handled by* section lists every service
-called on a Thing — the connection, when the platform last tried, how it ended, and what the
+called on a Thing — the connection, when the platform last tried, the call's state, and what the
 service said — read from the handled relationships and call records the platform leaves in the
-model. The connections, services, the call-record predicate and the `notifies` predicate are the
+model. A call is in one of seven states, some still going (Pending, Sent, Received), then Completed,
+Failed, Refused or Blocked; a Failed or Blocked one also shows the reason the platform recorded.
+Anyone who may change the model (an editor or an administrator) sees **Retry** beside a Failed or
+Blocked call: press it, type why if you want to, and press **Send the retry**. The reason is kept in
+the record's history, and the window reads the call again and shows it Pending; if the call is no
+longer Failed or Blocked, the window says so and nothing is sent. The retry posts to
+`POST /api/relationships/{recordId}/retry` with `{ "reason": "…" }`, or `{}` when the box is empty,
+and reads that window's call records again at once rather than waiting for the next model change. A
+`409` or `403` is said in plain words under the call; any other refusal shows the platform's `error`
+sentence. The connections, services, the call-record predicate and the `notifies` predicate are the
 Things the `connection`, `service`, `callRecord` and `notifiedConnection` roles bind. The window also
 reads the Things waiting for this one, along the predicate the `awaitedThing` role binds, with what
 they are, because a waiting Thing or its archetype names the connection it is answered through. A page's
@@ -2957,6 +3013,22 @@ model, an account, announces nothing on the stream. The platform's own administr
 `POST /api/auth/administration`, takes these bodies for its Accounts and API keys pages; no shipped
 service endpoint takes them, and one a model registers has to accept
 `{ view | reason, record, …asked }` or `{ view, …fields }` and answer `{ said }` or `{ error }`.
+A route on the platform is also sent the row's id as `recordId`.
+
+An `action` widget can say more than its listed choices:
+
+- **`writes.choicesFrom`** gives one button per Thing a binding returns, each related to the row
+  along a predicate the description names, so the choices come from the model — the Submissions
+  page's dispositions are offered this way.
+- **A choice's own `via` and `asks`** let one button post to its own route and ask its own questions;
+  a choice with its own asks reads each roster when it is opened on a row, with that row as `$scope`,
+  and says when a roster could not be read.
+- **`writes.stamps`** sets a time on the row after a press, and **`decided`** puts the decided rows
+  behind a **Show decided** switch.
+- **`writes.carries`** declares `{ property, reads }` values the minted Thing carries, read off the
+  row. It is a declaration only: the endpoint decides what is written.
+- **`visibleRows`** caps the list at that many rows and scrolls the rest inside the card; every row
+  stays in the page, unlike a table's.
 
 **Translating a description.** Author in one base language, then add a top-level `translations`
 map from language code to base string to translated string, keyed by language rather than region
