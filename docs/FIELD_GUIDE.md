@@ -2133,7 +2133,7 @@ refusal, as the console printed it:
 
 ```text
 > user create bo viewer Regenerative Village — Ecosystem Model
-First password: viewer-first
+First password: viewer-first-sign-in
 Added bo as viewer; they must choose a password at their first sign-in
 > user grant bo MarthasVineyard
 bo may now enter MarthasVineyard
@@ -2248,15 +2248,16 @@ to the server.
 ### 74. The first start
 ```bash
 cd VillageOS/vos.Mycelium
-VOS_ADMIN_PASSWORD='choose-one' VOS_MASTER_KEY="$(openssl rand -base64 32)" dotnet run
+VOS_ADMIN_PASSWORD='choose-one-of-fifteen-or-more' VOS_MASTER_KEY="$(openssl rand -base64 32)" dotnet run
 ```
 
 The server listens on `https://localhost:7243`. On a first start with no accounts it:
 
 1. Generates the key pair it signs every pass with, and keeps the private half in its data
    directory.
-2. Creates the `admin` account. Its password is `VOS_ADMIN_PASSWORD` if set; otherwise a random one
-   that must be changed on first sign-in. There is no weak default.
+2. Creates the `admin` account. Its password is `VOS_ADMIN_PASSWORD` if set, at least 15
+   characters, or the start is refused; otherwise a random one that must be changed on first
+   sign-in. There is no weak default.
 3. Creates a first administrator key. If the store holds no accounts but still holds that key in use
    — its accounts were all deleted — the old key is revoked, and the new one is the key the credentials
    file names.
@@ -2266,7 +2267,9 @@ The server listens on `https://localhost:7243`. On a first start with no account
 
 `VOS_MASTER_KEY` encrypts the account store and the signing key on disk. Without it they are
 written in plain text and the server warns at startup. Set it in any real deployment and back it
-up in a secret store, because losing it means the encrypted files cannot be read.
+up in a secret store, because losing it means the encrypted files cannot be read. Either way, both
+files are readable and writable by their owner only, and a signing key file that cannot be read
+stops the start rather than being replaced.
 
 Startup continues in the background while the server is already reachable: it rebuilds every model
 it finds in its persistence directory, loads every seed file in the seeds directory, and only then
@@ -2365,8 +2368,9 @@ the prefix and needs no flag. The report panel is part of the console; it is als
 **The intake service** is the one service that takes requests from strangers. It is started with
 the addresses the public pages are served from, and with a mail host and sender, because a
 submission is accepted only from somebody who answered a code sent to their address; it refuses to
-start without either. Its credential is a key confined to the intake model, so it never expires and
-reaches no project model. The proxy passes the caller's address on, because submissions are rate
+start without either. Its credential is a service key confined to the intake model and naming the
+intake service's Thing, so it never expires, carries that service's grants and reaches no project
+model. The proxy passes the caller's address on, because submissions are rate
 limited per source.
 
 **The public pages** — the form, the plot-first page and the findings page — are a build of their
