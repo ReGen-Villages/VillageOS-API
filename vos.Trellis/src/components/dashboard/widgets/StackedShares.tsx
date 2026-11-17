@@ -6,7 +6,7 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale } from './chartScale';
+import { ANNUAL, linearScale, monthSlots } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
@@ -21,41 +21,41 @@ const WIDEST_BAR = 28;
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
 /** A thin ring in the surface colour is the gap between stacked segments. */
 const SURFACE_GAP = 1;
+const BINDINGS_PER_CLASS = 3;
 
 export function StackedShares({ widget, context }: { widget: StackedSharesWidget; context: ResolveContext }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
   const resolved = useBindings(
-    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]), context);
+    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]), context);
   const classes = widget.classes
     .map((entry, at) => ({
       label: entry.label,
-      colour: typeof entry.colour === 'object' ? asText(resolved[at * 2 + 1]?.value ?? null) : entry.colour,
-      groups: groupsByKey(resolved[at * 2]?.value ?? null),
+      colour: typeof entry.colour === 'object' ? asText(resolved[at * BINDINGS_PER_CLASS + 1]?.value ?? null) : entry.colour,
+      groups: groupsByKey(resolved[at * BINDINGS_PER_CLASS]?.value ?? null),
+      annual: groupsByKey(resolved[at * BINDINGS_PER_CLASS + 2]?.value ?? null).values().next().value,
     }))
-    .filter((entry): entry is { label: string; colour: string; groups: Map<string, number> } =>
+    .filter((entry): entry is { label: string; colour: string; groups: Map<string, number>; annual: number | undefined } =>
       entry.groups.size > 0 && entry.colour !== null);
 
+  const sharesOf = (shareOf: (entry: (typeof classes)[number]) => number | undefined) => classes
+    .map((entry) => ({ label: entry.label, colour: entry.colour, share: shareOf(entry) }))
+    .filter((entry): entry is { label: string; colour: string; share: number } => entry.share !== undefined);
   const names = monthNames(i18n.language);
-  const months = names
-    .map((name, at) => ({
-      name,
-      at,
-      shares: classes
-        .map((entry) => ({ label: entry.label, colour: entry.colour, share: entry.groups.get(String(at + 1)) }))
-        .filter((entry): entry is { label: string; colour: string; share: number } => entry.share !== undefined),
-    }))
-    .filter((month) => month.shares.length > 0);
+  const hasAnnual = classes.some((entry) => entry.annual !== undefined);
+  const months = [
+    ...names.map((name, at) => ({ name, at, key: String(at + 1), shares: sharesOf((entry) => entry.groups.get(String(at + 1))) })),
+    ...(hasAnnual ? [{ name: t('widgets.history.annual'), at: ANNUAL, key: 'all', shares: sharesOf((entry) => entry.annual) }] : []),
+  ].filter((month) => month.shares.length > 0);
 
   const width = measuredWidth || FALLBACK_WIDTH;
   const plotTop = TOP_GUTTER;
   const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
   const y = linearScale([0, 1], [plotBottom, plotTop]);
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / 12;
+  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, hasAnnual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at + 0.5);
   const figure = (share: number | undefined) => share === undefined ? '—' : formatNumber(share, 'percent');
   const readOut = (month: (typeof months)[number]) =>
     `${month.name}: ${month.shares.map((entry) => `${entry.label} ${figure(entry.share)}`).join(', ')}`;
@@ -89,7 +89,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
             return (
               <g
                 key={month.at}
-                data-month={String(month.at + 1)}
+                data-month={month.key}
                 role="img"
                 tabIndex={0}
                 aria-label={readOut(month)}

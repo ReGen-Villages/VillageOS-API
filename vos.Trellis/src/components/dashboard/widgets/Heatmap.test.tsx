@@ -165,3 +165,107 @@ describe('the hour-by-day heatmap', () => {
     expect(painted).toHaveLength(0);
   });
 });
+
+/** Each month and hour of the day, keyed month first as the platform folds `monthOfYear,hourOfDay`. */
+function monthByHour(): { key: string; value: number }[] {
+  const rows: { key: string; value: number }[] = [];
+  for (let month = 1; month <= 12; month++)
+    for (let hour = 0; hour < 24; hour++)
+      rows.push({ key: `${month},${hour}`, value: 20 + month + hour / 2 });
+  return rows;
+}
+
+const timetable: HeatmapWidget = {
+  ...widget,
+  title: 'Temperature by hour',
+  value: bound(
+    { kind: 'history', property: 'temperature', windowSeconds: TEN_YEARS, steps: [{ fold: 'monthOfYear,hourOfDay', function: 'Average' }] },
+    monthByHour(),
+  ),
+};
+
+describe('the month-by-hour timetable', () => {
+  it('paints one column per month and one row per hour', () => {
+    const { container } = draw(timetable);
+
+    expect(painted).toHaveLength(12 * 24);
+    expect(new Set(painted.map((cell) => cell.x.toFixed(3))).size).toBe(12);
+    expect(new Set(painted.map((cell) => cell.y.toFixed(3))).size).toBe(24);
+    expect(within(container.querySelector('svg')! as unknown as HTMLElement).getAllByText(/^(Jan|Dec)$/)).toHaveLength(2);
+  });
+
+  it('reads a cell as its month and hour', () => {
+    const { container } = draw(timetable);
+    const canvas = container.querySelector('canvas')!;
+    Object.defineProperty(canvas, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 120, height: 240 }) });
+
+    fireEvent.mouseMove(canvas, { clientX: 15, clientY: 145 });
+
+    const tooltip = screen.getByRole('tooltip');
+    expect(within(tooltip).getByText(/Feb, 14:00/)).toBeInTheDocument();
+    expect(within(tooltip).getByText('29.0 °C')).toBeInTheDocument();
+  });
+
+  it('carries a table twin of a row a month and a column an hour', () => {
+    draw(timetable);
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(13);
+    expect(rows[2].textContent).toMatch(/^Feb22\.0 °C22\.5 °C/);
+  });
+
+  it('builds the table of every day only once it is asked for', () => {
+    draw();
+    expect(screen.queryByRole('table')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(367);
+  });
+
+  it('draws the sunrise and sunset curves with a point per month', () => {
+    const { container } = draw(timetable);
+
+    const sunrise = container.querySelector('path[data-curve="sunrise"]')!;
+    expect(sunrise.getAttribute('d')!.match(/[ML]/g)).toHaveLength(12);
+  });
+});
+
+describe('a heatmap drawn in classes', () => {
+  const classed: HeatmapWidget = {
+    ...timetable,
+    classes: [
+      { label: 'below 30', to: { kind: 'const', value: 30 }, colour: '#2b83ba' },
+      { label: '30 to 40', from: { kind: 'const', value: 30 }, to: { kind: 'const', value: 40 }, colour: '#fdae61' },
+      { label: '40 and above', from: { kind: 'const', value: 40 }, colour: '#d7191c' },
+    ],
+  };
+  values.set(JSON.stringify({ kind: 'const', value: 30 }), 30);
+  values.set(JSON.stringify({ kind: 'const', value: 40 }), 40);
+
+  it('paints each cell in the colour of the class holding its value', () => {
+    draw(classed);
+
+    const colourAt = (month: number, hour: number) => painted[(month - 1) * 24 + hour].fillStyle;
+    expect(colourAt(1, 0)).toBe('#2b83ba');
+    expect(colourAt(10, 0)).toBe('#fdae61');
+    expect(colourAt(12, 20)).toBe('#d7191c');
+  });
+
+  it('gives each class its share of the cells in the legend', () => {
+    draw(classed);
+
+    const legend = within(screen.getByRole('list'));
+    const items = legend.getAllByRole('listitem').map((item) => item.textContent);
+    const below30 = monthByHour().filter((row) => row.value < 30).length;
+    expect(items[0]).toBe(`below 30 ${Math.round((below30 / 288) * 100)}%`);
+    expect(items).toHaveLength(3);
+  });
+
+  it('leaves a cell no class holds unpainted', () => {
+    draw({ ...classed, classes: [classed.classes![1]] });
+
+    expect(painted.every((cell) => cell.fillStyle === '#fdae61')).toBe(true);
+    expect(painted.length).toBeLessThan(288);
+  });
+});

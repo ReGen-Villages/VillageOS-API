@@ -96,6 +96,10 @@ const rangeSeries = [
   binding('averageLow', 'number'), binding('designLow', 'number'), binding('recordedLow', 'number'),
 ];
 const rangeBand = [text('label'), binding('from', 'number'), binding('to', 'number'), text('colour', undefined, true)];
+const boxSeries = [
+  binding('whiskerLow', 'number'), binding('boxLow', 'number'), binding('median', 'number'), binding('boxHigh', 'number'),
+  binding('whiskerHigh', 'number'),
+];
 const namedSeries = [text('label'), binding('value', 'number'), unit, format];
 const side = [text('label'), binding('value', 'number'), binding('threshold', 'number')];
 
@@ -128,13 +132,18 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   working: [title, hint, list('rows', [text('label'), binding('value', 'number'), binding('working', 'number'), format, unit])],
   exceptionBar: [title, hint, list('buckets', [text('label'), binding('value', 'number'), choice('severity', SEVERITIES)]), text('note')],
   rangeBar: [title, hint, group('months', rangeSeries), group('annual', rangeSeries), list('bands', rangeBand), format, unit, floor, ceiling],
+  boxPlot: [title, hint, group('months', boxSeries), group('annual', boxSeries), list('bands', rangeBand), format, unit, floor, ceiling],
+  depthProfile: [
+    title, hint, binding('rows', 'rows'), text('labelKey', 'rowKey', true), text('orderKey', 'rowKey', true),
+    list('parts', [text('label'), text('key', 'rowKey', true), text('colour', undefined, true)]), format, unit, floor, ceiling,
+  ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
-    format, unit, floor, ceiling,
+    list('classes', rangeBand), format, unit, floor, ceiling,
   ],
-  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number')])],
+  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [
