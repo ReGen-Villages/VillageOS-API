@@ -224,19 +224,22 @@ describe('what the form draws itself with', () => {
     expect((await intakeApi.formOptions()).themes).toEqual([]);
   });
 
-  it('carries the layer kinds the model declares, and none where the service names none', async () => {
+  it('carries the layer kinds the model declares with their themes, and none where the service names none', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
           allocationCategories: [],
-          layerKinds: [{ name: 'brook-or-wadi', colour: '#2F80ED' }, { name: 'other-layer' }],
+          layerKinds: [
+            { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+            { name: 'other-layer' },
+          ],
         }),
     });
 
     expect((await intakeApi.formOptions()).layerKinds).toEqual([
-      { name: 'brook-or-wadi', colour: '#2F80ED' },
-      { name: 'other-layer', colour: null },
+      { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+      { name: 'other-layer', colour: null, themes: [] },
     ]);
 
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ allocationCategories: [] }) });
