@@ -213,7 +213,11 @@ public class FormOptionsEndpointTests
         var model = DeclaredModel.Seeded()
             .WithArchetype("SiteLayerKind").Bound(LandIntakeRoles.SiteLayerKind, "SiteLayerKind")
             .Stating("brook-or-wadi", ("colour", "#2F80ED"), (FormOptionsReader.WordingProperty, """{"en": "Brook or wadi"}"""))
-            .Relate("brook-or-wadi", "is", "SiteLayerKind");
+            .Relate("brook-or-wadi", "is", "SiteLayerKind")
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
+            .Relate("Water", "is", "Theme")
+            .With("shownUnder").Bound(LandIntakeRoles.ShownUnder, "shownUnder")
+            .Relate("brook-or-wadi", "shownUnder", "Water");
         await using var factory = AnsweringWith(model.Build());
         using var client = factory.CreateClient();
 
@@ -222,6 +226,7 @@ public class FormOptionsEndpointTests
         var brook = answered.GetProperty("layerKinds").EnumerateArray().Single();
         brook.GetProperty("name").GetString().Should().Be("brook-or-wadi");
         brook.GetProperty("colour").GetString().Should().Be("#2F80ED");
+        brook.GetProperty("themes").EnumerateArray().Select(theme => theme.GetString()).Should().Equal("Water");
         answered.GetProperty("wording").GetProperty("brook-or-wadi").GetProperty("en").GetString().Should().Be("Brook or wadi");
     }
 

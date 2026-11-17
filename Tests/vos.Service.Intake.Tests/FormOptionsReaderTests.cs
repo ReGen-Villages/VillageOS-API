@@ -214,12 +214,62 @@ public class FormOptionsReaderTests
 
         var options = FormOptionsReader.Read(model.Build());
 
-        options.LayerKinds.Should().BeEquivalentTo([new DeclaredLayerKind("flood-extent", "#56CCF2"), new DeclaredLayerKind("other-layer", null)]);
+        options.LayerKinds.Should().BeEquivalentTo([new DeclaredLayerKind("flood-extent", "#56CCF2", []), new DeclaredLayerKind("other-layer", null, [])]);
         options.Wording["flood-extent"]["de"].Should().Be("Überflutungsfläche");
         FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.SiteLayerKind.Id);
         FormOptionsReader.Selector().BoundTypes.Should().Contain(LandIntakeRoles.SiteLayerKind.Id,
             "the kinds are the members of the bound archetype, and the broker sends only what the selector asks for");
     }
+
+    [Fact]
+    public void Each_layer_kind_travels_with_the_themes_it_is_shown_under_in_the_order_the_form_offers_them()
+    {
+        var options = FormOptionsReader.Read(LayerKindsUnderThemes().Build());
+
+        options.LayerKinds.Should().BeEquivalentTo(
+        [
+            new DeclaredLayerKind("brook-or-wadi", null, ["Vegetation", "Water"]),
+            new DeclaredLayerKind("flood-extent", null, ["Water"]),
+            new DeclaredLayerKind("other-layer", null, []),
+        ]);
+        options.LayerKinds[0].Themes.Should().Equal("Vegetation", "Water");
+        FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.ShownUnder.Id,
+            "the predicate is known only through the role that binds it");
+    }
+
+    [Fact]
+    public void A_model_binding_no_shown_under_role_answers_every_layer_kind_with_no_themes()
+    {
+        var options = FormOptionsReader.Read(LayerKindsUnderThemes().Unbound(LandIntakeRoles.ShownUnder).Build());
+
+        options.LayerKinds.Should().OnlyContain(kind => kind.Themes.Count == 0);
+        options.LayerKinds.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void A_kind_shown_under_a_thing_that_is_not_one_of_the_form_s_themes_is_answered_without_it()
+    {
+        var model = LayerKindsUnderThemes().Relate("other-layer", "shownUnder", "Basemap");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.LayerKinds.Single(kind => kind.Name == "other-layer").Themes.Should().BeEmpty();
+    }
+
+    private static DeclaredModel LayerKindsUnderThemes() => DeclaredModel.Seeded()
+        .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
+        .Stating("Vegetation", ("order", 1))
+        .Stating("Water", ("order", 2))
+        .Relate("Vegetation", "is", "Theme")
+        .Relate("Water", "is", "Theme")
+        .WithArchetype("SiteLayerKind").Bound(LandIntakeRoles.SiteLayerKind, "SiteLayerKind")
+        .With("shownUnder").Bound(LandIntakeRoles.ShownUnder, "shownUnder")
+        .Relate("brook-or-wadi", "is", "SiteLayerKind")
+        .Relate("flood-extent", "is", "SiteLayerKind")
+        .Relate("other-layer", "is", "SiteLayerKind")
+        .Relate("brook-or-wadi", "shownUnder", "Water")
+        .Relate("brook-or-wadi", "shownUnder", "Vegetation")
+        .Relate("flood-extent", "shownUnder", "Water");
 
     [Fact]
     public void A_model_declaring_no_site_layer_offers_no_layer_kinds()
