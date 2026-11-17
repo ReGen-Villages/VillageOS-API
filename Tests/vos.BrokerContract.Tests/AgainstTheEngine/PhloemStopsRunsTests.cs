@@ -18,7 +18,7 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
 
     public PhloemStopsRunsTests(TheEngine engine) => _engine = engine;
 
-    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> BindOnceAsync(Role role, Func<Task<Guid>> declare)
     {

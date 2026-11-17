@@ -89,7 +89,7 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
 
         public MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
             new PerCallHttpClientFactory(transport ?? _engine.Transport), NullLogger<MyceliumGateway>.Instance, TheEngine.Url,
-            new LaunchToken(_engine.AdminToken));
+            new ModelClock(), new LaunchToken(_engine.AdminToken));
 
         // The host is shared by the class, so the vocabulary is written once and each case arranges its own Catchment kind.
         public static async Task<StateEntryModel> ArrangeAsync(TheEngine engine, int orchestratorPort, bool drawsAWholePipeline)
