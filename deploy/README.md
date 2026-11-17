@@ -82,9 +82,11 @@ reconnects with replay if a stream is ever cut.
   names the folder; the default is `documents` beside the service. Only the bytes live there, keyed by
   submission — what a file is called and what it is about are in the model. The folder of a submission
   the retention pass has taken out goes within the hour.
-- **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
-  against the intake model, so its credential does not expire and reaches no project model — see
-  "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).
+- **The intake service holds a service key** (`ApiKey` in configuration or the environment) created
+  against the intake model and naming the intake service's Thing, so its credential does not expire,
+  carries that service's grants and reaches no project model — see "Giving a service an API key" in
+  [`../docs/SERVICES.md`](../docs/SERVICES.md). An existing deployment makes a new one after
+  upgrading, because start-up revokes a service key that names no service.
 - **The proxy passes the caller's address on.** The submission route is anonymous and rate limited per
   source, and every caller reaches the service from loopback, so the address the limit partitions on is
   the one in `X-Forwarded-For`. Caddy's `reverse_proxy` sets it; a different proxy has to be configured
