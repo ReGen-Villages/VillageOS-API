@@ -519,7 +519,7 @@ What makes it work:
   building model exists or somebody states one. `StudyInputs.WaitingFor` says which of a handler's inputs the study
   holds no number under — one it does not carry, and one carried with its number withheld — and a handler
   that finds any writes nothing, logs the names, and answers a `RecomputeAnswer` carrying them. The call
-  is recorded done and the watch above is what recomputes the study when the figure lands. A handler that
+  is recorded completed and the watch above is what recomputes the study when the figure lands. A handler that
   threw instead would have its call recorded `__CallState=Failed` and called again on every
   reconciliation for the life of the model, which reads in the log exactly like a service that is broken.
   Text where a number belongs is refused: that is a model to fix rather than a figure to wait for.
@@ -561,9 +561,9 @@ declares and Mycelium supervises is shown as stopped while its process is not
 running — a dormant state, not a stale registration — and stays listed so that
 it can be started.
 
-A service does not deregister itself: the removal route is admin-only, so the
-call would be refused whatever the service holds. A stopped service stays
-listed until the monitor removes it.
+A service may delete the registration it made itself; another service's is
+refused with `403`. A stopped service that did not stays listed until the
+monitor removes it.
 
 A service that holds a subscription stream open counts as alive while the
 stream is active, even when one `/health` poll goes unanswered.
@@ -580,7 +580,7 @@ it. Nothing else in the body is relied on.
 | Trigger | Mechanism |
 |---|---|
 | Liveness failure (3× `/health` timeout) on a self-registered service | Mycelium auto-deregisters |
-| An administrator removing the entry | `DELETE /api/mycelium/services/{handlerId}` (admin-only) |
+| An administrator, or the service itself for its own registration, removing the entry | `DELETE /api/mycelium/services/{handlerId}` |
 
 A service that exits — on SIGTERM, on `POST /shutdown`, or stopped by Mycelium —
 stays registered until the liveness monitor notices it is gone.
@@ -971,15 +971,14 @@ Full reference: the **Field Guide** on the VillageOS repository's wiki
 
 Microservices authenticate with a pre-minted JWT supplied through the `Token`
 setting (Mycelium mints it and sets it on the daemon's environment when it
-launches the daemon). A service nobody launches on demand — the public intake
-service most of all — needs a credential that does not expire, so a service can
-hold an **API key** instead, supplied through the `ApiKey` setting
-(configuration or environment, never the command line). `ServiceCredential`
-exchanges it at `POST /api/auth/token` with the `X-API-Key` header, holds the
-minted token, and exchanges again shortly before it expires — never per call.
-When both `ApiKey` and `Token` are set the key answers, because it is the
-durable credential and may be confined to one model; a failed exchange answers
-nothing rather than falling back to a broader credential.
+launches the daemon, and the service swaps it before it expires, §4). A service
+Mycelium does not launch — the public intake service most of all — holds an
+**API key** instead, supplied through the `ApiKey` setting (configuration or
+environment, never the command line). `ServiceCredential` exchanges it at
+`POST /api/auth/token` with the `X-API-Key` header, holds the minted token, and
+exchanges again shortly before it expires — never per call. A service holds one
+of the two: given both `ApiKey` and `Token`, it refuses to start. A failed
+exchange answers nothing rather than falling back to a broader credential.
 
 Every service presents what `ServiceCredential` answers, whether it calls
 through the shared client or builds the request itself, so a service written
@@ -996,9 +995,12 @@ TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
 curl -s -H "Authorization: Bearer $TOKEN" \
   -X POST https://localhost:7243/api/auth/keys \
   -H "Content-Type: application/json" \
-  -d '{"name":"my-service-key","role":"service"}' | jq
+  -d '{"name":"my-service-key","role":"service","modelId":"<model id>","serviceId":"<service Thing id>"}' | jq
 ```
 
+A service key names its service's Thing in `serviceId` and that Thing's model in
+`modelId`; one naming neither is refused with `400`, and start-up revokes an older
+service key that names no service. The key's token carries that service's grants.
 The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
 it is only shown once. Give it to a service through the `ApiKey` setting, or
 exchange it yourself via `POST /api/auth/token` (`X-API-Key: <rawKey>`) and
