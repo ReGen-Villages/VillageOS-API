@@ -2676,7 +2676,9 @@ derived value's change is announced but never replayed after a reconnect, so a r
 with no request. A created Thing or relationship arrives whole and is applied from the event, so a
 busy simulation costs no request per creation. A property change updates one value in place —
 writing a property never reloads the model — and a retraction is its own event, so a deleted
-property does not linger as an empty row. Derived states ride beside the model in their own map,
+property does not linger as an empty row. The retraction removes the name wherever the Thing held
+it, among its own values or in its override store, so a value written on a name the kind declares
+stops showing and the kind's value applies. Derived states ride beside the model in their own map,
 because a state moves far more often than the model's shape does. A flush costs the size of the
 batch, not the size of the model: the store keeps identifier-keyed maps outside its state and
 rebuilds only the arrays the pages read. Every open — the first, a reconnect, a page changing what
