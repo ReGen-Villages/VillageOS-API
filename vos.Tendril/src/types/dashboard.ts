@@ -619,6 +619,59 @@ export interface RangeBarWidget {
   ceiling?: number;
 }
 
+/** The five figures a box plot draws for one period, each a binding resolving to groups, one per month for
+ *  the monthly boxes and one for the whole window for the annual box. Which percentile each is, is the
+ *  binding's own step; the 5th, 25th, 50th, 75th and 95th are the usual five. */
+export interface BoxSeries {
+  whiskerLow: Binding;
+  boxLow: Binding;
+  median: Binding;
+  boxHigh: Binding;
+  whiskerHigh: Binding;
+}
+
+/** Twelve boxes, one a month, against bands the model declares, with the same figures over the whole
+ *  window as one box beside them. Each box runs from `boxLow` to `boxHigh` with the median across it,
+ *  and a line from `whiskerLow` to `whiskerHigh` through it. `floor` and `ceiling` fix the axis; absent,
+ *  it fits the data and the bands. */
+export interface BoxPlotWidget {
+  type: 'boxPlot';
+  title?: string;
+  hint?: string;
+  months: BoxSeries;
+  annual?: BoxSeries;
+  bands?: RangeBand[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
+export interface DepthProfilePart {
+  label: string;
+  key: string;
+  colour: string;
+}
+
+/** One row a layer, top down by `orderKey` (or in the order the rows arrive), each named by `labelKey`.
+ *  Several parts stack across a row; one part draws a bar from the floor. A row holding no number for
+ *  any part is left out. `floor` and `ceiling` fix the axis; absent, it runs from nought to the largest
+ *  row. */
+export interface DepthProfileWidget {
+  type: 'depthProfile';
+  title?: string;
+  hint?: string;
+  rows: Binding;
+  labelKey: string;
+  orderKey?: string;
+  parts: DepthProfilePart[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
 export interface LineSeriesEntry {
@@ -650,8 +703,8 @@ export interface SunPosition {
   utcOffsetSeconds?: Binding;
 }
 
-/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
- *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+/** Every hour of every day of the year, or of every month, as one cell coloured by value — a `history`
+ *  binding — painted on a canvas because the grid can be thousands of cells, with the
  *  sunrise and sunset curves over it where the specification binds the coordinates. The ramp is one hue,
  *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
  *  absent it fits the data. */
@@ -659,8 +712,12 @@ export interface HeatmapWidget {
   type: 'heatmap';
   title?: string;
   hint?: string;
+  /** Folded by `hourOfDay,dayOfYear` for a column a day, or by `monthOfYear,hourOfDay` for a column a month. */
   value: Binding;
   sun?: SunPosition;
+  /** Present, each cell takes the colour of the first class holding its value, from inclusive and to
+   *  exclusive, and the legend gives each class's share of the cells; a cell no class holds is not painted. */
+  classes?: RangeBand[];
   format?: NumberFormat;
   unit?: string;
   floor?: number;
@@ -675,6 +732,8 @@ export interface StackedSharesClass {
   /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
   colour: string | Binding;
   share: Binding;
+  /** Its share of the whole window: the same question folded by `all`, drawn as a column after December. */
+  annual?: Binding;
 }
 
 /** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
@@ -888,6 +947,8 @@ export type Widget = Placed & (
   | WorkingWidget
   | ExceptionWidget
   | RangeBarWidget
+  | BoxPlotWidget
+  | DepthProfileWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

@@ -8,6 +8,7 @@ import { AREA_UNITS, STEPS } from '../intake/submissionDraft';
 import { TEMPORAL_TABS } from '../pages/temporalTabs';
 import { DELETABLE_ENTITIES } from '../pages/graphDeletions';
 import { STATISTICS } from '../components/dashboard/widgets/RangeBar';
+import { PARTS } from '../components/dashboard/widgets/BoxPlot';
 import { SIDES } from '../components/dashboard/widgets/DivergingBar';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/widgetSchema';
@@ -42,6 +43,7 @@ const BUILT_FROM = {
   'temporal.tabs': [...TEMPORAL_TABS],
   'graph.entity': [...DELETABLE_ENTITIES],
   'widgets.rangeBar': [...STATISTICS],
+  'widgets.boxPlot': [...PARTS],
   'widgets.divergingBar': SIDES.map((side) => side.word),
   'design.palette.kind': [...WIDGET_KINDS],
   'design.bindingKind': [...BINDING_KINDS],
