@@ -94,7 +94,7 @@ Two predicates are built into the platform: `is`, which says a Thing is a kind o
 and lets it inherit that kind's values and ranges, and `binds`, along which a **role** — a Thing with
 a fixed identifier standing for something the platform asks for — reaches the one Thing playing it,
 so a reader asks for a role and never for a name. Every other predicate is data in the model, and
-any of them can be bound to a service.
+any of them can be made to call a service.
 
 ### 4. Two kinds of knowledge
 The platform records two different sorts of claim, and keeps them apart because they have
@@ -195,9 +195,10 @@ planner to reject it or promote it into a project of its own.
 
 **Discovery.** The platform works out which open data sources cover the site — by walking the
 places the site sits in, never by matching a country name — and calls each one with the site's
-coordinates: rainfall, sunlight, a climate classification, elevation, hazard gradings, and ten
-years of hourly climate history. Every fetched value is recorded as an Observation with its source
-and the date it was fetched, so it can never be mistaken for something a person typed.
+coordinates: rainfall, sunlight, a climate classification, hazard gradings, and ten years of hourly
+climate history. Every fetched value is recorded as an Observation with its source and the date it
+was fetched, so it can never be mistaken for something a person typed. The site's elevation is not
+among them: the intake looks it up when the border arrives and writes it as a fact.
 
 **Analysis.** The study inherits the physical assumptions that belong to the technology, such as
 what a solar panel delivers per square metre and what one person drinks in a year, and works out
@@ -275,11 +276,14 @@ can be followed, checked, and survives a rename. A plain word is right only for 
 ever ask a question of, such as a phone number.
 
 ### 12. Trust: who can see and do what
-- **Every caller is identified.** People sign in with a username and password or hold a key;
-  services hold a signed pass the server minted for them. Every pass names the model it may reach.
+- **Every caller is identified.** People sign in with a username and password, or through the
+  directory their model names, or hold a key; services hold a signed pass the server minted for
+  them. Every pass names the model it may reach.
 - **Roles add up.** A viewer reads. An editor also writes values, structure and ranges. An
-  administrator also manages accounts, keys and the server. A service writes like an editor within
-  the one model its pass names.
+  administrator also manages accounts, keys and the server. A service writes values, structure and
+  ranges within the one model its pass names, but may not create a model, delete or rename a Thing,
+  or copy, promote or prune part of a model. A caller key reaches only the connections that declare
+  themselves open to one.
 - **Some Things are protected.** A model declares the categories only certain accounts may read, such
   as the people who submitted land. A caller without the grant does not see those Things, nor any
   relationship reaching them, and cannot write onto them.
@@ -321,7 +325,7 @@ of your own. This guide lives in the public repository.
 | **Derived value** | A property the platform works out: a total over related Things, or a formula over a Thing's own values |
 | **Role** | A Thing with a fixed identifier standing for something the platform asks for, which reaches the one Thing playing it along `binds`, so the platform finds that Thing without knowing its name (chapter 18) |
 | **Service** | A separate program the server starts and calls, in any programming language, that does the work a relationship, a state or a request asks for |
-| **Connection** | The Thing that binds a predicate, a state or a request address to a service |
+| **Connection** | The Thing that routes to a service: named by a predicate, reached at a request address, or watching a state |
 | **Pipeline** | A drawing of services joined by typed wires, run by the orchestrator |
 
 ### 15. Things, kinds and inheritance
@@ -361,12 +365,12 @@ Predicates come in two flavours:
 | Flavour | What it does | Examples |
 | --- | --- | --- |
 | **Structural** | Describes how things are arranged. The platform reads it, pages draw it, ranges can follow it, and nothing else happens | `contains`, `has`, `feeds`, `powers`, `isIn` |
-| **Handled** | Bound to a service. Creating a relationship through it starts that service with the subject and the target | `consumes`, `produces`, `runs` |
+| **Handled** | Names a connection along `notifies`. Creating a relationship through it calls that connection's service with the subject and the target | `consumes`, `produces`, `runs` |
 
 Two predicates have behaviour built into the server: `is`, whose behaviour is inheritance, and
 `binds`, along which a role Thing reaches the one Thing playing that role. Every other behaviour is a
-service (Part V). This is the platform's extension point: a new
-capability ships as a service bound to a predicate, and the server does not change.
+service (Part V). This is the platform's extension point: a new capability ships as a service bound
+to a connection the predicate names, and the server does not change.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
 binding them to the `containment` role. Every read that narrows to "what is within this building"
@@ -420,8 +424,9 @@ running model on request, which adds only what the model never held and changes 
 model can be exported back to a seed at any time, and that export is a complete snapshot that can be
 planted elsewhere.
 
-The smallest complete seed the platform ships has a predicate, a display-settings Thing, one kind,
-one member, and one relationship. The shape of a Thing, with the parts a modeller meets most:
+The smallest complete seed the platform ships has the `is` and `binds` predicates, the role Things a
+page asks for, a display-settings Thing, one kind and one member of it. The shape of a Thing, with
+the parts a modeller meets most:
 
 ```json
 {
@@ -499,14 +504,19 @@ history without clobbering a newer reading; the reaction reads it strictly after
 ones it reads, so a chain of any depth settles in one pass — until none moves. Only then are ranges
 judged. The reason matters: a range that reads both a value and a total derived from it sees the
 total the change *leaves*, never the one it is about to move, so a Thing enters a state once
-rather than entering on the old total and leaving on the new.
+rather than entering on the old total and leaving on the new. The recompute runs inside the commit
+that changes the model, before anyone else can read it, so a read, a later write or a listener told
+of the commit never sees the change without its derived values.
 
 **Step 1: states.** The engine looks up every range that reads what changed — on the Thing itself,
 and on any Thing whose range reaches this one across a relationship — and evaluates each. A range
 that starts or stops holding changes its Thing's **state**. A state is not stored; it is the set of
 ranges that currently hold, kept in an index so "who is in this state?" is answered at once. Since
 a range may read another Thing's state, a state change can flip further ranges, so the engine
-re-evaluates every dependent range until nothing changes any more.
+re-evaluates every dependent range until nothing changes any more. A range judged more than ten
+times in one pass reads states that never settle, and the pass stops with a warning naming it. Once
+the pass settles, each range's change is announced once, so a state entered and left inside one pass
+starts no work and is not recorded; a model can ask for every transition instead.
 
 **Step 2: bindings.** Once states are settled, the engine evaluates each range's **bindings** —
 bounds a value should stay inside, with an optional guard saying when the bounds apply — and reports
@@ -591,7 +601,11 @@ several Things, and a **quantifier** says how to judge them: `ANY` (the default)
 Over an empty set `ANY` is false and `ALL` and `NONE` are true — unless the path names a
 predicate or a kind the model does not hold at all, in which case every quantifier answers false
 and the evaluation names what it could not find, because a criterion should not certify that
-things are well when it could not look.
+things are well when it could not look. A quantifier applies to a comparison, `IN` and `MATCHES`
+alike, judging each Thing the path reaches, and a Thing without the value is left out; under `ALL`
+or `NONE`, `IS KNOWN` and `IS UNKNOWN` ask each Thing too, so `ALL [connected_to].status IS KNOWN`
+holds when every connection holds a status. A quantified test reads every member each time it is
+judged; over a large set, a count the model keeps up to date is cheaper (chapter 25).
 
 **States.** `self.state HAS 'Overheating'`, `[powered_by].state HAS 'Running'`,
 `ANY [connected_to].state NOT HAS 'Healthy'`.
@@ -666,6 +680,7 @@ The rules a modeller relies on:
 | **Who computes** | The declaring Thing computes one value, or every member computes its own (*per instance*). A formula declared on a kind almost always wants per instance, since the terms it reads sit on the members. The exception is a formula reading only totals over the kind's own members: the kind computes that once |
 | **Chains settle in one pass** | A round visits a definition after the ones it reads, so a chain of any depth settles at once. Only a graph that feeds itself repeats, up to a limit the model declares, and reaching the limit is logged naming every definition still moving |
 | **The derived value comes first** | On every change, derived values are recomputed before the ranges that read the raw change are judged (chapter 22) |
+| **A count can stand in for a quantifier** | With `keepWalksUpToDate` on the model's settings Thing, a `Count` over one step whose condition reads only the member's own properties is kept up to date as members change, so `lowSprings > 0` can replace `ANY [<-feeds.Spring].level < 1` and `lowSprings = springsReporting` can replace `ALL …`, where `lowSprings` counts the springs with `level < 1` and `springsReporting` those whose level is known |
 
 Every derived definition also declares what it **reads**, and which way its result **rises and
 falls** with each input. That is what lets a page show a figure's working and its levers without
@@ -703,23 +718,28 @@ service by hand; what started a run is a fact in the model afterwards.
 
 - **The service call is durable.** Entering the state writes a **call record** — a relationship
   from the Thing to the connection — before the service is called. The record carries how the
-  call is going: pending, in flight, done, failed or refused. A record is delivered once while
-  its delivery runs, a failed one is called again, and a refused one (the service said the request
-  itself was wrong) is not. A server restart brings every record back as it stood: a finished,
-  refused or held one is not sent again, one sent before the restart is given its in-flight window,
-  and one never sent is sent at once.
-- **Done is proved by the model, not by the reply.** A connection may name a **completion range**:
-  the state the Thing must enter for the work to count. The service's reply then means only
-  *accepted*, and the record is marked done when the Thing reaches that state — which the
-  service's own last write usually causes. A connection may instead, or as well, wait for the
-  service to **acknowledge** the call once its work has committed, by a call naming the
-  relationship it was handed; an acknowledged call is not sent again. A connection also says how long
-  an in-flight call may take before it is presumed dead and called again. Discovery works this way: a
-  site entering *awaiting discovery* starts a run that outlasts any single call, and the site reaching
-  *discovered* is what closes it.
-- **Loops are bounded.** A Thing whose service is called, written to, re-enters the state and is
-  called for again is caught after a ceiling of re-entries in a window: the record is marked failed
-  with a note, and the loop stops.
+  call is going: Pending, Sent, Received (the service has it), Completed, Failed, Refused (the
+  service said the request itself was wrong) or Blocked (the connection's limits stopped it). A
+  record is delivered once while its delivery runs, a failed one is called again, and a refused one
+  is not. A server restart brings every record back as it stood: a finished, refused or held one is
+  not sent again, one sent before the restart is given its window from that attempt, and one never
+  sent is sent at once.
+- **When a call is finished is a choice the model makes.** The connection, or the service it has, or
+  that service's kind, relates along `completesWhen` to one of three Things: *when the service
+  answers*; *when the Thing reaches its done state*, the **completion range** the connection names,
+  which the service's own last write usually causes; or *when the service reports it has finished*,
+  for work that outlives the call, which the service reports as received, completed or failed. With no
+  choice, a connection naming a done range finishes on the done state, and any other when the service
+  answers. A connection also says how long a sent call may take, `done_within`. Discovery finishes on
+  the done state: a site entering *awaiting discovery* starts a run that outlasts any single call, and
+  the site reaching *discovered* is what closes it. A pipeline a state starts finishes on the
+  orchestrator's report, when its run ends.
+- **Calling again is bounded.** When a call is finished and the Thing is still in the range, the
+  connection is called again, at least `doesNotCallAgainForSeconds` after the last call finished, until
+  a run of calls has lasted `callsAgainForNoLongerThanSeconds` or made `callsAgainAtMost` calls again;
+  the next call is then Blocked, with the reason, until a person retries it or deletes its record.
+  `callsAgainWhileItsThingStaysIn` false turns calling again off. Each is set on the connection, the
+  service it has, or that service's kind, and the platform's own values apply where none is set.
 - **Several connections may watch one state**; the first by identifier is called and the rest
   are named on the record, so a service that watched and was not called is visible. A more specific
   kind's connection overrides its parent's.
