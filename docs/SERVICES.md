@@ -68,11 +68,12 @@ Field Guide's chapter *Serving it to people* describes its settings.
 
 **Two kinds of predicates — the extension point.** Two predicates are built into Mycelium and
 neither calls a service: `is`, which gives inheritance, and `binds`, along which a role Thing reaches
-the one Thing playing that role; **every other predicate that does work is a *Handled Predicate***
-whose microservice is called. That is the platform's extension point: a new capability — simulation, integration,
-computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
-backs `consumes`/`produces`; a pipeline node and the `runs` spawn-trigger are the same
-pattern). The service-call machinery is load-bearing even with a single handler — don't flatten it, and
+the one Thing playing that role; **every other predicate that does work is a *Handled Predicate***:
+it names a connection along the predicate the `notifiedConnection` role binds (`notifies` in the
+shipped templates), and that connection's microservice is called. That is the platform's extension
+point: a new capability — simulation, integration, computation — ships as a microservice bound to a
+connection the predicate names, with no change to Mycelium (Metabolism backs `consumes`/`produces`;
+a pipeline node and the `runs` spawn-trigger are the same pattern). The service-call machinery is load-bearing even with a single handler — don't flatten it, and
 don't add a third built-in predicate beside `is` and `binds`. The full relationship-service handler model,
 the Mycelium API handlers use, and worked examples are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
@@ -131,12 +132,20 @@ every service needs. There is one implementation; no service writes its own.
 
 - **Required flags:** `--port`, `--myceliumUrl`
 - **Optional flags:** `--issuer`, `--audience`, `--logDirectory` (the folder the service writes its
-  log file to; four folders above the build output by default)
+  log file to; four folders above the build output by default), `--serviceCallLimitSeconds` and
+  `--passedOnRequestLimitSeconds` (how long Mycelium waits for the service to answer a service call,
+  and a request it passes on). Each limit is a positive whole number of seconds; absent or unusable,
+  it is read as no limit (`ServiceLaunchSettings.ServiceCallLimit` and `PassedOnRequestLimit` are
+  `null`), and the service is free to keep a limit of its own or none
 - **Credentials, which are never flags:** `Token` (pre-minted service JWT for
   **outbound** Mycelium calls), `ApiKey` (a key exchanged for short-lived
-  tokens, for a service that outlives any one token — §12) and
+  tokens, for a service Mycelium does not launch — §12) and
   `VerificationKey` (base64 of Mycelium's public signing key, for checking
-  **inbound** Mycelium requests)
+  **inbound** Mycelium requests). A service holds `Token` or `ApiKey`, never both, and refuses to
+  start given the two. A launch `Token` lasts 24 hours; one that is a service token is swapped at
+  `POST /api/auth/service-token` once two hours or less are left (`AddLaunchToken`, checked every 15
+  minutes), and one that is not, such as a token minted for a key, is not renewed and the service logs
+  one line saying so
 
 Every flag can also come from configuration or the environment under its
 Pascal-case name — `Port`, `MyceliumUrl` and so on — so a service can be
@@ -195,7 +204,8 @@ service-agnostic plumbing:
 
 `vos.Service.Shared.Subscriptions.SubscriptionClient` (also a
 `MyceliumClientBase` subclass) is how a service gets its working set **without a
-GET storm** and follows changes afterward.
+GET storm**: once, with `ReadSnapshotAsync(selector)`, or as a subscription it follows afterward,
+with `SubscribeAsync(selector)` and `StreamAsync`.
 
 ```csharp
 var sub = new SubscriptionClient(httpFactory, logger, myceliumUrl, token);
@@ -218,9 +228,12 @@ on every reconnect, so delivery is gap-free and exactly-once across drops. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
 semantics are documented in [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions.
 
-**A service that reads once and never follows the stream does not subscribe.** It posts the same
-selector to `POST /api/snapshots`, which answers `{ watermark, snapshot }` and registers nothing, as
-Phloem does for every read of a drawing and a run, and Intake for every declaration and findings read. The broker checks every registered subscription on
+**A service that reads once and never follows the stream does not subscribe.** It calls
+`ReadSnapshotAsync(selector)`, which posts the same selector to `POST /api/snapshots`, answers a
+`SnapshotReadResult` — the watermark and the snapshot — and registers nothing. Phloem reads every
+drawing and run this way through its own gateway, and Intake every declaration and findings read;
+Tributary's endpoint read, Delta's template read, Forage's coverage and vocabulary reads and the
+console's detail card read the same route. The broker checks every registered subscription on
 every write until it is deleted, so a subscription opened only to be read once costs every writer
 until somebody deletes it.
 
@@ -291,8 +304,9 @@ a service that writes no file sends none. A service started with `--logDirectory
 `logDirectory`, that folder's full path; one writing to the default folder sends none. The broker
 refuses a folder outside the parent it allows (its `ServiceLogs:ParentDirectory` setting).
 
-A service does not withdraw its own registration: the removal route is
-admin-only, so the call would be refused whatever the service holds.
+A service may delete the registration it made itself, at `DELETE /api/mycelium/services/{id}`;
+another service's is refused with `403`. The liveness monitor still removes one that stops
+answering.
 
 ## 6. Helpers — pulling logic out of Program.cs
 
