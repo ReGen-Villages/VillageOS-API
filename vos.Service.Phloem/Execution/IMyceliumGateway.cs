@@ -116,10 +116,8 @@ public interface IMyceliumGateway
 
     Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken cancellationToken);
 
-    // Every run of the run kind, with how long the kind and each pipeline keep finished runs.
     Task<RunsToJudge> RunsToJudgeAsync(CancellationToken cancellationToken);
 
-    // Retracts the run, everything it holds along `has` two levels deep, and each stop request that names no other run,
-    // and answers how many Things went.
+    // Two levels along `has`, because a run holds its node runs and they hold their attempts.
     Task<int> ClearRunAsync(Guid runId, CancellationToken cancellationToken);
 }

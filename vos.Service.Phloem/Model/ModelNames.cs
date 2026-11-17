@@ -41,7 +41,6 @@ public static class ModelNames
     public const string Total = "total";
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
-    // On the run kind, and on a pipeline whose own value wins: how many model days a finished run is kept.
     public const string KeepRunsForDays = "keepRunsForDays";
     public const string KeepFailedRunsForDays = "keepFailedRunsForDays";
     public const string Outputs = "outputs";

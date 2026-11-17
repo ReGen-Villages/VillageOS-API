@@ -29,8 +29,7 @@ public sealed class RunClearingKeeper(IMyceliumGateway gateway, ModelClock clock
         catch (OperationCanceledException) { }
     }
 
-    // Answers how many runs were cleared and how many Things went with them. A run that cannot be cleared is left
-    // for the next look.
+    // A run that cannot be cleared is left for the next look.
     public async Task<(int Runs, int Things)> ClearOnceAsync(CancellationToken cancellationToken)
     {
         var judged = await gateway.RunsToJudgeAsync(cancellationToken);
