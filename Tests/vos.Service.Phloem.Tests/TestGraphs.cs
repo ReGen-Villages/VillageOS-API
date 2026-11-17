@@ -1098,6 +1098,59 @@ public static class TestGraphs
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
     }
 
+    public sealed record MarkDiscoveredFixture(GraphFixture Fixture, Guid PipelineId, GraphThing ResolveWords, GraphThing MarkDiscovered);
+
+    // The end of the discovery drawing: Resolve words, then Forage's markDiscovered, which takes its site from the run's
+    // subject through a parameter binding and is wired only from Resolve words' `written` on success.
+    public static MarkDiscoveredFixture MarkDiscoveredPipeline(bool reportsAFailure = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+
+        GraphThing Prototype(string name, params (string Name, string Direction, bool Required)[] ports)
+        {
+            var prototype = fx.Thing(name);
+            fx.Rel(prototype, vocabulary.Is, vocabulary.Service);
+            foreach (var (portName, direction, required) in ports)
+            {
+                var port = fx.Thing($"{name}.{direction}.{portName}",
+                    ("direction", direction), ("type", "any"), ("portName", portName), ("required", required ? "true" : "false"));
+                fx.Rel(port, vocabulary.Is, vocabulary.Port);
+                fx.Rel(prototype, vocabulary.Has, port);
+            }
+            return prototype;
+        }
+
+        var resolveWords = ServiceNode(fx, vocabulary, Prototype("ResolveWordsProto", ("resolved", "in", false), ("written", "out", false)),
+            "Resolve words", "resolve");
+        var markDiscovered = ServiceNode(fx, vocabulary,
+            Prototype("MarkDiscoveredProto", ("site", "in", false), ("written", "in", true), ("site", "out", false), ("study", "out", false)),
+            "Mark discovered", "mark", (ModelNames.ParameterBindings, "{\"site\":\"subject\"}"));
+
+        var start = fx.Thing("A site awaits discovery");
+        fx.Rel(start, vocabulary.Is, vocabulary.PipelineInput);
+        var subject = fx.Thing("start.subject", ("direction", "out"), ("type", "any"), ("portName", "subject"));
+        fx.Rel(subject, vocabulary.Is, vocabulary.Port);
+        fx.Rel(start, vocabulary.Has, subject);
+
+        var pipe = fx.Thing("Discover a site");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        fx.Rel(pipe, vocabulary.Has, start);
+        fx.Rel(pipe, vocabulary.Has, resolveWords);
+        fx.Rel(pipe, vocabulary.Has, markDiscovered);
+        fx.Wire(start, "subject", resolveWords, "resolved");
+        fx.Wire(resolveWords, "written", markDiscovered, "written");
+        if (reportsAFailure)
+        {
+            var report = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "ReportProto"), "Report", "report");
+            fx.Rel(pipe, vocabulary.Has, report);
+            fx.TakeOn(fx.WireBetween(resolveWords, fx.Get("error"), report, fx.PortOf(report, "in", "in")), vocabulary.Fail);
+        }
+        fx.EndEveryPath(pipe);
+        return new MarkDiscoveredFixture(fx, pipe.Id, resolveWords, markDiscovered);
+    }
+
     public sealed record WaitBoxFixture(
         GraphFixture Fixture, Guid PipelineId, GraphThing Wait, GraphThing Publish, GraphThing Decided, GraphThing? ResolvedAs, GraphThing? SubjectWire);
 
