@@ -135,4 +135,13 @@ describe('a wait box before a run', () => {
   it('accepts a wait box that names a state and is wired', () => {
     expect(validatePipeline([start, wait('discovered')], [intoTheWait])).toEqual([]);
   });
+
+  it.each([0, -5, 1.5])('reports a wait box that waits at most %s minutes, which is not a whole number above zero', (minutes) => {
+    const limited = { ...wait('discovered'), waitsAtMostMinutes: minutes };
+    expect(validatePipeline([start, limited], [intoTheWait]).map((issue) => issue.kind)).toEqual(['wait-limit-not-whole-minutes']);
+  });
+
+  it('accepts a wait box that waits at most a whole number of minutes', () => {
+    expect(validatePipeline([start, { ...wait('discovered'), waitsAtMostMinutes: 1 }], [intoTheWait])).toEqual([]);
+  });
 });

@@ -279,7 +279,7 @@ describe('savePipeline — boundary nodes', () => {
 
 // Drawn as land intake draws "Wait until the site is discovered": the box's ports are its kind's, and it names its
 // state along the completion-range predicate and its in port along the awaits-through predicate.
-function buildModelWithAWaitBox(): PipelineModel {
+function buildModelWithAWaitBox(waitsAtMostMinutes?: number): PipelineModel {
   const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
   T('arch-wait', 'Pause', playing(ROLE.PipelineWait)); R('arch-wait', 'is', 'arch-node');
   port('wait.thing.in', 'thing', 'in', 'arch-wait');
@@ -295,7 +295,8 @@ function buildModelWithAWaitBox(): PipelineModel {
   T('SP', 'A submission'); R('SP', 'is', 'arch-pipeline');
   T('IN', 'A submission arrives'); R('IN', 'is', 'arch-input'); R('SP', 'has', 'IN');
   port('IN.subject', 'subject', 'out', 'IN');
-  T('WAIT', 'Wait until the site is discovered'); R('WAIT', 'is', 'arch-wait'); R('SP', 'has', 'WAIT');
+  T('WAIT', 'Wait until the site is discovered', waitsAtMostMinutes === undefined ? {} : { waitsAtMostMinutes });
+  R('WAIT', 'is', 'arch-wait'); R('SP', 'has', 'WAIT');
   R('WAIT', 'proven-by', 'discovered'); R('WAIT', 'awaits-through', 'wait.thing.in');
   T('OUT', 'Discovered'); R('OUT', 'is', 'arch-output'); R('SP', 'has', 'OUT');
   port('OUT.site', 'site', 'in', 'OUT');
@@ -334,6 +335,31 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'reached-along', 'decided-by');
     const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
     expect(frag.Things.map((t) => t.Id)).not.toContain('wait.thing.in');
+  });
+
+  it('keeps the most minutes a loaded wait box waits through a load and a save', async () => {
+    const model = buildModelWithAWaitBox(90);
+    const loaded = loadPipeline('SP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'SP');
+
+    expect(loaded.nodes.find((n) => n.id === 'WAIT')!.waitsAtMostMinutes).toBe(90);
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: 90 });
+  });
+
+  it('saves the most minutes a new wait box waits as a whole number', async () => {
+    const model = buildModelWithAWaitBox();
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait for a review', connectionId: '', x: 0, y: 0, kind: 'wait',
+      ports: model.resolvePorts('arch-wait'), waitsFor: 'reviewed', waitsAtMostMinutes: 45,
+    };
+
+    await savePipeline('A review', [placed], [], model);
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Name === 'Wait for a review')!.Properties.waitsAtMostMinutes)
+      .toEqual({ typeInfo: 'vos.Integer', value: 45 });
   });
 
   it('moves a loaded wait box to another state by replacing its one state relationship', async () => {

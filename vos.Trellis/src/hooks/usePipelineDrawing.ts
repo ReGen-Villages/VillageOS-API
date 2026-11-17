@@ -11,6 +11,7 @@ import { handStateToOrchestrator } from '../pipeline/handOver';
 import { relationshipApi } from '../api/relationshipApi';
 import type { PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import type { WirePaths } from '../components/pipeline/WireInspector';
+import type { WaitSetting } from '../components/pipeline/NodeInspector';
 import { useEditorHistory } from './useEditorHistory';
 
 let nodeSequence = 0;
@@ -46,6 +47,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
       return {
         id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsFor: d.waitsFor,
+        waitsAtMostMinutes: d.waitsAtMostMinutes,
         ...(stood ? { standsFor: { name: stood.name, kind: stood.kind, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
       };
     });
@@ -181,7 +183,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule, waitsFor: d.waitsFor, follows: d.follows };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule, waitsFor: d.waitsFor, follows: d.follows, waitsAtMostMinutes: d.waitsAtMostMinutes };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -235,7 +237,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule, waitsFor: n.waitsFor, follows: n.follows } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule, waitsFor: n.waitsFor, follows: n.follows, waitsAtMostMinutes: n.waitsAtMostMinutes } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
@@ -294,7 +296,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     place({ label: t('pipeline.outputs.wait'), kind: 'wait', ports: model.resolvePorts(model.boundTo(ROLE.PipelineWait)!) });
   }, [place, model, t]);
 
-  const setWait = useCallback((nodeId: string, wait: { waitsFor?: string; follows?: string }) => {
+  const setWait = useCallback((nodeId: string, wait: WaitSetting) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...wait } } : n)));
     setSavedId(null);

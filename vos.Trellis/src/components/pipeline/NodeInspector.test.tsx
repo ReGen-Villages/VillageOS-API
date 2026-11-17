@@ -277,4 +277,16 @@ describe('a wait box in the inspector', () => {
     fireEvent.change(follows, { target: { value: 'decided-by' } });
     expect(onSetWait).toHaveBeenCalledWith('wait', { waitsFor: 'decided', follows: 'decided-by' });
   });
+
+  it('sets the most minutes the box waits, and an empty field waits with no limit', () => {
+    const onSetWait = vi.fn();
+    inspect('wait', { ...waitBox('decided'), waitsAtMostMinutes: 90 }, { waitChoices: { states, predicatesFrom }, onSetWait });
+
+    const limit = screen.getByRole('spinbutton', { name: 'Waits at most (minutes)' });
+    expect(limit).toHaveValue(90);
+    fireEvent.change(limit, { target: { value: '120' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: 120 });
+    fireEvent.change(limit, { target: { value: '' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: undefined });
+  });
 });

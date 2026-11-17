@@ -25,6 +25,7 @@ export interface PipelineNodeData {
   rule?: string;
   waitsFor?: string;
   follows?: string;
+  waitsAtMostMinutes?: number;
   waitsForName?: string;
   [key: string]: unknown;
 }

@@ -29,9 +29,11 @@ interface Props {
   onSetRule: (nodeId: string, rule: string | undefined) => void;
   /** The states a wait box may wait for, and the predicates it may follow from what a state judges. */
   waitChoices: WaitChoices;
-  onSetWait: (nodeId: string, wait: { waitsFor?: string; follows?: string }) => void;
+  onSetWait: (nodeId: string, wait: WaitSetting) => void;
   onClose: () => void;
 }
+
+export type WaitSetting = Partial<Pick<PipelineNodeData, 'waitsFor' | 'follows' | 'waitsAtMostMinutes'>>;
 
 export interface WaitChoices {
   states: DeclaredState[];
@@ -293,7 +295,7 @@ interface WaitSettingsProperties {
   data: PipelineNodeData;
   choices: WaitChoices;
   nameOf: (thingId: string) => string;
-  onSetWait: (nodeId: string, wait: { waitsFor?: string; follows?: string }) => void;
+  onSetWait: (nodeId: string, wait: WaitSetting) => void;
 }
 
 /** The state a wait box waits for, grouped by the kind each state judges, and the predicate it follows once the
@@ -339,6 +341,19 @@ function WaitSettings({ nodeId, data, choices, nameOf, onSetWait }: WaitSettings
           <option value="">{t('pipeline.nothingChosen')}</option>
           {predicates.map((predicate) => <option key={predicate.Id} value={predicate.Id}>{predicate.Name}</option>)}
         </select>
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{t('pipeline.waitsAtMostMinutes')}</span>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          aria-label={t('pipeline.waitsAtMostMinutes')}
+          placeholder={t('pipeline.noTimeLimit')}
+          value={data.waitsAtMostMinutes ?? ''}
+          onChange={(e) => onSetWait(nodeId, { waitsAtMostMinutes: e.target.value === '' ? undefined : Number(e.target.value) })}
+          className={FIELD}
+        />
       </label>
     </div>
   );

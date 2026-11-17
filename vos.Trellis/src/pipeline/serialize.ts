@@ -15,6 +15,7 @@ import i18n from '../i18n';
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
 const BOOLEAN: VosTypeName = 'vos.Boolean';
+const INTEGER: VosTypeName = 'vos.Integer';
 const env = (typeInfo: VosTypeName, value: unknown) => ({ typeInfo, value });
 
 export interface EditorNode {
@@ -40,6 +41,7 @@ export interface EditorNode {
   /** A wait box's state, and the predicate whose reached Things it hands on once the state is entered. */
   waitsFor?: string;
   follows?: string;
+  waitsAtMostMinutes?: number;
 }
 
 export type EditorChoice = ChoiceInformation;
@@ -213,6 +215,7 @@ function pipelineFragment(
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
+    if (n.kind === 'wait' && n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
     fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
@@ -399,6 +402,13 @@ function parseParameterBindings(raw: unknown): Record<string, string> | undefine
   }
 }
 
+// A template may write the limit as text; text that is no number is kept as NaN so validation reports it.
+function minutesOf(raw: unknown): number | undefined {
+  if (typeof raw === 'number') return raw;
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  return Number(raw);
+}
+
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
   if (!pipe || !model.isOf(pipelineId, ROLE.Pipeline)) return null;
@@ -422,10 +432,12 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
       const ports = portsAreTheKinds(kind) ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
       const wait = kind === 'wait' ? model.waitOf(t.Id) : undefined;
+      const limit = kind === 'wait' ? minutesOf(stated.waitsAtMostMinutes) : undefined;
       return {
         ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),
         ...(wait?.state ? { waitsFor: wait.state.thingId } : {}), ...(wait?.follows ? { follows: wait.follows.thingId } : {}),
+        ...(limit !== undefined ? { waitsAtMostMinutes: limit } : {}),
       };
     }
 
