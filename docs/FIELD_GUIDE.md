@@ -821,8 +821,8 @@ can read.
 names the model the call is about; the service checks the signature against the server's public
 key, so nobody can imitate the server. A service calls the server back with that same pass, so a
 service shared between several projects always writes into the project the call was about. A
-service that must outlive any pass — one nobody starts on demand — holds a key confined to one
-model instead.
+service the server launches is handed a pass for a day and swaps it for a fresh one before it runs
+out. A service the server does not launch holds a key confined to one model instead, never both.
 
 **Delivery is at-least-once.** When the server cannot confirm a service finished, it sends the
 relationship again, and a service that reconnects after a break is sent what it missed. Every
@@ -844,8 +844,8 @@ starts automatically.
 
 | Trigger | What starts the service | What it is sent |
 | --- | --- | --- |
-| **graph** | Creating a relationship whose predicate is the connection | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
-| **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is; the reply returned to the caller directly |
+| **graph** | Creating a relationship whose predicate names the connection along `notifies` | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
+| **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is, under a pass that also names the caller; the reply returned to the caller directly |
 | **state** | A Thing entering the range the connection watches | The Thing as subject (chapter 28) |
 
 A connection marked to **start automatically** is launched when the model loads and called for
@@ -871,9 +871,44 @@ slice, stamped with the sequence number it was taken at, and from then on a **st
 every change to those Things and no others: created, deleted, a property changed, a relationship
 added, a Thing entering the slice because it was later typed into a watched kind. A subscriber that
 will read the slice another way declines the snapshot and is answered with the sequence number
-alone. A service that reads a slice once and does not follow it asks for a **one-off read** with the
-same selector instead: it is answered the same snapshot and registers nothing, which matters because
-the server checks every open subscription on every write until it is closed.
+alone.
+
+**One read, or a subscription.** Choose by whether the service follows the slice after it has read
+it. A service that needs the model once — to answer a call, to check a registration, to plan one run —
+asks for a **single read** with the selector. It is answered the same snapshot a subscription would
+be, the server registers nothing, and there is nothing to close afterwards. A service that keeps
+working from the slice as it changes opens a **subscription**, follows its stream, and closes it when
+it stops. The server checks every open subscription on every write until it is closed, so a
+subscription opened only to be read once costs every writer until someone closes it.
+
+A call about one catchment needs the catchment and the flow meters that measure it, once:
+
+    var read = await subscriptions.ReadSnapshotAsync(new SubscriptionSelector
+    {
+        Ids = [catchmentId],
+        Traverse = [new TraverseRule { Predicate = "measures", Direction = "incoming", Depth = 1 }],
+    });
+    Answer(read.Snapshot);
+
+A service that recalculates each catchment's capacity whenever a flow meter's rated flow changes
+follows the flow meters:
+
+    var subscribed = await subscriptions.SubscribeAsync(new SubscriptionSelector { Types = ["FlowMeter"] });
+    Hold(subscribed.Snapshot);
+    await foreach (var change in subscriptions.StreamAsync(subscribed.SubscriptionId, subscribed.Watermark, stopping))
+        Recalculate(change);
+    await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
+
+**Name a role rather than a predicate when the model decides what a rule means.** A rule that names
+`feeds` keeps reading `feeds` after the model starts using `drains` for the same idea; a rule that
+names the role standing for the idea keeps up without being changed, because the service is sent what
+now matches when the model rebinds the role, and what it reached through the old binding stays. A
+rule by role names the role Thing's identifier:
+
+    new RelationshipRule { PredicateRole = inflowRoleId, Direction = "incoming" }
+
+Name the predicate itself only when the service means that one predicate whatever the model calls the
+idea.
 
 Every change on the stream carries the sequence number it was committed at, so a client that
 drops its connection resumes from the last sequence it applied and misses nothing. A derived
@@ -962,8 +997,8 @@ was fetched. The console draws such a property as the image it names.
 **Coverage is relationships.** A source relates to a **Place**; a site relates to the Place it sits in;
 Places nest. A source covering a region covers every site within it without naming any, and a
 country spelled two ways can never hide a source. The registrations every project shares ship as
-template data: a climate classification, rainfall and sunlight averaged over twenty years,
-elevation, hazard gradings from a public portal, ten years of hourly climate history.
+template data: a climate classification, rainfall and sunlight averaged over twenty years, hazard
+gradings from a public portal, ten years of hourly climate history.
 
 ### 39. Discovery: Forage
 Nothing calls Forage. A site whose coordinates are known and whose coverage has not yet been
@@ -974,8 +1009,10 @@ site as subject (chapter 28). A run:
    snapshot. A failed read writes nothing — an unreachable server must never read as "no source
    covers this site".
 2. **Records one coverage per call** it will make: a Thing per site and source that says whether
-   the call answered, when, how many attempts, and why not. A call already answered is not made
-   again, so a run after a partial failure asks only the sources that failed.
+   the call answered, when, how many attempts, and why not. Its identifier is worked out from the
+   site and the source, and the record and its relationships go in one write, so writing it twice
+   changes nothing. A call already answered is not made again, so a run after a partial failure asks
+   only the sources that failed.
 3. **Calls each source through Tributary**, a bounded number at a time, each with a time limit,
    addressing the call from the site's own values outward — its coordinates, then the values of the
    places it sits in, then the source's own settings. A source that grades one hazard per call is
@@ -985,8 +1022,9 @@ site as subject (chapter 28). A run:
    carries, so a project adding a vocabulary edits its model and deploys nothing. A word the
    vocabulary does not hold writes no relationship and is reported.
 5. **Starts the analysis** by relating the site's study to each compute connection the
-   `siteAnalysisConnection` role binds. A connection bound to a service is a handled predicate, so
-   creating that relationship is what calls its service — one way to start an analysis, and one answerable from the model afterwards. A
+   `siteAnalysisConnection` role binds. A relationship written along a connection calls its
+   service, so creating that relationship is what starts the analysis — one way to start it, and
+   one answerable from the model afterwards. A
    connection the study is already related through, by the seed or an earlier run, is left as it
    is and counts as started.
 
@@ -994,7 +1032,13 @@ Partial failure is normal. A source that fails leaves its value undiscovered and
 outstanding; the site stays in the state and is driven again; and the analysis starts on whatever
 resolved, including nothing, because a site whose sources were all unavailable is exactly the case
 a planner needs an answer about. A source added to the catalogue later enters a state of its own
-and is offered to every site under the places it covers, the same way.
+and is offered to every site under the places it covers, the same way. Every write a run makes is
+safe to repeat, so a run caught by a restart, or two runs for one site, leave one result.
+
+Forage also answers as **pipeline steps**, one per box, chosen by the box's `step` setting:
+`resolveRegion`, `planCalls`, `recordResults`, `resolveWords`, `startAnalysis` and `offerSource` —
+the same work as a run, drawn on a canvas (Part VI). A failed read of the model is a failure the
+orchestrator may try again.
 
 ---
 
