@@ -188,7 +188,9 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
   carries `reason`, names the run that wrote it along `requestedBy`, and is related along `stops` to
   what it stops — a run, or a Thing whose runs stop. `stops` is a connection as well as a predicate, bound
   by the `runStopping` role: the `graph` trigger fires it and it `has` the orchestrator service, so the
-  request reaches the orchestrator. A stopped run relates along `stoppedBy` to the request.
+  request reaches the orchestrator. It also names `stops connection` along `notifies`, and each
+  `tells <system>` names its own `tells <system> connection`, each with the predicate's trigger and
+  service. A stopped run relates along `stoppedBy` to the request.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**
