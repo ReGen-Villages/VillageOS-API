@@ -758,11 +758,26 @@ export interface StackedSharesClass {
  *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
  *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
  *  out, and so is a month no class was answered for. */
+/** Classes read from the model rather than listed: `groups` is a row binding, one row per group Thing,
+ *  carrying its order, label and colour under the keys named; `counts` is a `history` binding folded by
+ *  `monthOfYear,value` and counted, keyed by each group's `id`; `annual`, folded by `value`, is the column
+ *  for the whole window. Each share is a group's hours over the hours counted under a declared group. */
+export interface StackedSharesCounted {
+  counts: Binding;
+  annual?: Binding;
+  groups: Binding;
+  orderKey: string;
+  labelKey: string;
+  colourKey: string;
+}
+
 export interface StackedSharesWidget {
   type: 'stackedShares';
   title?: string;
   hint?: string;
   classes: StackedSharesClass[];
+  /** Present, the classes come from it and `classes` is not read. */
+  counted?: StackedSharesCounted;
 }
 
 /** One direction of a diverging bar: what it is called, the binding whose groups are its monthly

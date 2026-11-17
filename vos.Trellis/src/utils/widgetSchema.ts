@@ -147,7 +147,13 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
     list('classes', rangeBand), format, unit, floor, ceiling,
   ],
-  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
+  stackedShares: [
+    title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')]),
+    group('counted', [
+      binding('counts', 'series'), binding('annual', 'series'), binding('groups', 'rows'), text('orderKey', 'rowKey', true),
+      text('labelKey', 'rowKey', true), text('colourKey', 'rowKey', true),
+    ]),
+  ],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [

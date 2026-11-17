@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { StackedSharesWidget } from '@tendril-ui/tendril';
-import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
-import { useBindings } from '@tendril-ui/tendril';
+import type { StackedSharesCounted, StackedSharesWidget } from '@tendril-ui/tendril';
+import type { BindingResult, ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
@@ -23,22 +23,71 @@ const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
 const SURFACE_GAP = 1;
 const BINDINGS_PER_CLASS = 3;
 
+type DrawnClass = { label: string; colour: string; groups: Map<string, number>; annual: number | undefined };
+
+/** Each declared group's share of the hours counted under a declared group, a month at a time and over the
+ *  whole window, in the groups' order; a group nothing was counted under is left out. */
+function countedClasses(
+  counted: StackedSharesCounted, rows: Row[], byMonth: Map<string, number>, wholeWindow: Map<string, number>,
+): DrawnClass[] {
+  const groups = rows
+    .map((row) => ({
+      id: typeof row.id === 'string' ? row.id.toLowerCase() : '',
+      order: nullableNumber(row[counted.orderKey]) ?? Infinity,
+      label: String(row[counted.labelKey] ?? ''),
+      colour: String(row[counted.colourKey] ?? ''),
+    }))
+    .filter((group) => group.id !== '')
+    .sort((one, other) => one.order - other.order);
+  const declared = new Set(groups.map((group) => group.id));
+  const monthTotals = new Map<string, number>();
+  const hours = new Map<string, Map<string, number>>();
+  for (const [key, count] of byMonth) {
+    const month = key.slice(0, key.indexOf(','));
+    const group = key.slice(key.indexOf(',') + 1).toLowerCase();
+    if (!declared.has(group)) continue;
+    monthTotals.set(month, (monthTotals.get(month) ?? 0) + count);
+    const ofGroup = hours.get(group) ?? new Map<string, number>();
+    hours.set(group, ofGroup.set(month, count));
+  }
+  const wholeTotal = [...wholeWindow].reduce((sum, [key, count]) => sum + (declared.has(key.toLowerCase()) ? count : 0), 0);
+  const wholeOf = (id: string) => [...wholeWindow].find(([key]) => key.toLowerCase() === id)?.[1];
+  return groups
+    .filter((group) => hours.has(group.id))
+    .map((group) => {
+      const whole = wholeOf(group.id);
+      return {
+        label: group.label,
+        colour: group.colour,
+        groups: new Map([...hours.get(group.id)!].map(([month, count]) => [month, count / monthTotals.get(month)!])),
+        annual: whole === undefined || wholeTotal === 0 ? undefined : whole / wholeTotal,
+      };
+    });
+}
+
 export function StackedShares({ widget, context }: { widget: StackedSharesWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
-  const resolved = useBindings(
-    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]), context);
-  const classes = widget.classes
-    .map((entry, at) => ({
-      label: entry.label,
-      colour: typeof entry.colour === 'object' ? asText(resolved[at * BINDINGS_PER_CLASS + 1]?.value ?? null) : entry.colour,
-      groups: groupsByKey(resolved[at * BINDINGS_PER_CLASS]?.value ?? null),
-      annual: groupsByKey(resolved[at * BINDINGS_PER_CLASS + 2]?.value ?? null).values().next().value,
-    }))
-    .filter((entry): entry is { label: string; colour: string; groups: Map<string, number>; annual: number | undefined } =>
-      entry.groups.size > 0 && entry.colour !== null);
+  const listed = widget.counted ? [] : widget.classes;
+  const resolved = useBindings([
+    ...listed.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]),
+    widget.counted?.counts, widget.counted?.annual, widget.counted?.groups,
+  ], context);
+  const countedAt = listed.length * BINDINGS_PER_CLASS;
+  const classes: DrawnClass[] = widget.counted
+    ? countedClasses(
+      widget.counted, asRows(resolved[countedAt + 2]?.value ?? null),
+      groupsByKey(resolved[countedAt]?.value ?? null), groupsByKey(resolved[countedAt + 1]?.value ?? null))
+    : listed
+      .map((entry, at) => ({
+        label: entry.label,
+        colour: typeof entry.colour === 'object' ? asText(resolved[at * BINDINGS_PER_CLASS + 1]?.value ?? null) : entry.colour,
+        groups: groupsByKey(resolved[at * BINDINGS_PER_CLASS]?.value ?? null),
+        annual: groupsByKey(resolved[at * BINDINGS_PER_CLASS + 2]?.value ?? null).values().next().value,
+      }))
+      .filter((entry): entry is DrawnClass => entry.groups.size > 0 && entry.colour !== null);
 
   const sharesOf = (shareOf: (entry: (typeof classes)[number]) => number | undefined) => classes
     .map((entry) => ({ label: entry.label, colour: entry.colour, share: shareOf(entry) }))

@@ -577,6 +577,25 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
 
     expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'GrassColour', 'Grass', 'GrassAllYear']));
   });
+
+  it('asks for the counts and the group Things of a chart counted from the model', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'stackedShares',
+              title: 'Strategies',
+              classes: [],
+              counted: {
+                counts: { kind: 'aggregate', archetype: 'ByMonth', reduction: 'count' },
+                annual: { kind: 'aggregate', archetype: 'WholeWindow', reduction: 'count' },
+                groups: { kind: 'aggregate', archetype: 'Groups', reduction: 'count' },
+                orderKey: 'order', labelKey: 'wording', colourKey: 'colour',
+              },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['ByMonth', 'WholeWindow', 'Groups']));
+  });
 });
 
 describe('subscriptionForSpec over a divergingBar widget', () => {

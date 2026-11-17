@@ -176,3 +176,53 @@ describe('the stacked percentage bar', () => {
     expect(screen.queryByText('never')).toBeNull();
   });
 });
+
+describe('the stacked percentage bar from hours counted under each group Thing', () => {
+  const groups: Binding = { kind: 'thingList', archetype: 'DesignStrategyGroup' };
+  values.set(JSON.stringify(groups), [
+    { id: 'G-COOLING', order: 7, wording: 'Cooling system needed', colour: '#c0392b' },
+    { id: 'G-COMFORT', order: 1, wording: 'Comfortable as it is', colour: '#27ae60' },
+    { id: 'G-UNSEEN', order: 4, wording: 'Heating needed', colour: '#2980b9' },
+  ]);
+  const byMonth: Binding = { kind: 'history', property: 'designStrategyGroup', windowSeconds: TEN_YEARS, steps: [{ fold: 'monthOfYear,value', function: 'Count' }] };
+  values.set(JSON.stringify(byMonth), [
+    { key: '1,g-comfort', value: 300 }, { key: '1,g-cooling', value: 100 },
+    { key: '7,g-comfort', value: 50 }, { key: '7,g-cooling', value: 450 }, { key: '7,g-elsewhere', value: 500 },
+  ]);
+  const wholeWindow: Binding = { kind: 'history', property: 'designStrategyGroup', windowSeconds: TEN_YEARS, steps: [{ fold: 'value', function: 'Count' }] };
+  values.set(JSON.stringify(wholeWindow), [{ key: 'g-comfort', value: 350 }, { key: 'g-cooling', value: 550 }]);
+
+  const counted: StackedSharesWidget = {
+    type: 'stackedShares',
+    title: 'Comfort strategies',
+    classes: [],
+    counted: { counts: byMonth, annual: wholeWindow, groups, orderKey: 'order', labelKey: 'wording', colourKey: 'colour' },
+  };
+
+  it('stacks each month from its groups\' shares of the hours counted, in the groups\' order, coloured by each group', () => {
+    const { container } = draw(counted);
+
+    const january = container.querySelector('[data-month="1"]')!;
+    const segments = [...january.querySelectorAll('rect[data-class]')];
+    expect(segments.map((segment) => segment.getAttribute('fill'))).toEqual(['#27ae60', '#c0392b']);
+    const heights = segments.map((segment) => Number(segment.getAttribute('height')));
+    expect(heights[0] / heights[1]).toBeCloseTo(300 / 100, 5);
+  });
+
+  it('leaves out hours counted under a group the model does not declare', () => {
+    draw(counted);
+
+    fireEvent.focus(screen.getByRole('img', { name: /^Jul/ }));
+
+    expect(within(screen.getByRole('tooltip')).getByText('90%')).toBeInTheDocument();
+  });
+
+  it('draws the annual column from the whole window\'s counts, and lists only the groups counted', () => {
+    const { container } = draw(counted);
+
+    const annual = [...container.querySelector('[data-month="all"]')!.querySelectorAll('rect[data-class]')];
+    expect(Number(annual[0].getAttribute('height')) / Number(annual[1].getAttribute('height'))).toBeCloseTo(350 / 550, 5);
+    expect(within(screen.getByRole('list')).getAllByRole('listitem').map((item) => item.textContent))
+      .toEqual(['Comfortable as it is', 'Cooling system needed']);
+  });
+});

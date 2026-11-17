@@ -110,7 +110,10 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
       widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds,
       ...(widget.classes ?? []).flatMap((entry) => [entry.from, entry.to]),
     ];
-    case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]);
+    case 'stackedShares': return [
+      ...widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]),
+      widget.counted?.counts, widget.counted?.annual, widget.counted?.groups,
+    ];
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
     case 'smallMultiples': return [widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to];
     case 'action': return [
