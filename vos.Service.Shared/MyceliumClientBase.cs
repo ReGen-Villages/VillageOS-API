@@ -308,7 +308,7 @@ public abstract class MyceliumClientBase
         {
             // Judged by the caller's token, not the exception's type: the client's own timeout throws an
             // OperationCanceledException too, and that one is a broker too slow to answer, not a caller stopping.
-            // Said at debug, and by the caller once rather than once a reconnect: a broker that is
+            // Said at debug, and by the caller once rather than once per reconnect: a broker that is
             // away for an hour would otherwise write the same warning several hundred times.
             Logger.LogDebug(exception, "Could not read the model clock");
             return null;

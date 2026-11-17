@@ -239,8 +239,8 @@ public sealed class EndpointCallService
     private async Task<(OutboundCall? Call, EndpointCallResult? TokenFailure)> PrepareOutboundAsync(
         EndpointCallRequest request, EndpointCallPlan plan, PassedOnRequestDeadline deadline)
     {
-        // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
-        // upstream message can name the credential and must not leak; the real one is logged.
+        // A credential that has to be fetched is fetched here, just before the call. Its own catch returns a
+        // generic 502, because the upstream message can name the credential; the real one is logged.
         var credential = plan.Credential?.PreMinted;
         if (plan.Credential?.Fetch is { } tokenFetch)
         {
@@ -300,7 +300,7 @@ public sealed class EndpointCallService
 
         // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
         // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
-        // application/json so the result flows through existing proxying unchanged.
+        // application/json so the result passes through the forwarding route unchanged.
         var (status, bytes, upstreamContentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
             token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadBytes, token),

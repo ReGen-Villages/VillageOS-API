@@ -179,9 +179,8 @@ public class CoverageLedgerTests
         CoverageLedger.RecordIdentifierFor(subject, source).Should().NotBe(CoverageLedger.RecordIdentifierFor(subject, Guid.NewGuid()));
     }
 
-    // A model that never read the template declaring the vocabulary still has sources worth fetching.
-    // Dropping the call would discover nothing at all, which is worse than the once-ever discovery this
-    // replaces — so it is made, and simply left unrecorded.
+    // A model that never read the template declaring the vocabulary still has sources worth fetching, and
+    // dropping the call would discover nothing at all, so it is made and left unrecorded.
     [Fact]
     public async Task AModelWithNoVocabularyStillMakesTheCallAndRecordsNothing()
     {

@@ -118,10 +118,10 @@ public static class CoveringSourceResolver
     // template chain in Tributary.
     private const int PlaceNestingDepth = 16;
 
-    // The predicate Things are asked for BY NAME, because traversal brings what a relationship points at and
+    // The predicate Things are asked for by name, because traversal brings what a relationship points at and
     // the relationship rules bring the relationships, but neither brings the Thing naming one. The walk below
-    // compares those names, so a predicate left out here reads as "covers nothing" — a wrong answer
-    // wearing the shape of a valid one.
+    // compares those names, so a predicate left out here reads as "covers nothing", which looks like a valid
+    // answer and is wrong.
     private static readonly string[] PredicatesRead =
     [
         IsInPredicate, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,

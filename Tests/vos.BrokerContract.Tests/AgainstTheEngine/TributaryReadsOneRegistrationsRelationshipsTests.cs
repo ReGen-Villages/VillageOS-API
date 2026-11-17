@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Only the engine resolves the selector; without relationship rules one registration's read grew with every
+// Only the engine resolves the selector; without relationship rules one registration's read grows with every
 // other registration's `is` into the shared template.
 public class TributaryReadsOneRegistrationsRelationshipsTests : IClassFixture<TheEngine>
 {

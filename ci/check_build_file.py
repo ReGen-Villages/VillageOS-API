@@ -45,7 +45,7 @@ OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 # showed the contradiction. Read as the absence of packaging anywhere, so a step added later is
 # decided on rather than inherited.
 #
-# Tendril is the one decided exception (2026-11-15): another application installs it to build with,
+# Tendril is the one decided exception: another application installs it to build with,
 # so a feed is how it is delivered, and the pipeline publishes it under its own identity, so no
 # packaging credential is issued. It is published only by the step named in PUBLISHING_STEPS, through
 # vos.Tendril/release/publishUnlessHeld.mjs, so a step running npm publish itself is reported.

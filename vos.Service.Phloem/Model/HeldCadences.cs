@@ -4,8 +4,8 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Phloem.Model;
 
-// A failed snapshot is answered as a failure until one replaces it, so a look fails the way a failed read did and
-// the keeper backs off as before.
+// A failed snapshot is answered as a failure until one replaces it, so a look fails the way a failed read does and
+// the keeper backs off.
 public sealed class HeldCadences
 {
     private readonly object _lock = new();

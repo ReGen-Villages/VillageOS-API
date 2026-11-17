@@ -405,8 +405,8 @@ def build():
         k.rel(conn_id, triggered_by, http)
         connection_by_key[svc["key"]] = conn_id
 
-    # Each kind of message → a MessageKind arriving at the HTTP connection that reads it; each external system → an
-    # ExternalSystem that sends and is told its kinds.
+    # Each kind of message becomes a MessageKind arriving at the HTTP connection that reads it, and each external
+    # system an ExternalSystem that sends and is told its kinds.
     kind_by_key = {}
     for (key, label, arrives_at_service) in MESSAGE_KINDS:
         kind_id = k.thing(stable_id(_TAG, "message-kind", key), label)
