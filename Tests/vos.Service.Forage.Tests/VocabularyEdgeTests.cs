@@ -11,7 +11,7 @@ namespace vos.Service.Forage.Tests;
 
 // A discovered word becomes the relationship the model declares, inside the run that fetched it. Driven through /handle because the thing worth pinning is
 // the whole path: the fetch response reports what was written, the declaration is read back by mark,
-// and the relationship lands — with the stale one removed first — before the analysis starts. Nothing here
+// and the relationship lands — with the stale one removed in the same write — before the analysis starts. Nothing here
 // tells Forage the vocabulary's names; the model declares them and the run reads them.
 public class VocabularyEdgeTests
 {
@@ -54,27 +54,14 @@ public class VocabularyEdgeTests
     private sealed class EdgeRecorder
     {
         public List<(Guid Subject, Guid Predicate, Guid Target)> Written { get; } = new();
-        public List<Guid> Deleted { get; } = new();
+        public List<(Guid Subject, Guid Predicate, Guid Target)> Replaced { get; } = new();
 
         public HttpResponseMessage? Route(HttpRequestMessage request)
         {
-            var path = request.RequestUri!.AbsolutePath;
-            if (request.Method == HttpMethod.Delete
-                && path.StartsWith("/api/relationships/", StringComparison.Ordinal))
-            {
-                Deleted.Add(Guid.Parse(path["/api/relationships/".Length..]));
-                return Ok("{}");
-            }
+            if (RelationshipWrite.In(request) is not { } write) return null;
 
-            if (request.Method != HttpMethod.Post || path != "/api/relationships")
-                return null;
-
-            var body = JsonDocument.Parse(
-                request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).RootElement;
-            Written.Add((
-                body.GetProperty("subjectId").GetGuid(),
-                body.GetProperty("predicateId").GetGuid(),
-                body.GetProperty("targetId").GetGuid()));
+            Written.Add(write.Relationship);
+            Replaced.AddRange(write.Replaced);
             return Ok("{}");
         }
     }
@@ -87,7 +74,7 @@ public class VocabularyEdgeTests
         factory.HandlerCallback = request =>
             recorder.Route(request)
             ?? (request.RequestUri!.AbsolutePath == FetchRoute ? Ok(fetchAnswer) : null)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, DeclaredArchetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, DeclaredArchetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -108,20 +95,19 @@ public class VocabularyEdgeTests
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         recorder.Written.Should().ContainSingle()
             .Which.Should().Be((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
-        recorder.Deleted.Should().BeEmpty();
+        recorder.Replaced.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_changed_word_removes_the_stale_edge_before_writing_its_replacement()
+    public async Task A_changed_word_replaces_the_stale_edge_in_the_same_write()
     {
         var ids = CatchmentWithOneSource();
-        var stale = Guid.NewGuid();
         var recorder = new EdgeRecorder();
 
-        await RunDiscovery(ids, DeclaredModel(new Edge("WillowBend", "flowsAs", "flashy", stale)),
+        await RunDiscovery(ids, DeclaredModel(new Edge("WillowBend", "flowsAs", "flashy")),
             recorder, """{"success":true,"written":{"flowRegime":"steady"}}""");
 
-        recorder.Deleted.Should().Equal(stale);
+        recorder.Replaced.Should().Equal((ids["WillowBend"], ids["flowsAs"], ids["flashy"]));
         recorder.Written.Should().ContainSingle()
             .Which.Should().Be((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
     }
@@ -138,7 +124,6 @@ public class VocabularyEdgeTests
             """{"success":true,"written":{"flowRegime":"torrential"}}""");
 
         recorder.Written.Should().BeEmpty();
-        recorder.Deleted.Should().BeEmpty();
     }
 
     // A fetch that wrote nothing — a provider hedge, a coordinate it cannot classify — resolves
@@ -181,15 +166,14 @@ public class VocabularyEdgeTests
         await factory.InitializeAsync();
         factory.HandlerCallback = request =>
         {
-            if (request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/relationships")
+            if (RelationshipWrite.In(request) is not null)
             {
                 attempts++;
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
             }
             return (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -198,66 +182,6 @@ public class VocabularyEdgeTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         attempts.Should().Be(1);
-    }
-
-    // The read already succeeded, so a subscription release that fails must not lose it: the relationship is
-    // still written. The release ignores what the gateway answers, so only a dropped connection can
-    // fail it — which is what the thrown handler stages.
-    [Fact]
-    public async Task A_failed_subscription_release_does_not_lose_the_resolution()
-    {
-        var ids = CatchmentWithOneSource();
-        var recorder = new EdgeRecorder();
-
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = request =>
-        {
-            if (request.Method == HttpMethod.Delete
-                && request.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
-                throw new HttpRequestException("connection dropped");
-            return recorder.Route(request)
-                ?? (request.RequestUri!.AbsolutePath == FetchRoute
-                    ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        recorder.Written.Should().Contain((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
-    }
-
-    // Writing beside a relationship that would not go would leave a reader two answers; leaving the stale one
-    // alone keeps exactly one, and the next run resolves again.
-    [Fact]
-    public async Task A_stale_edge_that_will_not_go_blocks_its_replacement()
-    {
-        var ids = CatchmentWithOneSource();
-        var stale = Guid.NewGuid();
-        var recorder = new EdgeRecorder();
-
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = request =>
-        {
-            if (request.Method == HttpMethod.Delete
-                && request.RequestUri!.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal))
-                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-            return recorder.Route(request)
-                ?? (request.RequestUri!.AbsolutePath == FetchRoute
-                    ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids,
-                    DeclaredModel(new Edge("WillowBend", "flowsAs", "flashy", stale)),
-                    siteValues: null, DeclaredArchetypes())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        recorder.Written.Should().BeEmpty();
     }
 
     // The words came from the fetches, but the declaration read can still fail — and the site has
@@ -278,7 +202,7 @@ public class VocabularyEdgeTests
         factory.HandlerCallback = request =>
         {
             if (request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                && request.RequestUri!.AbsolutePath == "/api/snapshots"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
                     .Contains(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id.ToString(), StringComparison.Ordinal))
             {
@@ -288,7 +212,7 @@ public class VocabularyEdgeTests
             return recorder.Route(request)
                 ?? (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
-                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

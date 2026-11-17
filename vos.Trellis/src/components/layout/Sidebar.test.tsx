@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 vi.mock('../../hooks/useAuthentication', () => ({
   useAuthentication: () => ({ modelName: 'test-model', logout: vi.fn(), switchModel: vi.fn() }),
@@ -9,7 +9,7 @@ vi.mock('../../hooks/useAuthentication', () => ({
 
 import i18n from '../../i18n';
 import { useModelStore } from '../../stores/modelStore';
-import { PAGE_ROLE_ID } from '../../api/platformRoles';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
 import { usePlatformPagesStore } from '../../stores/platformPagesStore';
 import { Sidebar } from './Sidebar';
 import { stubScreenWidth } from '../../testScreenWidth';

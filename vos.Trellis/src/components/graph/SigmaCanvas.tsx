@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import Graph from 'graphology';
 import { SigmaContainer } from '@react-sigma/core';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import type { SearchOptions } from '../../utils/searchFilter';
 import { BRIGHT_EDGE_COLOR } from '../../utils/reducerHelpers';
 import { GraphDataLoader } from './GraphDataLoader';

@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const PLAYS = 'plays a role in this fixture';
 

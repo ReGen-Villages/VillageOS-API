@@ -1,4 +1,4 @@
-import type { NumberFormat } from '../../../types/dashboard';
+import type { NumberFormat } from '@tendril-ui/tendril';
 import { formatNumber } from './format';
 
 /**

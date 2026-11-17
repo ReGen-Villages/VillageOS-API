@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Feedback.Configuration;

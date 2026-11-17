@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 
 namespace vos.Service.Shared;
 
@@ -10,6 +10,12 @@ namespace vos.Service.Shared;
 // credential to decide which project it belongs to and when to replace it.
 public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffset ExpiresAt)
 {
+    public static readonly TimeSpan ReplacementLeadTime = TimeSpan.FromHours(2);
+
+    // Checked often rather than timed once: a timer stops while the machine sleeps, so one set for when the
+    // token falls due can fire after it has expired, and an expired token cannot be swapped.
+    public static readonly TimeSpan ReplacementCheckInterval = TimeSpan.FromMinutes(15);
+
     // Null when the token cannot be read, names no model, or states no expiry. A token with no
     // stated end would otherwise be held forever and fail only once something depended on it.
     public static ModelScopedBearer? Read(string? token)

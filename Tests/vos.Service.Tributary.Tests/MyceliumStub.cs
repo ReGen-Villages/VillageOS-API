@@ -136,10 +136,7 @@ internal static class MyceliumStub
     private static HttpResponseMessage? RouteKindsAndObserved(
         HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, params Kind[] kinds)
     {
-        var path = request.RequestUri!.AbsolutePath;
-        if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
-            return new HttpResponseMessage(HttpStatusCode.NoContent);
-        if (request.Method != HttpMethod.Post || path != "/api/subscriptions")
+        if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/snapshots")
             return null;
 
         var bindsId = Guid.NewGuid();
@@ -163,7 +160,7 @@ internal static class MyceliumStub
         foreach (var observed in alreadyObserved)
             edges.Add(Edge(endpointId, ObservedPredicateId, observed));
 
-        return Json("{\"subscriptionId\":\"" + Guid.NewGuid() + "\",\"watermark\":0,\"snapshot\":{"
+        return Json("{\"watermark\":0,\"snapshot\":{"
             + "\"watermark\":0,\"things\":[" + string.Join(",", things) + "],"
             + "\"relationships\":[" + string.Join(",", edges) + "]}}");
     }

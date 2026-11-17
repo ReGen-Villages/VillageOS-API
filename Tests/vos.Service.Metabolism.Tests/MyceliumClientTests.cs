@@ -1,7 +1,7 @@
 using System.Net;
-using System.Text.Json;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -35,7 +35,7 @@ public class MyceliumClientTests
             };
         });
         return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium",
-            direction ?? ResourceDirection.Consumes, serviceToken: "fake-jwt");
+            direction ?? ResourceDirection.Consumes, launchToken: new LaunchToken("fake-jwt"));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class MyceliumClientTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
 
-        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", ResourceDirection.Consumes, "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", ResourceDirection.Consumes, new LaunchToken("my-service-token"));
 
         var token = await client.GetTokenAsync();
 
@@ -188,7 +188,7 @@ public class MyceliumClientTests
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
             new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
-        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", ResourceDirection.Consumes, "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", ResourceDirection.Consumes, new LaunchToken("my-service-token"));
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 

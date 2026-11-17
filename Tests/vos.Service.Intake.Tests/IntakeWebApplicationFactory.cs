@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using vos.Service.Intake.Services;
 using vos.Tests.Shared;
 
@@ -35,7 +36,7 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 
     // Time as the service reads it. A ticket is judged by how long ago it was issued, so a test
     // that let the real clock run could only say the elapsed time was small.
-    public MovableClock Clock { get; } = new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
+    public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
 
     // What the service logged about submissions, so a test can say a line names the submission
     // and carries none of what was submitted.
@@ -165,13 +166,4 @@ public sealed class CapturingMailer : IVerificationMailer
         _sent.Add((emailAddress, code));
         return Task.CompletedTask;
     }
-}
-
-public sealed class MovableClock(DateTimeOffset start) : TimeProvider
-{
-    private DateTimeOffset _now = start;
-
-    public override DateTimeOffset GetUtcNow() => _now;
-
-    public void Advance(TimeSpan by) => _now = _now.Add(by);
 }

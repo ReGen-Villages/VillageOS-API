@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared;
 using vos.Service.WaterReserve.Services;
 using vos.Tests.Shared;
 using Xunit;
@@ -70,7 +71,7 @@ public class WaterReserveNodeTests
         // Literal inputs need no ref resolution, so no HTTP is expected.
         var handler = new MockHttpMessageHandler(_ => throw new InvalidOperationException("no HTTP expected"));
         var factory = new TestHttpClientFactory(new HttpClient(handler));
-        return new WaterReserveNode(factory, NullLogger<WaterReserveNode>.Instance, MyceliumUrl, ServiceToken);
+        return new WaterReserveNode(factory, NullLogger<WaterReserveNode>.Instance, MyceliumUrl, new LaunchToken(ServiceToken));
     }
 
     private static JsonElement Envelope(string inputs) =>

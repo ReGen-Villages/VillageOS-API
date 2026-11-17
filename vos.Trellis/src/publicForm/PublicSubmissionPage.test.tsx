@@ -61,6 +61,7 @@ beforeEach(() => {
     placeSearch: false,
     wording: {},
     themes: [],
+    layerKinds: [],
   });
 });
 

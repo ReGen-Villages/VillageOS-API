@@ -355,7 +355,7 @@ public class MyceliumClientTests
         // client.Timeout on every call; reusing one HttpClient throws after the first request.
         var factory = new PerCallFactory(handler);
         var logger = Substitute.For<ILogger<MyceliumClient>>();
-        return new MyceliumClient(factory, logger, "http://localhost", "test-token");
+        return new MyceliumClient(factory, logger, "http://localhost", new LaunchToken("test-token"));
     }
 
     private sealed class PerCallFactory : IHttpClientFactory

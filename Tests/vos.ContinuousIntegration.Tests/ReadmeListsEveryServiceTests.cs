@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -23,6 +19,7 @@ public class ReadmeListsEveryServiceTests
     private static readonly Dictionary<string, string> ListedElsewhere = new()
     {
         ["vos.Service.Shared"] = "the library every service builds on, not a service anyone runs",
+        ["vos.Service.Auth"] = "the library a C# service checks the broker's calls with, not a service anyone runs",
         ["vos.Service.Shared.Contracts"] = "the request and response schemas, not a service anyone runs",
         ["vos.Service.Python.Shared"] = "the library every Python service builds on, not a service anyone runs",
     };

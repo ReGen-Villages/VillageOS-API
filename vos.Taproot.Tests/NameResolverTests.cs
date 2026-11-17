@@ -1,5 +1,4 @@
 using System.Text.Json;
-using vos.Taproot;
 using Moq;
 using Xunit;
 
@@ -132,13 +131,6 @@ public class NameResolverTests
 
         // Should only call GetAllThingsAsync once due to caching
         _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
-    }
-
-    [Fact]
-    public void ClearCache_ClearsThingsCache()
-    {
-        var resolver = new NameResolver(_myceliumMock.Object);
-        resolver.ClearCache(); // Should not throw
     }
 
     [Fact]
@@ -308,33 +300,5 @@ public class NameResolverTests
         // Only ValidThing should be in the map
         Assert.Single(map);
         Assert.Equal("ValidThing", map[validId.ToString().ToLowerInvariant()]);
-    }
-
-    [Fact]
-    public async Task ClearCache_ForcesRefetch()
-    {
-        var id1 = Guid.NewGuid();
-        var things1 = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{id1}\",\"Name\":\"Thing1\"}}]");
-        var id2 = Guid.NewGuid();
-        var things2 = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{id2}\",\"Name\":\"Thing2\"}}]");
-
-        _myceliumMock.SetupSequence(b => b.GetAllThingsAsync())
-            .ReturnsAsync(things1)
-            .ReturnsAsync(things2);
-
-        var resolver = new NameResolver(_myceliumMock.Object);
-
-        // First call uses first response
-        var result1 = await resolver.ResolveThingAsync("Thing1");
-        Assert.True(result1.IsSuccess);
-
-        // Clear cache
-        resolver.ClearCache();
-
-        // Second call should use second response
-        var result2 = await resolver.ResolveThingAsync("Thing2");
-        Assert.True(result2.IsSuccess);
-
-        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Exactly(2));
     }
 }

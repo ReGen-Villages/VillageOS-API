@@ -11,7 +11,7 @@ public sealed class DocumentReclaimService(SharedDocumentService documents, ILog
         while (!stoppingToken.IsCancellationRequested)
         {
             try { await documents.ReclaimAsync(stoppingToken); }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception error) when (!stoppingToken.IsCancellationRequested)
             {
                 logger.LogWarning(error, "The shared files could not be reclaimed this hour: {Reason}", error.Message);
             }

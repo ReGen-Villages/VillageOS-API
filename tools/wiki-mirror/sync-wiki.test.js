@@ -145,9 +145,13 @@ test('an attachment link is not mistaken for a wiki page', () => {
   assert.equal(output, `![x](${RAW_WIKI}/.attachments/a.svg) and [GUI](${WIKI}/GUI)`);
 });
 
-test('the mirror copies the attachments folder beside the pages and writes the sidebar from the page order', () => {
+test('the mirror copies the attachments folder beside the pages and writes the sidebar from the page order', (t) => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-generated-'));
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'github-wiki-'));
+  t.after(() => {
+    fs.rmSync(source, { recursive: true, force: true });
+    fs.rmSync(output, { recursive: true, force: true });
+  });
   fs.writeFileSync(path.join(source, 'Field Guide.md'), '![x](/.attachments/a.svg)');
   fs.mkdirSync(path.join(source, 'Services'));
   fs.writeFileSync(path.join(source, 'Services', 'Delta.md'), 'Delta');

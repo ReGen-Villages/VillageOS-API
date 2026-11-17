@@ -8,7 +8,7 @@ import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
 import { RangesTabContent } from './RangesTabContent';
 import { DeleteThingButton } from './DeleteThingButton';
-import type { VosThing, VosRelationship, EffectiveProperty } from '../../types/vos';
+import type { VosThing, VosRelationship, EffectiveProperty } from '@tendril-ui/tendril';
 import { formatGuid } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { useNodeRangesData } from '../../hooks/useNodeRangesData';

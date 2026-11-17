@@ -18,7 +18,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     public static readonly Guid DispositionPredicateRoleId = new("92e4581a-4936-58b1-a783-36a051aa0a43");
 
     private const string ProposedSiteRoleWord = "proposedSite";
-    private const string DispositionArchetypeRoleWord = "submissionDisposition";
     private const string DispositionPredicateRoleWord = "resolvedAs";
 
     // The period after which a submission resolved to this disposition goes. Which disposition is
@@ -43,6 +42,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             {
                 case "list": await ListAsync(); break;
                 case "reject": await RejectAsync(args); break;
+                case "decide": await DecideAsync(args); break;
                 case "promote": await PromoteAsync(args); break;
                 case "dispose": await DisposeAsync(args); break;
                 default: ShowHelp(); break;
@@ -111,6 +111,32 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine($"Rejected: {submission.Name} is now '{disposable.Name}'.");
     }
 
+    private async Task DecideAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            writer.WriteLine("Usage: submissions decide <disposition> <submission>   - record any disposition this model holds");
+            return;
+        }
+
+        var model = await ModelSnapshot.ReadAsync(client!);
+        var held = DispositionsIn(model).ToList();
+        var chosen = held.Where(one => one.Name == args[0] || one.Id.ToString() == args[0]).ToList();
+        if (chosen.Count != 1)
+        {
+            writer.WriteLine(chosen.Count == 0
+                ? $"This model holds no disposition '{args[0]}'. It holds: {string.Join(", ", held.Select(one => one.Name))}."
+                : $"'{args[0]}' answers {chosen.Count} dispositions, so it does not say which. Give its identifier.");
+            return;
+        }
+
+        if (Identify(model, string.Join(' ', args[1..])) is not { } submission)
+            return;
+
+        await ResolveAsync(model, submission, chosen[0]);
+        writer.WriteLine($"Decided: {submission.Name} is now '{chosen[0].Name}'.");
+    }
+
     private async Task PromoteAsync(string[] args)
     {
         if (args.Length < 4)
@@ -128,16 +154,20 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (Identify(model, args[0]) is not { } submission)
             return;
 
+        var promotedTerm = DispositionsIn(model)
+            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) == null);
+        if (promotedTerm == default)
+        {
+            writer.WriteLine("This model declares no disposition that keeps a submission, so a promotion could not be recorded here.");
+            return;
+        }
+
         var followed = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // The project's name is whatever is left, so a model can be called what a planner would call it.
         var promoted = await client!.PromoteAsync(
-            submission.ProposedSite, followed, args[1], string.Join(' ', args[3..]));
+            submission.Id, promotedTerm.Name, followed, args[1], string.Join(' ', args[3..]));
         CommandParser.WriteFormattedJson(writer, promoted);
-
-        var promotedTerm = DispositionsIn(model)
-            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) == null);
-        if (promotedTerm != default)
-            await ResolveAsync(model, submission, promotedTerm);
+        await StampResolvedAtAsync(submission);
     }
 
     // The retention pass: every rejected submission whose period has run leaves the model, and everything
@@ -244,9 +274,11 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
 
         await client!.CreateRelationshipAsync(submission.Id, predicate, disposition.Id);
-        await client.SetPropertyAsync(
-            submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
+        await StampResolvedAtAsync(submission);
     }
+
+    private Task StampResolvedAtAsync(Submission submission) =>
+        client!.SetPropertyAsync(submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
 
     private Submission? Identify(ModelSnapshot model, string named)
     {
@@ -324,12 +356,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine("Submission review commands:");
         writer.WriteLine("  submissions list                                      - what has arrived, and its state");
         writer.WriteLine("  submissions reject <submission>                       - move one to a disposable state");
+        writer.WriteLine("  submissions decide <disposition> <submission>         - record any disposition this model holds");
         writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
         writer.WriteLine("                                                        - copy one into a project model of its own");
         writer.WriteLine("  submissions dispose <predicates>                      - clear every rejection whose period has run");
         writer.WriteLine();
         writer.WriteLine("  A submission is identified by its identifier, its name, or the identifier it was");
         writer.WriteLine("  submitted under. A name may contain spaces where it ends the line — which it does");
-        writer.WriteLine("  for reject, and does not for promote. Promoting twice produces one project.");
+        writer.WriteLine("  for reject and decide, and does not for promote. Promoting twice produces one project.");
     }
 }

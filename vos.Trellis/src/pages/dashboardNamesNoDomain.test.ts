@@ -20,17 +20,15 @@ const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** Every file that draws or resolves this view. The widget directory is walked rather than listed,
  *  so a widget added later is judged without anyone remembering to add it here. */
 const WIDGETS = join(SOURCE, 'components/dashboard/widgets');
+const TENDRIL = join(SOURCE, '../../vos.Tendril/src');
 const ALSO = [
   'pages/OperationsPage.tsx',
   'components/dashboard/DashboardSections.tsx',
   'publicFindings/PublicFindingsPage.tsx',
   'publicFindings/answeredFindings.ts',
-  'types/dashboard.ts',
-  'api/dashboardApi.ts',
   'api/dashboardSubscription.ts',
   'api/bindingVocabulary.ts',
   'api/dashboardLocalization.ts',
-  'api/modelReads.ts',
   'api/brokerModelReads.ts',
   'hooks/useDashboard.ts',
 ];
@@ -65,7 +63,7 @@ function sourceFilesUnder(directory: string): string[] {
   return out;
 }
 
-const FILES = [...sourceFilesUnder(WIDGETS), ...ALSO.map((file) => join(SOURCE, file))];
+const FILES = [...sourceFilesUnder(WIDGETS), ...sourceFilesUnder(TENDRIL), ...ALSO.map((file) => join(SOURCE, file))];
 
 describe('the dashboard client names no domain of its own', () => {
   it('reads the widgets it is meant to be reading, so an empty walk cannot pass this file', () => {
@@ -76,6 +74,10 @@ describe('the dashboard client names no domain of its own', () => {
 
   it('would report a domain word put in front of it', () => {
     expect(domainWordsIn('/** e.g. the water a site stores. */')).toEqual(['water', 'site']);
+  });
+
+  it('reads Tendril too, where the binding reader and the declarations live', () => {
+    expect(FILES.map((file) => relative(SOURCE, file))).toContain('../../vos.Tendril/src/api/dashboardApi.ts');
   });
 
   it('reports nothing for a word that merely contains one', () => {

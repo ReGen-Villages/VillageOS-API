@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  withAlpha,
   applySelectionHighlight,
   brightenEdge,
   computeClusterNodeStyle,
@@ -17,24 +16,6 @@ const DEFAULT_FLASH: FlashSettings = {
   flashNodeSizeFactor: 1.4,
   flashNodeBrighten: 0.5,
 };
-
-describe('withAlpha', () => {
-  it('appends alpha to a 7-char hex (#rrggbb)', () => {
-    expect(withAlpha('#ff0000', 0.5)).toBe('#ff000080');
-    expect(withAlpha('#ff0000', 1)).toBe('#ff0000ff');
-    expect(withAlpha('#ff0000', 0)).toBe('#ff000000');
-  });
-
-  it('replaces existing alpha in 9-char hex (#rrggbbaa)', () => {
-    expect(withAlpha('#ff0000ff', 0.5)).toBe('#ff000080');
-    expect(withAlpha('#aabbcc00', 1)).toBe('#aabbccff');
-  });
-
-  it('returns input unchanged for non-standard lengths', () => {
-    expect(withAlpha('#fff', 0.5)).toBe('#fff');
-    expect(withAlpha('red', 0.5)).toBe('red');
-  });
-});
 
 describe('applySelectionHighlight', () => {
   const data = { color: '#ff0000', size: 5, label: 'Test' };

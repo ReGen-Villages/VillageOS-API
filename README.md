@@ -26,8 +26,14 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
-- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
+- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic), reading every binding through Tendril
+- Dashboard, Operations, Compose, Design, Land intake, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the model publishes (the land-intake template's Submissions review among them) and every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
+
+### Tendril (page reader and writing widgets)
+
+**vos.Tendril** — the package `@tendril-ui/tendril`: the binding reader, the page declarations and the
+widgets that write, so an application other than Trellis draws a model's pages the same way. Trellis
+uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/README.md).
 
 ### Taproot (CLI)
 
@@ -55,7 +61,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.EnergyBalance | Production | Site energy verdict — reads a study's generation inputs (e.g. solar: PV area × resource × efficiency) and consumption, and writes whether the site is net positive, the one energy figure a formula on the study cannot hold; a Handled-Predicate service in the same family as Metabolism |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing calls it about a study |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
-| vos.Service.Quadrat | In development (Python) | Raster reader — the value at a point, or statistics over a polygon or box, from a GeoTIFF; a command line, and a service answering pipeline nodes (see [its README](vos.Service.Quadrat/README.md)) |
+| vos.Service.Quadrat | In development (Python) | Raster reader — the value at a point, statistics over a polygon or box, the area of each land-cover class or elevation band in it, or the values along a line, from a GeoTIFF; a command line, and a service answering pipeline nodes (see [its README](vos.Service.Quadrat/README.md)) |
 | vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |

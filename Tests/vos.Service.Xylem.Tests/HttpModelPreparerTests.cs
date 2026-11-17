@@ -56,7 +56,8 @@ public class HttpModelPreparerTests
     // because it builds a path onto it.
     private static ServiceCredential Credential(
         IHttpClientFactory factory, string? serviceToken = null, string? apiKey = null) =>
-        new(factory, NullLogger.Instance, MyceliumUrl.TrimEnd('/'), serviceToken, apiKey);
+        new(factory, NullLogger.Instance, MyceliumUrl.TrimEnd('/'),
+            serviceToken is null ? null : new LaunchToken(serviceToken), apiKey);
 
     [Fact]
     public async Task Clear_deletes_the_model_with_a_bearer_and_returns_null_on_success()

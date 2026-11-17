@@ -6,7 +6,7 @@ import {
   applyRelationshipPropertyRemoval,
   isVisibleRelationship,
 } from './propertyUpdates';
-import type { VosThing, VosRelationship } from '../types/vos';
+import { statedProperties, type InheritedPropertySet, type VosThing, type VosRelationship } from '@tendril-ui/tendril';
 
 const makeThing = (overrides?: Partial<VosThing>): VosThing => ({
   Id: 'thing-1',
@@ -96,10 +96,76 @@ describe('property removal', () => {
   });
 
   it('returns the same object when the property is not there, so no render is triggered', () => {
-    const thing = makeThing();
+    const thing = makeThing({ InheritedOverrides: { archetype: overrideSet('archetype', { capacity: 200 }) } });
     expect(applyThingPropertyRemoval(thing, 'never_existed')).toBe(thing);
     const relationship = makeRelationship();
     expect(applyRelationshipPropertyRemoval(relationship, 'never_existed')).toBe(relationship);
+  });
+});
+
+const overrideSet = (
+  source: string,
+  properties: Record<string, unknown>,
+  inherited?: Record<string, InheritedPropertySet>,
+): InheritedPropertySet => ({
+  SourceId: source,
+  SourceName: source,
+  Properties: properties,
+  PropertyWriteKinds: Object.fromEntries(Object.keys(properties).map((name) => [name, 'FactOnly' as const])),
+  ...(inherited ? { Inherited: inherited } : {}),
+});
+
+// A value written on a name the archetype declares arrives at page load in the override store, and a removal that
+// cleared own values alone left it there, so the console kept showing it as set on the Thing until a reload.
+describe('removing a value held under an inherited name', () => {
+  it('drops it from the override store and keeps the set\'s other values', () => {
+    const thing = makeThing({ Properties: {}, InheritedOverrides: { reservoir: overrideSet('reservoir', { capacity: 200, depth: 4 }) } });
+
+    const updated = applyThingPropertyRemoval(thing, 'capacity');
+
+    expect(updated.InheritedOverrides).toEqual({ reservoir: overrideSet('reservoir', { depth: 4 }) });
+    expect(statedProperties(updated)).toEqual({ depth: 4 });
+  });
+
+  it('drops it from a nested set, and drops each set it leaves with nothing in it', () => {
+    const thing = makeThing({
+      Properties: {},
+      InheritedOverrides: {
+        reservoir: overrideSet('reservoir', {}, { tank: overrideSet('tank', { capacity: 200 }) }),
+        catchment: overrideSet('catchment', { area: 12 }),
+      },
+    });
+
+    const updated = applyThingPropertyRemoval(thing, 'capacity');
+
+    expect(updated.InheritedOverrides).toEqual({ catchment: overrideSet('catchment', { area: 12 }) });
+  });
+
+  it('keeps a nested set that still holds other values', () => {
+    const thing = makeThing({
+      Properties: {},
+      InheritedOverrides: { reservoir: overrideSet('reservoir', {}, { tank: overrideSet('tank', { capacity: 200, depth: 4 }) }) },
+    });
+
+    const updated = applyThingPropertyRemoval(thing, 'capacity');
+
+    expect(updated.InheritedOverrides).toEqual({ reservoir: overrideSet('reservoir', {}, { tank: overrideSet('tank', { depth: 4 }) }) });
+  });
+
+  it('drops both the value written while the page was open and the one the page loaded with', () => {
+    const thing = makeThing({ Properties: { capacity: 300 }, InheritedOverrides: { reservoir: overrideSet('reservoir', { capacity: 200 }) } });
+
+    const updated = applyThingPropertyRemoval(thing, 'capacity');
+
+    expect(statedProperties(updated)).toEqual({});
+  });
+
+  it('does not change the override store it was given', () => {
+    const thing = makeThing({ Properties: {}, InheritedOverrides: { reservoir: overrideSet('reservoir', { capacity: 200 }) } });
+
+    applyThingPropertyRemoval(thing, 'capacity');
+
+    expect(thing.InheritedOverrides).toEqual({ reservoir: overrideSet('reservoir', { capacity: 200 }) });
   });
 });
 

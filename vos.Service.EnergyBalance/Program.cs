@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Hosting;
@@ -19,7 +19,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -33,12 +33,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(verificationKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new EndpointServiceMyceliumClient(
@@ -46,19 +41,21 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "EnergyBalance",
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, sp.GetRequiredService<ModelClock>(),
+            launchToken, apiKey: apiKey));
+    builder.Services.AddModelClock<EnergyBalanceReactiveHandler>("EnergyBalance");
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
-        "EnergyBalance", myceliumUrl, serviceToken, _ => EnergyBalanceReactiveHandler.InputProperties,
+        "EnergyBalance", myceliumUrl, launchToken, _ => EnergyBalanceReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("EnergyBalance", servicePort);

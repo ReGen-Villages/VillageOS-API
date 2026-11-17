@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Binding, DashboardSpecification, Widget } from '../types/dashboard';
+import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import { checkDesign, type DesignCheckContext, type DesignFindingCode } from './designFindings';
 
 /** A catchment: springs (flow, a long note) and reservoirs (capacity), springs feed reservoirs. */
@@ -45,6 +45,11 @@ describe('a widget', () => {
     each('namesAnUnknownKind', page(figure('a', { kind: 'stateCount', state: 'flowing', archetype: 'Dam' })));
     each('namesAnUnknownPredicate', page(figure('a', { kind: 'stateCount', state: 'flowing', archetype: 'Spring', scope: { viaPredicate: 'drains' } })));
     each('namesAnUnknownPredicate', page(figure('a', { kind: 'related', via: [{ predicate: 'drains' }], thing: '$scope' })));
+    each('namesAnUnknownPredicate', page({
+      type: 'action',
+      rows: { kind: 'thingList', archetype: 'Spring' },
+      writes: { choicesFrom: { from: { kind: 'thingList', archetype: 'Spring' }, predicate: 'drains' }, choices: [] },
+    }));
     each('namesAnUnknownState', page(figure('a', { kind: 'stateCount', state: 'gushing', archetype: 'Spring' })));
     each('namesAnUnknownState', page(figure('a', { kind: 'stateOf', states: ['overflowing'], thing: '$scope' })));
     each('namesAnUnknownState', page({ type: 'table', title: 't', columns: [], visibleRows: 5, rows: { kind: 'thingList', archetype: 'Spring', computed: [{ key: 'c', value: { kind: 'stateOf', states: ['gushing'], thing: '$scope' } }] } }));
@@ -74,10 +79,11 @@ describe('a widget', () => {
     each('columnOnAnUnboundedValue', page({ type: 'table', title: 't', columns: [{ key: 'note', label: 'Note' }], rows: { kind: 'thingList', archetype: 'Spring' }, visibleRows: 5 }));
   });
 
-  it('refuses a compared property that reads as text', () => {
-    const text: DesignCheckContext = { ...context, propertiesOf: (kind) => (kind === 'Reservoir' ? [{ name: 'name', declaredBy: 'Reservoir', example: 'RES-1', numeric: false }] : undefined) };
+  it('refuses a compared property that reads as text, but only on a page that compares', () => {
+    const text: DesignCheckContext = { ...context, propertiesOf: () => [{ name: 'name', declaredBy: 'Reservoir', example: 'RES-1', numeric: false }] };
     const board: Widget = { type: 'leaderboard', title: 'l', entities: { kind: 'compareEntities', properties: ['name'] }, metrics: [] };
     expect(checkDesign(page(board), 'Springs', text).map((finding) => finding.code)).toContain('comparedPropertyIsText');
+    expect(checkDesign(page(board), 'Springs', { ...text, compareKind: undefined }).map((finding) => finding.code)).not.toContain('comparedPropertyIsText');
   });
 
   it('warns about a state binding on a comparing page that names no scope, but not for a roster a field picks from', () => {

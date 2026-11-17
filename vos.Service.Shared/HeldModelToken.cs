@@ -9,8 +9,6 @@ namespace vos.Service.Shared;
 // Swapping when the work starts would be too late for work queued behind other work.
 public sealed class HeldModelToken
 {
-    private static readonly TimeSpan ReplacementLeadTime = TimeSpan.FromHours(2);
-
     // For a call that carried no token, as when a service runs without authentication: the work presents
     // the service's own credential.
     public static HeldModelToken None { get; } = new(null, null, NullLogger.Instance);
@@ -53,7 +51,7 @@ public sealed class HeldModelToken
     private async Task ReplaceIfDueAsync(CancellationToken cancellationToken)
     {
         var held = Volatile.Read(ref _bearer)!;
-        if (!held.IsDueForReplacement(DateTimeOffset.UtcNow, ReplacementLeadTime))
+        if (!held.IsDueForReplacement(DateTimeOffset.UtcNow, ModelScopedBearer.ReplacementLeadTime))
             return;
 
         var replacement = await _exchange!.ExchangeAsync(held.Token, cancellationToken);

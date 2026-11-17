@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using vos.Service.Intake.Models;
@@ -12,48 +11,42 @@ public sealed class IntakeMyceliumClient(
     IHttpClientFactory httpClientFactory,
     ILogger<IntakeMyceliumClient> logger,
     string myceliumUrl,
-    string? serviceToken,
+    LaunchToken? launchToken,
     string? apiKey = null)
-    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
 {
     private static readonly JsonSerializerOptions AsTheBrokerReadsIt = new(JsonSerializerDefaults.Web);
 
-    // A read of the model kept exactly as the broker wrote it, for one call.
-    //
-    // Beside ScopedRead rather than through it, because that path reads a snapshot into
-    // SnapshotDocument — the fields a service was written to need. What a submitter is
-    // answered with is the broker's own envelope, so that it carries what draws each figure now and
-    // whatever the model starts declaring later; a typed read would silently drop the difference.
-    //
-    // A release that fails must not lose a read that succeeded, and the broker reaps what a caller
-    // leaves behind — so the failure is logged where whoever runs the deployment reads it and the answer
-    // still goes back.
+    // A read of the model kept exactly as the broker wrote it. What a submitter is answered with is the
+    // broker's own envelope, so that it carries what draws each figure now and whatever the model starts
+    // declaring later; a typed read would silently drop the difference.
     public async Task<JsonDocument> ReadAsync(SubscriptionSelector selector, CancellationToken cancellation)
+    {
+        var response = await ReadOnceAsync(selector, cancellation);
+        using var answered = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
+        return JsonDocument.Parse(answered.RootElement.GetProperty("snapshot").GetRawText());
+    }
+
+    public async Task<SnapshotDocument> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken cancellation)
+    {
+        var response = await ReadOnceAsync(selector, cancellation);
+        var answered = await response.Content.ReadFromJsonAsync<SnapshotReadResult>(AsTheBrokerReadsIt, cancellation);
+        return answered?.Snapshot ?? throw new HttpRequestException("Reading the model answered no snapshot.");
+    }
+
+    // Through the route that registers nothing, so a read made once leaves nothing for the broker to check
+    // on every later write.
+    private async Task<HttpResponseMessage> ReadOnceAsync(SubscriptionSelector selector, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsJsonAsync(
-            $"{MyceliumUrl}/api/subscriptions", selector, AsTheBrokerReadsIt, cancellation);
+            $"{MyceliumUrl}/api/snapshots", selector, AsTheBrokerReadsIt, cancellation);
 
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
                 $"Reading the model failed ({(int)response.StatusCode} {response.StatusCode}).",
                 null, response.StatusCode);
-
-        var opened = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
-        try
-        {
-            if (opened.RootElement.TryGetProperty("subscriptionId", out var subscription)
-                && subscription.TryGetGuid(out var identifier))
-            {
-                await ReleaseAsync(client, identifier, cancellation);
-            }
-
-            return JsonDocument.Parse(opened.RootElement.GetProperty("snapshot").GetRawText());
-        }
-        finally
-        {
-            opened.Dispose();
-        }
+        return response;
     }
 
     // One Thing's ranges, own and inherited, as the broker answers them. A verdict reads its
@@ -121,18 +114,6 @@ public sealed class IntakeMyceliumClient(
         }
     }
 
-    private async Task ReleaseAsync(HttpClient client, Guid subscriptionId, CancellationToken cancellation)
-    {
-        try
-        {
-            await client.DeleteAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}", cancellation);
-        }
-        catch (Exception exception)
-        {
-            Logger.LogWarning(exception, "Intake could not release the subscription {SubscriptionId}", subscriptionId);
-        }
-    }
-
     public async Task<Guid?> FindThingIdByNameAsync(string name, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync();
@@ -167,6 +148,34 @@ public sealed class IntakeMyceliumClient(
                 null, response.StatusCode);
 
         return true;
+    }
+
+    // A property the Thing no longer states is answered 404, which leaves it as asked.
+    public async Task RetractPropertyAsync(Guid thingId, string property, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync(
+            $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{property}' from '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
+    }
+
+    // A Thing the model no longer holds is answered 404, which leaves it as asked, so a removal that failed part
+    // way can be asked again.
+    public async Task DeleteThingAsync(Guid thingId, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}", cancellation);
+
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            return;
+        throw new HttpRequestException(
+            $"Removing '{thingId}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+            null, response.StatusCode);
     }
 
     public async Task ApplyFragmentAsync(ModelFragment fragment, CancellationToken cancellation)

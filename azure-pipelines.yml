@@ -1,6 +1,7 @@
 # The build: it runs when develop or main moves and for every pull request into either; builds and
 # tests the .NET solution, Trellis, the tools and the echo services; publishes test results and
-# coverage; generates and converts the wiki pages; and on develop publishes them to the GitHub wiki.
+# coverage; generates and converts the wiki pages; and on develop publishes them to the GitHub wiki
+# and publishes a Tendril version the package feed does not hold yet.
 
 # A feature branch is built when its pull request is validated and again after the merge; building
 # every push as well took an agent from the pool a third time for a result nothing waits on.
@@ -304,6 +305,36 @@ jobs:
   # every problem rather than one per push. They sit ahead of the wiki publish, whose succeeded()
   # condition then stops a red GUI from being published.
   - script: npm ci
+    displayName: 'Install Tendril dependencies'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run lint
+    displayName: 'Lint Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run typecheck
+    displayName: 'Type-check Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - script: npm run test -- --coverage --testTimeout=30000 --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/tendril-junit.xml
+    displayName: 'Test Tendril'
+    workingDirectory: vos.Tendril
+    condition: always()
+
+  - task: PublishTestResults@2
+    displayName: 'Publish Tendril Test Results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(testResultsDirectory)/tendril-junit.xml'
+      testRunTitle: 'Tendril'
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+    condition: always()
+
+  - script: npm ci
     displayName: 'Install Trellis dependencies'
     workingDirectory: vos.Trellis
     condition: always()
@@ -344,6 +375,7 @@ jobs:
       summaryFileLocation: |
         $(testResultsDirectory)/**/coverage.cobertura.xml
         $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
+        $(Build.SourcesDirectory)/vos.Tendril/coverage/cobertura-coverage.xml
     condition: succeededOrFailed()
 
   # Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
@@ -368,6 +400,14 @@ jobs:
   # here, after both builds, rather than by a test.
   - script: npm run check:built-imports
     displayName: 'Check every built worker carries what it imports'
+    workingDirectory: vos.Trellis
+    condition: always()
+
+  # Tailwind writes rules only for classes in the files it scans, so a class used only in Tendril is
+  # dropped from the built stylesheet with nothing reported. Like the check above, it exists only in
+  # built output.
+  - script: npm run check:tendril-classes
+    displayName: 'Check every class Tendril uses is in the built stylesheet'
     workingDirectory: vos.Trellis
     condition: always()
 
@@ -418,4 +458,22 @@ jobs:
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
     env:
       GITHUB_PAT: $(GITHUB_PAT)
+
+  # A release of Tendril is a merged version change: develop publishes a version the package feed
+  # does not hold yet. The npm configuration is written outside the checkout, because an npm configuration file in vos.Tendril would also be read
+  # by a developer's own installs there.
+  - bash: echo "@tendril-ui:registry=https://pkgs.dev.azure.com/ReGenVillages/_packaging/packages/npm/registry/" > "$(Agent.TempDirectory)/tendril.npmrc"
+    displayName: 'Point the Tendril scope at the package feed'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
+  - task: npmAuthenticate@0
+    displayName: 'Sign in to the package feed as this pipeline'
+    inputs:
+      workingFile: '$(Agent.TempDirectory)/tendril.npmrc'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
+  - script: node release/publishUnlessHeld.mjs "$(Agent.TempDirectory)/tendril.npmrc"
+    displayName: 'Publish Tendril to the package feed'
+    workingDirectory: vos.Tendril
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 

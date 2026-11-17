@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { ActionChoice, ActionRecords, AskedValue, FormWidget } from '../../types/dashboard';
+import type { ActionChoice, ActionRecords, AskedValue, CarriedValue, FormWidget } from '@tendril-ui/tendril';
 import { ChoiceField, Field, SwitchField, TextField } from './DesignFields';
 import { OfferedField } from './OfferedField';
 import { BindingEditor } from './BindingEditor';
@@ -66,6 +66,8 @@ export function ActionWritesEditor({
   const held: ActionRecords = value ?? { via: '', choices: [] };
   const set = (key: keyof ActionRecords, next: unknown) => onChange(withKey(held as unknown as Record<string, unknown>, key, next) as unknown as ActionRecords);
   const writeChoices = (next: ActionChoice[]) => set('choices', next);
+  const carries = held.carries ?? [];
+  const writeCarries = (next: CarriedValue[]) => set('carries', next.length ? next : undefined);
   const kinds = context.offers.kinds.map((each) => ({ value: each }));
   const predicates = context.offers.predicates.map((each) => ({ value: each }));
 
@@ -73,9 +75,28 @@ export function ActionWritesEditor({
     <Field title={label}>
       {() => (
         <div className={nestedClass}>
-          <OfferedField label={t('design.writes.via')} value={held.via} mono offered={offeredFor('endpoint', context, undefined, t)} onCommit={(via) => set('via', via.trim())} />
+          <OfferedField label={t('design.writes.via')} value={held.via ?? ''} mono offered={offeredFor('endpoint', context, undefined, t)} onCommit={(via) => set('via', via.trim() || undefined)} />
           <OfferedField label={t('design.writes.archetype')} value={held.archetype ?? ''} mono offered={kinds} onCommit={(archetype) => set('archetype', archetype.trim() || undefined)} />
           <OfferedField label={t('design.writes.predicate')} value={held.predicate ?? ''} mono offered={predicates} onCommit={(predicate) => set('predicate', predicate.trim() || undefined)} />
+          <Field title={t('design.writes.carries')}>
+            {() => (
+              <div className={nestedClass}>
+                {carries.map((carried, index) => {
+                  const setCarried = (key: keyof CarriedValue, next: string) => writeCarries(carries.map((each, at) => (at === index ? { ...each, [key]: next.trim() } : each)));
+                  return (
+                    <Removable key={index} name={carried.property || t('design.list.item', { position: index + 1 })} onRemove={() => writeCarries(carries.filter((_, at) => at !== index))}>
+                      <OfferedField label={t('design.writes.carriesProperty')} value={carried.property} mono offered={offeredFor('property', context, held.archetype, t)} onCommit={(property) => setCarried('property', property)} />
+                      <OfferedField label={t('design.writes.carriesReads')} value={carried.reads} mono offered={offeredFor('rowKey', context, undefined, t)} onCommit={(reads) => setCarried('reads', reads)} />
+                    </Removable>
+                  );
+                })}
+                <button type="button" onClick={() => writeCarries([...carries, { property: '', reads: '' }])} className={smallButtonClass}>
+                  <Plus size={11} />
+                  {t('design.writes.addCarried')}
+                </button>
+              </div>
+            )}
+          </Field>
           <SwitchField label={t('design.writes.repeatable')} value={held.repeatable === true} onCommit={(on) => set('repeatable', on ? true : undefined)} />
           <Field title={t('design.writes.choices')}>
             {() => (

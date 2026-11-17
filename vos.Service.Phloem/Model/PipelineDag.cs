@@ -16,8 +16,10 @@ public sealed record DagPort(Guid Id, string PortName, string Direction, string 
 // boundary node — an Input source (projects run params onto its output ports) or an
 // Output sink (its collected inputs are the run's published result) — or a node the orchestrator
 // runs itself: Tell sends what reached it to a system, FollowOn starts another pipeline with it, Stop stops the
-// runs about the Things it is given. Only a Service node calls a service.
-public enum DagNodeKind { Service, Input, Output, Tell, FollowOn, Stop }
+// runs about the Things it is given, Wait holds the run until the Thing reaching it enters a state, Relate relates the
+// Thing reaching it along a connection so the platform calls that connection's service. Only a Service node calls a
+// service itself.
+public enum DagNodeKind { Service, Input, Output, Tell, FollowOn, Stop, Wait, Relate }
 
 // The external system an end node stands for, and the connection that system is told through.
 public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId);
@@ -25,13 +27,23 @@ public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId
 // The pipeline an end node stands for: a run reaching the end starts a run of it with what reached the end.
 public sealed record Starting(Guid PipelineId, string PipelineName);
 
-// How a node keeps calling a service it cannot reach: how many attempts, the pause before the second in model
-// minutes, the multiplier the pause grows by each attempt, the fraction of the pause added at random, and how long
-// trying may last from the first attempt.
+// How a node keeps calling a service it cannot reach, or one that answered its failure can be tried again: how many
+// attempts, the pause before the second in model minutes, the multiplier the pause grows by each attempt, the
+// fraction of the pause added at random, and how long trying may last from the first attempt.
 public sealed record RetryPolicy(int Attempts, double PauseMinutes, double PauseGrowth, double PauseSpread, double TryingMinutes)
 {
     public TimeSpan PauseBefore(int attemptNumber, double spreadDraw) =>
         TimeSpan.FromMinutes(PauseMinutes * Math.Pow(PauseGrowth, attemptNumber - 2) * (1 + PauseSpread * spreadDraw));
+
+    // The asked wait is real time, so it is turned into model time at the clock's rate; a clock standing still takes
+    // a pause in real time.
+    public TimeSpan PauseBefore(int attemptNumber, double spreadDraw, TimeSpan? asked, double clockRate)
+    {
+        var pause = PauseBefore(attemptNumber, spreadDraw);
+        if (asked is not { } wait) return pause;
+        var askedInModelTime = wait * (clockRate > 0 ? clockRate : 1);
+        return askedInModelTime > pause ? askedInModelTime : pause;
+    }
 
     public TimeSpan TryingTime => TimeSpan.FromMinutes(TryingMinutes);
 }
@@ -40,8 +52,13 @@ public sealed record RetryPolicy(int Attempts, double PauseMinutes, double Pause
 // parameter fills it.
 public sealed record ChosenThing(Guid Id, string Name);
 
-// What a node waits for once its service has answered: the Thing reaching PortName entering the range.
+// What a node waits for: the Thing reaching PortName entering the range. A service node waits once its service has answered.
 public sealed record DagWait(Guid RangeId, string RangeName, string PortName);
+
+public sealed record FollowedPredicate(Guid Id, string Name);
+
+// The connection a relate node stands for, and the service a Thing related along it is related to.
+public sealed record Relating(Guid ConnectionId, string ConnectionName, Guid ServiceId);
 
 public sealed class DagNode
 {
@@ -77,6 +94,10 @@ public sealed class DagNode
     public IReadOnlyList<DagDecisionPath> DecisionPaths { get; init; } = [];
 
     public DagWait? Waits { get; init; }
+
+    public FollowedPredicate? Follows { get; init; }
+
+    public Relating? Relates { get; init; }
 
     public bool Rehearses { get; init; }
 

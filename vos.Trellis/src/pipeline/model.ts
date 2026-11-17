@@ -1,5 +1,5 @@
-import type { VosThing, VosRelationship } from '../types/vos';
-import { statedProperties } from '../utils/propertyMapper';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -45,6 +45,9 @@ export const ROLE = {
   // The orchestrator's prototype: the rail binds a state's connection to the one service of it.
   Orchestrator: 'da0ee18e-c157-5f94-b2f8-cca2d7337929',
   Trigger: 'd619eb5c-8cca-5234-8826-2f01bd6b4e7b',
+  HttpTrigger: '0d47297e-72b1-596b-8d10-839f31beaba7',
+  GraphTrigger: 'f68a3028-a744-56c1-8fed-1c136233cf02',
+  StateTrigger: 'ee172cef-4a89-53c6-b9d4-604b31137cb2',
   StateWatch: '03590900-eb28-55bf-9731-e9a0c03dce82',
   JudgedThing: '63d59765-a9b7-53b8-8a2b-0de3899add18',
   Sends: 'ab3334f4-cb8e-5513-94b4-43debdb73acd',
@@ -52,7 +55,7 @@ export const ROLE = {
   ArrivesAt: '79f0afcb-8c66-53dd-8081-43af167fc07a',
   StandsFor: '4277647a-93f8-5860-8717-da2a12673dbf',
   PipelineStart: '871174ab-c8e4-5712-81e1-b95accaea5ce',
-  // The orchestrator's own connection, which a vigil answers through to resume a waiting run; no run starts from it.
+  // The orchestrator's own connection, which a waiting node run is answered through to resume its run; no run starts from it.
   RunResumption: '50c894ed-a33d-56cc-a5a6-92aa82d32f4f',
   // A stop request, and the orchestrator's own connection it is related to a run along; no run starts from it.
   StopRequest: '159ef90f-8089-5055-b5a9-8839d5e28e7a',
@@ -66,6 +69,9 @@ export const ROLE = {
   PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
   PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
   ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
+  // When a connection's call counts as finished: the choices, and the predicate a connection or its service names one along.
+  CallCompletion: 'cbb25882-3197-56fd-9bab-2ebcc1a000bf',
+  CompletesWhen: 'd508b5e4-6534-5e41-afbb-2eaa8ab08b29',
 } as const;
 
 /** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
@@ -87,7 +93,7 @@ const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 const REQUEST_ID_PROPERTY = 'requestId';
 
 /** What a boundary node may stand for, told by what the Thing it points at is. */
-export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
+export type EndKind = 'messageKind' | 'externalSystem' | 'httpConnection' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
 
 /** A Thing at one end of a pipeline: what it is, and whether a run may come from it or leave it behind. */
 export interface EndInformation {
@@ -103,7 +109,23 @@ export interface PipelineNamed {
   name: string;
 }
 
-/** A kind of message an external system sends or is told, and the door it arrives at where one is declared. */
+/** How a connection is reached, told by the role its trigger plays. Empty where its trigger plays none of them. */
+export type TriggerKind = 'http' | 'graph' | 'state' | '';
+
+const TRIGGER_KIND_ROLE: Record<Exclude<TriggerKind, ''>, string> = {
+  http: ROLE.HttpTrigger,
+  graph: ROLE.GraphTrigger,
+  state: ROLE.StateTrigger,
+};
+
+const END_KIND_OF_TRIGGER: Record<TriggerKind, EndKind | undefined> = {
+  http: 'httpConnection',
+  graph: 'relationship',
+  state: 'state',
+  '': undefined,
+};
+
+/** A kind of message an external system sends or is told, and the HTTP connection it arrives at where one is declared. */
 export interface MessageKindInformation {
   id: string;
   name: string;
@@ -122,8 +144,7 @@ export interface ExternalSystemInformation {
 export interface CatalystConnection {
   connectionId: string;
   name: string;
-  /** The trigger's own name — the platform's are `http`, `graph` and `state`. Empty where none is declared. */
-  trigger: string;
+  trigger: TriggerKind;
   subdomain: string;
   serviceName: string;
   /** The `has` relationship binding the connection to its service, and that service. */
@@ -210,7 +231,7 @@ export class PipelineModel {
   private readonly boundCache = new Map<string, string | undefined>();
   private readonly statedCache = new WeakMap<VosThing, Record<string, unknown>>();
   // Relationships indexed by target, for the reads that ask what points at a Thing: which node stands for
-  // a catalyst, which door a kind arrives at. Built once with the subject index.
+  // a catalyst, which HTTP connection a kind arrives at. Built once with the subject index.
   private readonly byTarget: Map<string, VosRelationship[]>;
 
   constructor(things: VosThing[], relationships: VosRelationship[]) {
@@ -313,9 +334,9 @@ export class PipelineModel {
     return this.things.filter((t) => !t.IsArchetype && this.isOf(t.Id, roleId));
   }
 
-  /** The name of the trigger a connection is reached by: its own, or the nearest declared above it along
-   *  `is`, which is how the platform resolves it. Empty where nothing declares one. */
-  triggerOf(connectionId: string): string {
+  /** The trigger a connection is reached by: its own, or the nearest declared above it along `is`, which is how
+   *  the platform resolves it. */
+  triggerOf(connectionId: string): TriggerKind {
     const seen = new Set<string>();
     const queue = [connectionId];
     while (queue.length) {
@@ -323,10 +344,16 @@ export class PipelineModel {
       if (seen.has(id)) continue;
       seen.add(id);
       const trigger = this.reachedAlong(id, ROLE.Trigger)[0];
-      if (trigger) return trigger.Name.trim().toLowerCase();
+      if (trigger) return this.triggerKindPlayedBy(trigger.Id);
       for (const parent of this.outgoing(id, 'is')) queue.push(parent.Id);
     }
     return '';
+  }
+
+  private triggerKindPlayedBy(triggerId: string): TriggerKind {
+    const played = (Object.keys(TRIGGER_KIND_ROLE) as Exclude<TriggerKind, ''>[])
+      .find((kind) => this.boundTo(TRIGGER_KIND_ROLE[kind]) === triggerId);
+    return played ?? '';
   }
 
   private bindingOf(connectionId: string): { relationshipId: string; service: VosThing } | undefined {
@@ -347,7 +374,7 @@ export class PipelineModel {
   }
 
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
-   *  can call it: a door reached over HTTP, a predicate written along, a state watched. */
+   *  can call it: an HTTP connection, a predicate written along, a state watched. */
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
@@ -379,9 +406,9 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const door = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
+    const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
       .find((c) => this.isOf(c.Id, ROLE.Connection));
-    return { id: kind.Id, name: kind.Name, ...(door ? { arrivesAtConnectionId: door.Id } : {}) };
+    return { id: kind.Id, name: kind.Name, ...(arrivesAt ? { arrivesAtConnectionId: arrivesAt.Id } : {}) };
   }
 
   /** Every external system the model holds, with the kinds of message it sends and is told. */
@@ -433,7 +460,7 @@ export class PipelineModel {
 
   /** What a Thing is as the end of a pipeline, and which end it may be. A kind of message may start a run
    *  where a system sends it and end one where a system is told it; a system may start one where it sends
-   *  anything; a door, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
+   *  anything; an HTTP connection, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
    *  through a node wired on to its end, so neither is the end itself, as Phloem reads it. */
   endInformation(thingId: string): EndInformation {
     const thing = this.byId.get(thingId);
@@ -453,9 +480,8 @@ export class PipelineModel {
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
-      const trigger = this.triggerOf(thingId);
-      const kind: EndKind = trigger === 'graph' ? 'relationship' : trigger === 'state' ? 'state' : 'door';
-      return { ...named, kind, mayStart: true, mayEnd: false };
+      const kind = END_KIND_OF_TRIGGER[this.triggerOf(thingId)];
+      if (kind) return { ...named, kind, mayStart: true, mayEnd: false };
     }
     return { ...named, kind: 'other', mayStart: false, mayEnd: false };
   }

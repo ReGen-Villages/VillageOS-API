@@ -372,4 +372,143 @@ public class EsriHandleTests
         response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(30));
     }
 
+    [Fact]
+    public async Task Handle_OffsetPaging_MissingItemsPath_Returns400BeforeCalling()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":         {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod":  {"Value":"GET"},
+          "Esri.pagingKind":      {"Value":"offset"},
+          "Esri.offsetParameter": {"Value":"resultOffset"},
+          "Esri.hasMorePath":     {"Value":"exceededTransferLimit"}
+        }
+        """;
+        var calledOut = false;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test") { calledOut = true; return Json("{\"features\":[]}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("itemsPath");
+        calledOut.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OffsetPaging_PageSizeParameterWithoutAPageSize_SendsOnlyTheOffset()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":           {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod":    {"Value":"GET"},
+          "Esri.pagingKind":        {"Value":"offset"},
+          "Esri.offsetParameter":   {"Value":"resultOffset"},
+          "Esri.pageSizeParameter": {"Value":"resultRecordCount"},
+          "Esri.hasMorePath":       {"Value":"exceededTransferLimit"},
+          "Esri.itemsPath":         {"Value":"features"}
+        }
+        """;
+        var queries = new List<string>();
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test")
+            {
+                queries.Add(req.RequestUri.Query);
+                return Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}}],\"exceededTransferLimit\":false}");
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        queries.Should().ContainSingle().Which.Should().Contain("resultOffset=0").And.NotContain("resultRecordCount");
+    }
+
+    [Fact]
+    public async Task Handle_OffsetPaging_PageRefusedWithoutAContentType_AnsweredAsJson()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":         {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod":  {"Value":"GET"},
+          "Esri.pagingKind":      {"Value":"offset"},
+          "Esri.offsetParameter": {"Value":"resultOffset"},
+          "Esri.hasMorePath":     {"Value":"exceededTransferLimit"},
+          "Esri.itemsPath":       {"Value":"features"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test")
+                return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new ByteArrayContent(Encoding.UTF8.GetBytes("{\"error\":\"no\"}"))
+                };
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        (await response.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"no\"}");
+    }
+
+    [Fact]
+    public async Task Handle_TokenExchange_HeaderAttachWithoutAScheme_SendsTheBareToken()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.authKind":   {"Value":"tokenExchange"},
+          "Esri.token":          {"Value":"PRE-MINTED"},
+          "Esri.tokenHeader":    {"Value":"X-Api-Key"}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        outbound!.RequestUri!.Query.Should().NotContain("token=");
+        outbound.Headers.GetValues("X-Api-Key").Should().ContainSingle().Which.Should().Be("PRE-MINTED");
+    }
 }

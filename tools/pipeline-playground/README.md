@@ -100,8 +100,9 @@ archetype something else keeps its own. One the target holds under the same name
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
 what an archetype is for, and the editor and the orchestrator both read it. A model that binds its own stop
 kind keeps that kind's ports, and one that binds its own `stops` connection keeps that connection's
-service: the playground adds neither, which would leave a required port unfilled on every stop node or
-send each stop request to a second service. Everything else is namespaced so it will not collide with a
+service: the playground adds neither the kind, the service nor a `stops connection` to such a model,
+which would leave a required port unfilled on every stop node or send each stop request to a second
+service. Everything else is namespaced so it will not collide with a
 host model's own Things.
 
 The playground also declares the three roots every archetype in a model sits under, `Configuration`,
@@ -147,7 +148,7 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 | Boundary I/O Echo | `PipelineInput` / `PipelineOutput` boundary nodes; the Input's output is filled from a run param, the Output's input becomes the run result. |
 | Text Studio | A multi-stage transform chain driven from a run parameter. |
 | Field Merge | Two sources landing at different to-paths of one input, deep-merged. |
-| Wire Transform | A JSONata transform reshaping the payload on the wire. |
+| Wire Transform | A JSONata list transform reshaping the payload on the wire. |
 | Diamond Fan | A wider fan-out/fan-in pipeline — layout + multi-input merge + report. |
 | Fan-out Scoring | A collection input that spreads into one run item each, `onItemError=continue`, with a seeded partial run showing fan-out progress. |
 | Water / Energy Self-Sufficiency | Param-bound site-analysis nodes. |
@@ -160,6 +161,7 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 | Hourly Tally | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. |
 | Echo and Follow On | A follow-on node, Boundary I/O Echo follows, starts Boundary I/O Echo with the seed Echo answered as that run's `seed`, and passes the seed on to the Output node. |
 | Stop the Runs About Them | A stop node, Stop their runs, stops the runs about each Thing given in `things`, carrying `reason`, and passes on how many stop requests it wrote as `requested`. |
+| Each Item Reshaped | An item transform on the wire between two enrichment nodes that run once per item, so each record goes on reshaped without waiting for slower ones. |
 
 Every drawing is published. Every service rehearses except Water Reserve, Energy Balance, Metabolism and
 Model Bridge, which nobody has yet checked to write nothing.
@@ -179,13 +181,16 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
 - A **wire** is a Thing of the wire archetype that its node `has`. It reaches the node it feeds along
   `carries`, the out port it takes its value from along `inputConnector` and the in port it delivers to
   along `outputConnector`, each predicate bound by a role of the same word, and carries `fromPath`,
-  `toPath` and `transform` and no port names. A wire drawn as a relationship between two nodes is refused.
+  `toPath`, `listTransform` and `itemTransform` and no port names. A wire drawn as a relationship
+  between two nodes is refused.
 - A **stop node** `is` the stop kind, which the `pipelineStop` role binds, and holds no ports of its own:
   its `things`, `reason` and `requested` ports are the kind's. A **stop request** `is StopRequest`,
   carries `reason`, names the run that wrote it along `requestedBy`, and is related along `stops` to
   what it stops — a run, or a Thing whose runs stop. `stops` is a connection as well as a predicate, bound
   by the `runStopping` role: the `graph` trigger fires it and it `has` the orchestrator service, so the
-  request reaches the orchestrator. A stopped run relates along `stoppedBy` to the request.
+  request reaches the orchestrator. It also names `stops connection` along `notifies`, and each
+  `tells <system>` names its own `tells <system> connection`, each with the predicate's trigger and
+  service. A stopped run relates along `stoppedBy` to the request.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**

@@ -244,6 +244,53 @@ public class SubmissionsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Deciding_relates_the_submission_to_the_disposition_named_and_records_when()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on Willow Bend Submission");
+
+        _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, PromotedId), Times.Once);
+        _mycelium.Verify(client => client.SetPropertyAsync(
+            SubmissionId, "resolvedAt", "vos.DateTime", It.IsAny<object?>()), Times.Once);
+        Assert.Contains("is now 'taken-on'", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Deciding_as_a_disposition_the_model_does_not_hold_names_the_ones_it_does_and_writes_nothing()
+    {
+        AModelWithOneSubmission();
+
+        await Run($"decide withdrawn {SubmissionId}");
+
+        Assert.Contains("holds no disposition 'withdrawn'. It holds: binned, taken-on.", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Deciding_without_naming_a_submission_shows_what_it_needs()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on");
+
+        Assert.Contains("Usage: submissions decide", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Deciding_about_a_submission_nothing_answers_to_writes_nothing()
+    {
+        AModelWithOneSubmission();
+
+        await Run("decide taken-on nothing-by-that-name");
+
+        Assert.Contains("No submission here answers to", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task A_submission_can_be_named_by_the_identifier_it_was_submitted_under()
     {
         AModelWithOneSubmission();
@@ -307,34 +354,37 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
-    // Promotion walks from the site, not from the record of the arrival: the record proposes the site and
-    // is deliberately not part of what travels.
+    // The route copies the site the submission proposes and records the decision, so the command names the
+    // submission and the disposition that names no period.
     [Fact]
-    public async Task Promoting_carries_the_site_the_submission_proposes()
+    public async Task Promoting_names_the_submission_and_the_disposition_that_names_no_period()
     {
         AModelWithOneSubmission();
         _mycelium.Setup(client => client.PromoteAsync(
-                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("""{"modelId":"22222222-0000-0000-0000-000000000001"}"""));
 
         await Run($"promote {SubmissionId} project.seed.json has,studies Willow Bend");
 
         _mycelium.Verify(client => client.PromoteAsync(
-            SiteId, It.Is<IReadOnlyList<string>>(followed => followed.Contains("has")),
+            SubmissionId, "taken-on", It.Is<IReadOnlyList<string>>(followed => followed.Contains("has")),
             "project.seed.json", "Willow Bend"), Times.Once);
     }
 
     [Fact]
-    public async Task Promoting_marks_the_submission_with_the_disposition_that_names_no_period()
+    public async Task Promoting_leaves_the_decision_to_the_route_and_records_when()
     {
         AModelWithOneSubmission();
         _mycelium.Setup(client => client.PromoteAsync(
-                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("""{"modelId":"22222222-0000-0000-0000-000000000001"}"""));
 
         await Run($"promote {SubmissionId} project.seed.json has,studies Willow Bend");
 
-        _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, PromotedId), Times.Once);
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+        _mycelium.Verify(client => client.SetPropertyAsync(
+            SubmissionId, "resolvedAt", "vos.DateTime", It.IsAny<object?>()), Times.Once);
     }
 
     [Fact]
@@ -342,13 +392,13 @@ public class SubmissionsCommandHandlerTests
     {
         AModelWithOneSubmission();
         _mycelium.Setup(client => client.PromoteAsync(
-                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("{}"));
 
         await Run($"promote {SubmissionId} project.seed.json holds,examines Willow Bend");
 
         _mycelium.Verify(client => client.PromoteAsync(
-            SiteId,
+            SubmissionId, It.IsAny<string>(),
             It.Is<IReadOnlyList<string>>(followed =>
                 followed.Contains("holds") && followed.Contains("examines") && followed.Count == 2),
             It.IsAny<string>(), It.IsAny<string>()), Times.Once);
@@ -432,6 +482,24 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("no disposition that names a period", _writer.ToString());
         _mycelium.Verify(client => client.CreateRelationshipAsync(
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_model_whose_every_disposition_names_a_period_refuses_a_promotion_before_copying()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [RejectedId.ToString()] = new Dictionary<string, object> { ["daysBeforeColdStorage"] = Held(30) },
+                [PromotedId.ToString()] = new Dictionary<string, object> { ["daysBeforeColdStorage"] = Held(30) },
+            }));
+
+        await Run($"promote {SubmissionId} project.seed.json has Willow Bend");
+
+        Assert.Contains("no disposition that keeps a submission", _writer.ToString());
+        _mycelium.Verify(client => client.PromoteAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     // Binding the role to two predicates would leave a reader with two answers and no way to choose, so it
@@ -650,7 +718,7 @@ public class SubmissionsCommandHandlerTests
     {
         AModelWithOneSubmission();
         _mycelium.Setup(client => client.PromoteAsync(
-                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new HttpRequestException("the project model cannot answer 'Site'"));
 
         await Run($"promote {SubmissionId} project.seed.json has Willow Bend");
@@ -677,7 +745,7 @@ public class SubmissionsCommandHandlerTests
 
         Assert.Contains("Usage: submissions promote", _writer.ToString());
         _mycelium.Verify(client => client.PromoteAsync(
-            It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     // A model that never declared the vocabulary answers with no submissions rather than throwing, because

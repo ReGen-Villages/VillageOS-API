@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.ModelBridge.Services;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -32,7 +33,7 @@ public class ModelBridgeNodeTests
 
     private static ModelBridgeNode NewNode(RecordingHandler handler) =>
         new(new TestHttpClientFactory(new HttpClient(handler)), NullLogger<ModelBridgeNode>.Instance,
-            "http://mycelium", serviceToken: "test-token");
+            "http://mycelium", launchToken: new LaunchToken("test-token"));
 
     private static JsonElement Envelope(string mode, string property, string? inputs = null)
     {

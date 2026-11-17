@@ -23,6 +23,7 @@ import { RunsARestartStoppedPanel } from '../components/dashboard/RunsARestartSt
 import { pipelineApi } from '../api/pipelineApi';
 import { PipelineModel } from '../pipeline/model';
 import { useAuthentication } from '../hooks/useAuthentication';
+import { mayChangeData } from '../utils/mayChangeData';
 import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
@@ -286,7 +287,7 @@ export function DashboardPage() {
       <div className="flex-1 overflow-auto px-6 pb-6">
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
-            <RunsARestartStoppedPanel runs={runsARestartStopped} mayChangeData={role === 'admin' || role === 'editor'} onStartAgain={askTheOrchestrator(pipelineApi.startAgain, t('dashboard.restartStopped.startedAgain'), t('dashboard.restartStopped.startAgainFailed'))} onCarryOn={askTheOrchestrator(pipelineApi.carryOn, t('dashboard.restartStopped.carriedOn'), t('dashboard.restartStopped.carryOnFailed'))} />
+            <RunsARestartStoppedPanel runs={runsARestartStopped} mayChangeData={mayChangeData(role)} onStartAgain={askTheOrchestrator(pipelineApi.startAgain, t('dashboard.restartStopped.startedAgain'), t('dashboard.restartStopped.startAgainFailed'))} onCarryOn={askTheOrchestrator(pipelineApi.carryOn, t('dashboard.restartStopped.carriedOn'), t('dashboard.restartStopped.carryOnFailed'))} />
             <ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={holdsWholeModel} />
             <EngineMetricsPanel metrics={connectionLost ? null : engineMetrics} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(connectionId, name) => navigate(`/logs?service=${connectionId}&name=${encodeURIComponent(name)}`)} onDownloadLogs={handleDownloadServiceLog} />

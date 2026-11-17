@@ -18,9 +18,17 @@ public sealed class SubscriptionSelector
     // follows RoleBindings.FollowBindings.
     public List<Guid>? BoundTypes { get; set; }
     public List<Guid>? BoundArchetypes { get; set; }
+
+    // Property name to the text its value must equal. The broker keeps, of the Things the type fields select, only
+    // those holding every value, compared exactly and case included, and refuses it without a type field.
+    public Dictionary<string, string>? PropertyValues { get; set; }
     public List<TraverseRule>? Traverse { get; set; }
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
+
+    // The broker's own default, so a selector that leaves it unset asks for what it asked for before the
+    // member existed.
+    public bool IncludeSnapshot { get; set; } = true;
 
     // Which relationships the snapshot carries and the stream admits. Without rules, IncludeRelationships
     // carries every active relationship touching a selected Thing in both directions — for a long-lived Thing,
@@ -39,6 +47,13 @@ public sealed class RelationshipRule
     public string? PredicateFlag { get; set; }
     public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
+
+    // The broker refuses a rule that names the far end's kind both by name and by role.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OneOrMany<string>? FarEndType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OneOrMany<Guid>? FarEndRole { get; set; }
 }
 
 public sealed class TraverseRule
@@ -113,7 +128,10 @@ public sealed record SnapshotRelationship(
 public sealed record ModelChangeEvent
 {
     public long Sequence { get; init; }
-    public string Kind { get; init; } = "";
+
+    // Read off the frame's event line, never off data: the broker writes the kind there as the number of
+    // its enumeration member, and a number cannot be read into this string.
+    [JsonIgnore] public string Kind { get; init; } = "";
     public Guid EntityId { get; init; }
     public string? PropertyName { get; init; }
     public JsonElement? Value { get; init; }
@@ -121,4 +139,5 @@ public sealed record ModelChangeEvent
     public SnapshotRelationship? Relationship { get; init; }
 
     [JsonIgnore] public bool IsPropertyChange => Kind is "PropertyChanged" or "RelationshipPropertyChanged";
+    [JsonIgnore] public bool IsRelationshipPropertyChange => Kind is "RelationshipPropertyChanged";
 }

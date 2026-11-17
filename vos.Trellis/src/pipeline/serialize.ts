@@ -95,6 +95,44 @@ export async function savePipeline(
   model: PipelineModel,
   existingPipelineId?: string,
 ): Promise<SavedPipeline> {
+  const roles = rolesForSaving(nodes, model);
+  const pipelineId = existingPipelineId ?? crypto.randomUUID();
+
+  // A loaded node keeps its Thing id (see loadPipeline), so saving the fragment updates that Thing instead of adding a duplicate.
+  const nodeThingId = new Map<string, string>();
+  for (const n of nodes)
+    nodeThingId.set(n.id, model.isOf(n.id, ROLE.PipelineNode) ? n.id : crypto.randomUUID());
+
+  const fragment = pipelineFragment(name, pipelineId, nodes, nodeThingId, roles, model);
+  await modelApi.applyFragment(JSON.stringify({ Name: name, Things: fragment.things, Relationships: fragment.relationships }));
+
+  const persistedNodeIds = existingPipelineId
+    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOf(t.Id, ROLE.PipelineNode)).map((t) => t.Id)
+    : [];
+  await saveWires(edges, nodes, nodeThingId, persistedNodeIds, roles, model);
+  await relateEachChoice(nodes, nodeThingId, model);
+  await retractWhatTheCanvasDropped(fragment, nodeThingId, persistedNodeIds, model);
+
+  return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
+}
+
+interface SavingRoles {
+  isId: string;
+  hasId: string;
+  wireId: string;
+  pipelineArchetype: string;
+  nodeArchetype: string;
+  wireArchetype: string;
+  inputConnector: string;
+  outputConnector: string;
+  takenOnId: string;
+  portArchetype: string | undefined;
+  standsForId: string | undefined;
+  choiceArchetype: string | undefined;
+  kindArchetype: (kind: NodeKind) => string | undefined;
+}
+
+function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles {
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
@@ -134,120 +172,164 @@ export async function savePipeline(
   if (nodes.some((n) => n.choices?.some((choice) => choice.comparesWith.length)) && !comparesWithId)
     throw new Error(i18n.t('pipeline.noComparesWithRole'));
 
-  const pipelineId = existingPipelineId ?? crypto.randomUUID();
+  return {
+    isId, hasId, wireId, pipelineArchetype, nodeArchetype, wireArchetype, inputConnector, outputConnector, takenOnId,
+    portArchetype, standsForId, choiceArchetype, kindArchetype,
+  };
+}
 
-  // A loaded node's canvas id is its Thing id (see loadPipeline); a new node ("nX") gets a fresh id so
-  // the whole Thing graph can ride one id-keyed fragment upsert (create + update in place, no dupes).
-  const nodeThingId = new Map<string, string>();
-  for (const n of nodes)
-    nodeThingId.set(n.id, model.isOf(n.id, ROLE.PipelineNode) ? n.id : crypto.randomUUID());
+interface PipelineFragment {
+  things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }>;
+  relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }>;
+  portsToRetract: string[];
+  choicesToRetract: string[];
+  /** A stands-for relationship a node no longer means: replaced by the one it does. */
+  standsForToRetract: string[];
+}
 
-  const things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }> = [
+function pipelineFragment(
+  name: string, pipelineId: string, nodes: EditorNode[], nodeThingId: Map<string, string>, roles: SavingRoles, model: PipelineModel,
+): PipelineFragment {
+  const { isId, hasId, pipelineArchetype, nodeArchetype } = roles;
+  const fragment: PipelineFragment = {
     // Every pipeline the page saves is live until drafts and Publish reach the page.
-    { Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } },
-  ];
-  const relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }> = [
-    { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype },
-  ];
-  const portsToRetract: string[] = [];
-  const choicesToRetract: string[] = [];
-  // A stands-for relationship the node no longer means: replaced below by the one it does.
-  const standsForToRetract: string[] = [];
+    things: [{ Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } }],
+    relationships: [{ Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype }],
+    portsToRetract: [],
+    choicesToRetract: [],
+    standsForToRetract: [],
+  };
   for (const n of nodes) {
     const thingId = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
-    things.push({ Id: thingId, Name: n.label, Properties: props });
+    fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
-    relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
-    relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
+    fragment.relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
+    fragment.relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
 
-    if (n.kind) {
-      relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(n.kind)! });
-      // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
-      // longer declared is retracted.
-      const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
-      for (const p of n.kind === 'stop' ? [] : n.ports) {
-        stale.delete(p.portId);
-        things.push({
-          Id: p.portId,
-          Name: p.portName,
-          Properties: {
-            portName: env(STRING, p.portName),
-            direction: env(STRING, p.direction),
-            type: env(STRING, p.type || 'any'),
-            required: env(STRING, String(p.required)),
-          },
-        });
-        relationships.push({ Name: 'is', Subject: p.portId, Predicate: isId, Target: portArchetype! });
-        relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: p.portId });
-      }
-      for (const staleId of stale) portsToRetract.push(staleId);
-
-      const stood = model.standsFor(n.id);
-      if (stood && stood.thingId !== n.standsForId) standsForToRetract.push(stood.relationshipId);
-      if (n.standsForId && stood?.thingId !== n.standsForId)
-        relationships.push({ Name: 'standsFor', Subject: thingId, Predicate: standsForId!, Target: n.standsForId });
-    } else {
-      relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
-      const held = new Set((n.choices ?? []).map((choice) => choice.id));
-      for (const choice of n.choices ?? []) {
-        things.push({ Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } });
-        relationships.push({ Name: 'is', Subject: choice.id, Predicate: isId, Target: choiceArchetype! });
-        relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: choice.id });
-      }
-      for (const persisted of model.choicesOf(thingId))
-        if (!held.has(persisted.id)) choicesToRetract.push(persisted.id);
-    }
+    if (n.kind) addNodeOfAKind(n, n.kind, thingId, roles, model, fragment);
+    else addConnectionNode(n, thingId, roles, model, fragment);
   }
-  await modelApi.applyFragment(JSON.stringify({ Name: name, Things: things, Relationships: relationships }));
+  return fragment;
+}
 
-  // Wires: diff desired against persisted so edits add/remove without duplication. A wire is identified by its two
-  // nodes and its two ports; the field-paths are editable properties on that same wire.
+function addNodeOfAKind(
+  n: EditorNode, kind: NodeKind, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment,
+) {
+  const { isId, hasId, portArchetype, standsForId, kindArchetype } = roles;
+  const { things, relationships } = fragment;
+  relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(kind)! });
+  // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
+  // longer declared is retracted.
+  const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
+  for (const p of kind === 'stop' ? [] : n.ports) {
+    stale.delete(p.portId);
+    things.push({
+      Id: p.portId,
+      Name: p.portName,
+      Properties: {
+        portName: env(STRING, p.portName),
+        direction: env(STRING, p.direction),
+        type: env(STRING, p.type || 'any'),
+        required: env(STRING, String(p.required)),
+      },
+    });
+    relationships.push({ Name: 'is', Subject: p.portId, Predicate: isId, Target: portArchetype! });
+    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: p.portId });
+  }
+  for (const staleId of stale) fragment.portsToRetract.push(staleId);
+
+  const stood = model.standsFor(n.id);
+  if (stood && stood.thingId !== n.standsForId) fragment.standsForToRetract.push(stood.relationshipId);
+  if (n.standsForId && stood?.thingId !== n.standsForId)
+    relationships.push({ Name: 'standsFor', Subject: thingId, Predicate: standsForId!, Target: n.standsForId });
+}
+
+function addConnectionNode(n: EditorNode, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment) {
+  const { isId, hasId, choiceArchetype } = roles;
+  const { things, relationships } = fragment;
+  relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
+  const held = new Set((n.choices ?? []).map((choice) => choice.id));
+  for (const choice of n.choices ?? []) {
+    things.push({ Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } });
+    relationships.push({ Name: 'is', Subject: choice.id, Predicate: isId, Target: choiceArchetype! });
+    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: choice.id });
+  }
+  for (const persisted of model.choicesOf(thingId))
+    if (!held.has(persisted.id)) fragment.choicesToRetract.push(persisted.id);
+}
+
+interface DesiredWire {
+  from: string;
+  outPortId: string;
+  to: string;
+  inPortId: string;
+  fromPath: string;
+  toPath: string;
+  itemTransform: string;
+  listTransform: string;
+  takenOn: string[];
+}
+
+// A wire is identified by its two nodes and its two ports, so an edit to its field paths updates the saved wire
+// rather than adding a second one.
+async function saveWires(
+  edges: EditorEdge[], nodes: EditorNode[], nodeThingId: Map<string, string>, persistedNodeIds: string[],
+  roles: SavingRoles, model: PipelineModel,
+) {
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
     .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', itemTransform: e.itemTransform ?? '', listTransform: e.listTransform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
-    .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; itemTransform: string; listTransform: string; takenOn: string[] } => Boolean(w.from && w.to));
+    .filter((w): w is DesiredWire => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
-  const persistedNodeIds = existingPipelineId
-    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOf(t.Id, ROLE.PipelineNode)).map((t) => t.Id)
-    : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
     model.outgoingWires(nid).map((w) => ({ ...w, key: wireKey(nid, w.outPortId, w.targetId, w.inPortId) })));
   const persistedByKey = new Map(persistedWires.map((w) => [w.key, w]));
 
   for (const w of desired) {
     const existing = persistedByKey.get(wireKey(w.from, w.outPortId, w.to, w.inPortId));
-    if (existing) {
-      if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
-      if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
-      if (w.itemTransform !== existing.itemTransform) await thingApi.setProperty(existing.wireId, 'itemTransform', STRING, w.itemTransform);
-      if (w.listTransform !== existing.listTransform) await thingApi.setProperty(existing.wireId, 'listTransform', STRING, w.listTransform);
-      await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
-      continue;
-    }
-    const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
-    // Every value is declared at creation, empty where unset, because a Thing's property write updates and
-    // does not create — so a path added later is an update rather than a call that answers "no such property".
-    await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
-    await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
-    await thingApi.addProperty(wire.Id, 'itemTransform', STRING, w.itemTransform);
-    await thingApi.addProperty(wire.Id, 'listTransform', STRING, w.listTransform);
-    await relationshipApi.create(wire.Id, isId, wireArchetype);
-    await relationshipApi.create(w.from, hasId, wire.Id);
-    await relationshipApi.create(wire.Id, wireId, w.to);
-    await relationshipApi.create(wire.Id, inputConnector, w.outPortId);
-    await relationshipApi.create(wire.Id, outputConnector, w.inPortId);
-    for (const thingId of w.takenOn) await relationshipApi.create(wire.Id, takenOnId, thingId);
+    if (existing) await updateWire(existing, w, model);
+    else await createWire(w, portNames, roles);
   }
   for (const w of persistedWires)
     if (!desiredKeys.has(w.key)) await thingApi.remove(w.wireId);
+}
 
+async function updateWire(
+  existing: { wireId: string; fromPath: string; toPath: string; itemTransform: string; listTransform: string },
+  w: DesiredWire, model: PipelineModel,
+) {
+  if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
+  if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
+  if (w.itemTransform !== existing.itemTransform) await thingApi.setProperty(existing.wireId, 'itemTransform', STRING, w.itemTransform);
+  if (w.listTransform !== existing.listTransform) await thingApi.setProperty(existing.wireId, 'listTransform', STRING, w.listTransform);
+  await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
+}
+
+async function createWire(w: DesiredWire, portNames: Map<string, string>, roles: SavingRoles) {
+  const { isId, hasId, wireId, wireArchetype, inputConnector, outputConnector, takenOnId } = roles;
+  const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
+  // Every value is declared at creation, empty where unset, because a Thing's property write updates and
+  // does not create — so a path added later is an update rather than a call that answers "no such property".
+  await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
+  await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
+  await thingApi.addProperty(wire.Id, 'itemTransform', STRING, w.itemTransform);
+  await thingApi.addProperty(wire.Id, 'listTransform', STRING, w.listTransform);
+  await relationshipApi.create(wire.Id, isId, wireArchetype);
+  await relationshipApi.create(w.from, hasId, wire.Id);
+  await relationshipApi.create(wire.Id, wireId, w.to);
+  await relationshipApi.create(wire.Id, inputConnector, w.outPortId);
+  await relationshipApi.create(wire.Id, outputConnector, w.inPortId);
+  for (const thingId of w.takenOn) await relationshipApi.create(wire.Id, takenOnId, thingId);
+}
+
+async function relateEachChoice(nodes: EditorNode[], nodeThingId: Map<string, string>, model: PipelineModel) {
   for (const n of nodes) {
     if (n.kind) continue;
     const thingId = nodeThingId.get(n.id)!;
@@ -255,11 +337,15 @@ export async function savePipeline(
       await relateToExactly(choice.id, ROLE.ComparesWith, choice.comparesWith, model);
     await relateToExactly(thingId, ROLE.Choice, Object.values(n.chosen ?? {}), model);
   }
+}
 
+async function retractWhatTheCanvasDropped(
+  fragment: PipelineFragment, nodeThingId: Map<string, string>, persistedNodeIds: string[], model: PipelineModel,
+) {
   // Ports removed from a node of a kind (still on the canvas) are retracted, as is what it stood for before.
-  for (const portId of portsToRetract) await thingApi.remove(portId);
-  for (const choiceId of choicesToRetract) await thingApi.remove(choiceId);
-  for (const relationshipId of standsForToRetract) await relationshipApi.remove(relationshipId);
+  for (const portId of fragment.portsToRetract) await thingApi.remove(portId);
+  for (const choiceId of fragment.choicesToRetract) await thingApi.remove(choiceId);
+  for (const relationshipId of fragment.standsForToRetract) await relationshipApi.remove(relationshipId);
 
   // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
   // child-Things a removed node declared (so they don't linger as orphans).
@@ -269,8 +355,6 @@ export async function savePipeline(
       for (const r of model.ownPortRelationships(nid)) await thingApi.remove(r.portId);
       await thingApi.remove(nid);
     }
-
-  return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
 }
 
 async function relateToExactly(subjectId: string, roleId: string, wanted: string[], model: PipelineModel): Promise<void> {

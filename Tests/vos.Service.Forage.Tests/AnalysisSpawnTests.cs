@@ -67,15 +67,9 @@ public class AnalysisSpawnTests
 
         public HttpResponseMessage? Route(HttpRequestMessage request)
         {
-            if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/relationships")
-                return null;
+            if (RelationshipWrite.In(request) is not { } write) return null;
 
-            var body = JsonDocument.Parse(
-                request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).RootElement;
-            Written.Add((
-                body.GetProperty("subjectId").GetGuid(),
-                body.GetProperty("predicateId").GetGuid(),
-                body.GetProperty("targetId").GetGuid()));
+            Written.Add(write.Relationship);
             return Ok("{}");
         }
     }
@@ -90,7 +84,7 @@ public class AnalysisSpawnTests
             intercept?.Invoke(request)
             ?? spawns.Route(request)
             ?? (request.RequestUri!.AbsolutePath == FetchRoute ? Ok("""{"success":true}""") : null)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, AnalysisArchetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, AnalysisArchetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -283,8 +277,7 @@ public class AnalysisSpawnTests
         var spawns = new SpawnRecorder();
 
         var response = await RunDiscovery(ids, OneSourceAndOneBalance(), spawns,
-            request => request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/relationships"
+            request => RelationshipWrite.In(request) is not null
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                 : null);
 
@@ -300,8 +293,7 @@ public class AnalysisSpawnTests
         var spawns = new SpawnRecorder();
 
         var response = await RunDiscovery(ids, OneSourceAndOneBalance(), spawns,
-            request => request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/relationships"
+            request => RelationshipWrite.In(request) is not null
                 ? throw new HttpRequestException("the model is unreachable")
                 : null);
 

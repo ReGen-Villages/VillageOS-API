@@ -25,12 +25,15 @@ public class ShippedComponentsDeclareOneVersionTests
     // The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
     // and are never handed to anyone. The echo package is one half of a worked example showing what
     // a microservice in another language has to implement, and its version is part of the example.
+    // Tendril is published to the package feed on its own, and a feed refuses a version it already
+    // holds, so each Tendril fix needs a version of its own.
     private static readonly string[] NotShipped =
     [
         Path.Combine("tools", "docs-pdf"),
         Path.Combine("tools", "wiki-mirror"),
         Path.Combine("tools", "docs-to-wiki"),
         "vos.Service.Node.Echo",
+        "vos.Tendril",
     ];
 
     [Fact]
@@ -129,7 +132,7 @@ public class ShippedComponentsDeclareOneVersionTests
     //
     // VillageOS carries the same search, and that is where the gap was found. Neither repository can
     // reference the other: nothing is packed to a feed, and this one is public while that one
-    // is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
+    // is not. So a rule learned in one is applied to both by hand, the way the claim names in VosClaims are.
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
         var root = RepositoryRoot.Find();

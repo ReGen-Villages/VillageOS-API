@@ -1,11 +1,11 @@
 using System.Net;
-using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared.Contracts.Validation;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -129,7 +129,7 @@ public class MyceliumClientValidationTests
     private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
         public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, ResourceDirection direction)
-            : base(http, log, myceliumUrl, direction, serviceToken: "fake-jwt") { }
+            : base(http, log, myceliumUrl, direction, launchToken: new LaunchToken("fake-jwt")) { }
 
         public SchemaViolationMode? ViolationModeForTests { get; set; }
         public Func<object>? ApplyPayloadOverride { get; set; }

@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace vos.Taproot
 {
     public class CreateCommandHandler : CommandHandlerWithOutputOptions

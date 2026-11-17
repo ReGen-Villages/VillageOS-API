@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Taproot;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -109,12 +109,45 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public void Ctor_PublicNoApiKeyOverload_DefersToEnvVar()
+    public async Task Ctor_PublicNoApiKeyOverload_SendsTheKeyFromVosApiKey()
     {
-        // Just exercises the public ctor's chain through the single-arg → two-arg(null) path.
-        // No HTTP here; constructing must not throw.
-        var act = () => new MyceliumClient(MyceliumUrl);
-        act.Should().NotThrow();
+        var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
+        using var broker = new TcpListener(IPAddress.Loopback, 0);
+        broker.Start();
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", "from-env");
+            var client = new MyceliumClient($"http://127.0.0.1:{((IPEndPoint)broker.LocalEndpoint).Port}");
+
+            var asking = client.GetTokenAsync();
+            var connecting = broker.AcceptTcpClientAsync();
+            await Settle.ForAsync(connecting, "the client calls the broker");
+            using var connection = await connecting;
+            var request = await AnswerWithATokenAsync(connection.GetStream());
+
+            await Settle.ForAsync(asking, "the client reads the token");
+            (await asking).Should().Be(ServiceToken);
+            request.Should().Contain("X-API-Key: from-env");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", original);
+        }
+    }
+
+    private static async Task<string> AnswerWithATokenAsync(NetworkStream stream)
+    {
+        var buffer = new byte[4096];
+        var request = new StringBuilder();
+        int read;
+        while (!request.ToString().Contains("\r\n\r\n") && (read = await stream.ReadAsync(buffer)) > 0)
+            request.Append(Encoding.ASCII.GetString(buffer, 0, read));
+
+        var body = $"{{\"token\":\"{ServiceToken}\"}}";
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+            + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}"));
+        return request.ToString();
     }
 
     [Fact]
@@ -465,6 +498,57 @@ public class MyceliumClientTests
 
         captured.Method.Should().Be(HttpMethod.Post);
         captured.RequestUri!.AbsolutePath.Should().Be($"/api/mycelium/services/{handlerId}/request");
+    }
+
+    [Fact]
+    public async Task RetryCallAsync_PostsTheReasonToTheRecordsRetryRouteAndAnswersTheText()
+    {
+        var recordId = Guid.NewGuid();
+        HttpRequestMessage? captured = null;
+        string? sent = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            sent = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("{\"state\":\"Pending\"}");
+        });
+
+        var answer = await client.RetryCallAsync(recordId, "the rainfall reading is back");
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be($"/api/relationships/{recordId}/retry");
+        sent.Should().Be("{\"reason\":\"the rainfall reading is back\"}");
+        answer.Should().Be("{\"state\":\"Pending\"}");
+    }
+
+    [Fact]
+    public async Task RetryCallAsync_WithoutAReason_SendsAnEmptyBody()
+    {
+        string? sent = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            sent = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("{\"state\":\"Pending\"}");
+        });
+
+        await client.RetryCallAsync(Guid.NewGuid(), null);
+
+        sent.Should().Be("{}");
+    }
+
+    [Fact]
+    public async Task RetryCallAsync_OnRefusal_ThrowsCarryingTheStatusAndTheBrokersWords()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent("{\"error\":\"the record is Sent\"}") });
+
+        var act = async () => await client.RetryCallAsync(Guid.NewGuid(), null);
+
+        (await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*the record is Sent*"))
+            .Which.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -913,20 +997,19 @@ public class MyceliumClientTests
     public async Task SwitchModelAsync_ResponseWithoutToken_KeepsCacheCleared()
     {
         var modelId = Guid.NewGuid();
-        var (client, _) = NewClient(req =>
+        var (client, handler) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            if (req.RequestUri!.AbsolutePath == "/api/auth/switch-model")
-                return JsonResponse("{}"); // no token field
+            if (req.RequestUri!.AbsolutePath == "/api/auth/switch-model") return JsonResponse("{}");
             return JsonResponse("[]");
         });
 
-        await client.GetTokenAsync(); // seed cache
+        await client.GetTokenAsync();
         await client.SwitchModelAsync(modelId);
 
-        // Cache should have been cleared; next GetTokenAsync re-fetches
-        await client.GetTokenAsync();
-        // (No specific assertion needed - we're exercising the no-token branch of SwitchModelAsync)
+        (await client.GetTokenAsync()).Should().Be(ServiceToken);
+        handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/auth/token").Should().Be(2,
+            "an answer without a token leaves none cached, so the next read asks the broker again");
     }
 
     [Fact]
@@ -1048,9 +1131,10 @@ public class MyceliumClientTests
             return JsonResponse("{\"modelId\":\"00000000-0000-0000-0000-0000000000a1\",\"modelName\":\"Willow Bend\"}");
         });
 
-        var result = await client.PromoteAsync(root, ["has", "studies"], "project.seed.json", "Willow Bend");
+        var result = await client.PromoteAsync(root, "promoted", ["has", "studies"], "project.seed.json", "Willow Bend");
 
-        capturedBody!.Value.GetProperty("RootThingId").GetGuid().Should().Be(root);
+        capturedBody!.Value.GetProperty("RecordId").GetGuid().Should().Be(root);
+        capturedBody.Value.GetProperty("Reason").GetString().Should().Be("promoted");
         capturedBody.Value.GetProperty("FollowedPredicateNames").EnumerateArray()
             .Select(name => name.GetString()).Should().Equal("has", "studies");
         capturedBody.Value.GetProperty("Template").GetString().Should().Be("project.seed.json");

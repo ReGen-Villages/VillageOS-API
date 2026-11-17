@@ -10,14 +10,14 @@
  * of the next refresh window. The history, the service wiring and the call stamps are not in a
  * dashboard's snapshot and are read.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ModelIndex } from '../../../api/dashboardApi';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ModelIndex } from '@tendril-ui/tendril';
 import { relationshipApi } from '../../../api/relationshipApi';
 import { fetchServiceWiring } from '../../../api/serviceWiringApi';
 import { stateApi } from '../../../api/stateApi';
 import { useThingStates } from '../../../stores/modelStore';
-import type { DetailSpecification } from '../../../types/dashboard';
-import type { StateHistoryCoverage, VosRelationship, VosThing } from '../../../types/vos';
+import type { DetailSpecification } from '@tendril-ui/tendril';
+import type { StateHistoryCoverage, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
   resolveRelations,
   buildStateChanges,
@@ -44,6 +44,7 @@ export interface EntityDetail {
   /** Null when the model has no active reactive engine to serve state history. */
   coverage: StateHistoryCoverage | null;
   calls: ServiceCall[];
+  readCallsAgain: () => void;
 }
 
 /** Follow `value` at most once per `milliseconds`, leading-edge: the first change after a quiet period
@@ -67,7 +68,7 @@ function useThrottled(value: number, milliseconds: number): number {
   return throttled;
 }
 
-/** The connections, services and vigils the platform holds, read once when a card opens on a Thing: a dashboard's
+/** The connections and services the platform holds, and the Things waiting for this one, read once when a card opens on a Thing: a dashboard's
  *  index holds the Thing's relationships but none of the wiring. Undefined while the read is out, and null when it
  *  failed, so a card that cannot read it lists no service call rather than failing. */
 function useServiceWiring(thingId: string): ModelIndex | null | undefined {
@@ -75,7 +76,7 @@ function useServiceWiring(thingId: string): ModelIndex | null | undefined {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchServiceWiring(controller.signal)
+    fetchServiceWiring(thingId, controller.signal)
       .then((wiring) => setRead({ thingId, wiring }))
       .catch(() => {
         if (!controller.signal.aborted) setRead({ thingId, wiring: null });
@@ -102,9 +103,11 @@ export function useEntityDetail(
 
   const historyEnabled = detail?.history?.enabled !== false;
   const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MILLISECONDS);
+  const [askedReads, setAskedReads] = useState(0);
+  const readCallsAgain = useCallback(() => setAskedReads((reads) => reads + 1), []);
   const serviceCallsKey = serviceEdges.map((edge) => edge.relationshipId).join(',');
   const wiringRead = wiring !== undefined;
-  const requestKey = `${thingId}|${wiringRead}|${serviceCallsKey}|${refreshTick}`;
+  const requestKey = `${thingId}|${wiringRead}|${serviceCallsKey}|${refreshTick}|${askedReads}`;
   const [resolved, setResolved] = useState<{
     key: string;
     stateChanges: StateChange[];
@@ -163,5 +166,6 @@ export function useEntityDetail(
     stateChanges: resolved.stateChanges,
     coverage: resolved.coverage,
     calls: resolved.calls,
+    readCallsAgain,
   };
 }

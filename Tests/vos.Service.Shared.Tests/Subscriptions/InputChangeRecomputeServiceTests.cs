@@ -26,6 +26,9 @@ public class InputChangeRecomputeServiceTests
     private static readonly Guid SecondAllocation = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid ModelOne = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid ModelTwo = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid StudyKind = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid AllocationKind = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    private static readonly Guid StudyHasAllocation = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
     [Fact]
     public async Task An_input_change_on_a_watched_subject_recomputes()
@@ -76,6 +79,90 @@ public class InputChangeRecomputeServiceTests
         await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
 
         harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, Allocation });
+    }
+
+    [Fact]
+    public async Task An_edit_on_the_archetype_a_subject_is_recomputes_the_subject()
+    {
+        // A planner edits a shared default on the study's archetype, and every study below it reads the
+        // new value, so each has to be recomputed.
+        await using var harness = await Harness.StartedAsync();
+        harness.TypeChain[Study] = [StudyKind];
+        await harness.WatchAsync(Study, ModelOne);
+
+        await harness.ClientFor(ModelOne).EmitAsync(StudyKind, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+    }
+
+    [Fact]
+    public async Task An_archetype_two_subjects_are_recomputes_both()
+    {
+        await using var harness = await Harness.StartedAsync();
+        harness.TypeChain[Study] = [StudyKind];
+        harness.TypeChain[OtherStudy] = [StudyKind];
+        await harness.WatchAsync(Study, ModelOne);
+        await harness.WatchAsync(OtherStudy, ModelOne);
+
+        await harness.ClientFor(ModelOne).EmitAsync(StudyKind, "population");
+
+        var recomputed = new[] { (await harness.NextRecomputeAsync()).SubjectId, (await harness.NextRecomputeAsync()).SubjectId };
+        recomputed.Should().BeEquivalentTo(new[] { Study, OtherStudy });
+    }
+
+    [Fact]
+    public async Task The_subscription_holds_a_subject_and_its_type_chain_and_none_of_its_relationships()
+    {
+        // The follower maps a change to a subject by the Thing it arrived on, so a relationship in the
+        // membership is delivered to be dropped, and every relationship ever drawn against a study would be.
+        await using var harness = await Harness.StartedAsync();
+        harness.TypeChain[Study] = [StudyKind];
+        harness.IncidentRelationships[Study] = [StudyHasAllocation];
+        await harness.WatchAsync(Study, ModelOne);
+
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, StudyKind })
+            .And.NotContain(StudyHasAllocation);
+    }
+
+    [Fact]
+    public async Task The_opening_subscribe_asks_for_no_snapshot()
+    {
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne);
+
+        harness.ClientFor(ModelOne).SubscribeSelector!.IncludeSnapshot.Should().BeFalse(
+            "the subscription opens empty, and a snapshot of nothing is still a snapshot built");
+    }
+
+    [Fact]
+    public async Task A_Thing_no_subject_reads_any_more_takes_its_type_chain_out_of_the_subscription()
+    {
+        await using var harness = await Harness.StartedAsync();
+        harness.TypeChain[Allocation] = [AllocationKind];
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: []);
+
+        await Settle.UntilAsync(() => !harness.ClientFor(ModelOne).Members.Contains(AllocationKind),
+            "the allocation's archetype leaves the subscription with the allocation");
+        harness.ClientFor(ModelOne).Members.Should().NotContain(Allocation);
+    }
+
+    [Fact]
+    public async Task An_archetype_another_watched_Thing_still_is_stays_in_the_subscription()
+    {
+        await using var harness = await Harness.StartedAsync();
+        harness.TypeChain[Study] = [StudyKind];
+        harness.TypeChain[Allocation] = [StudyKind];
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: []);
+
+        await Settle.UntilAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation),
+            "the allocation leaves the subscription");
+        harness.ClientFor(ModelOne).Members.Should().Contain(StudyKind);
+        await harness.ClientFor(ModelOne).EmitAsync(StudyKind, "population");
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
     }
 
     [Fact]
@@ -295,7 +382,7 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_change_in_a_model_other_than_the_one_that_started_the_daemon_recomputes()
     {
-        await using var harness = await Harness.StartedAsync(startupModel: ModelOne);
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
         await harness.WatchAsync(OtherStudy, ModelTwo);
 
         await harness.ClientFor(ModelTwo).EmitAsync(OtherStudy, "population");
@@ -476,7 +563,7 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_subject_offered_with_no_model_scoped_token_in_hand_is_not_followed()
     {
-        await using var harness = await Harness.StartedAsync(startupToken: null);
+        await using var harness = await Harness.StartedAsync(withLaunchToken: false);
 
         harness.Service.Watch(Study);
 
@@ -484,14 +571,27 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
-    public async Task With_no_request_in_hand_the_startup_token_names_the_model()
+    public async Task With_no_request_in_hand_the_launch_token_names_the_model()
     {
-        await using var harness = await Harness.StartedAsync(startupModel: ModelOne);
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
 
         harness.Service.Watch(Study);
         await harness.WaitForSubscriptionAsync(ModelOne);
 
         harness.ClientFor(ModelOne).Members.Should().Contain(Study);
+    }
+
+    [Fact]
+    public async Task With_no_request_in_hand_the_follower_starts_from_the_launch_token_as_it_now_stands()
+    {
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
+        var renewed = TestTokens.For(ModelOne, DateTimeOffset.UtcNow.AddHours(23));
+        harness.LaunchToken!.Replace(renewed);
+
+        harness.Service.Watch(Study);
+        await harness.WaitForSubscriptionAsync(ModelOne);
+
+        harness.Exchange.Calls.First().Should().Be(renewed);
     }
 
     [Fact]
@@ -541,7 +641,7 @@ public class InputChangeRecomputeServiceTests
         services.AddSingleton<IHostEnvironment>(new FakeEnvironment());
         services.AddSingleton(spy);
         services.AddInputChangeRecompute<RecomputeSpy>(
-            "TestCompute", "http://mycelium", serviceToken: null,
+            "TestCompute", "http://mycelium", launchToken: null,
             handler => handler.InputProperties,
             (handler, subjectId, _) => handler.RecordAsync(subjectId));
 
@@ -566,15 +666,19 @@ public class InputChangeRecomputeServiceTests
         private readonly object _clientsLock = new();
 
         public FakeTokenExchange Exchange { get; } = new();
+        public LaunchToken? LaunchToken { get; }
         public InputChangeRecomputeService Service { get; }
         public int FailSubscribesBefore { get; init; }
+
+        public Dictionary<Guid, Guid[]> TypeChain { get; } = new();
+        public Dictionary<Guid, Guid[]> IncidentRelationships { get; } = new();
 
         public IReadOnlyList<Recompute> Recomputes { get { lock (_recomputes) return _recomputes.ToList(); } }
         public IReadOnlyList<FakeSubscriptionClient> Clients { get { lock (_clientsLock) return _clients.ToList(); } }
 
         public Harness(
             bool failFirstRecompute = false, string environmentName = "Development",
-            Guid? startupModel = null, bool noStartupToken = false,
+            Guid? launchModel = null, bool noLaunchToken = false,
             TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
         {
             var failNext = failFirstRecompute;
@@ -591,26 +695,29 @@ public class InputChangeRecomputeServiceTests
                     throw new InvalidOperationException("recompute failed");
                 });
 
+            LaunchToken = noLaunchToken ? null : new LaunchToken(TestTokens.For(launchModel ?? ModelOne));
             Service = new InputChangeRecomputeService(
                 NewClient, Exchange, inputs,
                 new FakeEnvironment { EnvironmentName = environmentName }, NullLogger.Instance,
-                startupToken: noStartupToken ? null : TestTokens.For(startupModel ?? ModelOne),
-                replacementLeadTime, replacementCheckInterval);
+                LaunchToken, replacementLeadTime, replacementCheckInterval);
         }
 
         private ISubscriptionClient NewClient(Func<Task<string?>> currentToken)
         {
-            var client = new FakeSubscriptionClient(currentToken) { FailSubscribesBefore = FailSubscribesBefore };
+            var client = new FakeSubscriptionClient(currentToken, TypeChain, IncidentRelationships)
+            {
+                FailSubscribesBefore = FailSubscribesBefore,
+            };
             lock (_clientsLock) _clients.Add(client);
             return client;
         }
 
         public static async Task<Harness> StartedAsync(
-            bool failFirstRecompute = false, Guid? startupModel = null, string? startupToken = "present",
+            bool failFirstRecompute = false, Guid? launchModel = null, bool withLaunchToken = true,
             TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
         {
             var harness = new Harness(
-                failFirstRecompute, startupModel: startupModel, noStartupToken: startupToken is null,
+                failFirstRecompute, launchModel: launchModel, noLaunchToken: !withLaunchToken,
                 replacementLeadTime: replacementLeadTime, replacementCheckInterval: replacementCheckInterval);
             await harness.StartAsync();
             return harness;
@@ -721,9 +828,20 @@ public class InputChangeRecomputeServiceTests
     {
         private readonly Channel<ModelChangeEvent> _stream = Channel.CreateUnbounded<ModelChangeEvent>();
         private readonly Func<Task<string?>> _currentToken;
+        private readonly IReadOnlyDictionary<Guid, Guid[]> _typeChain;
+        private readonly IReadOnlyDictionary<Guid, Guid[]> _incidentRelationships;
         private long _sequence;
 
-        public FakeSubscriptionClient(Func<Task<string?>> currentToken) => _currentToken = currentToken;
+        public FakeSubscriptionClient(
+            Func<Task<string?>> currentToken,
+            IReadOnlyDictionary<Guid, Guid[]> typeChain, IReadOnlyDictionary<Guid, Guid[]> incidentRelationships)
+        {
+            _currentToken = currentToken;
+            _typeChain = typeChain;
+            _incidentRelationships = incidentRelationships;
+        }
+
+        public SubscriptionSelector? SubscribeSelector { get; private set; }
 
         // The model this client speaks for, read off the token it is handed — the same way the
         // real one learns it. The provider is a completed task, so nothing blocks here.
@@ -762,18 +880,42 @@ public class InputChangeRecomputeServiceTests
             if (SubscribeAttempts <= FailSubscribesBefore)
                 throw new HttpRequestException("mycelium not up yet");
 
+            SubscribeSelector = selector;
             Subscribed.TrySetResult();
             return Task.FromResult(new SubscribeResult(Guid.NewGuid(), 0,
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
+        public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        // Resolved as the broker's add-objects route resolves it, so a flag the follower leaves at its default
+        // has the consequence here that it has there.
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
             if (FailAddObjects) throw new HttpRequestException("mycelium refused the membership change");
 
-            lock (Members) Members.AddRange(selector.Ids ?? new List<Guid>());
-            return Task.FromResult(new AddObjectsResult(0,
-                new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
+            var things = new List<Guid>(selector.Ids ?? new List<Guid>());
+            if (selector.IncludeIsAncestors)
+                foreach (var id in selector.Ids ?? new List<Guid>())
+                    things.AddRange(_typeChain.GetValueOrDefault(id, []));
+            var relationships = selector.IncludeRelationships
+                ? things.SelectMany(thing => _incidentRelationships.GetValueOrDefault(thing, [])).Distinct().ToList()
+                : new List<Guid>();
+
+            lock (Members)
+            {
+                Members.AddRange(things);
+                Members.AddRange(relationships);
+            }
+
+            var snapshot = selector.IncludeSnapshot
+                ? new SnapshotDocument(0,
+                    things.Select(id => new SnapshotThing(id, null, false, new Dictionary<string, SnapshotProperty>(), null, [], null)).ToList(),
+                    relationships.Select(id => new SnapshotRelationship(
+                        id, null, Guid.Empty, Guid.Empty, Guid.Empty, new Dictionary<string, SnapshotProperty>(), null, [])).ToList())
+                : new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>());
+            return Task.FromResult(new AddObjectsResult(0, snapshot));
         }
 
         public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)

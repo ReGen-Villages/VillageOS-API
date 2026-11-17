@@ -96,6 +96,7 @@ namespace vos.Taproot
             _writer.WriteLine("  stop service <handler>                      - Stop a running microservice");
             _writer.WriteLine("  call endpoint <subdomain> <json>            - Post a body to an endpoint service and print its answer");
             _writer.WriteLine("  call service <handler> <json>               - Post a body to a handler's daemon, starting it if needed");
+            _writer.WriteLine("  retry call <recordId> [reason]              - Send a failed or blocked service call again");
             _writer.WriteLine();
             _writer.WriteLine("Configuration:");
             _writer.WriteLine("  config mode                                 - Show property mode configuration");
@@ -240,6 +241,7 @@ namespace vos.Taproot
             ["events"] = async (_, a) => await new EventsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["requests"] = async (_, a) => await new RequestsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["call"] = async (_, a) => await new CallCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["retry"] = async (_, a) => await new RetryCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["pipeline"] = async (_, a) => await new PipelineCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 

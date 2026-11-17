@@ -1,25 +1,24 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
-using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared;
 
 namespace vos.Service.Intake.Services;
 
 public sealed class SubmissionIntakeService(
-    IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
-    ModelClock time)
+    IntakeMyceliumClient mycelium, HeldDeclarations declarations, PositionLookupService lookups, ModelClock time)
 {
     public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
         // None of these reads uses another's answer, and a wizard posts the whole submission again on every save,
         // so awaiting them one after another would make every save wait for each in turn.
-        var shape = subscriptions.ReadAsync(
-            SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, logger, cancellation);
+        var shape = declarations.ReadAsync(
+            SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, cancellation);
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
         var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
+        var held = HeldElevationAsync(submission, cancellation);
 
-        await Task.WhenAll([shape, has, isEdge, arrival]);
+        await Task.WhenAll([shape, has, isEdge, arrival, held]);
 
         var read = await shape;
         var predicates = new ResolvedPredicates(read.Studies, await has, await isEdge, read.Proposes, read.ServedAfter);
@@ -29,12 +28,48 @@ public sealed class SubmissionIntakeService(
         // run together the one that answered first would decide which of the two refusals the planner saw.
         // The study's archetype comes with it, found through its role rather than by a name.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
+        var elevation = await ElevationAsync(submission, await held, cancellation);
 
         var composed = SubmissionFragmentComposer.Compose(
-            submission, predicates, archetypes, vocabulary, await arrival);
+            submission, predicates, archetypes, vocabulary, await arrival, elevation);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
     }
+
+    // Null for a submission the composer will refuse for its identifier or its border.
+    private async Task<HeldElevation?> HeldElevationAsync(Submission submission, CancellationToken cancellation)
+    {
+        if (string.IsNullOrWhiteSpace(submission.SubmissionId) || submission.Parcel?.Boundary is not { Count: >= 3 })
+            return null;
+
+        var (siteId, parcelId) = SiteAndParcel(submission.SubmissionId);
+        var snapshot = await mycelium.ReadSnapshotAsync(SiteElevationReader.Selector(siteId, parcelId), cancellation);
+        return SiteElevationReader.Read(snapshot, siteId, parcelId);
+    }
+
+    // A figure the new answer lacks goes before the submission is written: should that write fail, the site is
+    // left with its old border and fewer figures, which the next save looks up again. A figure for an unmoved
+    // border is still true of it, so only a moved border loses one.
+    private async Task<AnsweredElevation?> ElevationAsync(
+        Submission submission, HeldElevation? held, CancellationToken cancellation)
+    {
+        var border = submission.Parcel?.Boundary;
+        if (held is null || border is null || !held.NeedsLookupFor(border))
+            return null;
+
+        var answered = (await lookups.ElevationAsync(border, cancellation)).Elevation;
+        if (held.BorderMovedFrom(border))
+        {
+            var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
+            foreach (var figure in held.FiguresStated.Except(SiteElevationReader.FiguresIn(answered)))
+                await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
+        }
+        return answered;
+    }
+
+    private static (Guid Site, Guid Parcel) SiteAndParcel(string submissionId) =>
+        (StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SiteRole),
+         StableIdentity.Derive(submissionId, SubmissionFragmentComposer.ParcelRole));
 
     // When this submission arrived, which is only the arrival the first time. A wizard saves as the planner
     // fills the form in and a fragment upserts, so a time written on every save would record the last save.
@@ -53,12 +88,10 @@ public sealed class SubmissionIntakeService(
             : time.GetUtcNow().UtcDateTime;
     }
 
-    // The vocabularies a submitted word is resolved against, read from the model on every submission: a
-    // term added to the model has to reach the next submission, and a copy held here would be the list in
-    // code this read exists to remove.
+    // The vocabularies a submitted word is resolved against, read from the model rather than listed in code: a
+    // term added to the model reaches the next submission once the held declarations have run their time.
     private Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation) =>
-        subscriptions.ReadAsync(
-            DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, logger, cancellation);
+        declarations.ReadAsync(DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, cancellation);
 
     // A predicate the model already holds is used as it stands. One it does not gets an identifier derived
     // from its name rather than a fresh one, so two submissions into the same model relate their Things

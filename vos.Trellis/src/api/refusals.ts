@@ -6,13 +6,14 @@ import i18n from '../i18n';
  */
 export const REFUSAL_CODES = [
   'tooManyRequests', 'serviceUnavailable', 'codeSendingUnavailable', 'submissionsUnavailable', 'filesUnavailable',
-  'positionMissing', 'noParcel', 'queryMissing', 'noSearch', 'noBasemap',
+  'positionMissing', 'noParcel', 'queryMissing', 'noSearch', 'noElevation', 'noPlots', 'noBasemap',
   'emailAddressMissing', 'codesExhausted', 'codeNotAccepted', 'ticketMissing', 'ticketExpired', 'addressNotVerified',
   'submissionTooLarge', 'submissionEmpty', 'submissionUnreadable', 'identifierInvalid', 'emailAddressMalformed',
   'fieldMissing', 'fieldTooLong', 'fieldTooMany', 'fieldOutOfRange', 'termUnknown', 'sharesDisagree',
   'hazardsDisagree', 'sourceDescribedTwice', 'boundaryTooFewCorners', 'modelRefused',
   'referenceAndAddressNeeded', 'notYourSubmission', 'reductionMalformed',
   'fileNotAForm', 'noFile', 'fileTooLarge', 'descriptionTooLong', 'filesNotTaken',
+  'layerFileUnreadable', 'featuresUnreadable', 'featureNotInFile', 'documentNotShared',
 ] as const;
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number];

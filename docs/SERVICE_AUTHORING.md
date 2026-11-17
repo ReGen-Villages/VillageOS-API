@@ -14,7 +14,7 @@ This document is the language-agnostic contract. Working reference implementatio
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
-A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Auth.Shared` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Service.Auth` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
 
 ## A note on `is`
 
@@ -60,13 +60,13 @@ work is already in that file.
 sequenceDiagram
     participant M as Mycelium
     participant S as Your service
-    M->>S: launch: app --port --myceliumUrl --issuer --audience (Token + VerificationKey in the environment)
+    M->>S: launch: app --port --myceliumUrl --issuer --audience --serviceCallLimitSeconds --passedOnRequestLimitSeconds (Token + VerificationKey in the environment)
     S->>M: POST /api/mycelium/register (Bearer Token) → 200
     Note over M,S: relationship with your predicate is created
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
     M->>S: GET /health (polled) → Healthy
     M->>S: SIGTERM / POST /shutdown
-    Note over M,S: the service does not deregister; the liveness monitor removes it
+    Note over M,S: the liveness monitor removes a registration whose service stopped answering
 ```
 
 ## CLI arguments
@@ -80,6 +80,8 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
 | `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
 | `--logDirectory` | | The folder to write your log file in. Without it, the C# host writes four folders above its build output |
+| `--serviceCallLimitSeconds` | | How long Mycelium waits for your service to answer a service call, a positive whole number of seconds. Absent or unusable, read it as no limit; keep any wait of your own shorter |
+| `--passedOnRequestLimitSeconds` | | The same for a request Mycelium passes on to your service from another. The shared Python package reads both into `Config.service_call_limit_seconds` and `Config.passed_on_request_limit_seconds`, `None` when absent or unusable |
 
 ### Credentials
 
@@ -92,8 +94,8 @@ child's environment, not in its arguments. Xylem hands the IFC ingest tool its `
 
 | Setting | Meaning |
 |---------|---------|
-| `Token` | Pre-minted service JWT for outbound calls |
-| `ApiKey` | For a service nobody launches on demand, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
+| `Token` | Pre-minted service JWT for outbound calls. It lasts 24 hours; a service that runs longer swaps it at `POST /api/auth/service-token` before it expires |
+| `ApiKey` | For a service Mycelium does not launch, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. Give `Token` or `ApiKey`, not both: a service given the two refuses to start. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
 | `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
 `VerificationKey` checks a signature and cannot produce one. Mycelium keeps the private half and
@@ -167,13 +169,40 @@ the reconciler sends it again — so answer that way only when a retry could suc
 work behind a claim per `relationshipId` (below) so the retry does not repeat it. A **`400`** is
 different: it says you read the body and turned it down, the same body would earn the same answer,
 so it is recorded as **refused** with your words and is never sent again. A 2xx with no `success`
-field, or a body that is not JSON, counts as done — unless the connection asks for an
-**acknowledgement** (`completion` of `ack` or `both`): then a 2xx means only accepted, and your
-service calls `POST /api/relationships/{relationshipId}/acknowledgement` once its work has committed.
-[SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) has what each answer to that call means.
+field, or a body that is not JSON, counts as done — unless the connection finishes its calls on the
+service's report.
+
+**Reporting how a call went.** When a connection finishes its calls on the service's report, the call
+your service is sent stays open after `/handle` answers. Your service tells the platform how the work
+went by sending a report for the call record named in the request's `relationshipId`, at
+`POST /api/relationships/{relationshipId}/report`:
+
+- `received`: the service has the call. The platform stops sending it again; the call is still going.
+- `completed`: the work is done. The call is finished.
+- `failed`, with a reason: the work failed. The call is finished, is never sent again on its own, and
+  the record keeps the reason. A person can ask for it to be tried again.
+
+From a C# service built on the services library:
+
+```csharp
+using vos.Service.Shared.ServiceCalls;
+
+await client.ReportCallAsync(callRecordId, CallReport.Received);
+// ... the work ...
+await client.ReportCallAsync(callRecordId, CallReport.Completed);
+// or, when it fails:
+await client.ReportCallAsync(callRecordId, CallReport.Failed("the rainfall source answered nothing"));
+```
+
+A failed report cannot be made without its reason. If the call record is no longer waiting for that
+report, for example because it has already finished, the call raises
+`CallRecordNoLongerWaitingException`: stop sending that report.
+[SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) has what each answer to the report means.
 
 Every call also carries a `Vos-Request-Id` header naming Mycelium's request-log entry for it, worth
-quoting in your own log. It is new on every delivery.
+quoting in your own log. It is new on every delivery. On an endpoint call the bearer token also names
+the caller: `vos:caller`, and for a person `vos:caller_account` and `vos:caller_application_roles` (a
+list); an anonymous call names nobody. Check the token's signature before trusting them.
 
 **The same relationship can be delivered more than once.** Delivery is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
@@ -214,6 +243,20 @@ completed that survives either belongs on the relation itself.
 `healthEndpoint` until it stops answering. A service still answering five seconds after accepting the
 stop is reported as one that did not stop, so exit promptly once the answer is sent.
 
+## Reading the model
+
+A service reads the model by selector, through `vos.Service.Shared.Subscriptions.SubscriptionClient`
+in C#. Pick the call by what the service does with the answer:
+
+| The service | Call | Afterwards |
+|---|---|---|
+| needs the model once, for example to answer one `/handle` call about a catchment | `ReadSnapshotAsync(selector)` | nothing to release |
+| keeps working from the model as it changes, for example recalculating a catchment when a flow meter changes | `SubscribeAsync(selector)`, then `StreamAsync` | `UnsubscribeAsync` when it stops |
+
+Both take the same `SubscriptionSelector` and answer the same snapshot for it. Do not subscribe in
+order to read once: the platform checks every open subscription on every write until it is closed.
+The selector itself is described in [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § "Selecting a slice".
+
 ## Inbound JWT validation
 
 When a `VerificationKey` is supplied, validate the Bearer JWT on `/handle` and `/shutdown`:
@@ -239,9 +282,9 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 
 ## Deregistration & health
 
-- Do not deregister on shutdown. `DELETE /api/mycelium/services/{handlerId}` is admin-only, so a
-  service token is refused; the broker's liveness monitor removes a registration whose service has
-  stopped answering.
+- Deregistering on shutdown is optional. A service may delete the registration it made itself at
+  `DELETE /api/mycelium/services/{handlerId}`, and another service's is refused with `403`; without
+  it, the broker's liveness monitor removes a registration whose service has stopped answering.
 - Keep `/health` fast and dependency-free — Mycelium uses it to decide a daemon started successfully.
 
 ## Authoring checklist
@@ -250,9 +293,11 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Read `Token` (or `ApiKey`) and `VerificationKey` from configuration or the environment, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
 - [ ] Get a token (the `Token` setting, or an `ApiKey` exchanged at `/api/auth/token`) and `POST /api/mycelium/register`
+- [ ] Swap the `Token` at `POST /api/auth/service-token` before it expires (C# services: `builder.Services.AddLaunchToken`)
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
 - [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
 - [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
 - [ ] Recognise a repeat delivery by its `relationshipId` and do the work only once
+- [ ] Read the model once with `ReadSnapshotAsync`; subscribe only to follow changes, and unsubscribe when you stop
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

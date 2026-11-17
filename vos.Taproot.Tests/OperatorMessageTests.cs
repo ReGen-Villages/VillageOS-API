@@ -1,6 +1,5 @@
 using System.Net.Sockets;
 using FluentAssertions;
-using vos.Taproot;
 using Xunit;
 
 namespace vos.Taproot.Tests;

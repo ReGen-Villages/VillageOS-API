@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DashboardSpecification, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import { keysReadOffARow, readyToKeep } from './rowProperties';
 
 const rows = { kind: 'stateList' as const, state: 'flowing', archetype: 'Spring', computed: [{ key: 'share', value: { kind: 'const' as const, value: 1 } }] };

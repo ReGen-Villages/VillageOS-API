@@ -75,7 +75,7 @@ public static class DagValidator
             errors.Add($"{named}: invalid item transform — {itemTransformError}");
     }
 
-    // A vigil is placed over one Thing, so a node that would run once per item, or wait for a Thing nothing
+    // A node run watches one Thing, so a node that would run once per item, or wait for a Thing nothing
     // hands it, could never be resumed.
     private static void ValidateWait(PipelineDag dag, DagNode node, DagWait wait, List<string> errors)
     {

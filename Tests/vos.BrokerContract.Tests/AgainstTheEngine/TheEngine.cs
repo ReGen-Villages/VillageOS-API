@@ -28,6 +28,9 @@ public sealed class TheEngine : IAsyncLifetime
 
     public IHttpClientFactory ClientFactory { get; private set; } = null!;
 
+    // The host's own transport, for a case that watches what a service's client is sent.
+    public HttpMessageHandler Transport { get; private set; } = null!;
+
     // Signed in as the administrator, for a test to arrange a model with and to read back
     // what a service wrote.
     public HttpClient Admin { get; private set; } = null!;
@@ -52,7 +55,8 @@ public sealed class TheEngine : IAsyncLifetime
         AdminToken = (await signedIn.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString()!;
 
-        ClientFactory = new PerCallHttpClientFactory(_host.Server.CreateHandler());
+        Transport = _host.Server.CreateHandler();
+        ClientFactory = new PerCallHttpClientFactory(Transport);
         Admin = _host.CreateClient();
         Admin.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
     }

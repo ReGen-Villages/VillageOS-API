@@ -30,7 +30,7 @@ The handler doesn't do one thing and exit. It stays alive, running simulation lo
 
 ### SSE for live updates
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding a relationship when it registers, removing it when it cancels — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
+When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding the relationship's subject with an outgoing relationship rule when a simulation registers, because the broker resolves `ids` against Things only, and removing the relationship when it cancels, with the subject too when no running simulation shares it — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
 
 ### Staggered ticks
 
@@ -43,7 +43,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 ```text
 1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token or ApiKey, and VerificationKey, from configuration)
 2. Use the service JWT from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
-3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
+3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Service.Auth)
 4. Open an SSE subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
 ```
@@ -154,7 +154,7 @@ vos.Service.Metabolism/
 
 **`MyceliumClient`** — HTTP communication with Mycelium: the service token from the `Token` startup setting, or the one exchanged for an `ApiKey`, and the quantity increment and decrement calls.
 
-**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
+**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations: on Register it adds the relationship's subject with an outgoing relationship rule; on Cancel it removes the relationship, and the subject when no running simulation shares it.
 
 **`HandleRequestProcessor`** — Pure extraction logic. Takes a `HandleRequest`, extracts a `SimulationConfig` with sensible defaults, and registers it with Metabolism. The `ExtractConfig` method is `internal static` and side-effect-free, making it testable.
 

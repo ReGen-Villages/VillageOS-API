@@ -4,12 +4,15 @@
  * Stacking order == front-most last; z-index and cascade offset follow that order.
  */
 import { useCallback, useState } from 'react';
-import type { ModelIndex } from '../../../api/dashboardApi';
-import type { DetailSpecification } from '../../../types/dashboard';
+import type { ModelIndex } from '@tendril-ui/tendril';
+import type { DetailSpecification } from '@tendril-ui/tendril';
 import { EntityDetailWindow } from './EntityDetailWindow';
 import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
+import { useAuthentication } from '../../../hooks/useAuthentication';
+import { mayChangeData } from '../../../utils/mayChangeData';
 
 export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpecification | undefined, nonce?: number) {
+  const { role } = useAuthentication();
   const [order, setOrder] = useState<string[]>([]);
   const [spreadTick, setSpreadTick] = useState(0);
 
@@ -51,6 +54,7 @@ export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpecifica
           onSpread={spread}
           openDetail={openDetail}
           declaredTypes={declaredTypes}
+          mayChangeData={mayChangeData(role)}
         />
       ))
     : null;

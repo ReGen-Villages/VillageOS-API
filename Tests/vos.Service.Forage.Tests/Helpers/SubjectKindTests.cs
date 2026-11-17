@@ -135,4 +135,20 @@ public class SubjectKindTests
         selector.IncludeIsAncestors.Should().BeTrue();
         selector.IncludeRelationships.Should().BeTrue();
     }
+
+    [Fact]
+    public void KindSelectorFor_CarriesThePredicatesItComparesOutgoingAndNothingIncoming()
+    {
+        var selector = CoveringSourceResolver.KindSelectorFor(Guid.NewGuid());
+
+        selector.Relationships.Should().NotBeNullOrEmpty();
+        selector.Relationships!.Select(rule => rule.Predicate).Should().BeEquivalentTo(
+        [
+            RoleBindings.BindsPredicateName,
+            CoveringSourceResolver.IsPredicateName,
+            CoveringSourceResolver.CoversPredicate,
+            CoveringSourceResolver.ResolvedByPredicate,
+        ]);
+        selector.Relationships.Should().OnlyContain(rule => rule.Direction == "outgoing");
+    }
 }

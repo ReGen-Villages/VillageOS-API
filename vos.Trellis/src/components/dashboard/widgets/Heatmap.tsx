@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { HeatmapWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { asNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { HeatmapWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
+import { asNumber } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow } from './chartChrome';

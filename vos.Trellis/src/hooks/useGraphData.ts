@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { filterGraph, type SearchOptions } from '../utils/searchFilter';
 
 interface UseGraphDataInput {

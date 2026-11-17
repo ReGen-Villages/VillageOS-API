@@ -3,6 +3,7 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -27,7 +28,7 @@ public class EndpointServiceSourceFetcherTests
         new(new PerCallFactory(handler),
             NullLogger<EndpointServiceSourceFetcher>.Instance,
             "http://localhost:7243",
-            "test-token",
+            new LaunchToken("test-token"),
             subdomain,
             timeout ?? TimeSpan.FromSeconds(30));
 

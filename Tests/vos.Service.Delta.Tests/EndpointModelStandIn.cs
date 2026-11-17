@@ -1,12 +1,11 @@
 using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using vos.Service.Shared;
 
 namespace vos.Service.Delta.Tests;
 
-// A Mycelium holding one model per bearer. Its subscription and property reads follow the real broker's rules
+// A Mycelium holding one model per bearer. Its selection and property reads follow the real broker's rules
 // for the parts Delta uses, so a wrong selector or a wrong reading of the answer fails here as it would there.
 public sealed class EndpointModelStandIn
 {
@@ -19,16 +18,15 @@ public sealed class EndpointModelStandIn
     public List<(Guid Model, Guid Subject, Guid Predicate, Guid Target)> RelationshipsCreated { get; } = new();
     public List<(Guid Model, Guid Thing, string Name)> PropertiesSet { get; } = new();
     public List<(Guid Model, Guid Thing)> ThingsDeleted { get; } = new();
-    public List<Guid> SubscriptionsOpened { get; } = new();
-    public List<Guid> SubscriptionsClosed { get; } = new();
+    public int SelectionsRead { get; private set; }
+    public int SubscriptionRequests { get; private set; }
 
     public bool RefuseThingCreate { get; set; }
     public bool RefuseRelationshipCreate { get; set; }
     public bool RefusePropertySet { get; set; }
     public bool RefuseThingDelete { get; set; }
-    public bool RefuseSubscription { get; set; }
+    public bool RefuseSelectionRead { get; set; }
     public bool RefusePropertyRead { get; set; }
-    public bool DropSubscriptionRelease { get; set; }
 
     public Guid Declare(Guid model, string name, bool isArchetype = false, IReadOnlyDictionary<string, string?>? properties = null)
     {
@@ -107,14 +105,13 @@ public sealed class EndpointModelStandIn
         {
             var held = ModelFor(model);
 
-            if (request.Method == HttpMethod.Post && path == "/api/subscriptions")
-                return RefuseSubscription ? Status(HttpStatusCode.InternalServerError) : Subscribe(held, Body(request));
+            if (request.Method == HttpMethod.Post && path == "/api/snapshots")
+                return RefuseSelectionRead ? Status(HttpStatusCode.InternalServerError) : Read(held, Body(request));
 
-            if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
+            if (path.StartsWith("/api/subscriptions", StringComparison.Ordinal))
             {
-                if (DropSubscriptionRelease) throw new HttpRequestException("connection dropped");
-                SubscriptionsClosed.Add(Guid.Parse(path["/api/subscriptions/".Length..]));
-                return Status(HttpStatusCode.NoContent);
+                SubscriptionRequests++;
+                return Status(HttpStatusCode.NotFound);
             }
 
             if (request.Method == HttpMethod.Get && path.StartsWith("/api/things/", StringComparison.Ordinal)
@@ -168,8 +165,9 @@ public sealed class EndpointModelStandIn
         return Status(HttpStatusCode.NotFound);
     }
 
-    private HttpResponseMessage Subscribe(Model held, JsonObject selector)
+    private HttpResponseMessage Read(Model held, JsonObject selector)
     {
+        SelectionsRead++;
         var selected = new HashSet<Guid>();
         foreach (var id in Strings(selector, "ids"))
             if (held.Things.ContainsKey(Guid.Parse(id))) selected.Add(Guid.Parse(id));
@@ -198,8 +196,6 @@ public sealed class EndpointModelStandIn
                 : rules.SelectMany(rule => Outgoing(held, selected, Field(rule, "predicate")!.GetValue<string>())).Distinct().ToList();
         }
 
-        var subscription = Guid.NewGuid();
-        SubscriptionsOpened.Add(subscription);
         var things = new JsonArray();
         foreach (var id in selected)
         {
@@ -223,7 +219,6 @@ public sealed class EndpointModelStandIn
 
         return Json(new JsonObject
         {
-            ["subscriptionId"] = subscription,
             ["watermark"] = 0,
             ["snapshot"] = new JsonObject { ["watermark"] = 0, ["things"] = things, ["relationships"] = edges },
         });

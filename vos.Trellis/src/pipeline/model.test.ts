@@ -1,9 +1,10 @@
 /// <reference types="node" />
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
@@ -230,7 +231,7 @@ describe('the vocabulary the editor holds', () => {
   // why the editor holds none of these words.
   const NAMES_A_MODEL_MAY_CHANGE = [
     'Pipeline', 'PipelineNode', 'PipelineInput', 'PipelineOutput', 'PlatformServiceConnection',
-    'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun',
+    'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun', 'CallCompletion',
   ];
 
   for (const path of editorSources)
@@ -242,11 +243,15 @@ describe('the vocabulary the editor holds', () => {
 
   /** The roles the page reads that the orchestrator does not: the range, trigger and judged-Thing roles are
    *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
-   *  what a system sends, is told, or where a kind of message arrives, and its own prototype's role is how the
-   *  page finds the service to bind a state to. */
+   *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
+   *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
+   *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
+   *  platform's to judge, so the orchestrator reads none of its choices either. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
-    ROLE.Trigger, ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt,
+    ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
+    ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
+    ROLE.CallCompletion, ROLE.CompletesWhen,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -257,7 +262,29 @@ describe('the vocabulary the editor holds', () => {
     for (const roleId of Object.values(ROLE))
       if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
   });
+
+  // Phloem reads none of these, so the check above cannot catch a wrong one.
+  it.each([
+    [ROLE.HttpTrigger, 'httpTrigger'],
+    [ROLE.GraphTrigger, 'graphTrigger'],
+    [ROLE.StateTrigger, 'stateTrigger'],
+    [ROLE.RunResumption, 'runResumption'],
+    [ROLE.CallCompletion, 'callCompletion'],
+    [ROLE.CompletesWhen, 'completesWhen'],
+  ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
+    expect(roleId).toBe(roleIdentityOf(word));
+  });
 });
+
+const ROLE_NAMESPACE = 'c33fcf16-6706-4f93-bfa5-8997bfaaf4bd';
+
+function roleIdentityOf(word: string): string {
+  const hash = createHash('sha1').update(Buffer.from(ROLE_NAMESPACE.replace(/-/g, ''), 'hex')).update(word, 'utf-8').digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 describe('judgeConnection', () => {
   const upper = { id: 'upper', ports: [

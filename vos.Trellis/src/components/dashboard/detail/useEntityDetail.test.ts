@@ -25,9 +25,9 @@ vi.mock('../../../api/relationshipApi', () => ({
   },
 }));
 
-import { buildModelIndex } from '../../../api/dashboardApi';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
-import type { VosThing, VosRelationship } from '../../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { useModelStore } from '../../../stores/modelStore';
 import { useEntityDetail } from './useEntityDetail';
 
@@ -266,7 +266,7 @@ describe('useEntityDetail service calls', () => {
   it('reads each service-call edge back from the platform in the same round as the history', async () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
-      Properties: { __CallState: 'Done', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
+      Properties: { __CallState: 'Completed', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
     });
     const modelIndex = indexWithAService();
     const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
@@ -275,8 +275,28 @@ describe('useEntityDetail service calls', () => {
     expect(mockGetRelationship.mock.calls.map((c) => c[0])).toEqual(['r1']);
     expect(mockGetRelationship.mock.calls[0][1]).toBe(mockGetStateTransitions.mock.calls[0][1]);
     expect(result.current.calls).toEqual([
-      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', state: 'Done', at: '2026-07-17T00:30:00Z' }),
+      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', state: 'Completed', at: '2026-07-17T00:30:00Z' }),
     ]);
+  });
+
+  it('reads the service calls again when asked, without waiting for the model to change', async () => {
+    mockGetRelationship.mockResolvedValue({
+      Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
+      Properties: { __CallState: 'Failed', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
+    });
+    const modelIndex = indexWithAService();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
+    await settle();
+
+    mockGetRelationship.mockResolvedValue({
+      Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
+      Properties: { __CallState: 'Pending', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
+    });
+    act(() => result.current.readCallsAgain());
+    await settle();
+
+    expect(mockGetRelationship).toHaveBeenCalledTimes(2);
+    expect(result.current.calls).toEqual([expect.objectContaining({ relationshipId: 'r1', state: 'Pending' })]);
   });
 
   it('reads nothing back where no edge on the Thing is a service call', async () => {
@@ -299,7 +319,7 @@ describe('useEntityDetail service calls', () => {
   it('lists the service call on a dashboard, whose page holds the relationship and none of the wiring, from the wiring it fetches', async () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
-      Properties: { __CallState: 'Done', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
+      Properties: { __CallState: 'Completed', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
     });
     mockFetchServiceWiring.mockResolvedValue(indexWithAService());
     const page = narrowedPage();
@@ -307,7 +327,7 @@ describe('useEntityDetail service calls', () => {
     await settle();
 
     expect(result.current.calls).toEqual([
-      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', connectionName: 'tends', state: 'Done' }),
+      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', connectionName: 'tends', state: 'Completed' }),
     ]);
   });
 

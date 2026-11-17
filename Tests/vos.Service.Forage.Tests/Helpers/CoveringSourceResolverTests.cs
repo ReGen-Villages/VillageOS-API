@@ -991,6 +991,19 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void SelectorFor_CarriesEveryRelationshipASelectedThingHoldsOutgoingAndNoneWrittenIntoIt()
+    {
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        var rule = selector.Relationships.Should().ContainSingle().Subject;
+        rule.Direction.Should().Be("outgoing");
+        rule.Predicate.Should().BeEmpty();
+        rule.PredicateFlag.Should().BeNull();
+        rule.PredicateRole.Should().BeNull();
+        selector.IncludeRelationships.Should().BeTrue("the broker refuses rules beside no relationships");
+    }
+
+    [Fact]
     public void Resolve_IgnoresAnEdgeWhosePredicateThingIsAbsent()
     {
         // Predicate Things arrive because the selector names them. One missing must read as "not this

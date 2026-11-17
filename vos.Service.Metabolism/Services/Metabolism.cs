@@ -25,15 +25,15 @@ public class Metabolism
 
     // Raised when a relationship gains a simulation via a /handle request — the
     // subscription coordinator adds it to the SSE membership so its changes are streamed.
-    public event Action<string>? RelationshipRegistered;
+    public event Action<SimulationConfig>? RelationshipRegistered;
 
     // Raised when a simulation is cancelled — the coordinator drops it from membership.
-    public event Action<string>? RelationshipCancelled;
+    public event Action<SimulationConfig>? RelationshipCancelled;
 
     public SimulationEntry Register(SimulationConfig config, HeldModelToken token)
     {
         var entry = RegisterCore(config, token);
-        RelationshipRegistered?.Invoke(config.RelationshipId);
+        RelationshipRegistered?.Invoke(config);
         return entry;
     }
 
@@ -207,7 +207,7 @@ public class Metabolism
         if (_simulations.TryRemove(relationshipId, out var entry))
         {
             entry.Cts.Cancel();
-            RelationshipCancelled?.Invoke(relationshipId);
+            RelationshipCancelled?.Invoke(entry.Config);
             return true;
         }
         return false;

@@ -22,7 +22,7 @@ public class DeltaReadsAnEndpointTemplateTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task Delta_reads_the_named_template_and_the_bound_root_with_every_key_resolved_up_the_chain()
     {
-        var delta = new DeltaClient(_engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        var delta = new DeltaClient(_engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var isPredicate = await _engine.DeclareOnceAsync("is");
         var binds = await _engine.DeclareOnceAsync("binds");
         await _engine.DeclareAsync("endpoint role", identifier: EndpointTemplateTree.EndpointRoleId);
@@ -35,7 +35,7 @@ public class DeltaReadsAnEndpointTemplateTests : IClassFixture<TheEngine>
             new { Name = "httpMethod", Type = "vos.String", Value = "POST" })).EnsureSuccessStatusCode();
         await _engine.RelateAsync(EndpointTemplateTree.EndpointRoleId, binds, root);
         var reader = new EndpointTemplateReader(
-            new SubscriptionClient(_engine.ClientFactory, NullLogger.Instance, TheEngine.Url, _engine.AdminToken),
+            new SubscriptionClient(_engine.ClientFactory, NullLogger.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken)),
             delta, NullLogger<EndpointTemplateReader>.Instance);
 
         var (named, namedRefusal) = await reader.ReadAsync("EsriEndpoint");

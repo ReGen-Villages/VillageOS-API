@@ -12,6 +12,7 @@ public static class TestTokens
         {
             ["vos:model_id"] = modelId.ToString(),
             ["vos:scope"] = scope,
+            ["vos:token_type"] = "service",
             ["exp"] = expiresAt.ToUnixTimeSeconds(),
         });
 

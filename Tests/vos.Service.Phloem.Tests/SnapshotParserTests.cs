@@ -169,7 +169,7 @@ public class SnapshotParserTests
 
         var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
 
-        graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single().TargetId.Should().Be(to);
+        graph.TargetIdsFrom(graph.Thing(from)!).Should().Equal(to);
     }
 
     // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things

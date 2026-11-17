@@ -5,18 +5,17 @@ namespace vos.Service.Shared.Hosting;
 
 // Keeps this service's model clock on the broker's.
 //
-// Asked again on an interval rather than once at startup: a service is launched while the model is
-// still on the wall clock and a simulation anchors the clock afterwards, so a single reading at
-// start-up would be the one reading that is certainly wrong. Between readings the clock needs nothing
-// — it maps elapsed real time through the rate it was given — so the interval only bounds how long a
-// service can go on stamping the clock it was told about last.
+// Listens rather than polls: the broker announces a change of anchor or rate on its system-events
+// stream, and between changes the clock needs nothing, since it maps elapsed real time through the
+// rate it was given. Each time the stream is opened the clock is read once, so a change made while
+// the stream was down is taken on reconnect.
 internal sealed class ModelClockFollower : BackgroundService
 {
     private readonly ModelClock _clock;
-    private readonly Func<CancellationToken, Task<ModelTimeReading?>> _read;
+    private readonly Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> _listen;
     private readonly ILogger _logger;
     private readonly string _serviceName;
-    private readonly TimeSpan _interval;
+    private readonly TimeSpan _reconnectDelay;
     private TimeSpan? _said;
     private bool _unreachable;
 
@@ -24,26 +23,26 @@ internal sealed class ModelClockFollower : BackgroundService
     // swapped that static raced, and what one captured depended on what another was emitting.
     public ModelClockFollower(
         ModelClock clock,
-        Func<CancellationToken, Task<ModelTimeReading?>> read,
+        Func<CancellationToken, IAsyncEnumerable<ModelTimeReading>> listen,
         ILogger logger,
         string serviceName,
-        TimeSpan interval)
+        TimeSpan reconnectDelay)
     {
         _clock = clock;
-        _read = read;
+        _listen = listen;
         _logger = logger;
         _serviceName = serviceName;
-        _interval = interval;
+        _reconnectDelay = reconnectDelay;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await FollowOnceAsync(stoppingToken);
+            await ListenOnceAsync(stoppingToken);
             try
             {
-                await Task.Delay(_interval, stoppingToken);
+                await Task.Delay(_reconnectDelay, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -52,30 +51,34 @@ internal sealed class ModelClockFollower : BackgroundService
         }
     }
 
-    internal async Task FollowOnceAsync(CancellationToken cancellationToken)
+    // A connection that yields nothing is a broker that could not be reached.
+    internal async Task ListenOnceAsync(CancellationToken cancellationToken)
     {
-        if (await _read(cancellationToken) is not { } reading)
+        var heard = false;
+        await foreach (var reading in _listen(cancellationToken).WithCancellation(cancellationToken))
         {
-            // Once, not once an interval: a broker away for an hour would otherwise write the same
-            // warning several hundred times, and the clock goes on answering from its last reading.
-            if (!_unreachable)
-                _logger.LogWarning("{Service} cannot read the model clock; it stamps the last reading it "
-                                   + "took until the broker answers again", _serviceName);
-            _unreachable = true;
-            return;
+            heard = true;
+            if (_unreachable)
+                _logger.LogInformation("{Service} is reading the model clock again", _serviceName);
+            _unreachable = false;
+
+            _clock.AnchorTo(reading.Now, reading.Rate);
+            Say(reading);
         }
 
-        if (_unreachable)
-            _logger.LogInformation("{Service} is reading the model clock again", _serviceName);
-        _unreachable = false;
+        if (heard || cancellationToken.IsCancellationRequested) return;
 
-        _clock.AnchorTo(reading.Now, reading.Rate);
-        Say(reading);
+        // Once, not once a reconnect: a broker away for an hour would otherwise write the same warning
+        // many hundred times, and the clock goes on answering from its last reading.
+        if (!_unreachable)
+            _logger.LogWarning("{Service} cannot read the model clock; it stamps the last reading it "
+                               + "took until the broker answers again", _serviceName);
+        _unreachable = true;
     }
 
-    // Said when the distance between the two clocks changes, not on every reading: a run at sixty
-    // times real speed moves the model on between readings, so a line per reading would be a log of
-    // the interval. A second past the last figure is a clock that was re-anchored.
+    // Said when the distance between the two clocks changes, not on every reading: a reconnect to a
+    // clock that has not moved against this machine would otherwise write the same line again. A
+    // second past the last figure is a clock that was re-anchored.
     private void Say(ModelTimeReading reading)
     {
         var offset = _clock.OffsetFromWallClock();

@@ -1,7 +1,7 @@
-import type { ExceptionBucket, ExceptionWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { asNumber } from '../../../api/dashboardApi';
-import { useBindings } from '../../../hooks/useDashboard';
+import type { ExceptionBucket, ExceptionWidget } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
+import { asNumber } from '@tendril-ui/tendril';
+import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 

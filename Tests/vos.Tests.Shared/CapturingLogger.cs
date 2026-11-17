@@ -9,10 +9,16 @@ namespace vos.Tests.Shared;
 public sealed class CapturingLogger<T> : ILogger<T>
 {
     private readonly List<string> _lines = [];
+    private readonly List<string> _errorLines = [];
 
     public IReadOnlyList<string> Lines
     {
         get { lock (_lines) return [.. _lines]; }
+    }
+
+    public IReadOnlyList<string> ErrorLines
+    {
+        get { lock (_lines) return [.. _errorLines]; }
     }
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -25,6 +31,10 @@ public sealed class CapturingLogger<T> : ILogger<T>
     {
         var line = formatter(state, exception);
         if (exception is not null) line += " " + exception;
-        lock (_lines) _lines.Add(line);
+        lock (_lines)
+        {
+            _lines.Add(line);
+            if (logLevel >= LogLevel.Error) _errorLines.Add(line);
+        }
     }
 }

@@ -9,8 +9,9 @@ function rail() {
   const onPlace = vi.fn();
   const onOpenPipeline = vi.fn();
   const onHandOver = vi.fn();
-  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} onHandOver={onHandOver} />);
-  return { id, onPlace, onOpenPipeline, onHandOver };
+  const onShowSettings = vi.fn();
+  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} onHandOver={onHandOver} onShowSettings={onShowSettings} />);
+  return { id, onPlace, onOpenPipeline, onHandOver, onShowSettings };
 }
 
 describe('CatalystRail', () => {
@@ -20,7 +21,7 @@ describe('CatalystRail', () => {
     const internal = screen.getByRole('region', { name: 'From the model' });
     expect(within(external).getByText('Weather station · hourly reading')).toBeInTheDocument();
     expect(within(external).getByText('anybody · spare')).toBeInTheDocument();
-    expect(within(internal).getByText('Reservoir · below reorder')).toBeInTheDocument();
+    expect(within(internal).getByText('Reservoir · running low')).toBeInTheDocument();
     expect(within(internal).getByText('Reservoir · overdue · every 60 s')).toBeInTheDocument();
     expect(within(internal).getByText('feeds')).toBeInTheDocument();
   });
@@ -49,15 +50,15 @@ describe('CatalystRail', () => {
       id: 'state:dry', kind: 'state', who: 'Reservoir', what: 'dry', standsForId: 'dry', today: '',
       starts: { id: 'p', name: 'Refill' }, handling: { connectionId: 'c', byOrchestrator: false }, offersOrchestrator: true,
     };
-    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [row] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [row] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} onShowSettings={vi.fn()} />);
     expect(screen.getByText('drawn: Refill · nothing happens today')).toBeInTheDocument();
   });
 
   it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {
     const { id, onHandOver } = rail();
     expect(screen.getAllByRole('button', { name: /with the orchestrator$/ })).toHaveLength(3);
-    fireEvent.click(screen.getByRole('button', { name: 'Handle Reservoir · below reorder with the orchestrator' }));
-    expect(onHandOver).toHaveBeenCalledWith(expect.objectContaining({ standsForId: id.belowReorder }));
+    fireEvent.click(screen.getByRole('button', { name: 'Handle Reservoir · running low with the orchestrator' }));
+    expect(onHandOver).toHaveBeenCalledWith(expect.objectContaining({ standsForId: id.runningLow }));
   });
 
   it('opens the pipeline a catalyst starts when its words are pressed', () => {
@@ -68,8 +69,8 @@ describe('CatalystRail', () => {
 
   it('places a start node standing for the row, and one standing for nothing from the start by hand', () => {
     const { id, onPlace } = rail();
-    fireEvent.click(screen.getByRole('button', { name: 'Place a start node standing for Reservoir · below reorder' }));
-    expect(onPlace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'state', standsForId: id.belowReorder }));
+    fireEvent.click(screen.getByRole('button', { name: 'Place a start node standing for Reservoir · running low' }));
+    expect(onPlace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'state', standsForId: id.runningLow }));
     fireEvent.click(screen.getByRole('button', { name: 'Place a start by hand' }));
     expect(onPlace).toHaveBeenLastCalledWith(undefined);
   });
@@ -82,7 +83,20 @@ describe('CatalystRail', () => {
   });
 
   it('says a side holds nothing rather than drawing an empty list', () => {
-    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} onShowSettings={vi.fn()} />);
     expect(screen.getAllByText('Nothing is declared')).toHaveLength(2);
+  });
+
+  it('offers the call settings of a state watched through one connection, and nothing else', () => {
+    const { id, onShowSettings } = rail();
+    expect(screen.getAllByRole('button', { name: /^Show the call settings of / }).map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Show the call settings of Reservoir · drought',
+      'Show the call settings of Reservoir · dry',
+      'Show the call settings of Reservoir · running low',
+      'Show the call settings of Reservoir · surplus',
+      'Show the call settings of Reservoir · overdue · every 60 s',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Show the call settings of Reservoir · running low' }));
+    expect(onShowSettings).toHaveBeenCalledWith(id.watchesRunningLow);
   });
 });

@@ -247,12 +247,12 @@ public static class EndpointCallChecks
 
     public static bool TryTimeout(
         IReadOnlyDictionary<string, JsonElement> effective,
-        out TimeSpan timeout, [NotNullWhen(false)] out Refusal? refusal)
+        out TimeSpan? statedTimeout, [NotNullWhen(false)] out Refusal? refusal)
     {
-        timeout = OutboundRequest.DefaultTimeout;
+        statedTimeout = null;
         refusal = null;
         if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "timeout", out var element, out var conflicts))
-            timeout = OutboundRequest.ResolveTimeout(element);
+            statedTimeout = OutboundRequest.ResolveTimeout(element);
         if (conflicts != null)
         {
             refusal = AmbiguousProperty("timeout", conflicts);

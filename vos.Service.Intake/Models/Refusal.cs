@@ -23,6 +23,8 @@ public static class RefusalCode
     public const string NoParcel = "noParcel";
     public const string QueryMissing = "queryMissing";
     public const string NoSearch = "noSearch";
+    public const string NoElevation = "noElevation";
+    public const string NoPlots = "noPlots";
     public const string NoBasemap = "noBasemap";
 
     public const string EmailAddressMissing = "emailAddressMissing";
@@ -57,6 +59,10 @@ public static class RefusalCode
     public const string FileTooLarge = "fileTooLarge";
     public const string DescriptionTooLong = "descriptionTooLong";
     public const string FilesNotTaken = "filesNotTaken";
+    public const string LayerFileUnreadable = "layerFileUnreadable";
+    public const string FeaturesUnreadable = "featuresUnreadable";
+    public const string FeatureNotInFile = "featureNotInFile";
+    public const string DocumentNotShared = "documentNotShared";
 
     public static IReadOnlyList<string> All { get; } =
     [

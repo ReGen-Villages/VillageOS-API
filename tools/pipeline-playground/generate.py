@@ -99,6 +99,7 @@ PREDICATE_ROLE = {
     "stoppedBy": "stoppedBy",
     "startedBy": "startingRun",
     "repeats": "repeatedRun",
+    "notifies": "notifiedConnection",
 }
 
 # The two results a wire is taken on, and the error port every service node has without declaring it.
@@ -239,7 +240,7 @@ def declare_dag_vocabulary(k):
     v.DecisionPath = k.archetype("DecisionPath")
 
     k.rel(v.carries, v.is_, v.PipelineWire)
-    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # Every service's connection is an HTTP connection at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
     v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
     k.bind(TRIGGER_ROLE["http"], v.http)
@@ -273,6 +274,17 @@ def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, req
     k.rel(pid, v.is_, v.Port)
     k.rel(owner_id, v.has, pid)
     return pid
+
+
+def graph_connection_notified_by(k, v, predicate, graph, service, connection_id):
+    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`. Until the
+    platform reads it there, the predicate stays a connection too, with the same trigger and service."""
+    connection = k.thing(connection_id, f"{k.things[predicate]['Name']} connection")
+    k.rel(connection, v.is_, v.Connection)
+    k.rel(connection, v.triggered_by, graph)
+    k.rel(connection, v.has, service)
+    k.rel(predicate, k.predicate("notifies"), connection)
+    return connection
 
 
 def place_under_roots(k, v, configured=(), operational=()):
@@ -353,7 +365,7 @@ def build():
         k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
 
     # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
-    # subdomain, so no request reaches it as a door.
+    # subdomain, so no HTTP request reaches it.
     stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
     orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
     k.held_by_shared[orchestrator] = stops
@@ -361,6 +373,8 @@ def build():
     k.rel(stops, is_, Connection)
     k.rel(stops, triggered_by, graph)
     k.rel(stops, has, orchestrator)
+    stops_connection = graph_connection_notified_by(k, v, stops, graph, orchestrator, stable_id(_TAG, "connection", "stops connection"))
+    k.held_by_shared[stops_connection] = stops
 
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
     # entry, carrying the Subdomain it is called at).
@@ -391,7 +405,7 @@ def build():
         k.rel(conn_id, triggered_by, http)
         connection_by_key[svc["key"]] = conn_id
 
-    # Each kind of message → a MessageKind arriving at the door that reads it; each external system → an
+    # Each kind of message → a MessageKind arriving at the HTTP connection that reads it; each external system → an
     # ExternalSystem that sends and is told its kinds.
     kind_by_key = {}
     for (key, label, arrives_at_service) in MESSAGE_KINDS:
@@ -415,6 +429,8 @@ def build():
             k.rel(through_id, is_, Connection)
             k.rel(through_id, triggered_by, graph)
             k.rel(through_id, has, service_by_key[system["toldThrough"]])
+            graph_connection_notified_by(k, v, through_id, graph, service_by_key[system["toldThrough"]],
+                                         stable_id(_TAG, "told-through", system["key"], "connection"))
             k.rel(system_id, told_through, through_id)
         system_by_key[system["key"]] = system_id
 

@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -236,6 +237,7 @@ class BuildsTheFragment(unittest.TestCase):
 class RunsTheImporter(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.directory)
         self.spec_path = os.path.join(self.directory, "layout.json")
         with open(self.spec_path, "w", encoding="utf-8") as handle:
             json.dump(spec(), handle)

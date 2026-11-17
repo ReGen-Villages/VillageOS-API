@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -106,7 +105,7 @@ public class TicketRenewalTests
             HandlerCallback = request =>
             {
                 var path = request.RequestUri!.AbsolutePath;
-                if (request.Method == HttpMethod.Post && path == "/api/subscriptions")
+                if (ModelStub.IsDeclarationRead(request))
                     return ModelStub.Json(Reading(request, model));
                 if (path.EndsWith("/ranges", StringComparison.Ordinal))
                     return ModelStub.Json(

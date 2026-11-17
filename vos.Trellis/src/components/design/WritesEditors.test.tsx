@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { ActionRecords, AskedValue, FormWidget } from '../../types/dashboard';
+import type { ActionRecords, AskedValue, FormWidget } from '@tendril-ui/tendril';
 import { ActionWritesEditor, AskedEditor, FormWritesEditor, PreviewEditor } from './WritesEditors';
 import { catchmentContext } from './testOffers';
 
@@ -60,6 +60,33 @@ describe('ActionWritesEditor', () => {
     rerender(draw());
     fireEvent.click(screen.getByRole('button', { name: 'Remove item 1' }));
     expect(held.choices).toEqual([]);
+  });
+});
+
+describe('ActionWritesEditor carries', () => {
+  const offeredBy = (label: string) =>
+    [...screen.getByLabelText(label).parentElement!.querySelectorAll('datalist option')].map((option) => option.getAttribute('value'));
+
+  it('carries a row value onto the minted Thing, offering the minted kind\'s properties and the row\'s keys', () => {
+    let held: ActionRecords = { via: '/api/endpoints/intake', archetype: 'Reservoir', choices: [] };
+    const onChange = vi.fn((next: ActionRecords) => { held = next; });
+    const context = { ...catchmentContext(), rowKeys: ['name', 'volume'] };
+    const draw = () => <ActionWritesEditor label="Writes" value={held} context={context} onChange={onChange} />;
+    const { rerender } = render(draw());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Carry another value' }));
+    expect(held.carries).toEqual([{ property: '', reads: '' }]);
+    rerender(draw());
+    expect(offeredBy('Onto the minted Thing as')).toEqual(['capacity', 'level']);
+    expect(offeredBy('Read from the row')).toEqual(['name', 'volume']);
+    commit('Onto the minted Thing as', 'capacity');
+    rerender(draw());
+    commit('Read from the row', 'volume');
+    expect(held.carries).toEqual([{ property: 'capacity', reads: 'volume' }]);
+    rerender(draw());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove capacity' }));
+    expect(held.carries).toBeUndefined();
   });
 });
 

@@ -37,6 +37,8 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
 | `--issuer` | | JWT issuer to check against; required whenever `VerificationKey` is set |
 | `--audience` | | This service's own recipient name, which an inbound token must carry; required whenever `VerificationKey` is set. There is no default |
+| `--serviceCallLimitSeconds` | | How long Mycelium waits for the service to answer a service call, in whole seconds; absent or unusable reads as no limit. The service reads it and has no limit of its own to check against it |
+| `--passedOnRequestLimitSeconds` | | The same for a request Mycelium passes on to the service |
 
 ## Credentials
 
@@ -65,7 +67,7 @@ The pieces below are in `vos.Service.Python.Shared`, which is tested there.
 
 - **Registration** — `MyceliumClient.register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; `ServiceHost` runs it from the FastAPI `lifespan` startup hook.
 - **JWT validation** — `verifier(config)` returns a FastAPI dependency (`host.verify_request`, which `/handle`, `/shutdown` and this service's demo routes use) that uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — `POST /shutdown` acknowledges and then stops the server, which is how a service Mycelium did not start itself is stopped. The `lifespan` hook makes no call to the broker on the way out. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+- **Shutdown** — `POST /shutdown` acknowledges and then stops the server, which is how a service Mycelium did not start itself is stopped. The `lifespan` hook makes no call to the broker on the way out. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Test
 

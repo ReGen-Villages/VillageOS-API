@@ -28,8 +28,6 @@ public class EndpointMapperTests : IAsyncLifetime
         await _factory.DisposeAsync();
     }
 
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
     [Fact]
     public async Task Health_ReturnsHealthyEnvelope()
     {

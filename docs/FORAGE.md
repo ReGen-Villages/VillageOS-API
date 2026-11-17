@@ -113,7 +113,10 @@ no relationship reaches because neither covers a Place, and every Place, asked f
 Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
-see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
+see [`TRIBUTARY.md`](TRIBUTARY.md). A site's read carries only the relationships the selected Things
+hold outgoing — one rule naming no predicate, because a study holds its analysis relationships through
+whichever connection the model declares — so the `isIn` every other site writes into a shared Place no
+longer travels with it; the source read and the kind read name their predicates one by one. **A source's read** is the same walk from the other end: the Places
 it `covers`, then `isIn` walked *downwards* through their nesting, then what each site there `has` —
 see [A source added to the catalogue](#a-source-added-to-the-catalogue).
 
@@ -136,7 +139,7 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 | A run starts | A site's coordinates are written and its coverage has never been matched |
 | A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageMatchedAt` on the site; once no coverage is outstanding the site leaves the state on its own |
 | A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the call record waits out its `done_within`, the run is driven again, and it asks only that source |
-| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load calls the service again — bounded by the platform's oscillation guard |
+| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load calls the service again — bounded by the connection's call-again limits |
 | A source added to the catalogue later | Has the service called about it, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
@@ -155,7 +158,9 @@ discovery service.
 **Every call a run makes has a `SourceCoverage` to record what it came to** — one Thing per subject and
 source, declared by the platform and filled here. It carries `resolvedAt` when the answer
 landed, and `lastAttemptAt`, `attempts` and `failureReason` when it did not. A run mints one for any call
-the model has none for, relating it `appliesTo` the subject and `sourcedFrom` the source.
+the model has none for, relating it `appliesTo` the subject and `sourcedFrom` the source. The record's
+identifier is worked out from the subject and the source, and the record and its relationships go in
+one `/api/model/fragment` write, so writing it twice changes nothing.
 
 **A call whose coverage already carries `resolvedAt` is not made again.** That is the point of the
 Things: a source answering for one subject and failing for another leaves exactly the second outstanding,
@@ -230,18 +235,19 @@ declares no request shape of its own. The subject is a site or a source, and the
 it found, and the platform gives a service call **15 seconds**; with tens of shared sources, fetched
 `--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
-the call is the model: the connection relates to `SiteDiscovered` as what proves the call done,
-the record stays in flight until the site's coverage has been matched and no coverage of it is
-outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
-nobody will finish. Completion is *observed* by choice: the platform does take an acknowledgement
-from a service, but the site reaching the done state is the evidence, and an acknowledgement would
-add nothing to it.
+the call is the model: the connection relates to `SiteDiscovered` as what proves the call done, the
+Forage prototype finishes its calls when the Thing reaches the done state, and the record stays sent
+until the site's coverage has been matched and no coverage of it is outstanding — the run's own last
+write is what closes it — and `done_within` presumes dead a run nobody will finish. Completion is
+*observed* by choice: the platform does take a report from a service, but the site reaching the done
+state is the evidence, and a report would add nothing to it.
 
 **One site's runs do not overlap.** A run for a site, or for a source, waits while another run for it
 is in flight; runs for different sites still run together. At most one run waits: a call arriving
 while one already waits is dropped, because the waiting run reads the model only after the run in
-flight ends. Two runs for one site would each mint a coverage for the same call, which makes every
-later run for that site fail, and would call the same sources and write the same relationships twice.
+flight ends. Every write a run makes is safe to repeat — a coverage record's identifier is worked out
+from its subject and source, and the analysis, vocabulary and division writes land once however often
+they are made — so the hold only saves a second set of calls to the same sources.
 
 **A coverage read that fails writes nothing.** It cannot refuse in the answer, because the answer has
 already been given, so it says so by leaving no trace: no fetch, no analysis started, and the site
@@ -304,17 +310,27 @@ that failed outright.
 
 **Bounds.** Calls run concurrently up to `--maxConcurrentSources`, held across every call rather
 than per source, so a site covered by many sources — or a source called once per assessment — cannot
-open a burst of connections that reads as abuse. Any one call is bounded by
-`--sourceTimeoutSeconds` — a sliced source, and a slice asked again, can take longer in total: a
-provider that accepts the connection and then goes quiet is more common than one that refuses
-outright, and it must not hold up the run. A run cancelled by its caller is
-never reported as a timeout — that would put a fabricated outage in front of a planner.
+open a burst of connections that reads as abuse. A provider that accepts the connection and then goes
+quiet is more common than one that refuses outright, and it must not hold up the run: Mycelium's limit
+on the request it passes on ends it, answering `504`, and the slice is asked again. Any one call is
+also bounded by `--sourceTimeoutSeconds` — a sliced source, and a slice asked again, can take longer in
+total — as the backstop for a broker that does not answer at all, so it must be longer than
+`--passedOnRequestLimitSeconds`. When it is not, Forage logs one warning at start-up naming both
+numbers and the setting to change, and starts as usual. `--attemptsPerSlice=<n>` is the most times one slice is
+asked for when it times out or is refused for too many requests, a positive whole number, with
+anything else falling back to 3. A source that times out on every slice therefore holds its place
+for up to `--attemptsPerSlice` × `--sourceTimeoutSeconds` before it is reported unresolved. A run
+cancelled by its caller is never reported as a timeout — that would put a fabricated outage in front
+of a planner.
 
 **A source reaching back years is asked for a slice of that reach at a time**, `--sourceWindowDays`
 of it per call, and the outcome is reported when every slice has answered. A slice refused with 429
-is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, up to
-three attempts; a wait over five minutes is left to the next pass, and any other refusal ends the
-fetch at once. The reach is the model's
+is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, and a
+wait over five minutes is left to the next pass. A slice that timed out — no answer within
+`--sourceTimeoutSeconds`, or a 504 from Mycelium when it cut off the forwarded call — is asked again
+at once, and each such retry logs one Information line starting "Asking again for a slice that timed
+out". Both kinds of retry share one limit, `--attemptsPerSlice` (3 by default). Any other refusal
+ends the fetch at once. The reach is the model's
 to declare and a long one is legitimate; what one pass can carry is a fact about the deployment. A
 whole reach in one call makes the provider's answer, the reshape that follows it and the write it
 becomes each as large as the reach — at a decade of hourly readings, millions of readings in each,
@@ -427,10 +443,9 @@ the call races it; the fetching service reports what each subject call wrote (`w
 [`TRIBUTARY.md`](TRIBUTARY.md)), and that report is what is resolved.
 
 **A changed word moves the relationship.** A relationship already pointing at the named member is left
-alone; one pointing elsewhere is removed before its replacement is written, so a re-graded assessment
-never carries two levels. A stale relationship that will not go blocks its replacement — a reader must
-never meet
-two answers — and the next run resolves again.
+alone; one pointing elsewhere is removed in the same write as its replacement, so a re-graded
+assessment never carries two levels. A refused write leaves the old relationship and is reported, and
+a removal another run already made counts as done.
 
 **A word the vocabulary does not hold writes no relationship and is reported**, naming the source, the
 subject, the property, the word and the vocabulary. Writing it would invent a member the scheme does
@@ -449,9 +464,9 @@ until something runs discovery again.
 **When the run finishes, Forage relates the site's study to each compute service** — one
 `SiteStudy -connection-> prototype` relationship per connection the `siteAnalysisConnection` role
 binds that the study is not already related through. A relationship already in the model, from the
-seed or an earlier run, is left as it is and counts as started. A connection bound to a service
-is a handled predicate, so creating that relationship is what calls its service; no compute service
-is called from here. The model carries the trigger, which means there is one way to start an analysis rather than
+seed or an earlier run, is left as it is and counts as started. A relationship written along a
+connection calls its service, so creating that relationship is what calls the compute service; no
+compute service is called from here. The model carries the trigger, which means there is one way to start an analysis rather than
 two to keep in step, and what started a given analysis is answerable from the model afterwards rather
 than only from a log.
 
@@ -476,6 +491,22 @@ would under a graph run once per request, because a reactive chain re-fires on e
 analysis is asked for, so a site with no study, a model binding no analysis connection, or a refused
 relationship write are each reported in `analysis.reason` with the discovery report intact beside
 them. A write that fails for one connection names that connection.
+
+## Answering as pipeline steps
+
+Forage also answers a step request on `/handle`, so a run can be drawn on a canvas a box at a time.
+The box's `step` setting chooses the step, and `GET /manifest/{step}` declares each one's ports:
+
+| Step | Takes | Gives |
+| --- | --- | --- |
+| `resolveRegion` | `site` | `address` |
+| `planCalls` | `site`, `address` | `calls`, one per slice of a long history |
+| `recordResults` | `resolved`, `unresolved` | `resolved`, `unresolved` |
+| `resolveWords` | `resolved` | `written`, `unknownWords` |
+| `startAnalysis` | `site` | `started`, `reason`; it stamps `coverageMatchedAt` |
+| `offerSource` | `source` | `outstanding` |
+
+A failed read of the model is a failure the orchestrator may try again.
 
 ## Pointers
 

@@ -20,6 +20,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\vos.Service.Forage\vos.Service.Forage.csproj"/>

@@ -39,7 +39,7 @@ const STATUS_RING: Record<string, string> = {
 const END_KIND_LABEL_KEY = {
   messageKind: 'pipeline.endKind.messageKind',
   externalSystem: 'pipeline.endKind.externalSystem',
-  door: 'pipeline.endKind.door',
+  httpConnection: 'pipeline.endKind.httpConnection',
   state: 'pipeline.endKind.state',
   relationship: 'pipeline.endKind.relationship',
   pipeline: 'pipeline.endKind.pipeline',

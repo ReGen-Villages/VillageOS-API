@@ -11,6 +11,7 @@ interface Props {
   onOpenPipeline: (pipelineId: string) => void;
   /** Bind the row's state to the orchestrator, so the pipeline drawn from it is what runs. */
   onHandOver: (row: CatalystRow) => void;
+  onShowSettings: (connectionId: string) => void;
 }
 
 const RAIL_BOUNDS = { initial: 232, min: 168, max: 480 };
@@ -26,7 +27,7 @@ const KIND_LABEL_KEY = {
 /** Everything that sets a run off, read off the model: what arrives from outside, and what the model
  *  does on its own. Each row says which pipeline is drawn for it, or what happens to it today, and
  *  places a start node standing for it. The first row is a start by hand, which stands for nothing. */
-export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver }: Props) {
+export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver, onShowSettings }: Props) {
   const { t } = useTranslation();
 
   const words = (row: CatalystRow) => {
@@ -51,7 +52,7 @@ export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver }: Pr
     );
   };
 
-  // The kind is said once for each run of rows of that kind, not on every row: twenty doors in a row
+  // The kind is said once for each run of rows of that kind, not on every row: twenty HTTP connections in a row
   // are twenty rows under one heading.
   const rowView = (row: CatalystRow, index: number, rows: CatalystRow[]) => (
     <li key={row.id} className="rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
@@ -82,6 +83,17 @@ export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver }: Pr
             className="block text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
           >
             {t('pipeline.catalysts.handOver')}
+          </button>
+        )}
+        {row.handling && (
+          <button
+            type="button"
+            onClick={() => onShowSettings(row.handling!.connectionId)}
+            aria-label={t('pipeline.catalysts.settingsTitle', { what: words(row) })}
+            title={t('pipeline.catalysts.settingsTitle', { what: words(row) })}
+            className="block text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {t('pipeline.catalysts.settings')}
           </button>
         )}
       </div>

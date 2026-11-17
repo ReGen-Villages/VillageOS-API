@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Text.Json;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
@@ -14,8 +13,8 @@ namespace vos.Service.ModelBridge.Services;
 public sealed class ModelBridgeNode : DagNodeService
 {
     public ModelBridgeNode(IHttpClientFactory httpClientFactory, ILogger<ModelBridgeNode> logger,
-        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
     }
 

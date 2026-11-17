@@ -21,22 +21,20 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
     public TributaryRecordsWhichRegistrationObservedTests(TheEngine engine) => _engine = engine;
 
     private SubscriptionClient Subscriptions() => new(
-        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     private TributaryClient Tributary() => new(
         _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
-        serviceToken: _engine.AdminToken);
+        launchToken: new LaunchToken(_engine.AdminToken));
 
     private Task<string?> ObserveAsync(Guid endpoint, Guid site, ObservedEdges edges) =>
-        new ObservationIngestService(Tributary(), NullLogger<ObservationIngestService>.Instance, new ModelClock())
+        new ObservationIngestService(Tributary(), new ModelClock())
             .ObserveValueAsync(endpoint, site, "flowRegime", "steady", observedAt: null, edges);
 
     private async Task<(ObservedEdges Edges, SnapshotDocument Snapshot)> ReadAsync(Guid endpoint)
     {
-        var subscriptions = Subscriptions();
-        var subscribed = await subscriptions.SubscribeAsync(EndpointKindResolver.SelectorFor(endpoint));
-        await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
-        return (ObservedEdges.Resolve(subscribed.Snapshot, endpoint), subscribed.Snapshot);
+        var read = await Subscriptions().ReadSnapshotAsync(EndpointKindResolver.SelectorFor(endpoint));
+        return (ObservedEdges.Resolve(read.Snapshot, endpoint), read.Snapshot);
     }
 
     [FactAgainstTheEngine]

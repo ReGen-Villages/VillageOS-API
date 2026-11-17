@@ -24,7 +24,7 @@ public class HandleEndpointTests
     private static readonly Guid Watching = Guid.Parse("c0000000-0000-0000-0000-000000000001");
     private static readonly Guid Loose = Guid.Parse("c0000000-0000-0000-0000-000000000002");
     private static readonly Guid Submission = Guid.Parse("50000000-0000-0000-0000-000000000042");
-    private static readonly Guid HeldVigil = Guid.Parse("e0000000-0000-0000-0000-000000000001");
+    private static readonly Guid WaitingNodeRun = Guid.Parse("e0000000-0000-0000-0000-000000000001");
 
     [Fact]
     public async Task Handle_AStateEntry_StartsThePipelineDrawnFromItsConnection()
@@ -44,17 +44,33 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_TheAnswerToAVigilANodeRunHolds_ResumesThatRunRatherThanStartingOne()
+    public async Task Handle_AStateEntry_ReportsToItsCallRecord_AndARunsRelationshipReportsToNothing()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var callRecord = Guid.NewGuid();
+
+        await client.PostAsync("/handle", StateEntry(target: Watching, relationship: callRecord));
+        await client.PostAsync("/handle", StateEntry(target: Drawn));
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 2, "both runs are recorded");
+        await Settle.UntilAsync(() => factory.ReportRoutesPosted().Contains($"/api/relationships/{callRecord}/report"),
+            "the state entry's run reports to its call record");
+
+        factory.ReportRoutesPosted().Should().OnlyContain(route => route == $"/api/relationships/{callRecord}/report");
+    }
+
+    [Fact]
+    public async Task Handle_TheAnswerToAWaitingNodeRun_ResumesItsRunRatherThanStartingOne()
     {
         await using var factory = new PhloemWebApplicationFactory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsync("/handle", StateEntry(target: HeldVigil));
+        var response = await client.PostAsync("/handle", StateEntry(target: WaitingNodeRun));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("accepted").GetBoolean().Should().BeTrue();
-        body.GetProperty("resumes").GetGuid().Should().Be(HeldVigil);
+        body.GetProperty("resumes").GetGuid().Should().Be(WaitingNodeRun);
         factory.RunsRecordedFor(Drawn).Should().Be(0);
     }
 
@@ -290,7 +306,7 @@ public class HandleEndpointTests
 
         factory.Log.Lines.Should().ContainSingle(line => line.StartsWith("Answered", StringComparison.Ordinal))
             .Which.Should().MatchRegex(
-                $@"^Answered 200 for {Watching} in \d+ ms: checking for a stop \d+ ms, looking up the vigil \d+ ms, "
+                $@"^Answered 200 for {Watching} in \d+ ms: checking for a stop \d+ ms, looking up the node run \d+ ms, "
                 + @"finding the pipeline it starts \d+ ms$");
     }
 
@@ -304,7 +320,7 @@ public class HandleEndpointTests
 
         await posting.Should().ThrowAsync<HttpRequestException>("the test host passes the endpoint's failure through");
         factory.Log.Lines.Should().ContainSingle(line => line.StartsWith("Gave no answer", StringComparison.Ordinal))
-            .Which.Should().MatchRegex($@"^Gave no answer for {Unreadable} after \d+ ms: .*looking up the vigil \d+ ms; .*503");
+            .Which.Should().MatchRegex($@"^Gave no answer for {Unreadable} after \d+ ms: .*looking up the node run \d+ ms; .*503");
     }
 
     private static readonly Guid Unreadable = Guid.Parse("50000000-0000-0000-0000-000000000098");
@@ -347,6 +363,11 @@ public class HandleEndpointTests
             .Select(body => body.TryGetProperty("things", out var things) ? things[0].GetRawText() : body.GetRawText())
             .Single();
 
+        public IReadOnlyList<string> ReportRoutesPosted() => _broker.Requests
+            .Where(request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath.EndsWith("/report", StringComparison.Ordinal))
+            .Select(request => request.RequestUri!.AbsolutePath)
+            .ToList();
+
         private static bool IsACreation(HttpRequestMessage request) =>
             request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath is "/api/things" or "/api/model/fragment";
 
@@ -371,7 +392,7 @@ public class HandleEndpointTests
             {
                 var selector = request.Content!.ReadAsStringAsync().Result;
                 if (selector.Contains(Unreadable.ToString())) return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
-                return Json(selector.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil()
+                return Json(selector.Contains(WaitingNodeRun.ToString()) ? TheWaitingNodeRun()
                     : selector.Contains(PipelineRoles.RunStopping.Id.ToString()) ? TheStopsConnection()
                     : OneDrawing());
             }
@@ -411,14 +432,12 @@ public class HandleEndpointTests
             });
         }
 
-        private static string TheNodeRunHoldingTheVigil()
+        private static string TheWaitingNodeRun()
         {
             var binds = Guid.NewGuid();
-            var waitsOn = Guid.NewGuid();
             var has = Guid.NewGuid();
             var isPredicate = Guid.NewGuid();
-            var vigilArchetype = Guid.NewGuid();
-            var nodeRun = Guid.NewGuid();
+            var nodeRunArchetype = Guid.NewGuid();
             var run = Guid.NewGuid();
             return JsonSerializer.Serialize(new
             {
@@ -426,27 +445,22 @@ public class HandleEndpointTests
                 {
                     things = new object[]
                     {
-                        new { id = HeldVigil, name = "Plot 7 enters decided", properties = new Dictionary<string, object>() },
-                        new { id = PipelineRoles.Vigil.Id, name = "vigil role", properties = new Dictionary<string, object>() },
-                        new { id = vigilArchetype, name = "Vigil", properties = new Dictionary<string, object>() },
-                        new { id = isPredicate, name = "is", properties = new Dictionary<string, object>() },
-                        new { id = PipelineRoles.HeldVigil.Id, name = "heldVigil role", properties = new Dictionary<string, object>() },
-                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
-                        new { id = waitsOn, name = "waitsOn", properties = new Dictionary<string, object>() },
-                        new { id = has, name = "has", properties = new Dictionary<string, object>() },
-                        new { id = nodeRun, name = "NodeRun Review", properties = new Dictionary<string, object>
+                        new { id = WaitingNodeRun, name = "NodeRun Review", properties = new Dictionary<string, object>
                         {
                             ["nodeId"] = new { typeInfo = "vos.String", value = Guid.NewGuid().ToString() },
                         } },
+                        new { id = PipelineRoles.NodeRun.Id, name = "nodeRun role", properties = new Dictionary<string, object>() },
+                        new { id = nodeRunArchetype, name = "NodeRun", properties = new Dictionary<string, object>() },
+                        new { id = isPredicate, name = "is", properties = new Dictionary<string, object>() },
+                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                        new { id = has, name = "has", properties = new Dictionary<string, object>() },
                         new { id = run, name = "PipelineRun", properties = new Dictionary<string, object>() },
                     },
                     relationships = new[]
                     {
-                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.Vigil.Id, predicateId = binds, targetId = vigilArchetype },
-                        new { id = Guid.NewGuid(), subjectId = HeldVigil, predicateId = isPredicate, targetId = vigilArchetype },
-                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.HeldVigil.Id, predicateId = binds, targetId = waitsOn },
-                        new { id = Guid.NewGuid(), subjectId = nodeRun, predicateId = waitsOn, targetId = HeldVigil },
-                        new { id = Guid.NewGuid(), subjectId = run, predicateId = has, targetId = nodeRun },
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.NodeRun.Id, predicateId = binds, targetId = nodeRunArchetype },
+                        new { id = Guid.NewGuid(), subjectId = WaitingNodeRun, predicateId = isPredicate, targetId = nodeRunArchetype },
+                        new { id = Guid.NewGuid(), subjectId = run, predicateId = has, targetId = WaitingNodeRun },
                     },
                 },
             });
@@ -476,7 +490,7 @@ public class HandleEndpointTests
                     things = new[]
                     {
                         Thing(pipelineArchetype, "Workflow"),
-                        Thing(startArchetype, "Doorway"),
+                        Thing(startArchetype, "Beginning"),
                         Thing(connectionArchetype, "Binding"),
                         Thing(isPredicate, "is"),
                         Thing(hasPredicate, "has"),

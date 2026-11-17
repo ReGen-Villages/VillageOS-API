@@ -24,7 +24,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
 
     private TributaryClient Tributary() => new(
         _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
-        serviceToken: _engine.AdminToken);
+        launchToken: new LaunchToken(_engine.AdminToken));
 
     // Every case deposits its own bytes, so one case's dedup can never answer another's deposit.
     private static byte[] OwnBytes() => Guid.NewGuid().ToByteArray();

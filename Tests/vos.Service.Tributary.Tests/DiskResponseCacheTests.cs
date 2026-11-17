@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Tributary.Services;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.Tributary.Tests;
@@ -18,14 +19,7 @@ public class DiskResponseCacheTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    // A settable clock so expiry is tested by moving time, not by sleeping.
-    private sealed class TestClock : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = new(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
-        public override DateTimeOffset GetUtcNow() => Now;
-    }
-
-    private readonly TestClock _clock = new();
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 8, 18, 12, 0, 0, TimeSpan.Zero));
 
     private DiskResponseCache Cache() => new(_root, _clock);
 
@@ -101,7 +95,7 @@ public class DiskResponseCacheTests : IDisposable
         var key = DiskResponseCache.CacheKey(new Uri("https://tiles.test/t"), null);
         cache.Write("EP", key, PngBytes, "image/png");
 
-        _clock.Now = _clock.Now.AddMinutes(10);
+        _clock.Advance(TimeSpan.FromMinutes(10));
 
         cache.TryRead("EP", key, TimeSpan.FromMinutes(5)).Should().BeNull();
 

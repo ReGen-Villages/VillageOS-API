@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using vos.Service.Shared;
 using vos.Service.Shared.Contracts.Validation;
 
 namespace vos.Service.Shared.Tests;
@@ -11,9 +10,9 @@ namespace vos.Service.Shared.Tests;
 internal sealed class TestableMyceliumClient : MyceliumClientBase
 {
     public TestableMyceliumClient(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider, apiKey)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, tokenProvider, apiKey)
     {
     }
 
@@ -24,4 +23,7 @@ internal sealed class TestableMyceliumClient : MyceliumClientBase
 
     public Task<HttpClient> CreateAuthenticatedClientPublicAsync(TimeSpan? timeout = null)
         => CreateAuthenticatedClientAsync(timeout);
+
+    public Task<bool> PostRelationshipPublicAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default)
+        => PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(5), cancellationToken);
 }

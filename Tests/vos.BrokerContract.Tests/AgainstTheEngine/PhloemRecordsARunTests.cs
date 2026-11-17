@@ -7,6 +7,7 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -24,7 +25,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     public PhloemRecordsARunTests(TheEngine engine) => _engine = engine;
 
     private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     // What the gateway needs to find before it can write: the built-in predicates by name,
     // and an archetype for each run role, found through the role Thing that binds it.

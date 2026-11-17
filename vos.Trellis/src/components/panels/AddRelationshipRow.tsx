@@ -4,7 +4,7 @@ import { Plus, Loader2 } from 'lucide-react';
 import { ThingPicker } from '../common/ThingPicker';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/toastStore';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 interface Props {
   direction: 'outgoing' | 'incoming';

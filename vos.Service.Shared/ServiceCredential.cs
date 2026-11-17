@@ -10,14 +10,14 @@ namespace vos.Service.Shared;
 // a key rather than a token is not left calling with nothing.
 public sealed class ServiceCredential
 {
-    private readonly string? _serviceToken;
+    private readonly LaunchToken? _launchToken;
     private readonly ApiKeyTokenSource? _apiKeyTokens;
 
     public ServiceCredential(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl,
-        string? serviceToken = null, string? apiKey = null)
+        LaunchToken? launchToken = null, string? apiKey = null)
     {
-        _serviceToken = serviceToken;
+        _launchToken = launchToken;
         _apiKeyTokens = string.IsNullOrEmpty(apiKey)
             ? null
             : new ApiKeyTokenSource(httpClientFactory, logger, myceliumUrl, apiKey);
@@ -28,7 +28,7 @@ public sealed class ServiceCredential
     public bool Holds =>
         !string.IsNullOrEmpty(MyceliumModelToken.Current)
         || _apiKeyTokens != null
-        || !string.IsNullOrEmpty(_serviceToken);
+        || _launchToken != null;
 
     // Null when the service holds nothing, and when a key it holds could not be exchanged: a
     // key that failed answers nothing rather than falling back to a credential reaching further.
@@ -40,6 +40,6 @@ public sealed class ServiceCredential
         if (_apiKeyTokens != null)
             return await _apiKeyTokens.GetTokenAsync(cancellationToken);
 
-        return string.IsNullOrEmpty(_serviceToken) ? null : _serviceToken;
+        return _launchToken?.Current;
     }
 }

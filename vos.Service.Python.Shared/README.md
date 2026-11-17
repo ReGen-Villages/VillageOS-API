@@ -1,7 +1,7 @@
 # vos.Service.Python.Shared — the managed-microservice contract, for Python
 
 The plumbing every Python VillageOS service needs, so a service writes its handler and nothing else. It is the
-Python counterpart of the C# [`vos.Auth.Shared`](../vos.Auth.Shared) and
+Python counterpart of the C# [`vos.Service.Auth`](../vos.Service.Auth) and
 [`vos.Service.Shared`](../vos.Service.Shared) libraries. The contract it implements is in
 [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md) and [docs/SERVICE_CONTRACT.md](../docs/SERVICE_CONTRACT.md).
 

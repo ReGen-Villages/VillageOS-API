@@ -1,4 +1,3 @@
-using System.Text.Json;
 using static vos.Taproot.ModelReading;
 
 namespace vos.Taproot;

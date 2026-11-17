@@ -3,7 +3,7 @@
 // action mean "show nothing → empty graph". It is named by its id, and the
 // panel shows that name in the reader's language.
 
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const IS_PREDICATE_NAME = 'is';
 

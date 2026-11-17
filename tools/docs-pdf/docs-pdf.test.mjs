@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { numeral, readDocument, renderGuide, footer, sourceCommit } from './build.mjs';
@@ -115,8 +115,14 @@ test('a figure with no ground of its own is left alone', () => {
   assert.equal(lightenForPrint(bare).lightened, false);
 });
 
-test('a figure is carried inside the file rather than pointed at', () => {
+function temporaryFolder(t) {
   const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+test('a figure is carried inside the file rather than pointed at', (t) => {
+  const dir = temporaryFolder(t);
   const path = join(dir, 'figure.svg');
   writeFileSync(path, DARK);
   const { uri, lightened } = inlineFigure(path);
@@ -139,7 +145,7 @@ test('the typography travels with the file rather than being left to the machine
 });
 
 test('a guide renders to HTML with a cover, a contents page and a divider per part', async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+  const dir = temporaryFolder(t);
   const input = join(dir, 'guide.md');
   writeFileSync(input, GUIDE);
   const out = join(dir, 'guide.pdf');
@@ -152,8 +158,8 @@ test('a guide renders to HTML with a cover, a contents page and a divider per pa
   assert.doesNotMatch(html, /page: cover/);
 });
 
-test('a minted PDF carries the version it was given, the date and the commit, on the cover and in the footer', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+test('a minted PDF carries the version it was given, the date and the commit, on the cover and in the footer', async (t) => {
+  const dir = temporaryFolder(t);
   const input = join(dir, 'guide.md');
   writeFileSync(input, GUIDE);
   const o = await renderGuide([input, '--out', join(dir, 'guide.pdf'), '--html-only', '--version', '1.2']);
@@ -164,8 +170,8 @@ test('a minted PDF carries the version it was given, the date and the commit, on
   assert.match(footer('A Guide', o), /A Guide · Version 1\.2/);
 });
 
-test('a guide inside a git checkout names the commit it was rendered from; one outside names none', async () => {
-  const outside = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+test('a guide inside a git checkout names the commit it was rendered from; one outside names none', async (t) => {
+  const outside = temporaryFolder(t);
   const input = join(outside, 'guide.md');
   writeFileSync(input, GUIDE);
   const o = await renderGuide([input, '--out', join(outside, 'guide.pdf'), '--html-only', '--version', '1.2']);
@@ -175,8 +181,8 @@ test('a guide inside a git checkout names the commit it was rendered from; one o
   assert.match(sourceCommit(here), /^[0-9a-f]{7,}$/);
 });
 
-test('a PDF run without a version stops before any browser starts, and names the option', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+test('a PDF run without a version stops before any browser starts, and names the option', (t) => {
+  const dir = temporaryFolder(t);
   const input = join(dir, 'guide.md');
   writeFileSync(input, GUIDE);
   const run = spawnSync(process.execPath, [fileURLToPath(new URL('./build.mjs', import.meta.url)), input, '--out', join(dir, 'guide.pdf')]);

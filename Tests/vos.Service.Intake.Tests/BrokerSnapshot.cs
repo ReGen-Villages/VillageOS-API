@@ -94,7 +94,7 @@ public sealed class BrokerSnapshot
                 ? (object)new { typeInfo = "vos.Double", value = stated.Value, writeKind = kind }
                 : new { typeInfo = "vos.Double", value = stated.Value });
 
-    // What POST /api/subscriptions answers a selector that takes the model whole.
+    // What POST /api/snapshots answers a selector that takes the model whole.
     public string Opened() => Written(_things, _edges);
 
     // What it answers a selector rooted at one site: that site, what the page's own walks reach

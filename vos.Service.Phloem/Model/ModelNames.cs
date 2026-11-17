@@ -63,6 +63,9 @@ public static class ModelNames
     // A stop node's ports: the Things whose runs it stops and the reason in, how many requests it wrote out.
     public const string Things = "things";
     public const string Requested = "requested";
+    public const string Thing = "thing";
+    public const string Reached = "reached";
+    public const string Written = "written";
     // On a cadence: the model minutes between its runs, and the instant the last run it started was due. A run a
     // cadence starts carries that instant as its parameter `due`.
     public const string IntervalMinutes = "intervalMinutes";
@@ -70,6 +73,8 @@ public static class ModelNames
     public const string Due = "due";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
+    // Held as an identifier because a call record is a relationship, and a relationship cannot be the target of another.
+    public const string CallRecordId = "callRecordId";
     public const string Payload = "payload";
     public const string Error = "error";
     public const string Decision = "decision";

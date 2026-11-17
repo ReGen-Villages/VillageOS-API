@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -79,7 +80,7 @@ public class EnergyBalanceNodeTests
     {
         var handler = new MockHttpMessageHandler(_ => throw new InvalidOperationException("no HTTP expected"));
         var factory = new TestHttpClientFactory(new HttpClient(handler));
-        return new EnergyBalanceNode(factory, NullLogger<EnergyBalanceNode>.Instance, MyceliumUrl, ServiceToken);
+        return new EnergyBalanceNode(factory, NullLogger<EnergyBalanceNode>.Instance, MyceliumUrl, new LaunchToken(ServiceToken));
     }
 
     private static JsonElement Envelope(string inputs) =>

@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Intake;
 using vos.Service.Intake.Models;
 using vos.Tests.Shared;
 using Xunit;
@@ -360,6 +359,22 @@ public class SubmissionEndpointTests
         (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.CodeSendingUnavailable);
         factory.Log.Lines.Should().Contain(line => line.Contains("relay access denied"),
             "what is wrong with the deployment belongs where whoever runs it reads it");
+    }
+
+    [Fact]
+    public async Task A_mailer_whose_own_timeout_elapses_is_answered_as_a_relay_that_is_not_working()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        factory.Mailer.Refuses = ElapsedClientTimeout.New();
+        using var client = factory.CreateClient();
+
+        var response = await AskForACodeAsync(client, AnasAddress);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.CodeSendingUnavailable);
+
+        factory.Mailer.Refuses = null;
+        (await AskForACodeAsync(client, AnasAddress)).StatusCode.Should().Be(HttpStatusCode.Accepted);
     }
 
     [Fact]

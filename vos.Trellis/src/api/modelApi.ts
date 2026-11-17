@@ -1,13 +1,6 @@
 import { apiClient } from './client';
-import { unwrapProperties } from '../utils/propertyMapper';
-import type { TemporalSnapshot, VosThing } from '../types/vos';
-
-/** The project model a promotion carried the group into. Promoting the same group twice answers with
- *  the same model, because the server derives its identifier rather than generating one. */
-export interface PromotionResult {
-  modelId: string;
-  modelName: string;
-}
+import { unwrapProperties } from '@tendril-ui/tendril';
+import type { TemporalSnapshot, VosThing } from '@tendril-ui/tendril';
 
 /** Counts returned by POST /api/model/fragment. */
 export interface FragmentResult {
@@ -47,25 +40,6 @@ export const modelApi = {
       () => apiClient.post<FragmentResult>('/api/model/fragment', parsed),
     );
   },
-
-  // Carry a group out of this model into a project model built for it from a template. The
-  // token names the SOURCE, the opposite way round from a fragment: the receiving model does not
-  // exist when the call begins. `followedPredicateNames` says what belongs with the root — this
-  // model's own vocabulary, so the caller names it rather than the platform assuming it.
-  promote: (
-    rootThingId: string,
-    followedPredicateNames: readonly string[],
-    template: string,
-    projectName: string,
-  ) =>
-    apiClient.action(`promote Thing ${rootThingId} into project "${projectName}"`, () =>
-      apiClient.post<PromotionResult>('/api/model/promote', {
-        RootThingId: rootThingId,
-        FollowedPredicateNames: followedPredicateNames,
-        Template: template,
-        ProjectName: projectName,
-      }),
-    ),
 
   clear: () => apiClient.action('clear the model', () => apiClient.del<{ message: string }>('/api/model')),
 };

@@ -5,7 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 

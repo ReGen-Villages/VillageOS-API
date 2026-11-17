@@ -24,7 +24,7 @@ public class WriteKindsDemoTests
     {
         var handler = new MockHttpMessageHandler(Respond);
         var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
-            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, ServiceToken);
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, new LaunchToken(ServiceToken));
 
         var result = await new WriteKindsDemo(client).RunAsync(Thing, new DateTime(2026, 6, 20, 12, 0, 0, DateTimeKind.Utc));
 

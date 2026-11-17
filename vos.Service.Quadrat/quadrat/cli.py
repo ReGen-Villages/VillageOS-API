@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from . import Refusal, bbox_zone, describe, sample_point, zonal_stats
+from . import Refusal, bbox_zone, classify, describe, histogram, profile, sample_point, zonal_stats
 
 
 def build_parser():
@@ -16,11 +16,26 @@ def build_parser():
     point.add_argument("--lat", type=float, required=True)
     point.add_argument("--resampling", default="nearest", choices=("nearest", "bilinear"))
 
-    zonal = commands.add_parser("zonal", help="statistics over a WGS84 polygon")
-    zonal.add_argument("raster")
-    zone = zonal.add_mutually_exclusive_group(required=True)
-    zone.add_argument("--geometry", help="a GeoJSON file holding a Polygon, a Feature or a FeatureCollection")
-    zone.add_argument("--bbox", nargs=4, type=float, metavar=("WEST", "SOUTH", "EAST", "NORTH"))
+    along = commands.add_parser("profile", help="the values at points along a WGS84 line")
+    along.add_argument("raster")
+    along.add_argument("--line", required=True, help="a GeoJSON file holding a LineString, a Feature or a FeatureCollection")
+    how = along.add_mutually_exclusive_group()
+    how.add_argument("--samples", type=int, help="how many points, the two ends included")
+    how.add_argument("--spacing", type=float, help="metres between points")
+    along.add_argument("--resampling", default="nearest", choices=("nearest", "bilinear"))
+
+    for name, help_text in (
+        ("zonal", "statistics over a WGS84 polygon"),
+        ("histogram", "the cells and area of each distinct value over a WGS84 polygon"),
+        ("classify", "the cells and area of each class of a stated class table over a WGS84 polygon"),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("raster")
+        zone = command.add_mutually_exclusive_group(required=True)
+        zone.add_argument("--geometry", help="a GeoJSON file holding a Polygon, a Feature or a FeatureCollection")
+        zone.add_argument("--bbox", nargs=4, type=float, metavar=("WEST", "SOUTH", "EAST", "NORTH"))
+        if name == "classify":
+            command.add_argument("--classes", required=True, help='a JSON file: [{"label": "trees", "values": [10, 11]}, {"label": "low", "max": 200}, ...]')
     return parser
 
 
@@ -37,10 +52,17 @@ def run(arguments):
         return describe(arguments.raster)
     if arguments.command == "point":
         return sample_point(arguments.raster, arguments.lon, arguments.lat, arguments.resampling)
+    if arguments.command == "profile":
+        return profile(arguments.raster, read_geometry(arguments.line), arguments.resampling, arguments.spacing, arguments.samples)
     if arguments.bbox:
         zone = bbox_zone(*arguments.bbox)
     else:
         zone = read_geometry(arguments.geometry)
+    if arguments.command == "histogram":
+        return histogram(arguments.raster, zone)
+    if arguments.command == "classify":
+        with open(arguments.classes, encoding="utf-8") as file:
+            return classify(arguments.raster, zone, json.load(file))
     return zonal_stats(arguments.raster, zone)
 
 

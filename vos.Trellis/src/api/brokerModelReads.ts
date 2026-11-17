@@ -6,12 +6,14 @@
  * generation — a map outliving it would serve a membership the model has since moved past.
  */
 import { apiClient } from './client';
-import type { ModelReads } from './modelReads';
+import type { ModelReads } from '@tendril-ui/tendril';
 import { stateApi } from './stateApi';
-import { thingsInStatePath, type StateNarrowing } from './stateQuery';
+import { thingsInStatePath, type StateNarrowing } from '@tendril-ui/tendril';
 import { rangeApi } from './rangeApi';
 import { temporalApi } from './temporalApi';
-import type { TemporalReduceResponse, ThingRangesResponse, ThingsInStateResponse } from '../types/vos';
+import { relationshipApi } from './relationshipApi';
+import { thingApi } from './thingApi';
+import type { TemporalReduceResponse, ThingRangesResponse, ThingsInStateResponse } from '@tendril-ui/tendril';
 
 export function brokerModelReads(): ModelReads {
   const states = new Map<string, Promise<ThingsInStateResponse>>();
@@ -58,9 +60,7 @@ export function brokerModelReads(): ModelReads {
       return request;
     },
 
-    // Shared only while in flight, unlike a state read: a widget that writes travels through this
-    // same port, and a press answered from an earlier press's reply would record nothing and say
-    // it had. Widgets of one refresh ask together, so their one question is still asked once.
+    // Widgets of one refresh ask together, so sharing a question while it is in flight asks it once.
     fromService(endpoint, body) {
       const question = `${endpoint} ${JSON.stringify(body)}`;
       const inFlight = services.get(question);
@@ -71,8 +71,18 @@ export function brokerModelReads(): ModelReads {
       return request;
     },
 
+    press: (endpoint, body) => apiClient.post<unknown>(endpoint, body),
+
     recordAction(description, succeeded) {
       void apiClient.reportAction(description, succeeded);
+    },
+
+    async relate(subjectId, predicateId, targetId) {
+      await relationshipApi.create(subjectId, predicateId, targetId);
+    },
+
+    async stampTime(thingId, property, at) {
+      await thingApi.setProperty(thingId, property, 'vos.DateTime', at.toISOString());
     },
   };
 }

@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared.Contracts.Validation;
+using vos.Service.Shared.ServiceCalls;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Shared;
 
@@ -47,14 +50,14 @@ public abstract class MyceliumClientBase
     }
 
     protected MyceliumClientBase(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
         _tokenProvider = tokenProvider;
-        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
+        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, launchToken, apiKey);
     }
 
     private const string NoCredential = "neither ApiKey nor Token is set";
@@ -147,6 +150,33 @@ public abstract class MyceliumClientBase
     private const string ObservationBatchRequestSchemaId = "https://villageos/contracts/observation-batch-request.schema.json";
     private const string SedimentDepositRequestSchemaId = "https://villageos/contracts/sediment-deposit-request.schema.json";
 
+    // A cancellation the caller asked for is not a fault, so it is not logged as one.
+    protected async Task<bool> PostRelationshipAsync(
+        Guid subjectId, Guid predicateId, Guid targetId, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(timeout);
+            var response = await client.PostAsJsonAsync(
+                $"{MyceliumUrl}/api/relationships", new { subjectId, predicateId, targetId }, cancellationToken);
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            Logger.LogWarning(
+                "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
+                subjectId, predicateId, targetId, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            if (!(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+                Logger.LogError(exception, "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
+                    subjectId, predicateId, targetId);
+            return false;
+        }
+    }
+
     // Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
     // number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).
     public async Task<long> SetFactAsync(Guid thingId, string property, object? value)
@@ -166,6 +196,23 @@ public abstract class MyceliumClientBase
         }
 
         throw await FailureAsync("Fact write", response);
+    }
+
+    public async Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken cancellationToken = default)
+    {
+        var json = report.Reason is { } reason
+            ? JsonSerializer.Serialize(new { report = report.Word, reason })
+            : JsonSerializer.Serialize(new { report = report.Word });
+
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.PostAsync(
+            $"{MyceliumUrl}{MyceliumRoutes.CallReport(callRecordId)}",
+            new StringContent(json, Encoding.UTF8, "application/json"), cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new CallRecordNoLongerWaitingException(callRecordId, report, await response.Content.ReadAsStringAsync(cancellationToken));
+        if (!response.IsSuccessStatusCode)
+            throw await FailureAsync("Call report", response);
     }
 
     // Record one Observation (queued/batched, 202). Pass observedAt for
@@ -255,22 +302,86 @@ public abstract class MyceliumClientBase
                 return null;
             }
 
-            var answer = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            if (!TryGetPropertyCaseInsensitive(answer, "now", out var now)
-                || !now.TryGetDateTimeOffset(out var instant))
-                return null;
-
-            var rate = TryGetPropertyCaseInsensitive(answer, "rate", out var stated)
-                       && stated.TryGetDouble(out var read) ? read : 1.0;
-            return new ModelTimeReading(instant, rate);
+            return ParseModelTime(await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken));
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // Said at debug, and by the caller once rather than once an interval: a broker that is
+            // Judged by the caller's token, not the exception's type: the client's own timeout throws an
+            // OperationCanceledException too, and that one is a broker too slow to answer, not a caller stopping.
+            // Said at debug, and by the caller once rather than once a reconnect: a broker that is
             // away for an hour would otherwise write the same warning several hundred times.
             Logger.LogDebug(exception, "Could not read the model clock");
             return null;
         }
+    }
+
+    public const string ModelClockChangedEvent = "ModelClockChanged";
+
+    /// <summary>The model clock as the broker tells it: a reading taken when the system-events stream
+    /// opens, then one for each change the broker announces, until the stream ends. Yields nothing where
+    /// the broker could not be reached; the caller reconnects.</summary>
+    public async IAsyncEnumerable<ModelTimeReading> ListenForModelClockAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var events = await OpenSystemEventsAsync(cancellationToken);
+        if (events is null) yield break;
+
+        using (events)
+        {
+            if (await ReadModelTimeAsync(cancellationToken) is { } reading)
+                yield return reading;
+
+            await foreach (var frame in SseEventReader.ReadAsync(await events.Content.ReadAsStreamAsync(cancellationToken), cancellationToken))
+            {
+                if (frame.EventType != ModelClockChangedEvent) continue;
+                if (ParseModelTime(frame.Data) is { } announced) yield return announced;
+            }
+        }
+    }
+
+    private async Task<HttpResponseMessage?> OpenSystemEventsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(Timeout.InfiniteTimeSpan);
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{MyceliumUrl}/api/events/stream");
+            request.Headers.TryAddWithoutValidation("Accept", "text/event-stream");
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.IsSuccessStatusCode) return response;
+
+            Logger.LogDebug("Opening the system-events stream answered {Status}", (int)response.StatusCode);
+            response.Dispose();
+            return null;
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.LogDebug(exception, "Could not open the system-events stream");
+            return null;
+        }
+    }
+
+    private static ModelTimeReading? ParseModelTime(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return ParseModelTime(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static ModelTimeReading? ParseModelTime(JsonElement answer)
+    {
+        if (!TryGetPropertyCaseInsensitive(answer, "now", out var now)
+            || !now.TryGetDateTimeOffset(out var instant))
+            return null;
+
+        var rate = TryGetPropertyCaseInsensitive(answer, "rate", out var stated)
+                   && stated.TryGetDouble(out var read) ? read : 1.0;
+        return new ModelTimeReading(instant, rate);
     }
 
     private static async Task<HttpRequestException> FailureAsync(string op, HttpResponseMessage response)

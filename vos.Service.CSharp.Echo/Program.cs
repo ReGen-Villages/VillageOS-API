@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
@@ -19,7 +19,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -34,17 +34,7 @@ builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
-// Issuer/audience must come from the CLI so validation matches what Mycelium signed.
-var authEnabled = !string.IsNullOrEmpty(verificationKey);
-if (authEnabled)
-{
-    builder.AddMyceliumTokenAuth(
-        verificationKey!,
-        issuer: launchSettings.Issuer,
-        audience: launchSettings.Audience);
-    Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-        launchSettings.Issuer, launchSettings.Audience);
-}
+var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
 var requestCount = 0;
 
@@ -54,14 +44,14 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
         "Echo",
         myceliumUrl,
-        serviceToken, apiKey: apiKey));
+        launchToken, apiKey: apiKey));
 
 builder.Services.AddSingleton(sp =>
     new EchoNode(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<ILogger<EchoNode>>(),
         myceliumUrl,
-        serviceToken, apiKey: apiKey));
+        launchToken, apiKey: apiKey));
 
 var app = builder.Build();
 
@@ -152,7 +142,7 @@ var selectorEndpoint = app.MapPost("/demo/subscribe",
     async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
 {
     var subscriptions = new SubscriptionClient(
-        httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken, apiKey: apiKey);
+        httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, launchToken, apiKey: apiKey);
     return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(SelectorDemo.SelectorFor(req)));
 });
 if (authEnabled) selectorEndpoint.RequireAuthorization();

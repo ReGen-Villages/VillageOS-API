@@ -1,7 +1,6 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Xylem.Configuration;
 using vos.Service.Shared;
-using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Hosting;
 using vos.Service.Xylem.Services;
 using Serilog;
@@ -31,18 +30,15 @@ try
         o.MultipartBodyLengthLimit = launchSettings.MaxUploadBytes);
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(launchSettings.Service.VerificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(launchSettings.Service.VerificationKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
-        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Service.Issuer, launchSettings.Service.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(
+        launchSettings.Service.VerificationKey, launchSettings.Service.Issuer, launchSettings.Service.Audience);
 
     // One credential for the whole service: the ingest tool and the model clear present the same thing,
     // and a key is exchanged once rather than once per caller.
+    var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, launchSettings.Service.MyceliumUrl);
     builder.Services.AddSingleton(sp => new ServiceCredential(
         sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServiceCredential>>(),
-        launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, launchSettings.Service.ApiKey));
+        launchSettings.Service.MyceliumUrl, launchToken, launchSettings.Service.ApiKey));
     builder.Services.AddSingleton<IModelIngestRunner>(sp => new ModelIngestRunner(
         launchSettings.ModelIngestDll ?? "", launchSettings.Service.MyceliumUrl,
         sp.GetRequiredService<ServiceCredential>(), sp.GetRequiredService<ILogger<ModelIngestRunner>>()));

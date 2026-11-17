@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { ModelIndex } from '../../api/dashboardApi';
+import type { ModelIndex } from '@tendril-ui/tendril';
 import { dashboardPages, dashboardWriteContext } from '../../api/dashboardPages';
-import type { DashboardDescriptor } from '../../types/dashboard';
+import type { DashboardDescriptor } from '@tendril-ui/tendril';
 import { toast } from '../common/toastStore';
 
 const buttonClass =

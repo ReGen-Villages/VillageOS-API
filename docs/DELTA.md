@@ -46,8 +46,8 @@ The platform's seed validation checks the tree when a model is loaded, and holds
 registration to the rule Delta applies. See [`TRIBUTARY.md`](TRIBUTARY.md) for the `EsriEndpoint`
 template and the property-field taxonomy.
 
-**The tree is read from the model on every registration.** In one subscription snapshot, Delta reads
-the Thing the `endpoint` role binds and the named template beneath it, then the template's keys as
+**The tree is read from the model on every registration.** In one read of `POST /api/snapshots`,
+which registers nothing, Delta reads the Thing the `endpoint` role binds and the named template beneath it, then the template's keys as
 the broker resolves them up the `is` chain. Nothing is cached, so a template added to or changed in a
 live model is what the next registration is checked against.
 
@@ -139,7 +139,7 @@ Mycelium JWT addressed to Delta; `/health` stays open. Delta exposes no `/stats`
 Delta takes the **standard launch settings** (see [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>] [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>]
 ```
 
 `--issuer` must match what Mycelium signed with and `--audience` must be Delta's own recipient

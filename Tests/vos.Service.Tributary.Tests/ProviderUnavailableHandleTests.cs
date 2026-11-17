@@ -104,13 +104,19 @@ public class ProviderUnavailableHandleTests
     public async Task The_shipped_settings_are_read_beside_the_executable_whatever_the_content_root()
     {
         var elsewhere = Directory.CreateTempSubdirectory("tributary-content-root-").FullName;
+        try
+        {
+            var handled = await HandleAsync(
+                new Portal(ProxysAnswer(), ProxysAnswer()), configuredWords: null, contentRoot: elsewhere);
 
-        var handled = await HandleAsync(
-            new Portal(ProxysAnswer(), ProxysAnswer()), configuredWords: null, contentRoot: elsewhere);
-
-        handled.ContentRoot.TrimEnd(Path.DirectorySeparatorChar).Should().Be(elsewhere.TrimEnd(Path.DirectorySeparatorChar));
-        handled.Status.Should().Be(HttpStatusCode.NotFound);
-        handled.Waits.Should().Equal(TimeSpan.FromSeconds(15));
+            handled.ContentRoot.TrimEnd(Path.DirectorySeparatorChar).Should().Be(elsewhere.TrimEnd(Path.DirectorySeparatorChar));
+            handled.Status.Should().Be(HttpStatusCode.NotFound);
+            handled.Waits.Should().Equal(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            Directory.Delete(elsewhere, recursive: true);
+        }
     }
 
     [Fact]

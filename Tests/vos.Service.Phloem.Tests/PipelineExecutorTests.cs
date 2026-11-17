@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -70,6 +71,20 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("the run kind is not a type");
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenRecordingTheRunOutlastsTheClient_FailsTheRunRatherThanThrowing()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build()) { RunCreationFailure = ElapsedClientTimeout.New() };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("HttpClient.Timeout");
         gateway.Called.Should().BeEmpty();
     }
 
@@ -429,6 +444,25 @@ public class PipelineExecutorTests
         result.Result!.Value.GetProperty("result").GetString().Should().Be("world");
         gateway.RunResult.Should().NotBeNull();
         gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("world");
+    }
+
+    [Fact]
+    public async Task RunAsync_OutputResultThatCannotBePutTogether_StillSucceedsAndPublishesNoResult()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        fx.State(fx.WireInto(fx.Get("Out")), ModelNames.ListTransform, "$error(\"no shape for the result\")");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue(result.Error);
+        result.Result.Should().BeNull();
+        gateway.RunResult.Should().BeNull();
+        gateway.StatusUpdates.Should().Contain(RunStatus.Succeeded);
     }
 
     [Fact]

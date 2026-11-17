@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { VosThing, VosRelationship } from '../../types/vos';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 interface Props {
   things: VosThing[];

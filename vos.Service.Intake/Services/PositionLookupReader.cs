@@ -19,7 +19,13 @@ public static class PositionLookupReader
 {
     public static readonly Role ParcelLookupRole = LandIntakeRoles.ParcelLookup;
     public static readonly Role PlaceSearchRole = LandIntakeRoles.PlaceSearch;
-    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole];
+    public static readonly Role FallsBackToRole = LandIntakeRoles.FallsBackTo;
+    public static readonly Role BorderElevationRole = LandIntakeRoles.BorderElevation;
+    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole, FallsBackToRole, BorderElevationRole];
+
+    // Deeper than any order a deployment declares; a chain that loops back on itself ends at the first repeat.
+    public static readonly TraverseRule FollowFallbacks =
+        new() { PredicateRole = FallsBackToRole.Id, Direction = "outgoing", Depth = 8 };
 
     public const string TransformProperty = "lookupTransform";
     public const string AttributionProperty = "attribution";
@@ -33,7 +39,8 @@ public static class PositionLookupReader
         Ids = RoleBindings.Identifiers(Roles),
         Names = [RoleBindings.BindsPredicateName],
         BoundArchetypes = RoleBindings.Identifiers(Roles),
-        Traverse = [RoleBindings.FollowBindings],
+        Traverse = [RoleBindings.FollowBindings, FollowFallbacks],
+        Relationships = [new RelationshipRule { PredicateRole = FallsBackToRole.Id }],
     };
 
     // The parcel registers the model declares, in name order so two reads try them the same
@@ -45,15 +52,70 @@ public static class PositionLookupReader
             .OfType<DeclaredLookup>()
             .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)];
 
-    // The one place search the model declares, or null where it declares none. Two would leave
-    // nothing able to say which a query goes to, so the first by name answers and the rest are dead
-    // declarations a deployment should notice — the same shape as a vocabulary bound twice.
-    public static DeclaredLookup? PlaceSearch(SnapshotDocument snapshot) =>
-        snapshot.Bound(PlaceSearchRole)
-            .Select(Lookup)
-            .OfType<DeclaredLookup>()
-            .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)
-            .FirstOrDefault();
+    // The place searches in the order the model asks them: the one the role binds, then each it falls back
+    // to. A search with no reshape is one whose licence is not obtained yet and is left out; two bound to the
+    // role leave the first by name to start from, the same shape as a vocabulary bound twice.
+    public static readonly Role PlotsInViewLookupRole = LandIntakeRoles.PlotsInViewLookup;
+    public const string MinimumZoomProperty = "minimumZoom";
+    public const string MostPlotsProperty = "mostPlotsPerRequest";
+
+    // The role binds the kind rather than one register, so the read asks for every Thing of the kind and the
+    // `is` relationships that say which they are.
+    public static SubscriptionSelector PlotsSelector() => new()
+    {
+        Ids = RoleBindings.Identifiers(PlotsInViewLookupRole),
+        Names = [RoleBindings.BindsPredicateName, SubmissionFragmentComposer.IsPredicateName],
+        BoundTypes = RoleBindings.Identifiers(PlotsInViewLookupRole),
+        Traverse = [RoleBindings.FollowBindings],
+        Relationships = [new RelationshipRule { Predicate = SubmissionFragmentComposer.IsPredicateName }],
+    };
+
+    public static IReadOnlyList<DeclaredPlotsLookup> PlotsInViewLookups(SnapshotDocument snapshot)
+    {
+        if (snapshot.Bound(PlotsInViewLookupRole).SingleOrDefault(thing => thing.IsArchetype) is not { } kind) return [];
+        var isPredicate = snapshot.Things
+            .Where(thing => string.Equals(thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+            .Select(thing => thing.Id).ToHashSet();
+        var members = snapshot.Relationships
+            .Where(edge => edge.TargetId == kind.Id && isPredicate.Contains(edge.PredicateId))
+            .Select(edge => edge.SubjectId).ToHashSet();
+
+        return [.. snapshot.Things
+            .Where(thing => !thing.IsArchetype && members.Contains(thing.Id))
+            .Select(thing => Lookup(thing) is { Bounds: not null } usable
+                ? new DeclaredPlotsLookup(usable, (int?)Number(thing, MinimumZoomProperty) ?? 0, (int?)Number(thing, MostPlotsProperty))
+                : null)
+            .OfType<DeclaredPlotsLookup>()
+            .OrderBy(lookup => lookup.Lookup.Name, StringComparer.Ordinal)];
+    }
+
+    public static IReadOnlyList<DeclaredLookup> PlaceSearches(SnapshotDocument snapshot) => Ordered(snapshot, PlaceSearchRole);
+
+    public static IReadOnlyList<DeclaredLookup> BorderElevations(SnapshotDocument snapshot) => Ordered(snapshot, BorderElevationRole);
+
+    private static IReadOnlyList<DeclaredLookup> Ordered(SnapshotDocument snapshot, Role role) =>
+        snapshot.Bound(role).OrderBy(thing => thing.Name, StringComparer.Ordinal).FirstOrDefault() is { } first
+            ? InFallbackOrder(snapshot, first)
+            : [];
+
+    private static IReadOnlyList<DeclaredLookup> InFallbackOrder(SnapshotDocument snapshot, SnapshotThing first)
+    {
+        var fallsBackTo = snapshot.Bound(FallsBackToRole).Select(thing => thing.Id).ToHashSet();
+        var next = snapshot.Relationships
+            .Where(edge => fallsBackTo.Contains(edge.PredicateId))
+            .GroupBy(edge => edge.SubjectId)
+            .ToDictionary(group => group.Key, group => group.First().TargetId);
+        var things = snapshot.Things.DistinctBy(thing => thing.Id).ToDictionary(thing => thing.Id);
+
+        var ordered = new List<DeclaredLookup>();
+        var visited = new HashSet<Guid>();
+        for (var at = first; at is not null && visited.Add(at.Id);
+             at = next.TryGetValue(at.Id, out var following) ? things.GetValueOrDefault(following) : null)
+        {
+            if (Lookup(at) is { } usable) ordered.Add(usable);
+        }
+        return ordered;
+    }
 
     private static DeclaredLookup? Lookup(SnapshotThing thing)
     {

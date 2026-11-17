@@ -8,9 +8,10 @@
  * offered it without a line changing here.
  */
 
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
-import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
-import { wordingIn, type TermWording } from '../i18n/termWording';
+import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
+import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import { wordingIn, type TermWording } from '@tendril-ui/tendril';
 
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
  *  under whichever archetype this role binds. */
@@ -20,7 +21,7 @@ export const HAZARD_LEVEL_ROLE = LAND_INTAKE_ROLE.HazardLevel;
 
 /** The platform's one canonical predicate, and with `binds` the only predicate name a reader may hold: it
  *  is the platform's own vocabulary rather than any model's, and nothing binds it. */
-export const IS_PREDICATE_NAME = 'is';
+const IS_PREDICATE_NAME = 'is';
 
 /** A whole model as a page reads it. Properties come from the server resolved effective rather than own:
  *  seed normalization moves a Thing's own values into its overrides, and a reader looking only at own

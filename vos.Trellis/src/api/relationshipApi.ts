@@ -1,7 +1,7 @@
 import { apiClient } from './client';
-import type { VosRelationship, EffectiveProperty } from '../types/vos';
+import type { VosRelationship, EffectiveProperty } from '@tendril-ui/tendril';
 import type { VosTypeName } from '../utils/constants';
-import { unwrapRelationship } from '../utils/propertyMapper';
+import { unwrapRelationship } from '@tendril-ui/tendril';
 
 async function writeProperty(id: string, name: string, type: VosTypeName, value: unknown) {
   const relationship = await apiClient.action(`set property "${name}" on relationship ${id}`, () =>
@@ -34,6 +34,11 @@ export const relationshipApi = {
 
   remove: (id: string) =>
     apiClient.action(`delete relationship ${id}`, () => apiClient.del<{ message: string }>(`/api/relationships/${id}`)),
+
+  retry: (recordId: string, reason?: string) =>
+    apiClient.action(`retry the service call on relationship ${recordId}`, () =>
+      apiClient.post<{ state: string }>(`/api/relationships/${recordId}/retry`, reason ? { reason } : {}),
+    ),
 
   setProperty: writeProperty,
 

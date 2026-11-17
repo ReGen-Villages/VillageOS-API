@@ -1,5 +1,5 @@
-import type { Binding, NumberFormat, Widget } from '../types/dashboard';
-import type { HistoryFold, HistoryFunction } from '../types/vos';
+import type { Binding, NumberFormat, Widget } from '@tendril-ui/tendril';
+import type { HistoryFold, HistoryFunction } from '@tendril-ui/tendril';
 import { en } from '../i18n/locales/en';
 
 /**
@@ -139,7 +139,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [
     title, hint, binding('rows', 'rows'), text('label', 'rowKey', true), strings('shows', 'rowKey'),
-    { key: 'asks', kind: 'asked' }, { key: 'writes', kind: 'actionWrites' },
+    { key: 'asks', kind: 'asked' }, number('visibleRows'), { key: 'writes', kind: 'actionWrites' },
   ],
   form: [title, hint, { key: 'fields', kind: 'asked' }, text('submit'), { key: 'preview', kind: 'preview' }, { key: 'writes', kind: 'formWrites' }],
 };

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { DashboardSection, DeclaredTheme, Widget } from '../../types/dashboard';
-import { buildModelIndex, type ResolveContext } from '../../api/dashboardApi';
-import type { ModelReads } from '../../api/modelReads';
+import type { DashboardSection, DeclaredTheme, Widget } from '@tendril-ui/tendril';
+import { buildModelIndex, type ResolveContext } from '@tendril-ui/tendril';
+import type { ModelReads } from '@tendril-ui/tendril';
 
 // The gallery draws the section's widgets through the one renderer every page draws them with, which is
 // proven where it lives. Here a widget only has to be told apart from its neighbours.

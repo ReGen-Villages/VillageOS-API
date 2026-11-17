@@ -6,14 +6,6 @@ import { brightenColor } from './colors';
 export const BRIGHT_EDGE_COLOR = '#d4d4d8'; // zinc-300
 export const BRIGHT_EDGE_SIZE = 1.5;
 
-/** Append an alpha channel to a hex colour string. */
-export function withAlpha(hex: string, alpha: number): string {
-  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
-  if (hex.length === 7) return hex + a;
-  if (hex.length === 9) return hex.slice(0, 7) + a;
-  return hex;
-}
-
 /** Apply selection highlight to a node result. */
 export function applySelectionHighlight(
   node: string,

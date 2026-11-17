@@ -9,5 +9,7 @@
     <!-- The commit the SDK appends by default makes the same declared version read differently on
          every build, and a model that records which build read it should record what was declared. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 </Project>

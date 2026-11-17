@@ -23,9 +23,8 @@ namespace vos.Service.Forage.Tests;
 public class HandleEndpointSourceOfferedTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
-    private const string MintRoute = "/api/things";
-    private const string RelateRoute = "/api/relationships";
-    private const string SubscribeRoute = "/api/subscriptions";
+    private const string RecordRoute = "/api/model/fragment";
+    private const string SnapshotRoute = "/api/snapshots";
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -88,17 +87,16 @@ public class HandleEndpointSourceOfferedTests
                 Fetched.Add(body);
                 return Json(HttpStatusCode.OK, """{"success":true}""");
             }
-            if (path == MintRoute && request.Method == HttpMethod.Post)
-            {
-                Minted.Add(JsonDocument.Parse(body).RootElement.EnumerateObject()
-                    .Single(property => property.Name.Equals("name", StringComparison.OrdinalIgnoreCase))
-                    .Value.GetString()!);
-                return Json(HttpStatusCode.Created, "{\"id\":\"" + Guid.NewGuid() + "\"}");
-            }
-            if (path == RelateRoute && request.Method == HttpMethod.Post)
+            if (RelationshipWrite.In(request) is not null)
             {
                 Related.Add(body);
-                return Json(HttpStatusCode.Created, "{}");
+                return Json(HttpStatusCode.OK, "{}");
+            }
+            if (path == RecordRoute && request.Method == HttpMethod.Post)
+            {
+                Minted.Add(JsonDocument.Parse(body).RootElement.GetProperty("things")[0].GetProperty("name").GetString()!);
+                Related.Add(body);
+                return Json(HttpStatusCode.OK, "{}");
             }
             if (path.EndsWith("/facts", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
             {
@@ -123,7 +121,7 @@ public class HandleEndpointSourceOfferedTests
         factory.HandlerCallback = request =>
             before?.Invoke(request)
             ?? writes.Route(request)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, archetypes ?? Archetypes())
+            ?? RouteSnapshotRead(request, ids, edges, siteValues: null, archetypes ?? Archetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -188,7 +186,7 @@ public class HandleEndpointSourceOfferedTests
 
         var writes = await ServiceCall(ids, "NationalFloodPortal", Edges(), request =>
             request.Method == HttpMethod.Post
-            && request.RequestUri!.AbsolutePath == SubscribeRoute
+            && request.RequestUri!.AbsolutePath == SnapshotRoute
             && Interlocked.Increment(ref reads) == 2
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                 : null);

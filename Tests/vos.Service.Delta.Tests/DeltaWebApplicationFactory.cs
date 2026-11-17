@@ -35,13 +35,6 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
 
-    private sealed class PerCallHttpClientFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallHttpClientFactory(HttpMessageHandler handler) { _handler = handler; }
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");

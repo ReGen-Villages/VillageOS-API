@@ -27,7 +27,7 @@ public class ModelIngestRunnerTests
 
         return new ServiceCredential(
             new TestHttpClientFactory(new HttpClient(handler)), NullLogger.Instance, MyceliumUrl,
-            serviceToken, apiKey);
+            serviceToken is null ? null : new LaunchToken(serviceToken), apiKey);
     }
 
     private static ModelIngestRunner Runner(ServiceCredential credential, string dll = "/tools/ModelIngest.dll") =>

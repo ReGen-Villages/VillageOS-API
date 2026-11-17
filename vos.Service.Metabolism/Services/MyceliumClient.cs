@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using vos.Service.Metabolism.Configuration;
@@ -10,8 +9,8 @@ public class MyceliumClient : MyceliumClientBase
 {
     private readonly ResourceDirection _direction;
 
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, ResourceDirection direction, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, ResourceDirection direction, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
         _direction = direction;
     }

@@ -15,6 +15,16 @@ class Config:
     issuer: str = ""
     #: This service's own name. A token addressed to anything else is refused.
     audience: str = ""
+    #: None when the platform did not say, which leaves the service free to set any limit of its own or none.
+    service_call_limit_seconds: int | None = None
+    passed_on_request_limit_seconds: int | None = None
+
+
+def _limit_seconds(value: str) -> int | None:
+    """Read as the .NET services read it: an unusable value is no limit rather than a refusal to start."""
+    if not (value.isascii() and value.isdigit()) or int(value) == 0:
+        return None
+    return int(value)
 
 
 def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> Config | None:
@@ -41,6 +51,10 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
             cfg.issuer = value
         elif key == "--audience" and value:
             cfg.audience = value
+        elif key == "--serviceCallLimitSeconds":
+            cfg.service_call_limit_seconds = _limit_seconds(value)
+        elif key == "--passedOnRequestLimitSeconds":
+            cfg.passed_on_request_limit_seconds = _limit_seconds(value)
     if not (seen_port and seen_url):
         return None
     # No default issuer or recipient name to fall back on. Each handler is addressed by its own
@@ -53,7 +67,7 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
 def usage(program: str) -> str:
     return (
         f"Usage: .venv/bin/python {program} --port=<port> --myceliumUrl=<url> "
-        "[--issuer=<iss>] [--audience=<aud>]\n"
+        "[--issuer=<iss>] [--audience=<aud>] [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>]\n"
         "--issuer and --audience are required whenever a VerificationKey is set; --audience is this "
         "service's own name.\n"
         "Credentials come from the environment, never the command line: ApiKey, Token, VerificationKey"

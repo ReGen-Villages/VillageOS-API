@@ -71,8 +71,7 @@ public class ServiceLaunchSettingsTests
     [Fact]
     public void Parse_WhenACredentialIsOnTheCommandLineAndInConfiguration_TakesTheConfiguredOne()
     {
-        var configuration = ConfigurationFrom(
-            ("Token", "configured-token"), ("VerificationKey", "configured-key"), ("ApiKey", "configured-api-key"));
+        var configuration = ConfigurationFrom(("Token", "configured-token"), ("VerificationKey", "configured-key"));
 
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
@@ -82,8 +81,93 @@ public class ServiceLaunchSettingsTests
         result.Should().NotBeNull();
         result!.Token.Should().Be("configured-token");
         result.VerificationKey.Should().Be("configured-key");
-        result.ApiKey.Should().Be("configured-api-key");
+        result.ApiKey.Should().BeNull();
     }
+
+    [Fact]
+    public void Parse_WhenOnlyAnApiKeyIsConfigured_ReadsIt()
+    {
+        var result = ServiceLaunchSettings.Parse(
+            ["--port=7111", "--myceliumUrl=https://localhost:7243"], ConfigurationFrom(("ApiKey", "configured-api-key")));
+
+        result.Should().NotBeNull();
+        result!.ApiKey.Should().Be("configured-api-key");
+        result.Token.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_WhenBothATokenAndAnApiKeyAreConfigured_ReturnsNull() =>
+        ServiceLaunchSettings.Parse(
+                ["--port=7111", "--myceliumUrl=https://localhost:7243"],
+                ConfigurationFrom(("Token", "configured-token"), ("ApiKey", "configured-api-key")))
+            .Should().BeNull("a service runs on one credential");
+
+    [Fact]
+    public void The_usage_message_says_a_service_takes_a_token_or_an_api_key_but_not_both() =>
+        ServiceLaunchSettings.UsageMessage.Should().Contain("Give Token or ApiKey, not both");
+
+    [Fact]
+    public void Parse_WithoutThePlatformsLimits_LeavesBothUnset()
+    {
+        var result = ServiceLaunchSettings.Parse(
+            ["--port=7111", "--myceliumUrl=https://localhost:7243"]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().BeNull();
+        result.PassedOnRequestLimit.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_WithThePlatformsLimits_ReadsEachAsSeconds()
+    {
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            "--serviceCallLimitSeconds=15", "--passedOnRequestLimitSeconds=30"
+        ]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().Be(TimeSpan.FromSeconds(15));
+        result.PassedOnRequestLimit.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public void Parse_WhenThePlatformsLimitsComeFromConfiguration_ReadsThem()
+    {
+        var configuration = ConfigurationFrom(
+            ("Port", "7111"), ("MyceliumUrl", "http://mycelium"),
+            ("ServiceCallLimitSeconds", "15"), ("PassedOnRequestLimitSeconds", "30"));
+
+        var result = ServiceLaunchSettings.Parse(Array.Empty<string>(), configuration);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().Be(TimeSpan.FromSeconds(15));
+        result.PassedOnRequestLimit.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-30")]
+    [InlineData("+30")]
+    [InlineData("2.5")]
+    [InlineData("thirty")]
+    [InlineData("٣٠")]
+    [InlineData("")]
+    public void Parse_WithAnUnusableLimit_StartsWithNoLimit(string seconds)
+    {
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            $"--serviceCallLimitSeconds={seconds}", $"--passedOnRequestLimitSeconds={seconds}"
+        ]);
+
+        result.Should().NotBeNull();
+        result!.ServiceCallLimit.Should().BeNull();
+        result.PassedOnRequestLimit.Should().BeNull();
+    }
+
+    [Fact]
+    public void UsageMessage_NamesThePlatformsLimits() =>
+        ServiceLaunchSettings.UsageMessage.Should()
+            .Contain("--serviceCallLimitSeconds").And.Contain("--passedOnRequestLimitSeconds");
 
     [Fact]
     public void Parse_WhenPortMissing_ReturnsNull() =>

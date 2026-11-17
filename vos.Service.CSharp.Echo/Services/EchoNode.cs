@@ -1,3 +1,4 @@
+using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 
 namespace vos.Service.CSharp.Echo.Services;
@@ -6,8 +7,8 @@ namespace vos.Service.CSharp.Echo.Services;
 // echo output. The reference node — the smallest thing that proves the envelope end to end.
 public sealed class EchoNode : DagNodeService
 {
-    public EchoNode(IHttpClientFactory httpClientFactory, ILogger<EchoNode> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    public EchoNode(IHttpClientFactory httpClientFactory, ILogger<EchoNode> logger, string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
     }
 

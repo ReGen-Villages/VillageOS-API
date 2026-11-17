@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ThingRangesResponse, ThingsInStateResponse } from '../types/vos';
+import type { ThingRangesResponse, ThingsInStateResponse } from '@tendril-ui/tendril';
 
 // Only the calls are stubbed. The request builder these share by lives in stateQuery and is left
 // alone: the shared-request key is the path a narrowed read asks for, so a stubbed builder would
@@ -8,7 +8,11 @@ vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
 vi.mock('./rangeApi', () => ({ rangeApi: { getAll: vi.fn() } }));
 vi.mock('./client', () => ({ apiClient: { post: vi.fn() } }));
+vi.mock('./relationshipApi', () => ({ relationshipApi: { create: vi.fn() } }));
+vi.mock('./thingApi', () => ({ thingApi: { setProperty: vi.fn() } }));
 
+import { relationshipApi } from './relationshipApi';
+import { thingApi } from './thingApi';
 import { stateApi } from './stateApi';
 import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
@@ -53,11 +57,22 @@ describe('what one refresh generation asks the broker', () => {
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 
-  it('asks again once an answer has landed, so a press through the same port is never answered by an earlier one', async () => {
+  it('asks a service again once its answer has landed', async () => {
     const reads = brokerModelReads();
 
     await reads.fromService('/api/endpoints/readings', { view: 'book' });
     await reads.fromService('/api/endpoints/readings', { view: 'book' });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends every press, two identical presses in flight included', async () => {
+    const reads = brokerModelReads();
+
+    await Promise.all([
+      reads.press!('/api/endpoints/readings', { view: 'book' }),
+      reads.press!('/api/endpoints/readings', { view: 'book' }),
+    ]);
 
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
@@ -126,5 +141,19 @@ describe('what one refresh generation asks the broker', () => {
     await brokerModelReads().thingsInState('flagged');
 
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('what a writing widget asks the broker to write', () => {
+  it('relates one Thing to another by their identifiers', async () => {
+    await brokerModelReads().relate!('spring-1', 'predicate-judgedAs', 'verdict-1');
+
+    expect(relationshipApi.create).toHaveBeenCalledWith('spring-1', 'predicate-judgedAs', 'verdict-1');
+  });
+
+  it('sets a time property as a date and time', async () => {
+    await brokerModelReads().stampTime!('spring-1', 'judgedAt', new Date('2026-11-15T20:00:00Z'));
+
+    expect(thingApi.setProperty).toHaveBeenCalledWith('spring-1', 'judgedAt', 'vos.DateTime', '2026-11-15T20:00:00.000Z');
   });
 });

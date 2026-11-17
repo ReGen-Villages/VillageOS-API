@@ -22,8 +22,13 @@ internal sealed class ModelFollower
     // A watched Thing names every subject whose result its changes invalidate, and each subject names
     // what it reads, so re-registering a subject can stop following what it no longer reads. A service
     // that reads only the Thing it computes has one entry mapping that Thing to itself.
+    //
+    // A watched Thing's inputs resolve through its type chain, so each archetype above it names the watched
+    // Things below it: an edit on a shared default recomputes every subject reading a Thing that `is` it.
+    // The chain is learned from the add-objects answer, which carries the Things the broker registered.
     private readonly Dictionary<Guid, HashSet<Guid>> _subjectsByWatched = new();
     private readonly Dictionary<Guid, HashSet<Guid>> _readBySubject = new();
+    private readonly Dictionary<Guid, HashSet<Guid>> _watchedThingsByAncestor = new();
     private readonly object _watchedLock = new();
 
     private ModelScopedBearer _bearer;
@@ -87,10 +92,48 @@ internal sealed class ModelFollower
                 && subjects.Remove(subjectId) && subjects.Count == 0)
             {
                 _subjectsByWatched.Remove(thing);
-                abandoned.Add(thing);
+                if (!_watchedThingsByAncestor.ContainsKey(thing)) abandoned.Add(thing);
+                ReleaseTypeChainOf(thing, abandoned);
             }
 
         return abandoned;
+    }
+
+    // An archetype leaves with the last watched Thing below it, unless a subject reads the archetype itself.
+    // Held under the caller's lock.
+    private void ReleaseTypeChainOf(Guid watched, List<Guid> abandoned)
+    {
+        foreach (var (ancestor, below) in _watchedThingsByAncestor.ToList())
+            if (below.Remove(watched) && below.Count == 0)
+            {
+                _watchedThingsByAncestor.Remove(ancestor);
+                if (!_subjectsByWatched.ContainsKey(ancestor)) abandoned.Add(ancestor);
+            }
+    }
+
+    // Held under the caller's lock.
+    private void RecordTypeChainOf(Guid watched, IEnumerable<Guid> ancestors)
+    {
+        if (!_subjectsByWatched.ContainsKey(watched)) return;
+        foreach (var ancestor in ancestors)
+        {
+            if (!_watchedThingsByAncestor.TryGetValue(ancestor, out var below))
+                _watchedThingsByAncestor[ancestor] = below = new HashSet<Guid>();
+            below.Add(watched);
+        }
+    }
+
+    private List<Guid> SubjectsAffectedBy(Guid changedThing)
+    {
+        lock (_watchedLock)
+        {
+            var affected = new HashSet<Guid>();
+            if (_subjectsByWatched.TryGetValue(changedThing, out var direct)) affected.UnionWith(direct);
+            if (_watchedThingsByAncestor.TryGetValue(changedThing, out var below))
+                foreach (var watched in below)
+                    if (_subjectsByWatched.TryGetValue(watched, out var subjects)) affected.UnionWith(subjects);
+            return affected.ToList();
+        }
     }
 
     public void Start(CancellationToken cancellationToken)
@@ -142,13 +185,7 @@ internal sealed class ModelFollower
                 if (!change.IsPropertyChange || change.PropertyName is null) continue;
                 if (!_inputs.InputProperties().Contains(change.PropertyName)) continue;
 
-                List<Guid> subjects;
-                lock (_watchedLock)
-                    subjects = _subjectsByWatched.TryGetValue(change.EntityId, out var found)
-                        ? found.ToList()
-                        : new List<Guid>();
-
-                foreach (var subjectId in subjects)
+                foreach (var subjectId in SubjectsAffectedBy(change.EntityId))
                     await RecomputeAsync(subjectId, change.PropertyName, cancellationToken);
             }
         }
@@ -191,7 +228,7 @@ internal sealed class ModelFollower
     {
         for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
         {
-            try { return await _subscriptions.SubscribeAsync(new SubscriptionSelector(), cancellationToken); }
+            try { return await _subscriptions.SubscribeAsync(new SubscriptionSelector { IncludeSnapshot = false }, cancellationToken); }
             catch (OperationCanceledException) { return null; }
             catch (Exception exception)
             {
@@ -231,18 +268,30 @@ internal sealed class ModelFollower
             }
         });
 
-    private async Task AddToMembershipAsync(Guid subjectId)
+    // The Thing and its type chain, and none of its relationships: a change is mapped to a subject by the
+    // Thing it arrived on, so a relationship in the membership would only ever be delivered and dropped.
+    private async Task AddToMembershipAsync(Guid watched)
     {
         try
         {
-            await _subscriptions.AddObjectsAsync(
-                _subscriptionId, new SubscriptionSelector { Ids = new List<Guid> { subjectId } },
+            var added = await _subscriptions.AddObjectsAsync(
+                _subscriptionId,
+                new SubscriptionSelector
+                {
+                    Ids = new List<Guid> { watched },
+                    IncludeIsAncestors = true,
+                    IncludeRelationships = false,
+                    IncludeSnapshot = true,
+                },
                 _cancellation?.Token ?? CancellationToken.None);
+
+            lock (_watchedLock)
+                RecordTypeChainOf(watched, added.Snapshot.Things.Select(thing => thing.Id).Where(id => id != watched));
         }
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "{Service}: could not follow {SubjectId} in model {ModelId}; its results will go stale",
-                _inputs.ServiceName, subjectId, ModelId);
+                _inputs.ServiceName, watched, ModelId);
         }
     }
 

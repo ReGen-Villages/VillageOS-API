@@ -1,3 +1,5 @@
+import pytest
+
 from vos_service import Config, parse_args, usage
 
 THIS_HANDLER = "python-echo-handler"
@@ -46,6 +48,35 @@ def test_parse_args_refuses_a_port_outside_the_range_and_a_missing_flag():
     assert parse_args(["--port=abc", "--myceliumUrl=https://x"], {}) is None
     assert parse_args(["--port=5103"], {}) is None
     assert parse_args(["--myceliumUrl=https://x"], {}) is None
+
+
+def test_parse_args_leaves_the_platforms_limits_unset_when_none_is_given():
+    cfg = parse_args(["--port=5103", "--myceliumUrl=https://x"], {})
+    assert cfg.service_call_limit_seconds is None
+    assert cfg.passed_on_request_limit_seconds is None
+
+
+def test_parse_args_reads_the_platforms_limits_as_whole_seconds():
+    cfg = parse_args(
+        ["--port=5103", "--myceliumUrl=https://x",
+         "--serviceCallLimitSeconds=15", "--passedOnRequestLimitSeconds=30"], {})
+    assert cfg.service_call_limit_seconds == 15
+    assert cfg.passed_on_request_limit_seconds == 30
+
+
+@pytest.mark.parametrize("seconds", ["0", "-30", "+30", "2.5", "thirty", "", "٣٠"])
+def test_parse_args_starts_with_no_limit_when_a_limit_is_unusable(seconds):
+    cfg = parse_args(
+        ["--port=5103", "--myceliumUrl=https://x",
+         f"--serviceCallLimitSeconds={seconds}", f"--passedOnRequestLimitSeconds={seconds}"], {})
+    assert cfg is not None
+    assert cfg.service_call_limit_seconds is None
+    assert cfg.passed_on_request_limit_seconds is None
+
+
+def test_usage_names_the_platforms_limits():
+    assert "--serviceCallLimitSeconds" in usage("app.py")
+    assert "--passedOnRequestLimitSeconds" in usage("app.py")
 
 
 def test_a_service_that_was_not_given_its_flags_is_the_empty_config():

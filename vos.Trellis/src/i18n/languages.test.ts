@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { BASE_LANGUAGE } from '@tendril-ui/tendril';
 import {
-  BASE_LANGUAGE,
   detectInitialLanguage,
   directionFor,
   isRightToLeft,

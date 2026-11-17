@@ -3,9 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolveOutDir } from './build/resolveOutDir'
 import { pickChunk } from './build/manualChunks'
+import { TENDRIL_SHARES } from './build/tendrilShares'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: { dedupe: TENDRIL_SHARES },
   build: {
     // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
     // The sibling auto-detect keeps `npm run build` from silently
@@ -41,9 +43,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'cobertura'],
       reportsDirectory: './coverage',
-      include: ['src/**/*.{ts,tsx}'],
+      // The binding reader's own tests run here, against the console's broker reads.
+      allowExternal: true,
+      include: ['src/**/*.{ts,tsx}', '../vos.Tendril/src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.{ts,tsx}',
+        '../vos.Tendril/src/**/*.test.{ts,tsx}',
+        '../vos.Tendril/src/setupTests.ts',
         'src/main.tsx',
         'src/publicForm/main.tsx',
         'src/setupTests.ts',
@@ -52,6 +58,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    fs: { allow: ['.', '../vos.Tendril'] },
     proxy: {
       '/api': {
         target: 'https://localhost:7243',

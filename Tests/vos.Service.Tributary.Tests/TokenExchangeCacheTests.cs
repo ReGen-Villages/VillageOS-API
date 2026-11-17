@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using vos.Service.Tributary.Services;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace vos.Service.Tributary.Tests;
@@ -207,13 +208,5 @@ public class TokenExchangeCacheTests
         private readonly HttpMessageHandler _handler;
         public PerCallFactory(HttpMessageHandler handler) { _handler = handler; }
         public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
-
-    private sealed class FakeTimeProvider : TimeProvider
-    {
-        private DateTimeOffset _now;
-        public FakeTimeProvider(DateTimeOffset start) => _now = start;
-        public override DateTimeOffset GetUtcNow() => _now;
-        public void Advance(TimeSpan delta) => _now = _now.Add(delta);
     }
 }

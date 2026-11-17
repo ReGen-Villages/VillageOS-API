@@ -1,5 +1,5 @@
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
@@ -19,7 +19,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -34,20 +34,14 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(verificationKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new MyceliumGateway(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
@@ -70,8 +64,12 @@ try
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
             var executor = app.Services.GetRequiredService<PipelineExecutor>();
-            var placedAgain = await executor.RecoverWaitsAsync(CancellationToken.None);
-            if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
+            // Sent first, so a run that the recovery below ends reports its start before its end.
+            var owed = await executor.SendOwedReportsAsync(CancellationToken.None);
+            if (owed > 0) Log.Information("Sending again the reports {Count} run(s) started by a state entry still owe", owed);
+            var waits = await executor.RecoverWaitsAsync(CancellationToken.None);
+            if (waits.Resumed > 0) Log.Information("Resumed {Count} run(s) whose wait was answered while the orchestrator was away", waits.Resumed);
+            if (waits.WatchedAgain > 0) Log.Information("Watched again for {Count} waiting node run(s) whose watch was missing a relationship", waits.WatchedAgain);
             var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
             if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
         }
@@ -164,9 +162,9 @@ try
                 });
                 return Results.Ok(new { success = true, accepted = true, stops = stopping });
 
-            case SpawnKind.Relationship when await executor.TakesAsAVigilAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
-                // The answer to a vigil comes as a state entry whose target is the vigil. It is acknowledged before
-                // the run carries on, which can take longer than the broker waits.
+            case SpawnKind.Relationship when await executor.TakesAsAnAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
+                // The answer to a wait comes as a state entry whose target is the waiting node run. It is acknowledged
+                // before the run carries on, which can take longer than the broker waits.
                 return Results.Ok(new { success = true, accepted = true, resumes = trigger.TargetId });
 
             case SpawnKind.Relationship:
@@ -183,9 +181,10 @@ try
                 var pipelineId = start.PipelineId!.Value;
                 var runParameters = trigger.Parameters;
                 var subject = trigger.Subject;
+                var callRecordId = start.CallRecordId;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(pipelineId, runParameters,CancellationToken.None, subject: subject, requestId: requestId); }
+                    try { await executor.RunAsync(pipelineId, runParameters, CancellationToken.None, subject: subject, requestId: requestId, callRecordId: callRecordId); }
                     catch (Exception ex) { Log.Error(ex, "Pipeline run {PipelineId} started by the broker failed", pipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });

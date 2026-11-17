@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { Composition } from '../types/dashboard';
-import type { VosThing, VosRelationship } from '../types/vos';
-import { buildModelIndex } from '../api/dashboardApi';
+import type { Composition } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { columnKey, hopsOf, pageOf, tableOf, unresolvedNames } from './composer';
 
 const SPRINGS: Composition = {

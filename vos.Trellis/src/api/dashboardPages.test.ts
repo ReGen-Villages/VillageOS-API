@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DashboardSpecification } from '../types/dashboard';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { DashboardSpecification } from '@tendril-ui/tendril';
+import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 vi.mock('./modelApi', () => ({ modelApi: { applyFragment: vi.fn() } }));
 vi.mock('./thingApi', () => ({ thingApi: { setProperty: vi.fn(), remove: vi.fn() } }));
@@ -9,9 +9,9 @@ vi.mock('./relationshipApi', () => ({ relationshipApi: { remove: vi.fn() } }));
 import { modelApi } from './modelApi';
 import { thingApi } from './thingApi';
 import { relationshipApi } from './relationshipApi';
-import { buildModelIndex } from './dashboardApi';
+import { buildModelIndex } from '@tendril-ui/tendril';
 import { dashboardPages, dashboardWriteContext } from './dashboardPages';
-import { PAGE_ROLE_ID } from './platformRoles';
+import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
 
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
   return { Id, Name, Properties: {}, IsArchetype };

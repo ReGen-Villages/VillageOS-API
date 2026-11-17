@@ -58,7 +58,7 @@ public class HandleEndpointTests
                 fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
-            return RouteSubscription(req, ids, TwoCoveringSources())
+            return RouteSnapshotRead(req, ids, TwoCoveringSources())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -96,7 +96,7 @@ public class HandleEndpointTests
                     }
                     : Ok("""{"success":true}""");
             }
-            return RouteSubscription(req, ids, TwoCoveringSources())
+            return RouteSnapshotRead(req, ids, TwoCoveringSources())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -122,7 +122,7 @@ public class HandleEndpointTests
                 bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
-            return RouteSubscription(req, ids, TwoCoveringSources(),
+            return RouteSnapshotRead(req, ids, TwoCoveringSources(),
                        siteValues: new Dictionary<string, string> { ["lat"] = "-25.75", ["lng"] = "28.19" })
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
@@ -147,7 +147,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.AbsolutePath == FetchRoute) { fetches++; return Ok("{}"); }
-            return RouteSubscription(req, ids, new Edge("WillowBend", "isIn", "Portugal"))
+            return RouteSnapshotRead(req, ids, new Edge("WillowBend", "isIn", "Portugal"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -173,7 +173,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = request =>
         {
             if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
-            if (request.RequestUri.AbsolutePath == "/api/relationships") writes++;
+            if (RelationshipWrite.In(request) is not null) writes++;
             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
         };
         using var client = factory.CreateClient();
@@ -200,7 +200,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = request =>
         {
             if (request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                && request.RequestUri!.AbsolutePath == "/api/snapshots"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
                     .Contains(CoveringSourceResolver.SiteAnalysisConnectionRole.Id.ToString(), StringComparison.Ordinal))
             {
@@ -209,7 +209,7 @@ public class HandleEndpointTests
             }
             if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
             if (request.Method == HttpMethod.Post && request.RequestUri.AbsolutePath.EndsWith("/facts", StringComparison.Ordinal)) writes++;
-            return RouteSubscription(request, ids, TwoCoveringSources())
+            return RouteSnapshotRead(request, ids, TwoCoveringSources())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -239,7 +239,7 @@ public class HandleEndpointTests
                 fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
-            return RouteSubscription(req, ids, TwoCoveringSources())
+            return RouteSnapshotRead(req, ids, TwoCoveringSources())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -312,32 +312,28 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_ReleasesTheSubscriptionItOpened()
+    public async Task Handle_ReadsTheModelWithoutOpeningASubscription()
     {
-        // A read that leaves its subscription live would leak one per discovery run for the life of
-        // the process. A run reads more than once — what the subject is, then what it reaches — and
-        // every one of those has to be released.
         var ids = Names("WillowBend", "isIn", "covers", "resolvedBy");
-        var opened = 0;
-        var released = 0;
+        var reads = 0;
+        var subscriptionRequests = 0;
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/subscriptions")
-                opened++;
-            if (req.Method == HttpMethod.Delete
-                && req.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
-                released++;
-            return RouteSubscription(req, ids) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/snapshots")
+                Interlocked.Increment(ref reads);
+            if (req.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions", StringComparison.Ordinal))
+                Interlocked.Increment(ref subscriptionRequests);
+            return RouteSnapshotRead(req, ids) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
         await factory.CompleteStartedRuns();
 
-        opened.Should().BeGreaterThan(0);
-        released.Should().Be(opened);
+        reads.Should().BeGreaterThan(1, "a run reads what the subject is, then what it reaches");
+        subscriptionRequests.Should().Be(0);
     }
 
     [Fact]

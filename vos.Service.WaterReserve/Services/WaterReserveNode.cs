@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 
 namespace vos.Service.WaterReserve.Services;
@@ -10,8 +11,8 @@ namespace vos.Service.WaterReserve.Services;
 public sealed class WaterReserveNode : DagNodeService
 {
     public WaterReserveNode(IHttpClientFactory httpClientFactory, ILogger<WaterReserveNode> logger,
-        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
     }
 

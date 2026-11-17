@@ -10,7 +10,7 @@ import { toast } from '../components/common/toastStore';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
-import type { PropertyVersionsResponse } from '../types/vos';
+import type { PropertyVersionsResponse } from '@tendril-ui/tendril';
 import { searchProperties, type PropertyMatch } from './propertySearch';
 import clsx from 'clsx';
 

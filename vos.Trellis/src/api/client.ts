@@ -1,4 +1,4 @@
-import type { ModelSummary } from '../types/vos';
+import type { ModelSummary } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';

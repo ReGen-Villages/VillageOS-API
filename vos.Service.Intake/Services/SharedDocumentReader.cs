@@ -69,6 +69,15 @@ public static class SharedDocumentReader
             .OrderBy(document => document.SharedAt, StringComparer.Ordinal)];
     }
 
+    // Null for a Thing the project does not share, so a removal can only reach the submission's own files.
+    public static SnapshotThing? Shared(SnapshotDocument snapshot, Guid projectId, Guid predicateId, Guid documentId) =>
+        snapshot.Relationships.Any(edge =>
+            edge.SubjectId == projectId && edge.PredicateId == predicateId && edge.TargetId == documentId)
+            ? snapshot.Things.FirstOrDefault(thing => thing.Id == documentId)
+            : null;
+
+    public static string? StoredAs(SnapshotThing document) => Text(document, StoredAsProperty);
+
     private static string? Text(SnapshotThing thing, string property) =>
         thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
             ? stated.Value.GetString()

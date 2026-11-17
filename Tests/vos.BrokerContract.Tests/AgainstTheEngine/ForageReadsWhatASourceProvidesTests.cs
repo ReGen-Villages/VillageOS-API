@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -21,7 +22,7 @@ public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
     public ForageReadsWhatASourceProvidesTests(TheEngine engine) => _engine = engine;
 
     private SubscriptionClient Subscriptions() => new(
-        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     [FactAgainstTheEngine]
     public async Task A_site_read_reaches_the_variables_a_source_provides_and_the_predicate_it_provides_them_through()
@@ -47,8 +48,8 @@ public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(source, provides, temperature);
         await _engine.RelateAsync(source, provides, rain);
 
-        var subscribed = await Subscriptions().SubscribeAsync(CoveringSourceResolver.SelectorFor(site));
-        var covering = CoveringSourceResolver.Resolve(subscribed.Snapshot, site);
+        var read = await Subscriptions().ReadSnapshotAsync(CoveringSourceResolver.SelectorFor(site));
+        var covering = CoveringSourceResolver.Resolve(read.Snapshot, site);
 
         covering.Should().ContainSingle().Which.Calls.Should().ContainSingle()
             .Which.Values.Should().Contain(CoveringSourceResolver.VariablesPlaceholder, "rain,temperature_2m");

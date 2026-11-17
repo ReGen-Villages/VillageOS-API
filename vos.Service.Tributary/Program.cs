@@ -1,14 +1,12 @@
-using System.Globalization;
 using System.Text.Json;
-using vos.Auth.Shared;
-using vos.Service.Tributary.Helpers;
+using vos.Service.Auth;
 using vos.Service.Tributary.Models;
 using vos.Service.Tributary.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Subscriptions;
-using vos.Service.Shared.Validation;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.FileProviders;
 using Serilog;
@@ -35,7 +33,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -50,18 +48,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Validate with the issuer and audience Mycelium passes on the command line, so validation
-    // matches what Mycelium signed.
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(
-            verificationKey!,
-            issuer: launchSettings.Issuer,
-            audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new MyceliumClient(
@@ -69,7 +56,7 @@ try
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
             myceliumUrl,
             sp.GetRequiredService<TimeProvider>(),
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
     // Reads which kinds an endpoint reaches. A scoped snapshot, not a property read, because a kind
     // is a Thing the endpoint relates to rather than a word it carries.
@@ -78,7 +65,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddModelClock<MyceliumClient>("Tributary");
     builder.Services.AddSingleton<ObservationIngestService>();
     // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;
@@ -92,9 +79,24 @@ try
     builder.Services.AddSingleton(sp =>
         new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
     builder.Services.AddSingleton(ProviderUnavailability.FromConfiguration(builder.Configuration));
+    builder.Services.AddSingleton(sp => new PassedOnRequestLimit(
+        launchSettings.PassedOnRequestLimit,
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ILogger<PassedOnRequestLimit>>()));
     builder.Services.AddSingleton<EndpointCallService>();
+    builder.Services.AddSingleton(sp => new TributaryStep(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<TributaryStep>>(),
+        myceliumUrl,
+        launchToken,
+        apiKey,
+        sp.GetRequiredService<EndpointCallService>(),
+        sp.GetRequiredService<PassedOnRequestLimit>(),
+        sp.GetRequiredService<TimeProvider>()));
 
     var app = builder.Build();
+
+    app.Services.GetRequiredService<PassedOnRequestLimit>().WarnWhenTooShortToAnswerFirst();
 
     if (authEnabled)
     {
@@ -103,17 +105,33 @@ try
         app.UseMyceliumModelToken();
     }
 
+    // The body is read here rather than bound, because a step request and a direct request share the route.
     var handleEndpoint = app.MapPost("/handle", async (
-        EndpointCallRequest request,
         EndpointCallService endpointCallService,
+        PassedOnRequestLimit passedOnRequestLimit,
+        TributaryStep step,
         HttpContext httpContext) =>
     {
-        var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
+        if (!httpContext.Request.HasJsonContentType())
+            return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var body = HandleRequestRouter.Classify(await reader.ReadToEndAsync(httpContext.RequestAborted));
+        if (body.Kind == HandleRequestKind.NodeEnvelope)
+            return Results.Ok(await step.HandleNodeAsync(body.Json, httpContext.RequestAborted));
+        if (DirectRequest(body) is not { } request)
+            return Results.BadRequest();
+
+        using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
+        var result = await endpointCallService.ExecuteAsync(request, deadline);
         if (result.RetryAfter is { } providersWait)
             httpContext.Response.Headers.RetryAfter = providersWait.ToString();
         return ToHttpResult(result);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
+
+    var manifestEndpoint = app.MapGet("/manifest", (TributaryStep step) => Results.Ok(step.Ports));
+    if (authEnabled) manifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
 
@@ -141,6 +159,19 @@ finally
 }
 
 return 0;
+
+static EndpointCallRequest? DirectRequest(HandleRequest body)
+{
+    if (!body.IsJson) return null;
+    try
+    {
+        return body.Json.Deserialize<EndpointCallRequest>(JsonSerializerOptions.Web);
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
 
 static IResult ToHttpResult(EndpointCallResult result)
 {

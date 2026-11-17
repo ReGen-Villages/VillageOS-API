@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.Subscriptions;
@@ -12,6 +13,8 @@ public class SubscriptionClientTests
 {
     private const string Url = "http://localhost:7243";
     private const string Token = "service-token";
+    private static readonly Guid MeterRole = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid PumpRole = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     // Mirrors real IHttpClientFactory: a fresh HttpClient per call (so the base class can set
     // Timeout each time) sharing one mock handler.
@@ -26,7 +29,7 @@ public class SubscriptionClientTests
         Func<HttpRequestMessage, HttpResponseMessage> respond)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, Token)
+        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, new LaunchToken(Token))
         {
             ReconnectDelay = TimeSpan.FromMilliseconds(5),
         };
@@ -93,6 +96,103 @@ public class SubscriptionClientTests
         result.Snapshot.Things.Should().ContainSingle().Which.Id.Should().Be(thingId);
     }
 
+    private static SubscriptionSelector EverySelectorField() => new()
+    {
+        Ids = [Guid.Parse("11111111-1111-1111-1111-111111111111")],
+        Names = ["Upper reservoir"],
+        Types = ["FlowMeter"],
+        BoundTypes = [MeterRole],
+        BoundArchetypes = [PumpRole],
+        PropertyValues = new() { ["status"] = "open" },
+        Traverse = [new TraverseRule { PredicateRole = PumpRole, Direction = "incoming", Depth = 2 }],
+        IncludeIsAncestors = false,
+        Relationships = [new RelationshipRule { Predicate = "feeds", FarEndRole = MeterRole }],
+    };
+
+    [Fact]
+    public async Task ReadSnapshotAsync_sends_one_post_to_the_snapshots_route_with_the_selector_as_a_subscription_sends_it()
+    {
+        var subscribeAnswer = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (subscriber, subscribing) = Build(_ => Json(subscribeAnswer));
+        await subscriber.SubscribeAsync(EverySelectorField());
+        var (reader, reading) = Build(_ => Json("""{ "watermark": 1, "snapshot": { "watermark": 1, "things": [], "relationships": [] } }"""));
+
+        await reader.ReadSnapshotAsync(EverySelectorField());
+
+        var sent = reading.Requests.Should().ContainSingle().Subject;
+        sent.Method.Should().Be(HttpMethod.Post);
+        sent.RequestUri!.AbsoluteUri.Should().Be($"{Url}/api/snapshots");
+        sent.Headers.Authorization!.ToString().Should().Be($"Bearer {Token}");
+        (await sent.Content!.ReadAsStringAsync())
+            .Should().Be(await subscribing.Requests.Single().Content!.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_answers_the_watermark_and_snapshot_the_broker_answers()
+    {
+        var thingId = Guid.NewGuid();
+        var (client, _) = Build(_ => Json($$"""
+        { "watermark": 42, "snapshot": { "watermark": 42,
+          "things": [{ "id": "{{thingId}}", "name": "Upper reservoir", "isArchetype": false,
+            "properties": { "level": { "value": 3.5, "typeInfo": "vos.Double" } },
+            "inheritedProperties": {}, "states": ["nominal"], "relationships": [] }],
+          "relationships": [] } }
+        """));
+
+        var read = await client.ReadSnapshotAsync(new SubscriptionSelector { Ids = [thingId] });
+
+        read.Watermark.Should().Be(42);
+        read.Snapshot.Watermark.Should().Be(42);
+        var thing = read.Snapshot.Things.Should().ContainSingle().Subject;
+        thing.Id.Should().Be(thingId);
+        thing.Name.Should().Be("Upper reservoir");
+        thing.Properties["level"].Value.GetDouble().Should().Be(3.5);
+        thing.States.Should().Equal("nominal");
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_raises_a_refusal_with_the_platforms_status_and_words_naming_the_read()
+    {
+        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"error":"no Thing is named FlowMeter"}""", Encoding.UTF8, "application/json"),
+        });
+
+        var reading = () => client.ReadSnapshotAsync(new SubscriptionSelector { Types = ["FlowMeter"] });
+
+        var refused = (await reading.Should().ThrowAsync<SubscriptionRefusedException>()).Which;
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        refused.Body.Should().Be("""{"error":"no Thing is named FlowMeter"}""");
+        refused.Message.Should().Be("""the platform refused the read with 400: {"error":"no Thing is named FlowMeter"}""");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_raises_a_refusal_naming_the_subscription()
+    {
+        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent("two Things are named FlowMeter", Encoding.UTF8, "text/plain"),
+        });
+
+        var subscribing = () => client.SubscribeAsync(new SubscriptionSelector { Types = ["FlowMeter"] });
+
+        (await subscribing.Should().ThrowAsync<SubscriptionRefusedException>()).Which.Message
+            .Should().Be("the platform refused the subscription with 409: two Things are named FlowMeter");
+    }
+
+    [Fact]
+    public async Task ReadSnapshotAsync_throws_when_the_broker_answers_nothing()
+    {
+        var (client, _) = Build(_ => Json("null"));
+
+        var reading = () => client.ReadSnapshotAsync(new SubscriptionSelector { Ids = [Guid.NewGuid()] });
+
+        await reading.Should().ThrowAsync<InvalidOperationException>();
+    }
+
     [Fact]
     public async Task SubscribeAsync_sends_a_traversal_predicate_flag_under_the_name_the_broker_binds()
     {
@@ -144,6 +244,26 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_the_property_values_under_the_name_the_broker_binds()
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            Types = ["Vessel"],
+            PropertyValues = new Dictionary<string, string> { ["code"] = "A1" },
+        });
+
+        var sent = await captured!.Content!.ReadAsStringAsync();
+        sent.Should().Contain("\"propertyValues\":{\"code\":\"A1\"}");
+    }
+
+    [Fact]
     public async Task SubscribeAsync_sends_the_relationship_rules_under_the_names_the_broker_binds()
     {
         // A field the broker does not bind is dropped silently, and the read then carries every relationship
@@ -173,6 +293,78 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_a_far_end_kind_as_one_name_or_a_list_of_names()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships =
+            [
+                new RelationshipRule { Predicate = "feeds", FarEndType = "FlowMeter" },
+                new RelationshipRule { Predicate = "feeds", FarEndType = ["FlowMeter", "Pump"] },
+            ],
+        });
+
+        sent.Should().Contain("\"farEndType\":\"FlowMeter\"");
+        sent.Should().Contain("\"farEndType\":[\"FlowMeter\",\"Pump\"]");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_a_far_end_role_as_one_identifier_or_a_list_of_identifiers()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships =
+            [
+                new RelationshipRule { Predicate = "feeds", FarEndRole = MeterRole },
+                new RelationshipRule { Predicate = "feeds", FarEndRole = [MeterRole, PumpRole] },
+            ],
+        });
+
+        sent.Should().Contain($"\"farEndRole\":\"{MeterRole}\"");
+        sent.Should().Contain($"\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]");
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_sends_a_rule_without_a_far_end_exactly_as_before_the_far_end_existed()
+    {
+        var sent = await SentSelectorAsync(new SubscriptionSelector
+        {
+            Relationships = [new RelationshipRule { Predicate = "holds" }],
+        });
+
+        JsonDocument.Parse(sent).RootElement.GetProperty("relationships")[0].GetRawText()
+            .Should().Be("{\"predicate\":\"holds\",\"predicateFlag\":null,\"predicateRole\":null,\"direction\":\"outgoing\"}");
+    }
+
+    // A test stub reads a service's selector back from the request it was sent.
+    [Fact]
+    public void A_rule_read_back_from_the_wire_keeps_the_form_each_far_end_field_was_sent_in()
+    {
+        var rule = JsonSerializer.Deserialize<RelationshipRule>(
+            $"{{\"farEndType\":\"FlowMeter\",\"farEndRole\":[\"{MeterRole}\",\"{PumpRole}\"]}}",
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        rule.FarEndType!.IsList.Should().BeFalse();
+        rule.FarEndType.Should().Equal("FlowMeter");
+        rule.FarEndRole!.IsList.Should().BeTrue();
+        rule.FarEndRole.Should().Equal(MeterRole, PumpRole);
+    }
+
+    private static async Task<string> SentSelectorAsync(SubscriptionSelector selector)
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(request => { captured = request; return Json(body); });
+
+        await client.SubscribeAsync(selector);
+
+        return await captured!.Content!.ReadAsStringAsync();
+    }
+
+    [Fact]
     public async Task RemoveObjectsAsync_sends_delete_with_ids()
     {
         HttpRequestMessage? captured = null;
@@ -182,6 +374,49 @@ public class SubscriptionClientTests
 
         captured!.Method.Should().Be(HttpMethod.Delete);
         captured.RequestUri!.AbsoluteUri.Should().EndWith("/objects");
+    }
+
+    // The broker writes the kind inside data as the number of its enumeration member and on the event line
+    // as its name. The event line is the one the client reads.
+    [Fact]
+    public async Task StreamAsync_names_a_change_by_its_event_line_when_data_carries_the_kind_as_a_number()
+    {
+        var entityId = Guid.NewGuid();
+        var wire = $"id: 43\nevent: RelationshipPropertyChanged\n" +
+                   $"data: {{\"Kind\":6,\"EntityId\":\"{entityId}\",\"PropertyName\":\"quantity\",\"Value\":7}}\n\n";
+        var (client, _) = Build(_ => Sse(wire));
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        ModelChangeEvent? got = null;
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
+        {
+            got = e;
+            break;
+        }
+
+        got.Should().NotBeNull();
+        got!.Kind.Should().Be("RelationshipPropertyChanged");
+        got.IsRelationshipPropertyChange.Should().BeTrue();
+        got.EntityId.Should().Be(entityId);
+        got.PropertyName.Should().Be("quantity");
+    }
+
+    [Fact]
+    public async Task StreamAsync_drops_a_frame_that_names_no_event()
+    {
+        var wire = $"id: 43\ndata: {{\"Kind\":4,\"EntityId\":\"{Guid.NewGuid()}\"}}\n\n" +
+                   $"id: 44\nevent: PropertyChanged\ndata: {{\"Kind\":4,\"EntityId\":\"{Guid.NewGuid()}\"}}\n\n";
+        var (client, _) = Build(_ => Sse(wire));
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        ModelChangeEvent? got = null;
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
+        {
+            got = e;
+            break;
+        }
+
+        got!.Sequence.Should().Be(44, "a frame with no event line is not a change");
     }
 
     [Fact]
@@ -258,7 +493,7 @@ public class SubscriptionClientTests
             connects++;
             // Each connection delivers one event then EOF, forcing a reconnect.
             var seq = connects == 1 ? 50 : 51;
-            return Sse($"id: {seq}\ndata: {{\"Kind\":\"PropertyChanged\",\"EntityId\":\"{entityId}\"}}\n\n");
+            return Sse($"id: {seq}\nevent: PropertyChanged\ndata: {{\"Kind\":4,\"EntityId\":\"{entityId}\"}}\n\n");
         });
 
         using var cts = new CancellationTokenSource(Settle.Ceiling);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useNodeRangesData } from './useNodeRangesData';
-import type { ThingRangeSummary } from '../types/vos';
+import type { ThingRangeSummary } from '@tendril-ui/tendril';
 
 const mockGetSummary = vi.fn();
 

@@ -13,12 +13,6 @@ public class NameResolver
         _mycelium = mycelium;
     }
 
-    public void ClearCache()
-    {
-        _cachedThings = null;
-        _guidToNameMap = null;
-    }
-
     public async Task<ResolveResult> ResolveThingAsync(string nameOrId)
     {
         if (Guid.TryParse(nameOrId, out var id))

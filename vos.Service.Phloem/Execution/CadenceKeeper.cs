@@ -1,6 +1,4 @@
 using System.Text.Json;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
@@ -54,7 +52,7 @@ public sealed class CadenceKeeper : BackgroundService
             if (failuresInARow > 0) _logger.LogInformation("Looking at the cadences works again");
             return 0;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             if (failuresInARow == 0) _logger.LogWarning(ex, "Looking at the cadences failed; looking again less often until it works");
             return failuresInARow + 1;
@@ -66,15 +64,16 @@ public sealed class CadenceKeeper : BackgroundService
     public static TimeSpan WaitBeforeLook(int failuresInARow) =>
         failuresInARow == 0 ? BetweenLooks : TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(failuresInARow, 6))));
 
-    // This clock learns the broker's once every ModelClockInterval, so a change of speed reaches it that late and
-    // moves it ahead in one step. The window allows twice the model time the clock's speed covers in that interval
-    // and the time since the last look; anything earlier was jumped over. The first look covers nothing behind it.
+    // This clock learns a change of the broker's as it is announced, or after ModelClockReconnectDelay while its
+    // stream was down, so a change of speed can reach it that late and move it ahead in one step. The window allows
+    // twice the model time the clock's speed covers in that delay and the time since the last look; anything earlier
+    // was jumped over. The first look covers nothing behind it.
     public async Task<IReadOnlyList<Task<PipelineRunResult>>> LookAsync(CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
         var realNow = _real.GetUtcNow();
         var coveredFrom = _lastLook is { } last
-            ? Later(last.Model, now - 2 * (realNow - last.Real + ServiceHost.ModelClockInterval) * _clock.Rate)
+            ? Later(last.Model, now - 2 * (realNow - last.Real + ServiceHost.ModelClockReconnectDelay) * _clock.Rate)
             : now;
         _lastLook = (now, realNow);
 
@@ -89,7 +88,7 @@ public sealed class CadenceKeeper : BackgroundService
             {
                 await _gateway.SetLastDueAsync(cadence.Id, due[^1], cancellationToken);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 ReportUnlessAlreadySaid(cadence, ex,"Cadence '{Cadence}' could not be marked due, so nothing is started from it");
                 continue;

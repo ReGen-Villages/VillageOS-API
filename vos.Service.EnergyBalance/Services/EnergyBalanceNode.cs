@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 
 namespace vos.Service.EnergyBalance.Services;
@@ -8,8 +9,8 @@ namespace vos.Service.EnergyBalance.Services;
 public sealed class EnergyBalanceNode : DagNodeService
 {
     public EnergyBalanceNode(IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceNode> logger,
-        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
     }
 

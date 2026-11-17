@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { Binding, KpiWidget } from '../../../types/dashboard';
-import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
+import type { Binding, KpiWidget } from '@tendril-ui/tendril';
+import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
 const values = new Map<string, BindingResult>();
 
-vi.mock('../../../hooks/useDashboard', () => ({
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
   useBinding: (binding: Binding | undefined) => ({
     loading: false,
     error: false,

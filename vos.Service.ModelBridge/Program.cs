@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.ModelBridge.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
@@ -18,7 +18,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -32,12 +32,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(verificationKey);
-    if (authEnabled)
-    {
-        builder.AddMyceliumTokenAuth(verificationKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
-        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Issuer, launchSettings.Audience);
-    }
+    var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(verificationKey, launchSettings.Issuer, launchSettings.Audience);
 
     builder.Services.AddSingleton(sp =>
         new EndpointServiceMyceliumClient(
@@ -45,11 +40,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "ModelBridge",
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new ModelBridgeNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<ModelBridgeNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<ModelBridgeNode>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
     builder.Services.AddMyceliumRegistration("ModelBridge", servicePort);
 

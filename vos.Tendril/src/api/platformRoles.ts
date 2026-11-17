@@ -1,0 +1,32 @@
+import type { VosRelationship, VosThing } from '../types/vos';
+
+/** The platform's own predicate a role Thing reaches the Thing playing it along, and so found by name. */
+export const BINDS_PREDICATE_NAME = 'binds';
+
+/** The platform's roles the console reads a model's pages and display settings through. Each identifier is
+ *  the standard version 5 identifier of the role's word, so every model declares the same role Thing, and the
+ *  Thing it binds may be called anything. */
+export const PAGE_ROLE_ID = 'a18768bc-b4e7-513c-864f-842d674c1858';
+export const DISPLAY_SETTINGS_ROLE_ID = '1cb6206a-2726-5008-8188-698b299f5665';
+export const CONTAINMENT_ROLE_ID = 'd89c4c7d-c865-5db7-8c55-80df8cb254ec';
+export const PREDICATE_ROLE_ID = '86743302-6588-5a93-b6a5-0dde78b092c1';
+
+/** What a detail card reads a state entry's service call through: the predicate a Thing waiting for another reaches
+ *  it along, the predicate naming the connection a waiting Thing or its archetype is answered through, and the
+ *  predicate the platform writes each call record along. */
+export const AWAITED_THING_ROLE_ID = '6548fbdd-3474-5043-9864-abb665bb2d4b';
+export const NOTIFIED_CONNECTION_ROLE_ID = '8ac302e3-3de9-51db-8960-65f33396838e';
+export const CALL_RECORD_ROLE_ID = 'dfe02bba-b36e-56ca-9dc3-58ca35c71940';
+
+/** The Thing a role binds in a loaded set, or undefined where the set holds no binding for it. A role binds
+ *  one Thing (the platform refuses a second), so the first binding found is the binding. */
+export function thingBoundBy(
+  roleId: string,
+  things: readonly VosThing[],
+  relationships: readonly VosRelationship[],
+): VosThing | undefined {
+  const binds = things.find((thing) => thing.Name === BINDS_PREDICATE_NAME);
+  if (!binds) return undefined;
+  const binding = relationships.find((r) => r.SubjectId === roleId && r.PredicateId === binds.Id);
+  return binding ? things.find((thing) => thing.Id === binding.TargetId) : undefined;
+}

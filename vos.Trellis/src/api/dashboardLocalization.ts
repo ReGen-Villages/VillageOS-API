@@ -38,8 +38,8 @@ import type {
   ActionWidget,
   AskedValue,
   FormWidget,
-} from '../types/dashboard';
-import { primarySubtag } from '../i18n/languages';
+} from '@tendril-ui/tendril';
+import { primarySubtag } from '@tendril-ui/tendril';
 
 export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 
@@ -252,7 +252,10 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         title: tr(widget.title),
         hint: tr(widget.hint),
         asks: localizeFields(widget.asks, tr),
-        writes: { ...widget.writes, choices: widget.writes.choices.map((choice) => ({ ...choice, label: tr(choice.label) })) },
+        writes: {
+          ...widget.writes,
+          choices: widget.writes.choices.map((choice) => ({ ...choice, label: tr(choice.label), asks: localizeFields(choice.asks, tr) })),
+        },
       };
       return w;
     }

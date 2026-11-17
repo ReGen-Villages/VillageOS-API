@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace vos.ContinuousIntegration.Tests;
 
 // Reads what a service entry point binds, from its source.
