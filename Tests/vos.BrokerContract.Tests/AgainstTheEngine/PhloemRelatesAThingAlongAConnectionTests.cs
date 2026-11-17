@@ -90,7 +90,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
         transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
-        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<PipelineRunResult> RunAsync(Drawing drawing, Guid study, HttpMessageHandler? transport = null) =>
         await new PipelineExecutor(Gateway(transport), NullLogger<PipelineExecutor>.Instance, new ModelClock())
