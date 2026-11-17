@@ -235,8 +235,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 [ModelNames.Outputs] = outputs is null ? null : OutputsText(outputs),
                 [ModelNames.Attempts] = null,
                 [ModelNames.Decision] = decision?.ToString(),
-                [ModelNames.WaitsUntil] = WaitsUntilOf(status, watch),
             };
+            if (WaitsUntilOf(status, watch) is { } waitsUntil) properties[ModelNames.WaitsUntil] = waitsUntil;
             if (index is int idx)
             {
                 properties[ModelNames.Index] = idx.ToString();

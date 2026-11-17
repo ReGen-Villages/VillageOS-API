@@ -1082,7 +1082,7 @@ public class MyceliumGatewayTests
             .GetProperty("properties").EnumerateObject().ToList();
         written.Select(property => property.Name)
             .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total",
-                ModelNames.StartedUtc, ModelNames.FinishedUtc, ModelNames.Outputs, ModelNames.Attempts, ModelNames.Decision, ModelNames.WaitsUntil]);
+                ModelNames.StartedUtc, ModelNames.FinishedUtc, ModelNames.Outputs, ModelNames.Attempts, ModelNames.Decision]);
         foreach (var property in written)
             property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
     }

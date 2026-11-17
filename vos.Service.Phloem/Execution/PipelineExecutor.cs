@@ -143,7 +143,6 @@ public sealed class PipelineExecutor
     public Task<ResumeOutcome> ResumeAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken) =>
         EndWaitAsync(runId, nodeId, expired: false, cancellationToken);
 
-    // A wait whose time has passed fails its node, and the run goes on along that node's fail wires.
     public async Task<int> ExpireDueWaitsAsync(CancellationToken cancellationToken)
     {
         var due = _deadlines.TakeDue(_clock.GetUtcNow());
