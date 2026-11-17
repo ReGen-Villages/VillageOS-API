@@ -421,6 +421,7 @@ export const de: PartialResources = {
       noRows: "Keine Zeilen.",
       noMatches: "Keine Treffer für „{{query}}“.",
       searchPlaceholder: "Suchen…",
+      toggle: 'Tabelle',
     },
     sparkline: {
       trend: "Trend",

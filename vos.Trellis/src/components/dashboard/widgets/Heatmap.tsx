@@ -6,7 +6,7 @@ import { asNumber } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow } from './chartChrome';
+import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
 import { rampColour, type Surface } from './chartRamp';
 import { linearScale } from './chartScale';
 import { dayOfYearLabel, groupsByKey, monthNames, monthStarts, windowOf } from './historySeries';
@@ -314,6 +314,12 @@ export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: R
           <span className="tabular-nums">{figure(ceiling)}</span>
         </div>
       )}
+      <SeriesTable
+        caption={widget.title ?? ''}
+        columns={Array.from({ length: HOURS }, (_, hour) => `${String(hour).padStart(2, '0')}:00`)}
+        rows={grid.map((column, at) => ({ name: columns.name(at + 1, names, i18n.language), cells: column.map(figure) }))}
+        hiddenUntilShown={columns === BY_DAY}
+      />
     </WidgetCard>
   );
 }

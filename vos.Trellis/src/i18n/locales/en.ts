@@ -419,6 +419,7 @@ export const en = {
       noRows: "No rows.",
       noMatches: "No matches for “{{query}}”.",
       searchPlaceholder: "Search…",
+      toggle: 'Table',
     },
     sparkline: {
       trend: "trend",

@@ -462,6 +462,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       noRows: "لا توجد صفوف.",
       noMatches: "لا توجد نتائج لـ «{{query}}».",
       searchPlaceholder: "بحث…",
+      toggle: 'جدول',
     },
     sparkline: {
       trend: "الاتجاه",

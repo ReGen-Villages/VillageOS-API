@@ -186,12 +186,12 @@ const timetable: HeatmapWidget = {
 
 describe('the month-by-hour timetable', () => {
   it('paints one column per month and one row per hour', () => {
-    draw(timetable);
+    const { container } = draw(timetable);
 
     expect(painted).toHaveLength(12 * 24);
     expect(new Set(painted.map((cell) => cell.x.toFixed(3))).size).toBe(12);
     expect(new Set(painted.map((cell) => cell.y.toFixed(3))).size).toBe(24);
-    expect(screen.getAllByText(/^(Jan|Dec)$/)).toHaveLength(2);
+    expect(within(container.querySelector('svg')! as unknown as HTMLElement).getAllByText(/^(Jan|Dec)$/)).toHaveLength(2);
   });
 
   it('reads a cell as its month and hour', () => {
@@ -204,6 +204,23 @@ describe('the month-by-hour timetable', () => {
     const tooltip = screen.getByRole('tooltip');
     expect(within(tooltip).getByText(/Feb, 14:00/)).toBeInTheDocument();
     expect(within(tooltip).getByText('29.0 °C')).toBeInTheDocument();
+  });
+
+  it('carries a table twin of a row a month and a column an hour', () => {
+    draw(timetable);
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(13);
+    expect(rows[2].textContent).toMatch(/^Feb22\.0 °C22\.5 °C/);
+  });
+
+  it('builds the table of every day only once it is asked for', () => {
+    draw();
+    expect(screen.queryByRole('table')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(367);
   });
 
   it('draws the sunrise and sunset curves with a point per month', () => {

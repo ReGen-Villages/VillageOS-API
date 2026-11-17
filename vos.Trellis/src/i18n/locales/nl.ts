@@ -421,6 +421,7 @@ export const nl: PartialResources = {
       noRows: "Geen rijen.",
       noMatches: "Geen resultaten voor ‘{{query}}’.",
       searchPlaceholder: "Zoeken…",
+      toggle: 'Tabel',
     },
     sparkline: {
       trend: "trend",

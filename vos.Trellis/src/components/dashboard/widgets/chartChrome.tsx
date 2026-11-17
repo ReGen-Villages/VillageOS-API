@@ -3,7 +3,7 @@
  * the tooltip a hovered or focused mark opens, and the table twin that makes every value reachable
  * without either.
  */
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { windowOf } from './historySeries';
 
@@ -55,39 +55,59 @@ export function ChartTooltip({
   );
 }
 
-/** Every value the chart draws, as a table a screen reader walks and a search finds. Visually hidden,
- *  never absent: a chart whose values can only be seen is a chart some readers cannot read. */
+/** Every value the chart draws, as a table a screen reader walks and a search finds, which its button
+ *  shows to every reader. Visually hidden until then, never absent: a chart whose values can only be
+ *  seen is a chart some readers cannot read. `hiddenUntilShown` leaves a table of thousands of cells
+ *  out of the page until it is asked for. */
 export function SeriesTable({
   caption,
   columns,
   rows,
+  hiddenUntilShown = false,
 }: {
   caption: string;
   columns: string[];
   rows: { name: string; cells: string[] }[];
+  hiddenUntilShown?: boolean;
 }) {
+  const { t } = useTranslation();
+  const [shown, setShown] = useState(false);
   // The hiding class sits on a block rather than on the table: a table never lays out narrower than its
   // cells, so a one-pixel table is still as wide as its values and widens the page on a phone.
   return (
-    <div className="sr-only">
-      <table>
-        <caption>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col" />
-            {columns.map((column) => <th key={column} scope="col">{column}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.name}>
-              <th scope="row">{row.name}</th>
-              {row.cells.map((cell, at) => <td key={at}>{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          aria-pressed={shown}
+          onClick={() => setShown((was) => !was)}
+          className="text-[11px] text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          {t('widgets.table.toggle')}
+        </button>
+      </div>
+      {(shown || !hiddenUntilShown) && (
+        <div className={shown ? 'mt-2 max-h-80 overflow-auto text-[11px] text-zinc-700 dark:text-zinc-300' : 'sr-only'}>
+          <table className="w-full tabular-nums">
+            <caption className={shown ? 'sr-only' : undefined}>{caption}</caption>
+            <thead>
+              <tr>
+                <th scope="col" />
+                {columns.map((column) => <th key={column} scope="col" className="px-1.5 py-1 text-right font-medium">{column}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.name} className="border-t border-zinc-200 dark:border-zinc-700">
+                  <th scope="row" className="px-1.5 py-1 text-left font-medium">{row.name}</th>
+                  {row.cells.map((cell, at) => <td key={at} className="px-1.5 py-1 text-right">{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 

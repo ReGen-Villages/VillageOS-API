@@ -421,6 +421,7 @@ export const it: PartialResources = {
       noRows: "Nessuna riga.",
       noMatches: "Nessun risultato per «{{query}}».",
       searchPlaceholder: "Cerca…",
+      toggle: 'Tabella',
     },
     sparkline: {
       trend: "tendenza",

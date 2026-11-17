@@ -421,6 +421,7 @@ export const es: PartialResources = {
       noRows: "No hay filas.",
       noMatches: "No hay coincidencias para «{{query}}».",
       searchPlaceholder: "Buscar…",
+      toggle: 'Tabla',
     },
     sparkline: {
       trend: "tendencia",
