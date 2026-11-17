@@ -48,6 +48,7 @@ try
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
     builder.Services.AddHostedService<CadenceKeeper>();
+    builder.Services.AddHostedService<WaitTimeKeeper>();
 
     var app = builder.Build();
 

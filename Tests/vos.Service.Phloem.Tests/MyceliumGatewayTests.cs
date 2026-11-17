@@ -1407,6 +1407,24 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task SetNodeRunStatusAsync_Waiting_WritesTheInstantTheWaitFailsAtWithItsWatch()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None,
+            watch: new Watch(Guid.NewGuid(), Guid.NewGuid(), until));
+
+        var waiting = (await Fragments(handler)).Last();
+        var properties = waiting.GetProperty("things").EnumerateArray().Single().GetProperty("properties");
+        properties.GetProperty(ModelNames.WaitsUntil).GetProperty("value").GetString().Should().Be(until.ToString("o"));
+        Ends(waiting, "relationships").Should().HaveCount(2, "the deadline travels in the write that places the watch");
+    }
+
+    [Fact]
     public async Task SetNodeRunStatusAsync_AnyOtherStatus_RetractsTheWatchInTheSameFragment()
     {
         var runId = Guid.NewGuid();
@@ -1431,6 +1449,7 @@ public class MyceliumGatewayTests
     [InlineData(null, WaitAnswer.None)]
     public async Task WaitingNodeRunsAsync_ReadsEachWaitingNodeRunsWatchAndHowFarThePlatformsAnswerGot(string? callState, WaitAnswer answer)
     {
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
         var run = Guid.NewGuid();
         var nodeRun = Guid.NewGuid();
         var node = Guid.NewGuid();
@@ -1476,6 +1495,7 @@ public class MyceliumGatewayTests
                     {
                         status = new { value = RunStatus.Waiting, typeInfo = "vos.String" },
                         nodeId = new { value = node.ToString(), typeInfo = "vos.String" },
+                        waitsUntil = new { value = until.ToString("o"), typeInfo = "vos.String" },
                     }),
                 },
                 relationships = edges,
@@ -1485,7 +1505,7 @@ public class MyceliumGatewayTests
 
         var waits = await gateway.WaitingNodeRunsAsync(CancellationToken.None);
 
-        waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided), answer));
+        waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided, until), answer));
     }
 
     [Fact]
