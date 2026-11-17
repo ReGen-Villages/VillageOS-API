@@ -1074,7 +1074,9 @@ The **Pipelines** page in the console is the editor.
   own, which a waiting node run is answered through to resume its run, because no run starts from it. A state
   row says it starts its drawing only when
   the orchestrator receives the state's entries; otherwise it names the drawing and the service that
-  receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection.
+  receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection. A
+  state row watched through one connection also offers **Call settings**, which opens the settings of
+  that connection's calls (chapter 86a).
   Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are
   filled from the run's parameters, except `subject`, which reaches the start as `{id, name}` read from
   the model, so a run whose subject names no Thing is refused. Beside
@@ -1162,8 +1164,10 @@ platform calls the service, and waits until the state the connection names for d
 gives the Thing on, and says whether this run wrote the relationship.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
-timeout, a server error from the broker — it is called again after a pause in model minutes, and any
-answer from the service is final, a refusal among them. Each attempt is recorded as an attempt Thing
+timeout, a server error from the broker — it is called again after a pause in model minutes. It is
+also called again when the service answers *fail* and says the failure can be tried again, optionally
+naming how many seconds to wait; a wait longer than the policy's pause is taken in real time, and
+counts against the trying time. Any other answer from the service is final, a refusal among them. Each attempt is recorded as an attempt Thing
 the node run holds, and the node run stands at *trying* between attempts. A node that gives up fails
 like any other.
 
@@ -1200,14 +1204,16 @@ with no list transform alone fills that node's list input; the item keeps its pl
 where the items were first spread out. An item transform reshapes each item on the way; one that
 fails fails that item without a call, and fails a node fed items that meet. A stop starts no more items.
 
-A pipeline can also be started **from the model**. A `runs` predicate bound to Phloem makes
-creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship. A relationship written along any other predicate bound to Phloem starts a pipeline
-whose start node stands for what the relationship reaches; the orchestrator reads the relationship
-by its identifier to find it. A **state connection** bound to Phloem starts a pipeline drawn from it
-when a Thing enters the state, with the entering Thing as the run's `subject`: the name the
-Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows by
-its from-path. The run relates to that Thing along the predicate the run-subject role binds. A
+A pipeline can also be started **from the model**. A `runs` predicate naming a Phloem connection
+makes creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
+relationship. A relationship written along any other predicate naming a Phloem connection starts a
+pipeline whose start node stands for what the relationship reaches; the orchestrator reads the
+relationship by its identifier to find it. A **state connection** bound to Phloem starts a pipeline
+drawn from it when a Thing enters the state, with the entering Thing as the run's `subject`: the name
+the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows
+by its from-path. The run relates to that Thing along the predicate the run-subject role binds, and
+the state entry's call stays open until the run ends: the orchestrator reports it received, then
+completed, or failed with the run's reason. A
 **cadence** starts the pipeline drawn from it every so many model minutes. And a follow-on node in
 another drawing starts the pipeline it stands for, the new run related to the one that started it.
 
