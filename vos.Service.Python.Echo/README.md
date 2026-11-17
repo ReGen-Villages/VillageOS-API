@@ -37,6 +37,8 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
 | `--issuer` | | JWT issuer to check against; required whenever `VerificationKey` is set |
 | `--audience` | | This service's own recipient name, which an inbound token must carry; required whenever `VerificationKey` is set. There is no default |
+| `--serviceCallLimitSeconds` | | How long Mycelium waits for the service to answer a service call, in whole seconds; absent or unusable reads as no limit. The service reads it and has no limit of its own to check against it |
+| `--passedOnRequestLimitSeconds` | | The same for a request Mycelium passes on to the service |
 
 ## Credentials
 
