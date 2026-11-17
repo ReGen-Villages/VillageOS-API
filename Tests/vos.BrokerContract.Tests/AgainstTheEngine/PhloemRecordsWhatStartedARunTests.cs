@@ -27,7 +27,7 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true), binds);
         var startedBy = await _engine.DeclareOnceAsync("startedBy");
         await BindOnceAsync(PipelineRoles.StartingRun, startedBy, binds);
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
         var pipeline = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
@@ -51,7 +51,7 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true), binds);
         var repeats = await _engine.DeclareOnceAsync("repeats");
         await BindOnceAsync(PipelineRoles.RepeatedRun, repeats, binds);
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
         var pipeline = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
         var stopped = Guid.NewGuid();
         var fresh = Guid.NewGuid();

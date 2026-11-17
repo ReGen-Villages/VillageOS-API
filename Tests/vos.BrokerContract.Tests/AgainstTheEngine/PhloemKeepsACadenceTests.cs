@@ -34,7 +34,7 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
         var interval = await _engine.Admin.PutAsJsonAsync($"/api/things/{cadenceId}/properties",
             new { name = ModelNames.IntervalMinutes, type = "vos.Double", value = "60" });
         interval.EnsureSuccessStatusCode();
-        return (new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken)), cadenceId);
+        return (new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken)), cadenceId);
     }
 
     private async Task<Guid> DeclareTheKindAsync()

@@ -21,7 +21,7 @@ public class PhloemRecordsAnAttemptAndAMessageWhoseKindsDeclareTheirPropertiesTe
     private static readonly DateTimeOffset Noon = new(2026, 10, 30, 12, 0, 0, TimeSpan.Zero);
 
     private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> ARunWhoseKindsDeclareTheirPropertiesAsync(MyceliumGateway gateway)
     {
