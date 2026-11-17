@@ -197,6 +197,27 @@ describe('the call settings of the connection behind a state', () => {
     expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ type: 'success', message: 'callsAgainAtMost is no longer set on this connection' }));
   });
 
+  it('reads the settings again when a value the page opened with is removed, so the inherited value shows', async () => {
+    const { panel, id } = openTheSettings((fixture) => {
+      const connection = fixture.things.find((thing) => thing.Id === fixture.id.connection)!;
+      connection.InheritedOverrides = {
+        [fixture.id.connectionArchetype]: {
+          SourceId: fixture.id.connectionArchetype, SourceName: 'ServiceBinding', Properties: { callsAgainForNoLongerThanSeconds: 60 },
+        },
+      };
+      fixture.callSettings.callsAgainForNoLongerThanSeconds = { value: 60, source: 'connection', from: { id: fixture.id.connection, name: 'Estimate-Rainfall' } };
+    });
+    await waitFor(() => expect(line(panel, 'callsAgainForNoLongerThanSeconds')).toHaveTextContent('set on this connection'));
+
+    fireEvent.click(within(line(panel, 'callsAgainForNoLongerThanSeconds')).getByRole('button', { name: 'Remove callsAgainForNoLongerThanSeconds from this connection' }));
+
+    await waitFor(() => expect(thingApi.deleteProperty).toHaveBeenCalledWith(id.connection, 'callsAgainForNoLongerThanSeconds'));
+    vi.mocked(callSettingsApi.get).mockResolvedValue(connectionSettingsFixture().callSettings);
+    act(() => useModelStore.getState().applyBatch({ thingPropertyRemovals: [{ id: id.connection, path: 'callsAgainForNoLongerThanSeconds' }] }));
+    await waitFor(() => expect(line(panel, 'callsAgainForNoLongerThanSeconds')).toHaveTextContent('set on rainfall-estimator prototype, the archetype of its service'));
+    expect(within(line(panel, 'callsAgainForNoLongerThanSeconds')).getByRole('spinbutton')).toHaveValue(900);
+  });
+
   it('says a removal the platform refuses', async () => {
     const { panel } = openTheSettings((fixture) => {
       fixture.callSettings.callsAgainAtMost = { value: 2, source: 'connection', from: { id: fixture.id.connection, name: 'Estimate-Rainfall' } };

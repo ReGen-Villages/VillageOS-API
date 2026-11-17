@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import type { InheritedPropertySet, VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 /** Return a new VosThing with one property merged/overwritten. */
 export function applyThingPropertyUpdate(
@@ -18,11 +18,43 @@ export function applyRelationshipPropertyUpdate(
   return { ...relationship, Properties: { ...relationship.Properties, [propertyName]: newValue } };
 }
 
-/** Return a new VosThing without the named property. */
+/** Both places are cleared because a live update files a value among own values even where the platform stores it in
+ *  the override store. */
 export function applyThingPropertyRemoval(thing: VosThing, propertyPath: string): VosThing {
-  if (!(propertyPath in thing.Properties)) return thing;
+  const overrides = withoutOverride(thing.InheritedOverrides, propertyPath);
+  if (!(propertyPath in thing.Properties) && overrides === thing.InheritedOverrides) return thing;
   const { [propertyPath]: _removed, ...remaining } = thing.Properties;
-  return { ...thing, Properties: remaining };
+  return { ...thing, Properties: remaining, ...(overrides === undefined ? {} : { InheritedOverrides: overrides }) };
+}
+
+/** A set left empty is dropped because the platform drops it, so a reload would not bring it back. */
+function withoutOverride(
+  sets: Record<string, InheritedPropertySet> | undefined,
+  name: string,
+): Record<string, InheritedPropertySet> | undefined {
+  if (!sets) return sets;
+  let changed = false;
+  const kept: Record<string, InheritedPropertySet> = {};
+  for (const [sourceId, set] of Object.entries(sets)) {
+    const remaining = setWithout(set, name);
+    if (remaining !== set) changed = true;
+    if (remaining) kept[sourceId] = remaining;
+  }
+  return changed ? kept : sets;
+}
+
+function setWithout(set: InheritedPropertySet, name: string): InheritedPropertySet | null {
+  const inherited = withoutOverride(set.Inherited, name);
+  if (!(name in set.Properties) && inherited === set.Inherited) return set;
+  const { [name]: _value, ...properties } = set.Properties;
+  if (Object.keys(properties).length === 0 && Object.keys(inherited ?? {}).length === 0) return null;
+  const remaining: InheritedPropertySet = { ...set, Properties: properties };
+  if (set.PropertyWriteKinds) {
+    const { [name]: _writeKind, ...writeKinds } = set.PropertyWriteKinds;
+    remaining.PropertyWriteKinds = writeKinds;
+  }
+  if (inherited) remaining.Inherited = inherited;
+  return remaining;
 }
 
 /** Return a new VosRelationship without the named property. */
