@@ -12,6 +12,7 @@ export const VOS_TYPES = [
   'vos.Guid',
   'vos.IfcGeometry',
   'vos.GeoJson',
+  'vos.Grid',
 ] as const;
 
 export type VosTypeName = (typeof VOS_TYPES)[number];
@@ -29,8 +30,8 @@ export function asVosTypeName(name: string): VosTypeName | null {
   return (VOS_TYPES as readonly string[]).includes(name) ? (name as VosTypeName) : null;
 }
 
-// What the add-property row offers, a deliberate subset: the complex types (IfcGeometry, GeoJson)
-// are written by ingest, not typed into a text box.
+// What the add-property row offers, a deliberate subset: the complex types (IfcGeometry, GeoJson,
+// Grid) are written by ingest and services, not typed into a text box.
 export const PROPERTY_TYPES: { label: string; value: VosTypeName }[] = [
   { label: 'string', value: 'vos.String' },
   { label: 'int', value: 'vos.Integer' },

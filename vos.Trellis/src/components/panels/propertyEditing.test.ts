@@ -22,6 +22,7 @@ describe('editorForType', () => {
   it('offers no inline control for the types written by ingest', () => {
     expect(editorForType('vos.IfcGeometry')).toBe('readOnly');
     expect(editorForType('vos.GeoJson')).toBe('readOnly');
+    expect(editorForType('vos.Grid')).toBe('readOnly');
   });
 
   it('falls back to a text box for text and for a type it does not know', () => {
@@ -61,6 +62,7 @@ describe('rejectionKeyForType', () => {
 
   it('refuses anything for a type with no inline control', () => {
     expect(rejectionKeyForType('{}', 'vos.GeoJson')).toBe('panels.properties.rejected.readOnly');
+    expect(rejectionKeyForType('{"rows":1}', 'vos.Grid')).toBe('panels.properties.rejected.readOnly');
   });
 
   // Clearing a property is what the delete button is for. An empty numeric field is a half-finished

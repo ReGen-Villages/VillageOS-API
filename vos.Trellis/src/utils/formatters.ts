@@ -76,6 +76,8 @@ export function formatPropertyValue(
       return summariseMesh(value);
     case 'vos.GeoJson':
       return summariseGeoJson(value);
+    case 'vos.Grid':
+      return summariseGrid(value);
   }
 
   if (typeof value === 'object') return JSON.stringify(value);
@@ -98,6 +100,31 @@ function summariseMesh(value: unknown): string {
   return Array.isArray(mesh.indices)
     ? i18n.t('common.meshSizeWithTriangles', { vertices, triangles: mesh.indices.length / 3 })
     : i18n.t('common.meshSize', { vertices });
+}
+
+/** A grid holds thousands of values, which belong on a map; its size is what a panel cell can show. */
+function summariseGrid(value: unknown): string {
+  const grid = value as {
+    rows?: unknown; columns?: unknown; cellSizeMetres?: unknown;
+    latitudeStepDegrees?: unknown; longitudeStepDegrees?: unknown;
+  };
+  if (!isPositive(grid?.rows) || !isPositive(grid?.columns)) return i18n.t('common.grid');
+  const size = { rows: grid.rows, columns: grid.columns };
+  if (isPositive(grid.cellSizeMetres))
+    return i18n.t('common.gridSizeInMetres', { ...size, cellSize: numberIn(grid.cellSizeMetres) });
+  if (isPositive(grid.latitudeStepDegrees) && isPositive(grid.longitudeStepDegrees))
+    return i18n.t('common.gridSizeInDegrees', {
+      ...size,
+      latitudeStep: numberIn(grid.latitudeStepDegrees, STEP_DIGITS),
+      longitudeStep: numberIn(grid.longitudeStepDegrees, STEP_DIGITS),
+    });
+  return i18n.t('common.gridSize', size);
+}
+
+const STEP_DIGITS: Intl.NumberFormatOptions = { maximumSignificantDigits: 3 };
+
+function isPositive(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 /** The shape's own type word — data rather than prose, and the one thing a reader wants from a
