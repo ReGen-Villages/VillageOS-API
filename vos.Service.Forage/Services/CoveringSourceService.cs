@@ -12,10 +12,6 @@ public record Coverage(
     IReadOnlyList<RecordedCoverage> Recorded,
     CoverageVocabulary? Vocabulary);
 
-// A site's: the sources covering it, the studies that study it, and what the run
-// needs to work out a division the model supplies none of — the two lookups to call, the address a
-// call about the site itself is made with, which says both where the site is and whether anything already
-// supplies a division code, and every Place stating a code the site may turn out to stand in.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
     IReadOnlyList<Study> Studies,

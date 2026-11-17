@@ -15,7 +15,6 @@ public class StepRequestTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
 
-    // Two sources cover the site; OpenMeteo already holds a record for it. The site has a study.
     private static Dictionary<string, Guid> Ids() =>
         new[]
         {

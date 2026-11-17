@@ -164,8 +164,7 @@ public static class CoveringSourceResolver
     // than overwriting what earlier runs recorded.
     private const string AttemptsProperty = "attempts";
 
-    // Everything in one read: the site's Places, every source whose coverage reaches one of them, and the
-    // study of the site.
+    // One read, so the coverage and the study come from the same snapshot.
     // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
     // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
