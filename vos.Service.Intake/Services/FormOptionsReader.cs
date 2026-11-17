@@ -76,7 +76,10 @@ public static class FormOptionsReader
             PositionLookupReader.PlaceSearches(snapshot).Count > 0,
             [.. themes.Select(Theme)],
             LayerKinds(snapshot, layerKinds, themes),
-            Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels, .. layerKinds]));
+            Wording(snapshot, [
+                .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
+                .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
+            ]));
     }
 
     private static List<DeclaredLayerKind> LayerKinds(
