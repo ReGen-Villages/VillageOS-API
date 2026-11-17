@@ -56,7 +56,7 @@ All come from the environment and are never flags. A command line is readable by
 
 - **Registration** — `register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token, spawned once the listener is bound.
 - **JWT validation** — `verify_jwt()` uses `jsonwebtoken` with `Validation::new(Algorithm::ES256)` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — `POST /shutdown` stops the service once it has answered, and so does Ctrl-C; Axum's graceful-shutdown hook makes no call to the broker. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+- **Shutdown** — `POST /shutdown` stops the service once it has answered, and so does Ctrl-C; Axum's graceful-shutdown hook makes no call to the broker. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Verify
 

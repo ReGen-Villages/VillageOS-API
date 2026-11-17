@@ -118,7 +118,7 @@ ModelBridge takes only the **standard launch settings** — no service-specific 
 [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>] [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>]
 ```
 
 It registers with Mycelium as service name `ModelBridge`, start command `endpoint-service`.

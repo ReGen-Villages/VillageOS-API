@@ -424,7 +424,7 @@ Registrations inherit from a small hierarchy of templates, so shared behaviour i
 
 ```mermaid
 flowchart BT
-  R1["<b>a registration</b><br/>elevation<br/>supplies: url, responseTransform"]
+  R1["<b>a registration</b><br/>climate-averages<br/>supplies: url, responseTransform"]
   R2["<b>a registration</b><br/>county-parcels<br/>supplies: url, tokenUrl, tokenRequest"]
   E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no auth · no paging"]
   E2["<b>EsriEndpoint</b><br/>token exchange · offset paging<br/>provider's field names fixed"]
@@ -445,20 +445,21 @@ forces it.
 
 ### A registration, in full
 
-This is the elevation source as the seed declares it, shortened to the parts that carry meaning:
+This is the rainfall and sunlight source as the seed declares it, shortened to the parts that carry
+meaning:
 
 ```jsonc
 {
-  "name": "elevation",
+  "name": "climate-averages",
   "properties": {
-    "url": "https://api.open-meteo.com/v1/elevation?latitude={latitude}&longitude={longitude}",
+    "url": "https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=PRECTOTCORR,ALLSKY_SFC_SW_DWN&community=RE&latitude={latitude}&longitude={longitude}&format=JSON",
     "httpMethod": "GET",
-    "responseTransform": "($metresAboveSeaLevel := elevation[0]; {\"properties\": $exists($metresAboveSeaLevel) ? {\"elevationMetres\": $metresAboveSeaLevel} : {}})"
+    "responseTransform": "($rainfallMillimetresPerDay := properties.parameter.PRECTOTCORR.ANN; $sunlightKwhPerM2PerDay := properties.parameter.ALLSKY_SFC_SW_DWN.ANN; {\"properties\": $merge([$rainfallMillimetresPerDay > 0 ? {\"rainfallMillimetresPerYear\": $rainfallMillimetresPerDay * 365.25} : {}, $sunlightKwhPerM2PerDay > 0 ? {\"solarResourceKwhPerM2PerYear\": $sunlightKwhPerM2PerDay * 365.25} : {}])})"
   },
   "relationships": [
-    { "subject": "elevation", "predicate": "is", "target": "Endpoint" },
-    { "subject": "Open-Meteo elevation", "predicate": "resolvedBy", "target": "elevation" },
-    { "subject": "Open-Meteo elevation", "predicate": "covers", "target": "Earth" }
+    { "subject": "climate-averages", "predicate": "is", "target": "Endpoint" },
+    { "subject": "NASA POWER climate averages", "predicate": "resolvedBy", "target": "climate-averages" },
+    { "subject": "NASA POWER climate averages", "predicate": "covers", "target": "Earth" }
   ]
 }
 ```
@@ -571,7 +572,6 @@ Each of these is registered as seed data.
 | Solar resource | A measured long-term average, where a curve applied to latitude is an estimate that looks like a measurement |
 | Rainfall | A sourced and dated figure for the water balance, where a typed number has neither |
 | Hazard levels | One grading per hazard, read from the portal with its date, called once per assessment |
-| Elevation | The height at the site's own position |
 | Climate history | Ten years of hourly readings, which the climate charts and the frost-day and comfort figures are folded from |
 
 **Rainfall and the solar resource arrive from one call.** The same provider averages both over the
@@ -579,8 +579,10 @@ same twenty years, so a second registration would be a second outage for one ans
 that span is also what a balance about a place asks for: a single wet year read as the site's
 rainfall would size a harvest nobody gets twice.
 
-**Terrain is not among them.** The elevation source answers one height for the site's own position,
-and `Site` holds no surface for a terrain model to land on.
+**Elevation and terrain are not among them.** The intake looks up the site's centre elevation when
+the border arrives and writes it as a fact, so `Site.elevationMetres` takes facts only; its
+border-elevation lookup answers the centre, lowest and highest heights. `Site` holds no surface for a
+terrain model to land on.
 
 **Two registrations in the catalogue fetch no value at all.** A run makes them to work out which
 administrative division a site stands in, so the hazard call can be addressed: one turns the site's

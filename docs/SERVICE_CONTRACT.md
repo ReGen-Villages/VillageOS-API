@@ -26,7 +26,7 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--myceliumUrl` | Mycelium base URL |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
 | `--serviceCallLimitSeconds` | How long Mycelium waits for the service to answer a service call, in whole seconds (15 by default), so a service can keep its own waits shorter |
-| `--passedOnRequestLimitSeconds` | The same for a request Mycelium passes on to the service from another (30 by default) |
+| `--passedOnRequestLimitSeconds` | The same for a request Mycelium passes on to the service from another (30 by default). A service reads either limit as none when it is absent or unusable, and is free to keep a limit of its own or none |
 | `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
@@ -57,8 +57,9 @@ why naming the algorithm matters.
 
 A service the broker launches is handed a `Token` that lasts 24 hours, and outlives it: a .NET service
 swaps it at `POST /api/auth/service-token` once two hours or less are left (`AddLaunchToken`, checked
-every 15 minutes). A service nobody starts on demand holds an **API key** (the
-`ApiKey` setting) instead of a `Token`: `ServiceCredential` exchanges it at `POST /api/auth/token`
+every 15 minutes). A service the broker does not launch holds an **API key** (the
+`ApiKey` setting) instead of a `Token`, never both: given the two, a service refuses to start.
+`ServiceCredential` exchanges it at `POST /api/auth/token`
 with the `X-API-Key` header, holds the minted token, and exchanges again shortly before it expires.
 A key can be confined to one model, which is what confines the service. Ask `ServiceCredential` for
 what to present rather than reading the `Token` setting, so a service that builds its own requests
@@ -97,15 +98,22 @@ body and turned it down, and the same body would earn the same answer — record
 handler's own words and never sent again. A 2xx with no `success` field, or with a body that is not
 JSON, counts as done.
 
-**An acknowledgement, where the connection asks for one.** A connection whose `completion` is `ack`
-or `both` reads a 2xx from `/handle` as accepted. The service then calls
-`POST /api/relationships/{relationshipId}/acknowledgement` with its own token once its work has
-committed. Under `ack` that completes the call (`200`). Under `both` it is recorded, and the
-call completes when the subject reaches the done state (`202`); if the subject has not reached it
-within the connection's `done_within`, counted from the acknowledgement, the call is marked
-failed and not sent again. An acknowledged call is not sent again. Only the service that was called,
-or an administrator, may call it; anyone else gets `403`. A connection that waits for no
-acknowledgement answers `409`.
+**A report, where the connection finishes its calls on one.** A connection that relates along
+`completesWhen` to `whenTheServiceReportsCompletion` — itself, through its service, or through the
+service's archetype — reads a 2xx from `/handle` as accepted, and the call stays open. The service then
+reports on the call record named by `relationshipId`, with its own token:
+`POST /api/relationships/{relationshipId}/report` with `{"report":"received"}` once it has the work,
+then `{"report":"completed"}` or `{"report":"failed","reason":"…"}`. The answer is `200 { "state": … }`;
+`400` for an unknown report or a failure without a reason; `403` for anyone but the service that was
+called or an administrator; `409` for a record not waiting for that report; `404` for an unknown
+relationship. `received` is taken on a `Sent` call finished by the done state or a report;
+`completed` and `failed` on a `Sent` or `Received` call finished by a report. A received call is not
+sent again whichever way it finishes, and a failed one is not sent again on its own: a person retries
+it. Past the connection's `done_within`, a call still waiting for its report is failed with "no
+completion reported". In C#, `MyceliumClientBase.ReportCallAsync(callRecordId, report)` posts the
+report (`CallReport.Received`, `CallReport.Completed`, `CallReport.Failed(reason)`, the last refusing
+an empty reason before anything is sent); a `409` raises `CallRecordNoLongerWaitingException`, and any
+other answer outside 2xx raises `HttpRequestException` carrying the status.
 
 **Every call carries `Vos-Request-Id`**, naming the broker's request-log entry for that call, so a
 service can quote it in its own log and an operator can find the request in the console's Requests
@@ -114,7 +122,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`. It answers `{ Service, ModelTime }`: the registration, and the model clock as `GET /api/time` would answer it
-- There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
+- `DELETE /api/mycelium/services/{handlerId}` (Bearer) removes a registration: a service may remove the one it made itself, and another service's is refused with `403`. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
 is treated as healthy even if its `/health` is briefly unreachable.
@@ -128,6 +136,12 @@ answers `{ watermark, snapshot }`, the snapshot a subscription would answer, wit
 and refusals, and registers no subscription. Use it when you read and do not follow: the broker checks
 every registered subscription on every write until it is deleted. `includeLaterMatches`,
 `includeObservations`, `observationCadences` and `includeSnapshot` belong to a subscription only.
+
+In C#, `SubscriptionClient.ReadSnapshotAsync(selector)` sends this request: it posts the selector
+exactly as `SubscribeAsync` posts it to `POST /api/subscriptions`, and answers `SnapshotReadResult`,
+the watermark and the snapshot. It registers no subscription, so there is no identifier to stream and
+no `UnsubscribeAsync` to call. A selector the broker refuses is raised as `SubscriptionRefusedException`
+with the broker's status and words, as a refused subscription is; its message names the read.
 
 ### `POST /api/subscriptions` (Bearer) → snapshot + watermark
 
@@ -252,10 +266,15 @@ pay more for it the longer the run. `relationships` is a list of rules — each 
 predicate by `predicate`, by `predicateFlag` or by `predicateRole`, or none of the three for every
 predicate — and with it the
 snapshot carries the relationships a selected Thing holds in a rule's direction over its predicate,
-and no others. A subscription with `includeLaterMatches` admits later relationships under the same
-rules, so a later match arrives with the relationships its snapshot would have carried. A rule naming
-its predicate more than one way, or rules given beside `"includeRelationships": false`, is refused with
-`400` rather than guessed at.
+and no others. A rule may also name the far end's kind, by `farEndType` (one kind name or a list) or
+by `farEndRole` (one role Thing identifier or a list); then only the relationships whose far end is of
+a named kind, or of a kind under one, travel. The far end is the target of an outgoing relationship and
+the subject of an incoming one. In C#, `RelationshipRule.FarEndType` and `FarEndRole` take either form:
+`= "FlowMeter"` or `= ["FlowMeter", "Pump"]`. A subscription with `includeLaterMatches` admits later
+relationships under the same rules, so a later match arrives with the relationships its snapshot would
+have carried. A rule naming its predicate more than one way, a rule naming its far-end kind both by
+name and by role, or rules given beside `"includeRelationships": false`, is refused with `400` rather
+than guessed at.
 
 **Selecting by role rather than by name.** A role is a Thing with a fixed identifier that `binds` the
 one archetype or predicate playing it, so a handler can ask for the role instead of the name the model
@@ -272,6 +291,15 @@ pipeline orchestrator and the console ask, and what a service reading role-bound
 use. The broker also answers the older mark forms — `markedTypes`, `markedArchetypes` and a rule's
 `predicateFlag` — for a model that still writes a mark; the shared C# client's selector offers no
 mark form for a type.
+
+**A role is followed as it is bound now.** A following subscription that names a role — in
+`boundTypes`, `boundArchetypes`, a rule's `predicateRole` or `farEndRole`, or a traversal by
+`predicateRole` — is not fixed when it opens. When the model rebinds the role, the subscription is sent
+what now matches: the relationships along a newly bound predicate from the Things it holds, the members
+of a newly bound archetype, and the Things one step along a newly followed predicate. Things reached
+through the old binding stay members, and still leave when the relationship that reached them is
+retracted. So a service naming a role keeps working when the model renames or replaces the predicate
+or archetype the role stands for.
 
 **A name is resolved when the subscription opens.** A type name the selector asks for is resolved to
 the one Thing it means: a name matching nothing is refused with `400` naming it, and a name two Things
@@ -610,12 +638,14 @@ never told it created a Thing the model no longer holds live.
   asserts nothing, which is how you set up one that only ever receives observations. The settings
   land on the property the Thing **owns**; for a name it only inherits, the archetype's declaration
   governs.
-- **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the
-  derived-property recompute, whose cost grows with the size of the model, is **deferred and run once** for
-  the whole batch (not per write), so applying a large fragment costs one pass over the model rather
-  than one pass per Thing and relationship it carries. Send big graphs as one fragment rather than
-  many single writes: a standing-world batch that would otherwise cost the size of the batch times
-  the size of the model completes in one recompute pass.
+- **Batch-scale reactive work.** A fragment is one commit, and that commit recomputes the derived
+  values its writes feed **once**, before it lets go of the commit lock: each value reached is computed
+  once however many writes reach it, and a batch that writes nothing a derived value reads computes
+  nothing. The judging of each write's ranges is held until the batch closes, so a range is judged on
+  what the whole batch leaves. Send big graphs as one fragment rather than many single writes.
+- **What a service may not write.** A service's fragment may declare neither ranges nor derived
+  properties, and only an administrator writes or removes a protected-category grant relationship;
+  either is refused whole with `403`.
 
 Contrast `POST /api/model`, which **replaces** the whole model (admin-only, bulk load); the fragment
 endpoint merges incrementally into the live model.

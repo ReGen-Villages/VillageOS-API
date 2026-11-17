@@ -11,20 +11,27 @@ copy of its own.**
   model, and against the reads the loaded model cannot answer itself, into a number, a word or rows.
 - **Draws the widgets that write** ([docs/FIELD_GUIDE.md §93](../docs/FIELD_GUIDE.md)):
   - the **action list**: a row for each Thing its binding lists, and a button for each choice. A
-    press records a decision about that row.
+    press records a decision about that row. The choices may come from the model, a choice may ask
+    its own questions and post to its own route, and decided rows can sit behind a switch.
   - the **form**: records something no row on the page lists yet.
   - the **fields** either widget asks a person to fill before a press.
 - **Builds what a press posts**: the body, and the route the widget's `via` names.
 
 ## What the application that embeds it supplies
 
-- **Who is pressing.** Every press goes out through a send function the application supplies. The
-  application adds its own credential and session there, and may wait for its sign-in before
-  posting. Tendril holds no sign-in of its own.
+- **Who is pressing.** Every press goes out through `press(endpoint, body)` on the `ModelReads` the
+  application supplies, optional as `relate` is. The application adds its own credential and session
+  there, and may wait for its sign-in before posting. A page that supplies none cannot press: the
+  widget says "This page cannot send changes." and sends nothing. A `service` binding never reads
+  through `press`. Tendril holds no sign-in of its own.
 - **The loaded model and the reads it cannot answer**, through ports the application fills.
-- **The words for a refusal.** The endpoint's whole answer goes to a function the application
-  supplies. Without one, the endpoint's own words are shown.
-- **Colours.** Tendril reads them from CSS custom properties. Unset, they are the console's.
+- **The words for a refusal.** The endpoint's whole answer goes to `wordRefusal(answer)` on the
+  context, beside `wrote`. Without one, the endpoint's own words are shown.
+- **Colours.** Tendril reads them from CSS custom properties, one per role: `--tendril-text`,
+  `--tendril-muted`, `--tendril-refusal`, `--tendril-action`, `--tendril-action-hover`,
+  `--tendril-action-text`, `--tendril-field-border` and `--tendril-field`. Each class falls back to
+  the console's colour in light and in dark mode. A property is the same in both modes, so an
+  application sets it again under its own dark-mode rule where the dark colour differs.
 - **Where each widget sits on the page.**
 
 ## Why it exists
@@ -82,6 +89,10 @@ scope, written base64-encoded into the user-level `~/.npmrc`, never into a track
 
 A pipeline signs in with the `npmAuthenticate` task. One in another Azure DevOps organization gives
 that task an npm service connection holding the token.
+
+An application using Tailwind adds `@source "…/node_modules/@tendril-ui/tendril/src";` to its
+stylesheet, or Tendril's classes have no rules. The console does this with
+`@source "../../vos.Tendril/src";` in `vos.Trellis/src/index.css`.
 
 ## Licence
 

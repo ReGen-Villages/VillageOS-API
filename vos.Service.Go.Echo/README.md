@@ -35,8 +35,8 @@ All come from the environment and are never flags. A command line is readable by
 
 | Variable | Meaning |
 |----------|---------|
-| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
-| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. Give this or a `Token`, not both: the service refuses to start with the two. A run by hand uses this |
+| `Token` | A service JWT; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -56,7 +56,7 @@ All come from the environment and are never flags. A command line is readable by
 
 - **Registration** — `register()` POSTs to `/api/mycelium/register` with `{handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint}` after obtaining a bearer token.
 - **JWT validation** — `verifyES256()` refuses any header naming an algorithm other than ES256, checks the elliptic-curve signature against `base64decode(VerificationKey)`, then checks issuer, this service's own recipient name, and expiry with 30s clock skew — the same parameters as `ServiceTokenValidator` on the .NET side.
-- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and on `/shutdown`. It does not deregister: `DELETE /api/mycelium/services/{handlerId}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and on `/shutdown`. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handlerId}`; the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Build / verify
 

@@ -27,7 +27,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
 - Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic), reading every binding through Tendril
-- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
+- Dashboard, Operations, Compose, Design, Land intake, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the model publishes (the land-intake template's Submissions review among them) and every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Tendril (page reader and writing widgets)
 
