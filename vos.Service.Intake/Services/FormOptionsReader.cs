@@ -39,6 +39,7 @@ public static class FormOptionsReader
     private static readonly Role[] PredicateRoles =
     [
         LandIntakeRoles.CategorizedAs, LandIntakeRoles.Assesses, LandIntakeRoles.ReportedLevel,
+        LandIntakeRoles.ShownUnder,
     ];
 
     public static SubscriptionSelector Selector() => new()
@@ -63,6 +64,7 @@ public static class FormOptionsReader
         var layerKinds = snapshot.Bound(LandIntakeRoles.SiteLayerKind).FirstOrDefault() is { } layerKind
             ? DeclaredVocabularyReader.TermsUnder(snapshot, layerKind.Id)
             : [];
+        var themes = ThemeThings(snapshot);
 
         return new FormOptions(
             [.. categories.Select(term => term.Name)],
@@ -72,18 +74,32 @@ public static class FormOptionsReader
             DefaultProgramme(snapshot),
             PositionLookupReader.ParcelLookups(snapshot).Count > 0,
             PositionLookupReader.PlaceSearches(snapshot).Count > 0,
-            Themes(snapshot),
-            LayerKinds(snapshot, layerKinds),
+            [.. themes.Select(Theme)],
+            LayerKinds(snapshot, layerKinds, themes),
             Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels, .. layerKinds]));
     }
 
-    private static List<DeclaredLayerKind> LayerKinds(SnapshotDocument snapshot, IReadOnlyList<DeclaredTerm> kinds)
+    private static List<DeclaredLayerKind> LayerKinds(
+        SnapshotDocument snapshot, IReadOnlyList<DeclaredTerm> kinds, IReadOnlyList<SnapshotThing> themes)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        var shownUnder = snapshot.Bound(LandIntakeRoles.ShownUnder).FirstOrDefault();
+        var kindAndTheme = shownUnder is null
+            ? []
+            : snapshot.Relationships
+                .Where(edge => edge.PredicateId == shownUnder.Id)
+                .Select(edge => (edge.SubjectId, edge.TargetId))
+                .ToHashSet();
         return
         [
             .. kinds.Where(kind => thingsById.ContainsKey(kind.Id))
-                .Select(kind => new DeclaredLayerKind(kind.Name, Text(thingsById[kind.Id], ColourProperty))),
+                .Select(kind => new DeclaredLayerKind(
+                    kind.Name,
+                    Text(thingsById[kind.Id], ColourProperty),
+                    [
+                        .. themes.Where(theme => kindAndTheme.Contains((kind.Id, theme.Id)))
+                            .Select(theme => theme.Name ?? string.Empty),
+                    ])),
         ];
     }
 
@@ -160,7 +176,7 @@ public static class FormOptionsReader
     // A model seeded before the report had tiles binds no theme archetype, and its report draws as a
     // list. A role bound to two Things would leave nothing able to say which vocabulary a section's
     // theme belongs to, so that model is refused as the categories' would be.
-    private static List<DeclaredTheme> Themes(SnapshotDocument snapshot)
+    private static List<SnapshotThing> ThemeThings(SnapshotDocument snapshot)
     {
         var bound = snapshot.Bound(ThemeRole);
         if (bound.Count == 0) return [];
@@ -175,10 +191,10 @@ public static class FormOptionsReader
         [
             .. DeclaredVocabularyReader.TermsUnder(snapshot, bound[0].Id)
                 .Where(declared => thingsById.ContainsKey(declared.Id))
-                .Select(declared => Theme(thingsById[declared.Id]))
+                .Select(declared => thingsById[declared.Id])
                 // Ordered tiles first, as the model orders them; the rest keep the name order the terms
                 // arrive in, so a page draws the same grid on every read.
-                .OrderBy(theme => theme.Order ?? long.MaxValue),
+                .OrderBy(theme => WholeNumber(theme, OrderProperty) ?? long.MaxValue),
         ];
     }
 
