@@ -23,7 +23,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
         transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
-        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private sealed record Village(Guid PipelineId, Guid Plot, Guid Decided);
 
@@ -141,6 +141,26 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     // A gateway that has read the run back writes the node run's next status onto the same Thing, as one would
     // after a restart, rather than creating it again.
+    [FactAgainstTheEngine]
+    public async Task A_waits_deadline_travels_in_the_write_that_places_its_watch_and_a_restart_reads_it_back()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var transport = new RecordingTransport(_engine.Transport);
+        var gateway = Gateway(transport);
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
+        await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+
+        var before = transport.Writes.Count;
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: Noticed,
+            watch: new Watch(village.Plot, village.Decided, until));
+
+        (transport.Writes.Count - before).Should().Be(1);
+        (await WaitOfAsync(runId))!.Watching.Should().Be(new Watch(village.Plot, village.Decided, until));
+    }
+
     [FactAgainstTheEngine]
     public async Task A_gateway_that_read_a_run_back_moves_its_waiting_node_run_on()
     {

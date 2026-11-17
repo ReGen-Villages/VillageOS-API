@@ -1098,6 +1098,59 @@ public static class TestGraphs
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
     }
 
+    public sealed record MarkDiscoveredFixture(GraphFixture Fixture, Guid PipelineId, GraphThing ResolveWords, GraphThing MarkDiscovered);
+
+    // The end of the discovery drawing: Resolve words, then Forage's markDiscovered, which takes its site from the run's
+    // subject through a parameter binding and is wired only from Resolve words' `written` on success.
+    public static MarkDiscoveredFixture MarkDiscoveredPipeline(bool reportsAFailure = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+
+        GraphThing Prototype(string name, params (string Name, string Direction, bool Required)[] ports)
+        {
+            var prototype = fx.Thing(name);
+            fx.Rel(prototype, vocabulary.Is, vocabulary.Service);
+            foreach (var (portName, direction, required) in ports)
+            {
+                var port = fx.Thing($"{name}.{direction}.{portName}",
+                    ("direction", direction), ("type", "any"), ("portName", portName), ("required", required ? "true" : "false"));
+                fx.Rel(port, vocabulary.Is, vocabulary.Port);
+                fx.Rel(prototype, vocabulary.Has, port);
+            }
+            return prototype;
+        }
+
+        var resolveWords = ServiceNode(fx, vocabulary, Prototype("ResolveWordsProto", ("resolved", "in", false), ("written", "out", false)),
+            "Resolve words", "resolve");
+        var markDiscovered = ServiceNode(fx, vocabulary,
+            Prototype("MarkDiscoveredProto", ("site", "in", false), ("written", "in", true), ("site", "out", false), ("study", "out", false)),
+            "Mark discovered", "mark", (ModelNames.ParameterBindings, "{\"site\":\"subject\"}"));
+
+        var start = fx.Thing("A site awaits discovery");
+        fx.Rel(start, vocabulary.Is, vocabulary.PipelineInput);
+        var subject = fx.Thing("start.subject", ("direction", "out"), ("type", "any"), ("portName", "subject"));
+        fx.Rel(subject, vocabulary.Is, vocabulary.Port);
+        fx.Rel(start, vocabulary.Has, subject);
+
+        var pipe = fx.Thing("Discover a site");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        fx.Rel(pipe, vocabulary.Has, start);
+        fx.Rel(pipe, vocabulary.Has, resolveWords);
+        fx.Rel(pipe, vocabulary.Has, markDiscovered);
+        fx.Wire(start, "subject", resolveWords, "resolved");
+        fx.Wire(resolveWords, "written", markDiscovered, "written");
+        if (reportsAFailure)
+        {
+            var report = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "ReportProto"), "Report", "report");
+            fx.Rel(pipe, vocabulary.Has, report);
+            fx.TakeOn(fx.WireBetween(resolveWords, fx.Get("error"), report, fx.PortOf(report, "in", "in")), vocabulary.Fail);
+        }
+        fx.EndEveryPath(pipe);
+        return new MarkDiscoveredFixture(fx, pipe.Id, resolveWords, markDiscovered);
+    }
+
     public sealed record WaitBoxFixture(
         GraphFixture Fixture, Guid PipelineId, GraphThing Wait, GraphThing Publish, GraphThing Decided, GraphThing? ResolvedAs, GraphThing? SubjectWire);
 
@@ -1108,7 +1161,8 @@ public static class TestGraphs
     // Publish then runs on the Thing waited for, or on what that Thing reaches along `resolvedAs` when the box follows it.
     // The box's ports are declared once on its kind, as the shared site template declares them. reportsAFailure adds
     // Report, reached along the box's fail wire.
-    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true, bool reportsAFailure = false)
+    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true, bool reportsAFailure = false,
+        object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1131,7 +1185,7 @@ public static class TestGraphs
         var awaited = Port(waitKind, WaitBoxPort, "in");
         Port(waitKind, WaitBoxPort, "out");
         Port(waitKind, ModelNames.Reached, "out");
-        var wait = fx.Thing(WaitBox);
+        var wait = waitsAtMostMinutes is null ? fx.Thing(WaitBox) : fx.Thing(WaitBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(wait, vocabulary.Is, waitKind);
         var decided = fx.Thing("decided");
         if (namesAState) fx.Rel(wait, provenBy, decided);
@@ -1172,7 +1226,7 @@ public static class TestGraphs
     // A start node hands the run's subject to a relate box standing for the connection `balancesEnergy`, which relates
     // the subject to the connection's service and waits for the state the connection is proven by; Publish then runs on
     // what the box hands on. provesByAState false leaves the connection naming no such state.
-    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true)
+    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true, object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1203,7 +1257,7 @@ public static class TestGraphs
         var workedOut = fx.Thing("EnergyWorkedOut");
         if (provesByAState) fx.Rel(connection, provenBy, workedOut);
 
-        var relate = fx.Thing(RelateBox);
+        var relate = waitsAtMostMinutes is null ? fx.Thing(RelateBox) : fx.Thing(RelateBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(relate, vocabulary.Is, relateKind);
         fx.Rel(relate, standsFor, connection);
 

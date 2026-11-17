@@ -695,9 +695,10 @@ export class PipelineModel {
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
-      if (nodeRun.Properties.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
-      const nodeId = nodeRun.Properties.nodeId;
-      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(nodeRun.Properties.status ?? '');
+      const stated = this.stated(nodeRun.Id);
+      if (stated.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
+      const nodeId = stated.nodeId;
+      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(stated.status ?? '');
     }
     return out;
   }
@@ -708,20 +709,21 @@ export class PipelineModel {
   nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
     const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
-      if (nodeRun.Properties.index === undefined) continue; // aggregate record
-      const nodeId = nodeRun.Properties.nodeId;
+      const stated = this.stated(nodeRun.Id);
+      if (stated.index === undefined) continue; // aggregate record
+      const nodeId = stated.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
       entry.reached += 1;
-      entry.spreadOver = Math.max(entry.spreadOver, Number(nodeRun.Properties.total ?? 0));
-      if (String(nodeRun.Properties.status ?? '') !== 'running') entry.done += 1;
+      entry.spreadOver = Math.max(entry.spreadOver, Number(stated.total ?? 0));
+      if (String(stated.status ?? '') !== 'running') entry.done += 1;
       out[nodeId] = entry;
     }
     return out;
   }
 
   runStatus(runId: string): string | undefined {
-    const s = this.byId.get(runId)?.Properties.status;
+    const s = this.stated(runId).status;
     return typeof s === 'string' ? s : undefined;
   }
 
@@ -731,11 +733,12 @@ export class PipelineModel {
     for (const t of this.things) {
       if (!this.isOf(t.Id, ROLE.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;
-      const requestId = t.Properties[REQUEST_ID_PROPERTY];
+      const stated = this.stated(t.Id);
+      const requestId = stated[REQUEST_ID_PROPERTY];
       runs.push({
         runId: t.Id,
-        status: String(t.Properties.status ?? ''),
-        startedUtc: String(t.Properties.startedUtc ?? ''),
+        status: String(stated.status ?? ''),
+        startedUtc: String(stated.startedUtc ?? ''),
         ...(typeof requestId === 'string' && requestId ? { requestId } : {}),
       });
     }
@@ -747,14 +750,16 @@ export class PipelineModel {
   runsARestartStopped(): RunARestartStopped[] {
     const runs: RunARestartStopped[] = [];
     for (const run of this.things) {
-      if (run.Properties.status !== 'failed' || !this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      if (!this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      const stated = this.stated(run.Id);
+      if (stated.status !== 'failed') continue;
       if (!Object.values(this.nodeRunStatuses(run.Id)).includes('interrupted')) continue;
       if (this.reachingAlong(run.Id, ROLE.RepeatedRun).length > 0) continue;
       runs.push({
         runId: run.Id,
         pipelineName: this.outgoing(run.Id, 'of')[0]?.Name ?? '',
-        startedUtc: String(run.Properties.startedUtc ?? ''),
-        reason: String(run.Properties.error ?? ''),
+        startedUtc: String(stated.startedUtc ?? ''),
+        reason: String(stated.error ?? ''),
       });
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));

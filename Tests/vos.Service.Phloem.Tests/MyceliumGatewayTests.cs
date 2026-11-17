@@ -34,13 +34,15 @@ public class MyceliumGatewayTests
     private static readonly Guid HasPredicateId = Guid.Parse("18181818-1818-1818-1818-181818181818");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
-        Func<HttpRequestMessage, HttpResponseMessage>? respond = null, TimeSpan? cadenceStreamRetry = null, TimeSpan? disposeWait = null)
+        Func<HttpRequestMessage, HttpResponseMessage>? respond = null, TimeSpan? cadenceStreamRetry = null, TimeSpan? disposeWait = null,
+        TimeProvider? clock = null)
     {
         var handler = new MockHttpMessageHandler(respond ?? new BrokerApplyingItsWriteRules().Respond);
         var gateway = new MyceliumGateway(
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
             MyceliumUrl,
+            clock ?? new ModelClock(),
             new LaunchToken("svc-token"))
         {
             CadenceStreamRetry = cadenceStreamRetry ?? TimeSpan.FromSeconds(2),
@@ -1171,6 +1173,54 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(["NodeRun Echo #0", "NodeRun Echo #1"]);
     }
 
+    private static ModelClock AnchoredAtTheStartOf2030()
+    {
+        var clock = new ModelClock();
+        clock.AnchorTo(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero), rate: 1.0);
+        return clock;
+    }
+
+    [Fact]
+    public async Task A_run_and_its_node_run_are_stamped_from_the_model_clock_when_they_start_and_finish()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(clock: AnchoredAtTheStartOf2030());
+
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Succeeded, null, CancellationToken.None);
+        await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None);
+
+        var created = await CreatedThings(handler);
+        var nodeRunId = created[1].GetProperty("id").GetGuid();
+        var stamps = new[]
+        {
+            Stamp(created[0], ModelNames.StartedUtc),
+            Stamp(created[1], ModelNames.StartedUtc),
+            (await PropertiesWrittenSinceCreation(handler, nodeRunId)).Single(written => written.Name == ModelNames.FinishedUtc).Value,
+            (await PropertiesWrittenSinceCreation(handler, runId)).Single(written => written.Name == ModelNames.FinishedUtc).Value,
+        };
+        stamps.Should().AllSatisfy(stamp => stamp.Should().StartWith("2030-01-01"));
+    }
+
+    [Fact]
+    public async Task A_run_refused_at_its_start_and_a_node_run_finished_at_its_first_status_are_stamped_from_the_model_clock()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(clock: AnchoredAtTheStartOf2030());
+
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, refusal: "Pipeline is invalid.");
+        await gateway.SetNodeRunStatusAsync(runId, Guid.NewGuid(), "Echo", RunStatus.Failed, "the service was away", CancellationToken.None);
+
+        var created = await CreatedThings(handler);
+        new[] { Stamp(created[0], ModelNames.FinishedUtc), Stamp(created[1], ModelNames.StartedUtc), Stamp(created[1], ModelNames.FinishedUtc) }
+            .Should().AllSatisfy(stamp => stamp.Should().StartWith("2030-01-01"));
+    }
+
+    private static string? Stamp(JsonElement created, string property) =>
+        created.GetProperty("properties").GetProperty(property).GetProperty("value").GetString();
+
     [Fact]
     public async Task SetRunStatusAsync_WritesTheStatusOnTheRun()
     {
@@ -1357,6 +1407,24 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task SetNodeRunStatusAsync_Waiting_WritesTheInstantTheWaitFailsAtWithItsWatch()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None,
+            watch: new Watch(Guid.NewGuid(), Guid.NewGuid(), until));
+
+        var waiting = (await Fragments(handler)).Last();
+        var properties = waiting.GetProperty("things").EnumerateArray().Single().GetProperty("properties");
+        properties.GetProperty(ModelNames.WaitsUntil).GetProperty("value").GetString().Should().Be(until.ToString("o"));
+        Ends(waiting, "relationships").Should().HaveCount(2, "the deadline travels in the write that places the watch");
+    }
+
+    [Fact]
     public async Task SetNodeRunStatusAsync_AnyOtherStatus_RetractsTheWatchInTheSameFragment()
     {
         var runId = Guid.NewGuid();
@@ -1381,6 +1449,7 @@ public class MyceliumGatewayTests
     [InlineData(null, WaitAnswer.None)]
     public async Task WaitingNodeRunsAsync_ReadsEachWaitingNodeRunsWatchAndHowFarThePlatformsAnswerGot(string? callState, WaitAnswer answer)
     {
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
         var run = Guid.NewGuid();
         var nodeRun = Guid.NewGuid();
         var node = Guid.NewGuid();
@@ -1426,6 +1495,7 @@ public class MyceliumGatewayTests
                     {
                         status = new { value = RunStatus.Waiting, typeInfo = "vos.String" },
                         nodeId = new { value = node.ToString(), typeInfo = "vos.String" },
+                        waitsUntil = new { value = until.ToString("o"), typeInfo = "vos.String" },
                     }),
                 },
                 relationships = edges,
@@ -1435,7 +1505,7 @@ public class MyceliumGatewayTests
 
         var waits = await gateway.WaitingNodeRunsAsync(CancellationToken.None);
 
-        waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided), answer));
+        waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided, until), answer));
     }
 
     [Fact]

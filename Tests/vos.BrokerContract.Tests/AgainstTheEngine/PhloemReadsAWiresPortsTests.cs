@@ -165,7 +165,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     private async Task<PipelineGraph> LoadAsync(Guid pipeline)
     {
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
         return await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None);
     }
 

@@ -41,8 +41,35 @@ const context: ResolveContext = {
 };
 
 function draw() {
-  render(<ThemedTiles sections={sections} themes={themes} context={context} />);
+  render(<ThemedTiles sections={sections} themes={themes} wording={{}} context={context} />);
 }
+
+describe('a tile\'s name', () => {
+  const untitled: DashboardSection[] = [
+    { theme: 'Water', widgets: [{ type: 'verdict', title: 'Rain', rows: [] }] },
+    { theme: 'Sun', widgets: [{ type: 'verdict', title: 'Sunshine hours', rows: [] }] },
+    { title: 'Warmth', theme: 'Temperature', widgets: [{ type: 'verdict', title: 'Range', rows: [] }] },
+  ];
+  const wording = {
+    Water: { en: 'Precipitation and humidity', de: 'Niederschlag und Feuchte' },
+    Temperature: { en: 'Temperature and comfort' },
+  };
+
+  it('is the theme\'s words in the page language, then the section\'s own title, then the theme\'s name', () => {
+    render(<ThemedTiles sections={untitled} themes={themes} wording={wording} context={context} />);
+
+    expect(screen.getAllByRole('button').map((tile) => tile.getAttribute('aria-label')))
+      .toEqual(['Warmth', 'Precipitation and humidity', 'Sun']);
+  });
+
+  it('heads the gallery the tile opens with the same name', () => {
+    render(<ThemedTiles sections={untitled} themes={themes} wording={wording} context={context} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Precipitation and humidity' }));
+
+    expect(screen.getByRole('heading', { name: 'Precipitation and humidity' })).toBeInTheDocument();
+  });
+});
 
 describe('the themed tiles', () => {
   it('draws one tile per themed section, in the order the themes declare, faced in each theme colour', () => {
@@ -111,7 +138,7 @@ describe('the themed tiles', () => {
 
   it('draws nothing where no section names a theme', () => {
     const { container } = render(
-      <ThemedTiles sections={[{ title: 'Balances', widgets: [] }]} themes={themes} context={context} />,
+      <ThemedTiles sections={[{ title: 'Balances', widgets: [] }]} themes={themes} wording={{}} context={context} />,
     );
 
     expect(container).toBeEmptyDOMElement();

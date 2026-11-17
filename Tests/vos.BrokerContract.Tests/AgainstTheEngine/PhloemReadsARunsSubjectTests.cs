@@ -18,7 +18,7 @@ public class PhloemReadsARunsSubjectTests : IClassFixture<TheEngine>
     {
         var name = $"Reservoir {Guid.NewGuid():N}";
         var held = await _engine.DeclareAsync(name);
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
         (await gateway.SubjectAsync(held, CancellationToken.None)).Should().Be(new RunSubject(held, name));
         (await gateway.SubjectAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeNull();

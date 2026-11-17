@@ -41,12 +41,14 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
+            sp.GetRequiredService<ModelClock>(),
             launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
     builder.Services.AddHostedService<CadenceKeeper>();
+    builder.Services.AddHostedService<WaitTimeKeeper>();
 
     var app = builder.Build();
 

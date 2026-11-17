@@ -41,6 +41,9 @@ public static class ModelNames
     public const string Total = "total";
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
+    // On a node that waits, the most model minutes it waits; on its node run, the model instant the wait fails at.
+    public const string WaitsAtMostMinutes = "waitsAtMostMinutes";
+    public const string WaitsUntil = "waitsUntil";
     public const string Outputs = "outputs";
     public const string StartedRun = "startedRun";
     // On a node, how many attempts its policy allows; on a node run, how many were made. An attempt carries its number.

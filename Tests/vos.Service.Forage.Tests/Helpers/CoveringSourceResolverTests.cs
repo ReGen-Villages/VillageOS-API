@@ -95,16 +95,6 @@ public class CoveringSourceResolverTests
     private static ModelBuilder StudyOf(string site) =>
         new ModelBuilder().Relate(site + "Study", CoveringSourceResolver.StudiesPredicate, site);
 
-    // A connection that `is` the archetype the site-analysis role binds, bound to the service it calls.
-    private static ModelBuilder MarkedConnection(ModelBuilder model, string connection, string prototype)
-    {
-        model.Relate(connection, CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
-             .Relate(connection, CoveringSourceResolver.HasPredicate, connection + " service")
-             .Relate(connection + " service", CoveringSourceResolver.IsPredicateName, prototype);
-        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
-        return model.Archetype(prototype);
-    }
-
     // A source is callable only through its registration, so every scenario below wires both.
     private static ModelBuilder SourceCovering(ModelBuilder model, string source, string place) =>
         model.Relate(source, CoveringSourceResolver.CoversPredicate, place)
@@ -592,257 +582,56 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisOf_StudyAndAMarkedConnection_TriggersThatService()
+    public void StudiesOf_TheStudyThatStudiesTheSite_IsFoundWithItsName()
     {
         var model = StudyOf("WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
-        var analysis = CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"));
-
-        analysis!.StudyId.Should().Be(model.Id("WillowBendStudy"));
-        analysis.Triggers.Should().ContainSingle()
-            .Which.Should().Be(new AnalysisTrigger(
-                "balancesEnergy", model.Id("balancesEnergy"), model.Id("EnergyBalance prototype"),
-                AlreadyRelated: false));
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend"))
+            .Should().Equal(new Study(model.Id("WillowBendStudy"), "WillowBendStudy"));
     }
 
     [Fact]
-    public void AnalysisOf_StudyAlreadyRelatedThroughTheConnection_IsAlreadyRelated()
+    public void StudiesOf_ASiteWithNoStudy_FindsNone()
     {
-        var model = StudyOf("WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
-            .Relate("WillowBendStudy", "balancesEnergy", "EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeTrue();
-    }
-
-    [Fact]
-    public void AnalysisOf_StudyRelatedThroughTheConnectionToAnotherPrototype_IsNotAlreadyRelated()
-    {
-        // Only the relationship to the service's own prototype calls that service.
-        var model = StudyOf("WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
-            .Relate("WillowBendStudy", "balancesEnergy", "SecondBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
-    }
-
-    [Fact]
-    public void AnalysisOf_AnotherStudyRelatedThroughTheConnection_IsNotAlreadyRelated()
-    {
-        var model = StudyOf("WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
-            .Relate("ElsewhereStudy", "balancesEnergy", "EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
-    }
-
-    [Fact]
-    public void AnalysisOf_StudyRelatedToThePrototypeThroughAnotherPredicate_IsNotAlreadyRelated()
-    {
-        var model = StudyOf("WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
-            .Relate("WillowBendStudy", "mentions", "EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
-    }
-
-    [Fact]
-    public void AnalysisOf_SiteWithNoStudy_IsNull()
-    {
-        // Not a failure: nothing was ever going to compute, and reporting it as one would blame the run
-        // for a gap in the model — the same rule a source with no registration is left out under.
         var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend")).Should().BeEmpty();
     }
 
     [Fact]
-    public void AnalysisOf_AnotherSitesStudy_IsNotReturned()
+    public void StudiesOf_AnotherSitesStudy_IsNotFound()
     {
         var model = new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
             .Relate("ElsewhereStudy", CoveringSourceResolver.StudiesPredicate, "Elsewhere");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend")).Should().BeEmpty();
     }
 
     [Fact]
-    public void AnalysisOf_ConnectionNotBeneathTheBoundArchetype_IsNotATrigger()
+    public void StudiesOf_TwoStudies_AreBothFoundInIdentifierOrder()
     {
-        // A connection that is not beneath the bound archetype is one bound for some other purpose. Starting it
-        // would call a service for a study it knows nothing about.
-        var model = StudyOf("WillowBend")
-            .Relate("ordinary", CoveringSourceResolver.HasPredicate, "ordinary service")
-            .Relate("ordinary service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
-        model.Archetype("EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AnalysisOf_MarkedConnectionBindingNoService_IsNotATrigger()
-    {
-        // A relationship pointing at no service would be written and never answered, which reads
-        // afterwards as an analysis that started and produced nothing.
-        var model = StudyOf("WillowBend")
-            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AnalysisOf_ServiceTypedByAThingThatIsNotAnArchetype_IsNotATrigger()
-    {
-        // A service `is` its prototype, and a prototype is a type. Pointing the analysis relationship at an
-        // ordinary Thing that happens to sit on an `is` relationship would call a service for a member.
-        var model = StudyOf("WillowBend")
-            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
-            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
-            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "not a type");
-        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AnalysisOf_IsChainThatLoops_DoesNotHang()
-    {
-        // The walk climbs the is chain, and a model can be edited into a cycle. It has to terminate on
-        // the path that serves a discovery run rather than spin.
-        var model = StudyOf("WillowBend")
-            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "roundabout")
-            .Relate("roundabout", CoveringSourceResolver.IsPredicateName, "balancesEnergy");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AnalysisOf_BoundArchetypeThroughAnIntermediateArchetype_IsStillFound()
-    {
-        // A model may put its own archetype between a connection and the bound one, so the walk climbs the
-        // is chain rather than reading one step.
-        var model = StudyOf("WillowBend")
-            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "PlatformAnalysisConnection")
-            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
-            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
-            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
-        model.Archetype("PlatformAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
-        model.Archetype("EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Select(trigger => trigger.ConnectionName).Should().Equal("balancesEnergy");
-    }
-
-    [Fact]
-    public void AnalysisOf_TwoMarkedConnections_AreOrderedByName()
-    {
-        // A run writes its relationships the same way twice, which is what makes the log of two runs comparable.
-        var model = StudyOf("WillowBend");
-        MarkedConnection(model, "secondBalance", "SecondBalance prototype");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Select(trigger => trigger.ConnectionName)
-            .Should().Equal("balancesEnergy", "secondBalance");
-    }
-
-    [Fact]
-    public void AnalysisOf_SiteWithTwoStudies_IsRefusedRatherThanPickedBetween()
-    {
-        // Relationship order is not defined, so choosing would analyse a different study on different
-        // runs and report neither choice.
+        // Relationship order is not defined, so the order is the identifiers', and the caller refuses the pair.
         var model = StudyOf("WillowBend")
             .Relate("SecondStudy", CoveringSourceResolver.StudiesPredicate, "WillowBend");
-        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend")).Select(study => study.Id)
+            .Should().Equal(new[] { model.Id("WillowBendStudy"), model.Id("SecondStudy") }.Order());
     }
 
     [Fact]
-    public void AnalysisOf_TheSameStudyRelatedTwice_IsStillThatStudy()
+    public void StudiesOf_TheSameStudyRelatedTwice_IsOneStudy()
     {
-        // A duplicate relationship is one study named twice, not two studies. Refusing it would take an analysis
-        // away over a redundancy that changes no answer.
+        // A duplicate relationship is one study named twice, not two studies, so it leaves the site discoverable.
         var model = StudyOf("WillowBend")
             .Relate("WillowBendStudy", CoveringSourceResolver.StudiesPredicate, "WillowBend");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .StudyId.Should().Be(model.Id("WillowBendStudy"));
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend")).Select(study => study.Id)
+            .Should().Equal(model.Id("WillowBendStudy"));
     }
 
     [Fact]
-    public void AnalysisOf_IntermediateArchetypeBindingItsOwnService_IsNotATrigger()
-    {
-        // A type between a connection and the bound archetype may bind a service of its own as a template. It is
-        // still a type, and calling it would make the relationship's predicate an archetype rather than a
-        // connection — so only the member below it is a trigger.
-        var model = StudyOf("WillowBend")
-            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
-            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.HasPredicate, "template service")
-            .Relate("template service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype")
-            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "PlatformAnalysisConnection")
-            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
-            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
-        model.Archetype("PlatformAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
-        model.Archetype("EnergyBalance prototype");
-
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Select(trigger => trigger.ConnectionName).Should().Equal("balancesEnergy");
-    }
-
-    [Fact]
-    public void AnalysisOf_IsEdgeFromAThingOutsideTheSnapshot_IsSkipped()
-    {
-        // Incident relationships arrive for every Thing in the set, including ones whose other end was not
-        // selected. Reading a connection that is not there would call a service for a Thing this run
-        // knows nothing about.
-        var site = Guid.NewGuid();
-        var study = Guid.NewGuid();
-        var studies = Guid.NewGuid();
-        var isEdge = Guid.NewGuid();
-        var binds = Guid.NewGuid();
-        var connectionArchetype = Guid.NewGuid();
-        var role = CoveringSourceResolver.SiteAnalysisConnectionRole;
-        var snapshot = new SnapshotDocument(
-            0,
-            new List<SnapshotThing>
-            {
-                Thing(site, "WillowBend"),
-                Thing(study, "WillowBendStudy"),
-                Thing(studies, CoveringSourceResolver.StudiesPredicate),
-                Thing(isEdge, CoveringSourceResolver.IsPredicateName),
-                Thing(binds, RoleBindings.BindsPredicateName),
-                Thing(role.Id, role.Word),
-                new(connectionArchetype, "SiteAnalysisConnection", true,
-                    new Dictionary<string, SnapshotProperty>(),
-                    new Dictionary<string, InheritedPropertySet>(),
-                    Array.Empty<string>(), Array.Empty<Guid>()),
-            },
-            new List<SnapshotRelationship>
-            {
-                Edge(study, studies, site),
-                Edge(role.Id, binds, connectionArchetype),
-                Edge(Guid.NewGuid(), isEdge, connectionArchetype),
-            });
-
-        CoveringSourceResolver.AnalysisOf(snapshot, site)!.Triggers.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AnalysisOf_SnapshotHoldingAnUnnamedThing_StillFindsTheStudy()
+    public void StudiesOf_SnapshotHoldingAnUnnamedThing_StillFindsTheStudy()
     {
         // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
         // one unnamed Thing anywhere in the snapshot must not stop the site's study being found.
@@ -860,27 +649,24 @@ public class CoveringSourceResolverTests
             },
             new List<SnapshotRelationship> { Edge(study, studies, site) });
 
-        CoveringSourceResolver.AnalysisOf(snapshot, site)!.StudyId.Should().Be(study);
+        CoveringSourceResolver.StudiesOf(snapshot, site).Select(found => found.Id).Should().Equal(study);
     }
 
     [Fact]
-    public void AnalysisOf_AStudyAlongAPredicateNamedInAnotherCase_IsNotTheSitesStudy()
+    public void StudiesOf_AStudyAlongAPredicateNamedInAnotherCase_IsNotTheSitesStudy()
     {
         var model = new ModelBuilder().Relate("WillowBendStudy", "Studies", "WillowBend");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))?.StudyId
-            .Should().NotBe(model.Id("WillowBendStudy"), "Thing names are matched exactly, case included");
+        CoveringSourceResolver.StudiesOf(model.Build(), model.Id("WillowBend"))
+            .Should().BeEmpty("Thing names are matched exactly, case included");
     }
 
     [Fact]
-    public void SelectorFor_AsksForTheAnalysisConnectionsModelWide()
+    public void SelectorFor_AsksForNoConnectionModelWide()
     {
-        // The study is not related to its connections yet — relating it is what the read is for — so a
-        // traversal from the site reaches none of them.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.BoundTypes.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionRole.Id);
-        selector.Ids.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionRole.Id);
+        selector.BoundTypes.Should().Equal(CoveringSourceResolver.PlaceArchetypeRole.Id);
     }
 
     // A run mints against the coverage archetype, so it has to arrive before any coverage exists to
@@ -906,7 +692,7 @@ public class CoveringSourceResolverTests
         selector.Ids.Should().Contain(
         [
             CoveringSourceResolver.SiteRole.Id, CoveringSourceResolver.PlaceNestingRole.Id,
-            CoveringSourceResolver.SiteAnalysisConnectionRole.Id, CoveringSourceResolver.PlaceArchetypeRole.Id,
+            CoveringSourceResolver.PlaceArchetypeRole.Id,
             CoveringSourceResolver.SourceCoverageRole.Id, CoveringSourceResolver.AreaNameLookupRole.Id,
             CoveringSourceResolver.LocalAreaNameLookupRole.Id, CoveringSourceResolver.HazardDivisionLookupRole.Id,
             CoveringSourceResolver.ProvidedVariableRole.Id,

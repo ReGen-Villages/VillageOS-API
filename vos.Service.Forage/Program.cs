@@ -66,7 +66,6 @@ try
     builder.Services.AddModelClock<MyceliumRelationshipClient>("Forage");
     builder.Services.AddSingleton<CoverageLedger>();
     builder.Services.AddSingleton<DivisionResolver>();
-    builder.Services.AddSingleton<AnalysisSpawner>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
     builder.Services.AddSingleton(sp => new ForageSteps(
@@ -79,7 +78,6 @@ try
         sp.GetRequiredService<CoverageLedger>(),
         sp.GetRequiredService<DivisionResolver>(),
         sp.GetRequiredService<VocabularyEdgeWriter>(),
-        sp.GetRequiredService<AnalysisSpawner>(),
         launchSettings.SourceWindowDays));
     builder.Services.AddServiceTokenExchange(myceliumUrl);
 
@@ -103,7 +101,6 @@ try
         DiscoveryRunner runner,
         CoverageLedger ledger,
         DivisionResolver divisions,
-        AnalysisSpawner analysis,
         VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
         ForageSteps steps,
@@ -129,7 +126,7 @@ try
         // body for as long as the run takes.
         var subjectId = request.SubjectId;
         starter.Start(subjectId, token => heldToken.ActAsync(() =>
-            Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token), token));
+            Discover(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, token), token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed service call whatever the status said.
@@ -176,7 +173,6 @@ static async Task Discover(
     DiscoveryRunner runner,
     CoverageLedger ledger,
     DivisionResolver divisions,
-    AnalysisSpawner analysis,
     VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
 {
@@ -186,12 +182,12 @@ static async Task Discover(
             Log.Error("Could not read what {SubjectId} is; leaving the run outstanding", subjectId);
             return;
         case SubjectKind.Site:
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, cancellationToken);
             return;
         case SubjectKind.ModelBindsNoSite:
             Log.Warning("The model binds no site archetype, so {SubjectId} is taken for a site; such a model " +
                         "cannot call for a source", subjectId);
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, cancellationToken);
             return;
         case SubjectKind.Source:
             await OfferSource(subjectId, coveringSources, ledger, cancellationToken);
@@ -246,14 +242,13 @@ static async Task DiscoverSite(
     DiscoveryRunner runner,
     CoverageLedger ledger,
     DivisionResolver divisions,
-    AnalysisSpawner analysis,
     VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
 {
     var coverage = await coveringSources.ForSiteAsync(siteId, cancellationToken);
     if (coverage == null)
     {
-        // Nothing is written and the analysis is not started, so the site stays in the state that
+        // Nothing is written and the site is not stamped, so it stays in the state that
         // started this and the run is driven again. Carrying on would report that no source covers
         // the site, which is the answer an unreachable gateway must never be mistaken for.
         Log.Error("Could not read which sources cover site {SiteId}; leaving the run outstanding rather " +
@@ -286,18 +281,11 @@ static async Task DiscoverSite(
         Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
             outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
 
-    // A fetched word becomes the relationship the model declares before the analysis starts, so what the
-    // analysis reads is already resolved.
+    // A fetched word becomes the relationship the model declares before the site is stamped, so a reader of the
+    // discovered site finds it resolved.
     await vocabularyEdges.ResolveAsync(report, cancellationToken);
 
     await ledger.StampWorkedOutAsync(siteId, cancellationToken);
-
-    // Whatever mixture resolved, including none. The analysis reports against what discovery left it, and
-    // a site whose sources were all unavailable is exactly the case a planner needs the analysis to say
-    // something about rather than silently never running.
-    var spawn = await analysis.SpawnAsync(siteId, coverage.Analysis, cancellationToken);
-    if (!spawn.Started)
-        Log.Information("No analysis started for site {SiteId}: {Reason}", siteId, spawn.Reason);
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.

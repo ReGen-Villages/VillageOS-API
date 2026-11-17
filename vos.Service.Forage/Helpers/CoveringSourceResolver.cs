@@ -55,14 +55,7 @@ public sealed record CodedPlace(
 // Every such Place the model holds, and the predicate a site is related to one through.
 public sealed record CodedPlaces(Guid NestingPredicateId, IReadOnlyList<CodedPlace> Places);
 
-// One compute service to start on the site's study: the connection to relate through, and the service
-// prototype the relationship points at. The connection is the predicate, which is what makes the relationship call its service.
-// A study already holding the relationship has its analysis running, and the model refuses a second copy.
-public sealed record AnalysisTrigger(
-    string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId, bool AlreadyRelated);
-
-// The study to compute, and every service that computes part of it.
-public sealed record SiteAnalysis(Guid StudyId, IReadOnlyList<AnalysisTrigger> Triggers);
+public sealed record Study(Guid Id, string Name);
 
 // Reads which sources cover a site, and which sites a source reaches, each from one scoped snapshot.
 //
@@ -86,11 +79,6 @@ public static class CoveringSourceResolver
     public const string StudiesPredicate = "studies";
     public const string HasPredicate = "has";
     public const string IsPredicateName = "is";
-
-    // The archetype every connection a site analysis calls `is`, found through the role that binds it
-    // rather than by name, so adding a balance is an edit to the model: name them here and the two
-    // repositories would agree about the analysis only by spelling.
-    public static readonly Role SiteAnalysisConnectionRole = LandIntakeRoles.SiteAnalysisConnection;
 
     // The archetype every site `is`, bound by the platform's site role so that a walk reaching Places
     // and sites alike can tell the two apart — and so that a service call naming a source is told from one
@@ -159,7 +147,7 @@ public static class CoveringSourceResolver
     // plays which part whatever the model calls it.
     private static readonly Role[] SiteReadRoles =
     [
-        SiteRole, PlaceNestingRole, SiteAnalysisConnectionRole, PlaceArchetypeRole, SourceCoverageRole,
+        SiteRole, PlaceNestingRole, PlaceArchetypeRole, SourceCoverageRole,
         AreaNameLookupRole, LocalAreaNameLookupRole, HazardDivisionLookupRole, ProvidedVariableRole,
     ];
     private const string PlaceCodePropertyName = "placeCodeProperty";
@@ -176,17 +164,14 @@ public static class CoveringSourceResolver
     // than overwriting what earlier runs recorded.
     private const string AttemptsProperty = "attempts";
 
-    // Everything in one read: the site's Places, every source whose coverage reaches one of them, the
-    // study of the site, and every connection a site analysis calls with the service each one binds.
+    // One read, so the coverage and the study come from the same snapshot.
     // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
     // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
     {
         Ids = [siteId, .. RoleBindings.Identifiers(SiteReadRoles)],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
-        // Model-wide rather than reached from the site: a study is related through a connection only once
-        // its analysis has started there, and finding the connections it has not started is what this read is for.
-        BoundTypes = RoleBindings.Identifiers(SiteAnalysisConnectionRole, PlaceArchetypeRole),
+        BoundTypes = RoleBindings.Identifiers(PlaceArchetypeRole),
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
         // members, every coverage in the model arrived on every site's read; the ones about
@@ -225,9 +210,8 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
-        // The one rule names no predicate: a study's analysis relationships run along whichever connection the
-        // model declares, and a rule cannot name an archetype's members. Outgoing alone still leaves out the isIn
-        // every other site writes into a shared Place.
+        // The one rule names no predicate, so every relationship out of what the read reached arrives. Outgoing
+        // alone still leaves out the isIn every other site writes into a shared Place.
         Relationships = [new RelationshipRule { Direction = "outgoing" }],
     };
 
@@ -711,83 +695,18 @@ public static class CoveringSourceResolver
         return values;
     }
 
-    // The study of the site and the services that compute it, or null when the site has no study. A site
-    // with nothing to compute is not a failed discovery — nothing was ever going to run — so the run
-    // reports it and does not treat it as an outage, the same rule a DataSource with no registration is
-    // left out under.
-    //
-    // The study is the subject of every relationship written, never the site: a compute service reads its inputs
-    // off the study, so a relationship naming the site would call the service for a Thing holding none
-    // of them.
-    public static SiteAnalysis? AnalysisOf(SnapshotDocument snapshot, Guid siteId)
+    // Every study that studies the site, ordered by identifier because relationship order is not defined. The
+    // caller refuses any count but one rather than picking a study that would change from run to run.
+    public static IReadOnlyList<Study> StudiesOf(SnapshotDocument snapshot, Guid siteId)
     {
-        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
-
-        if (StudyOf(snapshot, namesById, siteId) is not { } studyId) return null;
-
-        var studyRelationships = new HashSet<(Guid Predicate, Guid Target)>();
-        foreach (var edge in snapshot.Relationships)
-            if (edge.SubjectId == studyId)
-                studyRelationships.Add((edge.PredicateId, edge.TargetId));
-
-        var triggers = new List<AnalysisTrigger>();
-        foreach (var connectionId in MembersReachedFrom(
-                     snapshot, thingsById, namesById, BoundIds(snapshot, SiteAnalysisConnectionRole)))
-        {
-            if (ServicePrototypeOf(snapshot, thingsById, namesById, connectionId) is not { } prototypeId)
-                continue;
-
-            triggers.Add(new AnalysisTrigger(
-                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId,
-                studyRelationships.Contains((connectionId, prototypeId))));
-        }
-
-        // Ordered by name so a run writes its relationships the same way twice, which is what makes the log of
-        // two runs comparable.
-        triggers.Sort((left, right) => string.CompareOrdinal(left.ConnectionName, right.ConnectionName));
-        return new SiteAnalysis(studyId, triggers);
-    }
-
-    // The one study of the site. More than one is refused rather than picked between: relationship order
-    // is not defined, so choosing would analyse a different study on different runs and report neither
-    // choice. Null means none, which the caller reports as nothing to compute.
-    private static Guid? StudyOf(
-        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid siteId)
-    {
-        Guid? found = null;
-        foreach (var edge in snapshot.Relationships)
-        {
-            if (edge.TargetId != siteId) continue;
-            if (!IsPredicate(namesById, edge.PredicateId, StudiesPredicate)) continue;
-            if (found != null && found != edge.SubjectId) return null;
-            found = edge.SubjectId;
-        }
-
-        return found;
-    }
-
-    // A connection binds its service through `has`, and the service `is` the prototype the analysis relationship
-    // points at — the shape the site-survey template authors by hand.
-    private static Guid? ServicePrototypeOf(
-        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
-        IReadOnlyDictionary<Guid, string> namesById, Guid connectionId)
-    {
-        foreach (var bound in snapshot.Relationships)
-        {
-            if (bound.SubjectId != connectionId) continue;
-            if (!IsPredicate(namesById, bound.PredicateId, HasPredicate)) continue;
-
-            foreach (var typed in snapshot.Relationships)
-            {
-                if (typed.SubjectId != bound.TargetId) continue;
-                if (!IsPredicate(namesById, typed.PredicateId, IsPredicateName)) continue;
-                if (thingsById.TryGetValue(typed.TargetId, out var prototype) && prototype.IsArchetype)
-                    return typed.TargetId;
-            }
-        }
-
-        return null;
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+        return snapshot.Relationships
+            .Where(edge => edge.TargetId == siteId && IsPredicate(namesById, edge.PredicateId, StudiesPredicate))
+            .Select(edge => edge.SubjectId)
+            .Distinct()
+            .Order()
+            .Select(studyId => new Study(studyId, namesById.GetValueOrDefault(studyId, string.Empty)))
+            .ToList();
     }
 
     // Every Thing that `is` — directly or through intermediate types — one of the given archetypes.

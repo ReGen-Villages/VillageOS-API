@@ -53,7 +53,7 @@ public sealed record RetryPolicy(int Attempts, double PauseMinutes, double Pause
 public sealed record ChosenThing(Guid Id, string Name);
 
 // What a node waits for: the Thing reaching PortName entering the range. A service node waits once its service has answered.
-public sealed record DagWait(Guid RangeId, string RangeName, string PortName);
+public sealed record DagWait(Guid RangeId, string RangeName, string PortName, TimeSpan? Limit = null);
 
 public sealed record FollowedPredicate(Guid Id, string Name);
 
