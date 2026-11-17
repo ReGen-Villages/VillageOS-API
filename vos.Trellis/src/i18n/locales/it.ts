@@ -1409,6 +1409,8 @@ export const it: PartialResources = {
       tell: "avviso",
       followOn: "seguito",
       stop: "arresto",
+      wait: "attesa",
+      relate: "collegamento",
     },
     endKind: {
       messageKind: "messaggio",

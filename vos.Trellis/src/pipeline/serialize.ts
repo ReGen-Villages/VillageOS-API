@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { NODE_KIND_ROLE, PipelineModel, ROLE, type ChoiceInformation, type NodeKind, type PortInformation } from './model';
+import { NODE_KIND_ROLE, PipelineModel, ROLE, portsAreTheKinds, type ChoiceInformation, type NodeKind, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -160,7 +160,7 @@ function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles 
 
   const portArchetype = model.boundTo(ROLE.Port);
   const kindArchetype = (kind: NodeKind) => model.boundTo(NODE_KIND_ROLE[kind]);
-  if (nodes.some((n) => n.kind && (!kindArchetype(n.kind) || (n.kind !== 'stop' && !portArchetype))))
+  if (nodes.some((n) => n.kind && (!kindArchetype(n.kind) || (!portsAreTheKinds(n.kind) && !portArchetype))))
     throw new Error(i18n.t('pipeline.noPortRoles'));
   const standsForId = model.boundTo(ROLE.StandsFor);
   if (nodes.some((n) => n.standsForId) && !standsForId)
@@ -226,7 +226,7 @@ function addNodeOfAKind(
   // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
   // longer declared is retracted.
   const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
-  for (const p of kind === 'stop' ? [] : n.ports) {
+  for (const p of portsAreTheKinds(kind) ? [] : n.ports) {
     stale.delete(p.portId);
     things.push({
       Id: p.portId,
@@ -401,7 +401,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     if (kind) {
       const stood = model.standsFor(t.Id);
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
-      const ports = kind === 'stop' ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
+      const ports = portsAreTheKinds(kind) ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
       return {
         ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),

@@ -53,6 +53,8 @@ const NODE_KIND_LABEL_KEY = {
   tell: 'pipeline.nodeKind.tell',
   followOn: 'pipeline.nodeKind.followOn',
   stop: 'pipeline.nodeKind.stop',
+  wait: 'pipeline.nodeKind.wait',
+  relate: 'pipeline.nodeKind.relate',
 } as const satisfies Record<NodeKind, string>;
 
 /** A node on the pipeline canvas: one handle per port (inputs on the left, outputs on the right). A boundary

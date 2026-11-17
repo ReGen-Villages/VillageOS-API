@@ -1409,6 +1409,8 @@ export const nl: PartialResources = {
       tell: "melding",
       followOn: "vervolg",
       stop: "stop",
+      wait: "wachten",
+      relate: "koppeling",
     },
     endKind: {
       messageKind: "bericht",

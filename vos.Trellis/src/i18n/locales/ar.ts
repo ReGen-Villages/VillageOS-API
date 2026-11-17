@@ -1514,6 +1514,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       tell: "إبلاغ",
       followOn: "متابعة",
       stop: "إيقاف",
+      wait: "انتظار",
+      relate: "ربط",
     },
     endKind: {
       messageKind: "رسالة",
