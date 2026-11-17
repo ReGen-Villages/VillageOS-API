@@ -416,12 +416,14 @@ describe('localizeSpecification over a heatmap widget', () => {
               hint: 'hour by day',
               unit: 'watts',
               value: { kind: 'const', value: 1 },
+              classes: [{ label: 'bright', colour: '#ffcc00' }],
             } satisfies HeatmapWidget] }],
     translations: {
       es: {
           'Sun': 'Sol',
           'hour by day': 'hora por día',
           'watts': 'vatios',
+          'bright': 'brillante',
       },
     },
   };
@@ -431,6 +433,7 @@ describe('localizeSpecification over a heatmap widget', () => {
     expect(localized.title).toBe('Sol');
     expect(localized.hint).toBe('hora por día');
     expect(localized.unit).toBe('vatios');
+    expect(localized.classes?.[0].label).toBe('brillante');
   });
 });
 

@@ -98,7 +98,10 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
       ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
     ];
     case 'lineSeries': return widget.series.map((entry) => entry.value);
-    case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
+    case 'heatmap': return [
+      widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds,
+      ...(widget.classes ?? []).flatMap((entry) => [entry.from, entry.to]),
+    ];
     case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]);
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
     case 'smallMultiples': return [widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to];

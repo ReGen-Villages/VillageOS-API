@@ -498,11 +498,12 @@ describe('subscriptionForSpec over a heatmap widget', () => {
               title: 'Sun',
               value: { kind: 'aggregate', archetype: 'Reading', reduction: 'count' },
               sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', reduction: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', reduction: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', reduction: 'count' } },
+              classes: [{ label: 'warm', colour: '#f00', from: { kind: 'aggregate', archetype: 'WarmFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'WarmTo', reduction: 'count' } }],
             }),
       null,
     );
 
-    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset']));
+    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset', 'WarmFrom', 'WarmTo']));
   });
 });
 

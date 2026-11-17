@@ -650,8 +650,8 @@ export interface SunPosition {
   utcOffsetSeconds?: Binding;
 }
 
-/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
- *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+/** Every hour of every day of the year, or of every month, as one cell coloured by value — a `history`
+ *  binding — painted on a canvas because the grid can be thousands of cells, with the
  *  sunrise and sunset curves over it where the specification binds the coordinates. The ramp is one hue,
  *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
  *  absent it fits the data. */
@@ -659,8 +659,12 @@ export interface HeatmapWidget {
   type: 'heatmap';
   title?: string;
   hint?: string;
+  /** Folded by `hourOfDay,dayOfYear` for a column a day, or by `monthOfYear,hourOfDay` for a column a month. */
   value: Binding;
   sun?: SunPosition;
+  /** Present, each cell takes the colour of the first class holding its value, from inclusive and to
+   *  exclusive, and the legend gives each class's share of the cells; a cell no class holds is not painted. */
+  classes?: RangeBand[];
   format?: NumberFormat;
   unit?: string;
   floor?: number;

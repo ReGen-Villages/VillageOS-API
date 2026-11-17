@@ -132,7 +132,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   heatmap: [
     title, hint, binding('value', 'number'),
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
-    format, unit, floor, ceiling,
+    list('classes', rangeBand), format, unit, floor, ceiling,
   ],
   stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],

@@ -210,7 +210,13 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       return w;
     }
     case 'heatmap': {
-      const w: HeatmapWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
+      const w: HeatmapWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        classes: widget.classes?.map((entry) => ({ ...entry, label: tr(entry.label) })),
+      };
       return w;
     }
     case 'divergingBar': {
