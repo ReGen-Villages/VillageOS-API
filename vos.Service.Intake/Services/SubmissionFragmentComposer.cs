@@ -87,7 +87,7 @@ public static class SubmissionFragmentComposer
         // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
         // hold either. Which demands came before is written here as relationships rather than compared at every
         // recompute, so the reduction that adds up what they took ranges over what those relationships reach. The
-        // set comes from the mark the analysis carries, so a third demand costs no change here.
+        // set is the vocabulary the water-demand role binds, so a third demand costs no change here.
         //
         // Held by `has` rather than by a predicate of their own so that a prune rooted at the site reaches
         // them: the walk follows the predicates it is given, and a demand hanging off anything else would
@@ -158,9 +158,9 @@ public static class SubmissionFragmentComposer
         Relate(projectThing, predicates.Has, contactThing);
         BeArchetype(contactThing, archetypes.Contact);
 
-        // A relationship to a term the model declares, through the predicate the model marks for that vocabulary.
+        // A relationship to a term the model declares, along the predicate a role binds for that vocabulary.
         // Never minted: the term and the predicate both come from the model, and a predicate invented here
-        // would carry no mark, so the readers that follow it by mark would never find the relationship.
+        // would be bound by no role, so the readers that find it through its role would never find the relationship.
         void RelateToTerm(NamedThing subject, DeclaredTerms declared, DeclaredTerm term) =>
             Relate(subject,
                 new PredicateIdentity(declared.Predicate.Name, declared.Predicate.Id, Minted: false),
