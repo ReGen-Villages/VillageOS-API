@@ -100,8 +100,9 @@ archetype something else keeps its own. One the target holds under the same name
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
 what an archetype is for, and the editor and the orchestrator both read it. A model that binds its own stop
 kind keeps that kind's ports, and one that binds its own `stops` connection keeps that connection's
-service: the playground adds neither, which would leave a required port unfilled on every stop node or
-send each stop request to a second service. Everything else is namespaced so it will not collide with a
+service: the playground adds neither the kind, the service nor a `stops connection` to such a model,
+which would leave a required port unfilled on every stop node or send each stop request to a second
+service. Everything else is namespaced so it will not collide with a
 host model's own Things.
 
 The playground also declares the three roots every archetype in a model sits under, `Configuration`,
