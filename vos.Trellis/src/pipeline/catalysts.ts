@@ -16,7 +16,7 @@ export type CatalystGroupName = 'messages' | 'states' | 'clock' | 'relationships
 export type CatalystHandling =
   | { by: 'drawing'; name: string }
   | { by: 'service'; name: string }
-  | { by: 'nothing'; refusedByTheOrchestrator?: true; namesNoConnection?: true };
+  | { by: 'nothing'; refusedByTheOrchestrator?: true; namesNoConnectionAlong?: string };
 
 export interface CatalystRow {
   id: string;
@@ -41,8 +41,9 @@ export interface CatalystRow {
   everyMinutes?: number;
   /** For a state watched through one connection: what the broker sends its entries to. */
   handling?: StateHandling;
-  /** For a connection used as a predicate that names no connection along notifies, which the platform calls nothing for. */
-  namesNoConnection?: true;
+  /** For a connection used as a predicate that the platform calls nothing for: the model's name for the predicate it would
+   *  have to name a connection along. */
+  namesNoConnectionAlong?: string;
   /** Whether the row may be handed to the orchestrator: a state it does not handle yet, in a model holding
    *  exactly one. Never anything else, which reaches the orchestrator without naming the drawing. */
   offersOrchestrator: boolean;
@@ -66,7 +67,7 @@ type RowWithoutItsHandling = Omit<CatalystRow, 'handledBy' | 'placeable'>;
 // A state drawn from runs its drawing only when the orchestrator receives its entries; sent anywhere else, the
 // drawing never runs, so the service it is sent to is what happens.
 function handledBy(row: RowWithoutItsHandling): CatalystHandling {
-  if (row.namesNoConnection) return { by: 'nothing', namesNoConnection: true };
+  if (row.namesNoConnectionAlong !== undefined) return { by: 'nothing', namesNoConnectionAlong: row.namesNoConnectionAlong };
   if (row.starts && (row.handling === undefined || row.handling.byOrchestrator)) return { by: 'drawing', name: row.starts.name };
   if (row.handling?.byOrchestrator) return { by: 'nothing', refusedByTheOrchestrator: true };
   return row.today ? { by: 'service', name: row.today } : { by: 'nothing' };
@@ -86,6 +87,7 @@ export function catalystRail(model: PipelineModel): CatalystGroup[] {
     ...model.externalSystems().map((system) => system.toldThroughConnectionId),
   ].filter((thingId): thingId is string => thingId !== undefined));
   const notifying = model.predicatesNotifying();
+  const notifiesName = model.thing(model.boundTo(ROLE.NotifiedConnection) ?? '')?.Name ?? '';
   for (const { predicate, connectionId } of notifying) if (leftOut.has(predicate.Id)) leftOut.add(connectionId);
   const connections = model.catalystConnections().filter((connection) => !leftOut.has(connection.connectionId));
   const byId = new Map(connections.map((connection) => [connection.connectionId, connection]));
@@ -139,7 +141,7 @@ export function catalystRail(model: PipelineModel): CatalystGroup[] {
       const starts = startedBy(connection.connectionId) ?? connection.startsPipeline;
       add('relationships', {
         id: `relationship:${connection.connectionId}`, kind: 'relationship', who: '', what: connection.name,
-        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: '', namesNoConnection: true, offersOrchestrator: false,
+        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: '', namesNoConnectionAlong: notifiesName, offersOrchestrator: false,
       });
     } else if (connection.watches) {
       // A state several connections watch is one row: drawn if any of them draws.

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { catalystFixture } from './catalysts.test.fixture';
 import { catalystRail, outputRail, type CatalystGroupName } from './catalysts';
+import { PipelineModel, ROLE } from './model';
 
 describe('the rail of catalysts', () => {
   const { model, id } = catalystFixture();
@@ -65,8 +66,17 @@ describe('the rail of catalysts', () => {
 
   it('says nothing handles a connection used as a predicate that names no connection, since the platform calls nothing for it', () => {
     const row = group('relationships').find((each) => each.standsForId === id.feeds);
-    expect(row?.handledBy).toEqual({ by: 'nothing', namesNoConnection: true });
+    expect(row?.handledBy).toEqual({ by: 'nothing', namesNoConnectionAlong: 'alerts' });
     expect(rowFor(id.balances)?.handledBy).toEqual({ by: 'service', name: 'Balancer' });
+  });
+
+  it('names the predicate the model binds to the notified connection role in its own word', () => {
+    const fixture = catalystFixture();
+    const notifiesId = fixture.model.boundTo(ROLE.NotifiedConnection)!;
+    const renamed = fixture.things.map((thing) => (thing.Id === notifiesId ? { ...thing, Name: 'calls on' } : thing));
+    const row = catalystRail(new PipelineModel(renamed, fixture.relationships))
+      .flatMap((each) => each.rows).find((each) => each.standsForId === fixture.id.feeds);
+    expect(row?.handledBy).toEqual({ by: 'nothing', namesNoConnectionAlong: 'calls on' });
   });
 
   it('lists a predicate naming a connection along notifies once, with the service of the connection it names', () => {

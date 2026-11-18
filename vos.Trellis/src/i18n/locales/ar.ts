@@ -1490,7 +1490,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       nothingToday: "لا يحدث شيء اليوم",
       nothing: "لا شيء",
       orchestratorRefuses: "المنسّق يرفض كل دخول: لا شيء مرسوم",
-      namesNoConnection: "لا تستدعي المنصّة شيئًا له: فهو لا يسمّي أي اتصال عبر notifies",
+      namesNoConnection: "لا تستدعي المنصّة شيئًا له: فهو لا يسمّي أي اتصال عبر {{predicate}}",
       handOver: "سلّمه إلى المنسّق",
       handOverTitle: "سلّم {{what}} إلى المنسّق",
       handOverFailed: "تعذّر تسليم الحالة إلى المنسّق",

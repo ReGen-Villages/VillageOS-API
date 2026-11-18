@@ -51,7 +51,7 @@ describe('CatalystRail', () => {
 
   it('says nothing handles a connection used as a predicate that names no connection along notifies, and why', () => {
     rail();
-    expect(screen.getByTitle('the platform calls nothing for it: it names no connection along notifies')).toHaveTextContent('nothing');
+    expect(screen.getByTitle('the platform calls nothing for it: it names no connection along alerts')).toHaveTextContent('nothing');
   });
 
   it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {

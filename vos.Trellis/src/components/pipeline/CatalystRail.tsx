@@ -44,8 +44,9 @@ export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver, onSh
     const [text, title] = handledBy.by === 'drawing' ? [handledBy.name, t('pipeline.catalysts.starts', { pipeline: handledBy.name })]
       : handledBy.by === 'service' ? [handledBy.name, t('pipeline.catalysts.today', { service: handledBy.name })]
       : [t('pipeline.catalysts.nothing'),
-        t(handledBy.refusedByTheOrchestrator ? 'pipeline.catalysts.orchestratorRefuses'
-          : handledBy.namesNoConnection ? 'pipeline.catalysts.namesNoConnection' : 'pipeline.catalysts.nothingToday')];
+        handledBy.refusedByTheOrchestrator ? t('pipeline.catalysts.orchestratorRefuses')
+          : handledBy.namesNoConnectionAlong ? t('pipeline.catalysts.namesNoConnection', { predicate: handledBy.namesNoConnectionAlong })
+          : t('pipeline.catalysts.nothingToday')];
     return (
       <span
         title={title}
