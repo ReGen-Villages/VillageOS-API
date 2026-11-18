@@ -214,9 +214,17 @@ public sealed class SelectionFromASeed
             _relationships.Remove(binding);
     }
 
-    public JsonElement Selection() =>
-        JsonSerializer.SerializeToElement(new JsonObject
+    // As Mycelium answers: every relationship touching a carried Thing comes, whether or not its far end does.
+    public JsonElement Selection(IReadOnlyCollection<string>? keepingOnly = null)
+    {
+        var things = _things.Where(thing => keepingOnly is null || keepingOnly.Contains(thing!["Name"]!.GetValue<string>())).ToList();
+        var carried = things.Select(thing => thing!["Id"]!.GetValue<string>()).ToHashSet();
+        var relationships = _relationships.Where(each =>
+            carried.Contains(each!["SubjectId"]!.GetValue<string>()) || carried.Contains(each["TargetId"]!.GetValue<string>()));
+        return JsonSerializer.SerializeToElement(new JsonObject
         {
-            ["things"] = _things.DeepClone(), ["relationships"] = _relationships.DeepClone(),
+            ["things"] = new JsonArray([.. things.Select(thing => thing!.DeepClone())]),
+            ["relationships"] = new JsonArray([.. relationships.Select(each => each!.DeepClone())]),
         });
+    }
 }

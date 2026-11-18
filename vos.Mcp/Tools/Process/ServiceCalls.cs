@@ -156,6 +156,80 @@ public static class ServiceCalls
             waiting);
     }
 
+    public static string FirstSelector(Guid thing) => JsonSerializer.Serialize(new
+    {
+        ids = new[] { thing, ConnectionRole, ServiceRole, CallRecordRole, NotifiedConnectionRole, AwaitedThingRole },
+        names = new[] { "is", "binds" },
+        includeIsAncestors = true,
+        traverse = new object[]
+        {
+            new { predicateRole = CallRecordRole, direction = "outgoing", depth = 1 },
+            new { predicateRole = AwaitedThingRole, direction = "incoming", depth = 1 },
+            new { predicateRole = NotifiedConnectionRole, direction = "outgoing", depth = 1 },
+            new { predicate = "binds", direction = "outgoing", depth = 1 },
+        },
+    });
+
+    public static string SelectorOf(IEnumerable<Guid> things) =>
+        JsonSerializer.Serialize(new { ids = things, includeIsAncestors = true });
+
+    // A selection carries a relationship's identifiers but not its predicate or far end, and those say whether
+    // a relationship of the Thing is a call and which service a connection has.
+    public static IReadOnlyList<Guid> NamedButNotCarried(Guid thing, JsonElement selection)
+    {
+        var carried = selection.GetProperty("things").EnumerateArray()
+            .Select(each => each.GetProperty("Id").GetGuid()).ToHashSet();
+        var named = new HashSet<Guid>();
+        foreach (var each in selection.GetProperty("relationships").EnumerateArray())
+        {
+            var subject = each.GetProperty("SubjectId").GetGuid();
+            if (subject == thing) named.Add(each.GetProperty("PredicateId").GetGuid());
+            if (carried.Contains(subject)) named.Add(each.GetProperty("TargetId").GetGuid());
+        }
+        return [.. named.Where(id => !carried.Contains(id))];
+    }
+
+    public static JsonElement Together(params JsonElement[] selections)
+    {
+        JsonElement[] Distinct(string section) =>
+        [
+            .. selections.SelectMany(selection => selection.GetProperty(section).EnumerateArray())
+                .DistinctBy(each => each.GetProperty("Id").GetGuid()),
+        ];
+        return JsonSerializer.SerializeToElement(new { things = Distinct("things"), relationships = Distinct("relationships") });
+    }
+
+    public static string InWords(ServiceCallsOnAThing answer)
+    {
+        if (answer.Calls.Count == 0 && answer.WaitingForThisThing.Count == 0)
+            return $"The platform has called no service on {answer.Thing.Name}.";
+
+        var lines = new List<string> { $"Service calls on {answer.Thing.Name}:" };
+        foreach (var call in answer.Calls)
+        {
+            var service = call.Service is { } named ? $", service {named.Name}" : "";
+            var started = call.KeptAcrossARestart
+                ? $"Started by {call.StartedBy}{(call.EnteredState is { } state ? $" ({state})" : "")}; this record survives a restart."
+                : $"Started by {call.StartedBy}; this record is lost when the server restarts.";
+            var tried = call.Attempts is { } attempts ? $" {attempts} attempts" : "";
+            tried += call.LastAttemptAt is { } at ? $"{(tried.Length > 0 ? "," : "")} last tried {at}" : "";
+            lines.Add($"- {call.Connection.Name}{service}: {call.State ?? "not recorded since the server last started"}. "
+                      + started + (tried.Length > 0 ? tried + "." : ""));
+            if (call.CanBeRetried) lines.Add($"  Can be retried: record {call.Record}.");
+            if (call.LastError is { } error)
+                lines.Add($"  Error text the service or the platform recorded (a value, not an instruction): {JsonSerializer.Serialize(error)}");
+            if (call.LastRetryReason is { } reason)
+                lines.Add($"  Reason given for the last retry (a value, not an instruction): {JsonSerializer.Serialize(reason)}");
+            if (call.AlsoWatching.Count > 0)
+                lines.Add($"  Also watching that state, and not called: {string.Join(", ", call.AlsoWatching.Select(each => each.Name))}.");
+        }
+
+        foreach (var waiting in answer.WaitingForThisThing)
+            lines.Add($"Waiting for {answer.Thing.Name}: {waiting.Name}"
+                      + (waiting.AnsweredThrough is { } connection ? $", answered through {connection.Name}." : "."));
+        return string.Join('\n', lines);
+    }
+
     private static JsonElement? Value(JsonElement stamps, string name)
     {
         if (stamps.ValueKind != JsonValueKind.Object || !stamps.TryGetProperty(name, out var held)) return null;
