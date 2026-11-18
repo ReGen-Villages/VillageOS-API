@@ -47,12 +47,9 @@ public static class ToolListing
             });
         });
 
-    public static IEnumerable<ListingConditionAttribute> ConditionsOf(McpServerTool tool) =>
-        tool.Metadata.OfType<ListingConditionAttribute>();
-
     private static async Task<bool> IsAvailableAsync(McpServerTool tool, Caller caller, IServiceProvider services)
     {
-        foreach (var condition in ConditionsOf(tool))
+        foreach (var condition in tool.Metadata.OfType<ListingConditionAttribute>())
             if (!await condition.HoldsForAsync(caller, services))
                 return false;
 

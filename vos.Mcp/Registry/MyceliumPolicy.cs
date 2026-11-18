@@ -27,6 +27,4 @@ public static class MyceliumPolicies
         MyceliumPolicy.AdminOnly => role is Admin,
         _ => false,
     };
-
-    public static bool Writes(this MyceliumPolicy policy) => policy is not MyceliumPolicy.ReadModel;
 }

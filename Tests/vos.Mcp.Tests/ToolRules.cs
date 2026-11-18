@@ -19,7 +19,7 @@ public static class ToolRules
                 yield return $"{name} declares no policy, so it would be listed for every key.";
 
             if (marks?.ReadOnlyHint == true)
-                foreach (var writing in policies.Where(policy => policy.Writes()))
+                foreach (var writing in policies.Where(policy => policy is not MyceliumPolicy.ReadModel))
                     yield return $"{name} is marked as a tool that only reads and needs {writing}, a policy for writing.";
 
             if (name.Split('_').Intersect(WordsThatDestroy).Any() && marks?.DestructiveHint != true)
