@@ -33,19 +33,29 @@ public static class ToolListing
             {
                 try
                 {
-                    var caller = await context.Services!.GetRequiredService<CallerSource>().ReadAsync();
-                    if (context.MatchedPrimitive is not McpServerTool tool
-                        || !await IsAvailableAsync(tool, caller, context.Services!))
+                    if (context.MatchedPrimitive is not McpServerTool tool)
+                        return Refusal(NotAvailable);
+
+                    var asked = await context.Services!.GetRequiredService<ModelClients>().ForAsync(ModelAskedIn(context.Params));
+                    var caller = await context.Services!.GetRequiredService<CallerSource>().ReadAsync(asked);
+                    if (!await IsAvailableAsync(tool, caller, context.Services!))
                         return Refusal(NotAvailable);
 
                     return await next(context, cancellationToken);
                 }
-                catch (Exception refused) when (refused is HttpRequestException or KeyRefusedException)
+                catch (Exception refused) when (refused is HttpRequestException or KeyRefusedException or ModelNotReachedException)
                 {
                     return Refusal(OperatorMessage.For(refused));
                 }
             });
         });
+
+    private static string? ModelAskedIn(CallToolRequestParams? call) =>
+        call?.Arguments is { } arguments
+        && arguments.TryGetValue(ModelClients.Parameter, out var model)
+        && model.ValueKind == System.Text.Json.JsonValueKind.String
+            ? model.GetString()
+            : null;
 
     // A tool the registry can read no condition for is offered to nobody, whatever route it arrived by.
     private static async Task<bool> IsAvailableAsync(McpServerTool tool, Caller caller, IServiceProvider services)

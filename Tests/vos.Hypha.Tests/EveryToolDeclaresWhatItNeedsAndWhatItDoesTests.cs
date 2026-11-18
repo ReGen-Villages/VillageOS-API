@@ -39,6 +39,10 @@ public class EveryToolDeclaresWhatItNeedsAndWhatItDoesTests
         BrokenBy(tool).Should().ContainSingle().Which.Should().Contain("not marked as destroying");
 
     [Fact]
+    public void A_tool_that_takes_no_model_parameter_breaks_a_rule() =>
+        BrokenBy(nameof(Offenders.NoModelParameter)).Should().ContainSingle().Which.Should().Contain("takes no model parameter");
+
+    [Fact]
     public void A_tool_that_keeps_every_rule_breaks_none() =>
         BrokenBy(nameof(Offenders.DeleteThingMarked)).Should().BeEmpty();
 
@@ -48,30 +52,34 @@ public class EveryToolDeclaresWhatItNeedsAndWhatItDoesTests
     private static class Offenders
     {
         [McpServerTool(Name = "read_something", ReadOnly = true)]
-        public static string NoPolicy() => "";
+        public static string NoPolicy(string? model = null) => model ?? "";
+
+        [McpServerTool(Name = "read_something", ReadOnly = true)]
+        [RequiresPolicy(MyceliumPolicy.ReadModel)]
+        public static string NoModelParameter() => "";
 
         [McpServerTool(Name = "read_something", ReadOnly = true)]
         [RequiresPolicy(MyceliumPolicy.ModifyData)]
-        public static string ReadsButNeedsAWritingPolicy() => "";
+        public static string ReadsButNeedsAWritingPolicy(string? model = null) => model ?? "";
 
         [McpServerTool(Name = "delete_thing")]
         [RequiresPolicy(MyceliumPolicy.EditorOrAdmin)]
-        public static string DeleteThing() => "";
+        public static string DeleteThing(string? model = null) => model ?? "";
 
         [McpServerTool(Name = "prune")]
         [RequiresPolicy(MyceliumPolicy.EditorOrAdmin)]
-        public static string PruneBelow() => "";
+        public static string PruneBelow(string? model = null) => model ?? "";
 
         [McpServerTool(Name = "promote_part", Destructive = false)]
         [RequiresPolicy(MyceliumPolicy.EditorOrAdmin)]
-        public static string PromoteGroup() => "";
+        public static string PromoteGroup(string? model = null) => model ?? "";
 
         [McpServerTool(Name = "decide")]
         [RequiresPolicy(MyceliumPolicy.ModifyData)]
-        public static string DecideAbout() => "";
+        public static string DecideAbout(string? model = null) => model ?? "";
 
         [McpServerTool(Name = "delete_thing", Destructive = true)]
         [RequiresPolicy(MyceliumPolicy.EditorOrAdmin)]
-        public static string DeleteThingMarked() => "";
+        public static string DeleteThingMarked(string? model = null) => model ?? "";
     }
 }

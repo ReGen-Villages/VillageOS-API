@@ -18,6 +18,7 @@ public static class ServerProgram
         services
             .AddSingleton(mycelium)
             .AddSingleton<CallerSource>()
+            .AddSingleton<ModelClients>()
             .AddSingleton<ActivityReport>()
             .AddSingleton<PromptRegistry>()
             .AddMcpServer()

@@ -18,25 +18,19 @@ public sealed class Caller(string role, MyceliumClient mycelium)
 
 // A caller is read again whenever Mycelium issues a new token, so a changed role or a newly bound role
 // is seen within one token's life.
-public sealed class CallerSource(MyceliumClient mycelium)
+public sealed class CallerSource(MyceliumClient own)
 {
-    private readonly Lock _gate = new();
-    private string? _token;
-    private Caller? _caller;
+    private readonly ConcurrentDictionary<MyceliumClient, (string Token, Caller Caller)> _read = new();
 
-    public async Task<Caller> ReadAsync()
+    public Task<Caller> ReadAsync() => ReadAsync(own);
+
+    public async Task<Caller> ReadAsync(MyceliumClient mycelium)
     {
         var token = await mycelium.GetTokenAsync();
-        lock (_gate)
-        {
-            if (token != _token || _caller is null)
-            {
-                _token = token;
-                _caller = new Caller(RoleIn(token), mycelium);
-            }
-
-            return _caller;
-        }
+        return _read.AddOrUpdate(
+            mycelium,
+            _ => (token, new Caller(RoleIn(token), mycelium)),
+            (_, read) => read.Token == token ? read : (token, new Caller(RoleIn(token), mycelium))).Caller;
     }
 
     internal static string RoleIn(string token)
