@@ -71,6 +71,32 @@ public class AToolSaysWhichModelItAsksTests
     }
 
     [Fact]
+    public async Task A_name_more_than_one_model_holds_is_refused_with_the_identifiers_to_choose_from()
+    {
+        var twoOfOneName = $$"""[{"Id":"{{Hillside}}","Name":"Orchard"},{"Id":"{{Riverbend}}","Name":"Orchard"}]""";
+        await using var server = await StartAsync(
+            request => request.RequestUri!.AbsolutePath == "/api/models" ? Json(twoOfOneName) : TwoModels(request),
+            toolTypes: typeof(ToolsThatTakeAModel));
+
+        var refused = await server.Client.CallToolAsync("sample_things", Asking("Orchard"));
+
+        refused.IsError.Should().BeTrue();
+        TextOf(refused).Should().Contain(Hillside).And.Contain(Riverbend);
+    }
+
+    [Fact]
+    public async Task The_key_is_exchanged_once_for_a_model_however_many_calls_name_it()
+    {
+        await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
+
+        await server.Client.CallToolAsync("sample_things", Asking("Riverbend"));
+        await server.Client.CallToolAsync("sample_things", Asking(Riverbend));
+
+        server.Mycelium.Requests.Count(request => request.RequestUri!.PathAndQuery == $"/api/auth/token?modelId={Riverbend}")
+            .Should().Be(1);
+    }
+
+    [Fact]
     public async Task A_tool_that_needs_a_role_is_refused_for_a_model_that_does_not_bind_it_and_answers_for_one_that_does()
     {
         await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
