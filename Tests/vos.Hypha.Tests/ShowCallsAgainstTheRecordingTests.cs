@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using vos.Mcp.Tools.Process;
 using vos.Tests.Shared;
 using Xunit;
@@ -82,6 +83,24 @@ public class ShowCallsAgainstTheRecordingTests
             },
             new { Connection = "surveysCatchment", Service = "Echo service", State = "Pending", Kept = true, Error = (string?)null },
         ], options => options.WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task During_a_wait_no_selection_is_read_after_the_first_answer()
+    {
+        await using var server = await ServerUnderTest.StartAsync(
+            ServerUnderTest.MyceliumFor(() => "viewer", RecordedMycelium),
+            configure: services => services.AddSingleton<TimeProvider>(new ClockThatAdvancesAsItWaits()));
+
+        var answer = await server.Client.CallToolAsync(
+            "show_calls", new Dictionary<string, object?> { ["thing"] = Thing.ToString(), ["wait_seconds"] = 7 });
+
+        answer.StructuredContent!.Value.GetProperty("waited").GetProperty("settled").GetBoolean().Should().BeFalse(
+            "the call a state started is Pending in the recording");
+        var asked = server.Mycelium.Requests.Select(request => request.RequestUri!.AbsolutePath).ToList();
+        asked.Count(path => path == "/api/snapshots").Should().Be(2, "the two selections of the first answer");
+        asked.Count(path => path.StartsWith("/api/relationships/")).Should().Be(2 + 3 * 2,
+            "each of the two calls is read once for the first answer and once more after each of three waits");
     }
 
     [Fact]

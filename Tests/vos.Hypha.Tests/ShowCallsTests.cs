@@ -159,7 +159,10 @@ public class ShowCallsTests
         waited.GetProperty("settled").GetBoolean().Should().BeTrue();
         answer.StructuredContent.Value.GetProperty("calls")[0].GetProperty("state").GetString().Should().Be("Completed");
         clock.Waits.Should().Equal(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
-        ServerUnderTest.TextOf(answer).Should().Contain("No call was still going after");
+        ServerUnderTest.TextOf(answer).Should().Contain("No call was still going after")
+            .And.Contain("A call started during the wait is not seen until show_calls is asked again.");
+        server.Mycelium.Requests.Count(request => request.RequestUri!.AbsolutePath == "/api/snapshots").Should().Be(1,
+            "a wait reads each call's relationship again, never the selection");
     }
 
     [Fact]
