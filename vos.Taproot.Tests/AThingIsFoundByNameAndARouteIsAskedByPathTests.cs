@@ -184,6 +184,16 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     }
 
     [Fact]
+    public async Task The_scope_of_a_properties_read_cannot_add_a_second_narrowing_to_the_request()
+    {
+        var (_, client, mycelium) = AModelAnswering(_ => Json("{}"));
+
+        await client.GetAllPropertiesAsync("own&ids=0d6c1a0e-9f55-4a0e-8a59-0d3e7b0c2f44");
+
+        AskedOf(mycelium).Single().RequestUri!.Query.Should().Be("?scope=own%26ids%3D0d6c1a0e-9f55-4a0e-8a59-0d3e7b0c2f44");
+    }
+
+    [Fact]
     public async Task A_request_by_path_with_no_body_sends_none()
     {
         var (_, client, mycelium) = AModelAnswering(_ => Json("[]"));

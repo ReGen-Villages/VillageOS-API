@@ -259,7 +259,7 @@ public partial class MyceliumClient
     // command reading the whole model sees what each Thing inherits without a request per Thing.
     public virtual async Task<JsonElement> GetAllPropertiesAsync(string scope = "effective")
     {
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties?scope={scope}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties{Query(("scope", scope))}");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
