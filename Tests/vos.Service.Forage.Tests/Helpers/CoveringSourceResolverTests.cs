@@ -1,6 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Forage.Services;
+using vos.Service.Forage.Steps;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -344,6 +346,20 @@ public class CoveringSourceResolverTests
              .WithValue("temperatureCelsius", CoveringSourceResolver.ProviderNameProperty, "\"temperature_2m\"")
              .WithValue("rainMillimetres", CoveringSourceResolver.ProviderNameProperty, "\"rain\"");
         return model;
+    }
+
+    [Fact]
+    public void Resolve_ASliceLengthStatedAsANumber_ReachesThePlanAsItsDigitsAndGivesOneCall()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"))
+            .WithValue("ClimateHistory", PlannedCalls.DaysPerSliceProperty, "13000");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0];
+        var planned = PlannedCalls.From([new OutstandingCall(covering, covering.Calls[0], Guid.NewGuid(), Attempts: 0)], daysPerSlice: 365);
+
+        covering.Calls[0].Values[PlannedCalls.DaysPerSliceProperty].Should().Be("13000");
+        planned.Should().ContainSingle().Which.Slice.Should().BeNull();
     }
 
     [Fact]
