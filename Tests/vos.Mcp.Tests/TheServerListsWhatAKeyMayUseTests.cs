@@ -19,7 +19,7 @@ public class TheServerListsWhatAKeyMayUseTests
     {
         await using var server = await StartAsync(MyceliumFor(() => "viewer", AnsweringModels));
 
-        (await server.ListedToolNamesAsync()).Should().Equal("list_models");
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models"]);
 
         var answer = await server.Client.CallToolAsync("list_models");
         answer.IsError.Should().NotBe(true);
@@ -116,6 +116,18 @@ public class TheServerListsWhatAKeyMayUseTests
 
         refused.IsError.Should().BeTrue();
         TextOf(refused).Should().Contain("409").And.Contain("A Thing named Orchard already exists");
+    }
+
+    // Pins what the SDK does with its own exception, which every tool relies on to refuse in words.
+    [Fact]
+    public async Task A_tool_that_refuses_by_the_sdks_exception_is_a_failed_tool_call_carrying_its_words()
+    {
+        await using var server = await StartAsync(MyceliumFor(() => "viewer"), toolTypes: typeof(SampleTools));
+
+        var refused = await server.Client.CallToolAsync("sample_refuses");
+
+        refused.IsError.Should().BeTrue();
+        TextOf(refused).Should().Be("An error occurred invoking 'sample_refuses': That page holds no widget of that name.");
     }
 
     [Fact]

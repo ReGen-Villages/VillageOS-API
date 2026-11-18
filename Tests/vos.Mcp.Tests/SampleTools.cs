@@ -49,6 +49,12 @@ public sealed class SampleTools(MyceliumClient mycelium)
         return "set";
     }
 
+    [McpServerTool(Name = "sample_refuses", ReadOnly = true)]
+    [Description("Refuses in its own words.")]
+    [RequiresPolicy(MyceliumPolicy.ReadModel)]
+    public static string Refuse() =>
+        throw new ModelContextProtocol.McpException("That page holds no widget of that name.");
+
     [McpServerTool(Name = "sample_read_where_bound", ReadOnly = true)]
     [Description("Reads the Thing a role binds.")]
     [RequiresPolicy(MyceliumPolicy.ReadModel)]

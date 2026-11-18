@@ -94,6 +94,18 @@ When the Mycelium refuses a call, let the `HttpRequestException` leave the tool.
 chat application with a failed tool call carrying the Mycelium's own words, which the assistant can read to
 the person.
 
+To refuse for a reason of the tool's own, throw the SDK's `McpException` with the words to answer. The chat
+application receives a failed tool call carrying those words after the SDK's own opening, "An error occurred
+invoking '<tool>': ". Any other exception reaches it as a bare
+failure with no reason, so use this one whenever the person can act on the reason.
+
+### A role in a selector rule
+
+Never pass a role into a rule of a selection (`POST api/snapshots`) without first checking that the model
+binds it. The Mycelium does not refuse a rule that names a role the model does not bind, so the tool could
+not tell "nothing is related" from "this model has no such role". A tool that depends on a role declares it
+with `[RequiresBoundRole]`, which makes that check before the tool runs.
+
 ### Asking the person before a change
 
 `Confirmation.AskAsync` takes the text describing what will change and answers whether to write.
