@@ -270,7 +270,7 @@ def declare_range_things(model):
     return ranges
 
 
-def declare_service_calls(model,ranges):
+def declare_service_calls(model, ranges):
     """An echo service reached two ways: called for each catchment entering the state that awaits a survey,
     and at a subdomain a page's form and action list post to."""
     kit = model.kit
@@ -474,7 +474,7 @@ UNREADABLE_DESCRIPTION = '{"title": "Reservoir levels", "sections": ['
 REFUSALS_OF_THE_UNREADABLE_PAGE = f"Dashboard '{UNREADABLE_PAGE}': its 'specification' is not valid JSON\n"
 
 
-def declare_pages(model,with_an_unreadable_page):
+def declare_pages(model, with_an_unreadable_page):
     kit = model.kit
     page_kind = model.kind("Dashboard", role="page")
     descriptions = {"Catchments": json.dumps(catchments_page(), ensure_ascii=False)}
@@ -496,8 +496,8 @@ def build(with_an_unreadable_page=False):
     declare_property_names(model)
     declare_things(model)
     ranges = declare_range_things(model)
-    declare_service_calls(model,ranges)
-    declare_pages(model,with_an_unreadable_page)
+    declare_service_calls(model, ranges)
+    declare_pages(model, with_an_unreadable_page)
     model.place_under_roots()
     return model.kit
 

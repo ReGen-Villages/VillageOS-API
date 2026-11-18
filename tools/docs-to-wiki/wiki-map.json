@@ -35,6 +35,7 @@
     { "doc": "tools/layout-importer/README.md", "why": "How to run one tool, kept beside it. What it builds is described in the model documentation." },
     { "doc": "tools/pipeline-playground/README.md", "why": "How to run the generator behind the Pipeline Playground; the playground itself is published." },
     { "doc": "tools/simulator/README.md", "why": "How to run one tool, kept beside it." },
+    { "doc": "tools/test-seed/README.md", "why": "How to build the seeds the tests read, kept beside the generator. Nothing outside the repository uses them." },
     { "doc": "vos.Service.Go.Echo/README.md", "why": "How to build and run the Go example beside its source. The contract every example implements is published in Services/Authoring." },
     { "doc": "vos.Service.Node.Echo/README.md", "why": "How to build and run the TypeScript example beside its source." },
     { "doc": "vos.Service.Python.Echo/README.md", "why": "How to build and run the Python example beside its source." },
