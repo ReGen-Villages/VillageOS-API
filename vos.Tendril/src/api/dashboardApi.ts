@@ -54,7 +54,9 @@ import {
 } from './propertyNames';
 
 export type Row = Record<string, unknown>;
-export type BindingResult = number | string | Row[] | number[] | null;
+/** A value a `value` binding hands over whole: a geometry, a grid. */
+export type HeldObject = Record<string, unknown>;
+export type BindingResult = number | string | Row[] | number[] | HeldObject | null;
 
 export interface ModelIndex {
   byId: Map<string, VosThing>;
@@ -881,6 +883,9 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
     case 'related':
       return resolveRelated(binding, context);
 
+    case 'value':
+      return resolveValue(binding, context);
+
     case 'stateOf':
       return resolveStateOf(binding, context);
 
@@ -946,6 +951,26 @@ async function resolveRelated(binding: Extract<Binding, { kind: 'related' }>, co
   if (values.length === 1 && typeof values[0] === 'number') return values[0];
   // Sorted so a cell naming several Things reads the same on every refresh, whatever order the relationships arrive in.
   return [...new Set(values.map(String))].sort(namesInOrder(context)).join(', ');
+}
+
+async function resolveValue(binding: Extract<Binding, { kind: 'value' }>, context: ResolveContext): Promise<BindingResult> {
+  const reached = await thingsReached(binding.thing, binding.via, context);
+  if (reached.length !== 1) return null;
+  return heldAsIs(effectiveProperties(reached[0], context.index)[binding.property]);
+}
+
+// The platform writes a GeoJson value as its text under `Json`.
+function heldAsIs(value: unknown): BindingResult {
+  if (typeof value === 'number' || typeof value === 'string') return value;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { Json } = value as { Json?: unknown };
+  if (typeof Json !== 'string') return value as HeldObject;
+  try {
+    const geometry: unknown = JSON.parse(Json);
+    return geometry !== null && typeof geometry === 'object' && !Array.isArray(geometry) ? (geometry as HeldObject) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveStateOf(binding: Extract<Binding, { kind: 'stateOf' }>, context: ResolveContext): Promise<BindingResult> {

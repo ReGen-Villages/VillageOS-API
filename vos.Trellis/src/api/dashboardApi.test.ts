@@ -2731,3 +2731,41 @@ describe('history reads the platform reduction over a property series', () => {
     expect(temporalApi.reduce).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('value reads one Thing\'s property as it is held', () => {
+  const polygon = { type: 'Polygon', coordinates: [[[20, 40], [24, 40], [24, 60], [20, 40]]] };
+  const heights = {
+    originLatitude: 25.1, originLongitude: 55.3, cellSizeMetres: 30, latitudeStepDegrees: 0.0003,
+    longitudeStepDegrees: 0.0003, rows: 2, columns: 2, values: [84.5, null, 91, 112.25],
+  };
+
+  function siteAndStudy(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'studies', Name: 'studies', Properties: {} },
+      { Id: 'site1', Name: 'Submitted site', Properties: { heights, elevation: 100 } },
+      { Id: 'study1', Name: 'Study', Properties: { summerZone: { Json: JSON.stringify(polygon) } } },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: 'study1 studies site1', SubjectId: 'study1', PredicateId: 'studies', TargetId: 'site1', Properties: {} },
+    ];
+    return { index: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
+  }
+
+  it('unwraps a GeoJson value reached along a relationship to its geometry', async () => {
+    const binding: Binding = { kind: 'value', via: [{ predicate: 'studies', direction: 'in' }], property: 'summerZone' };
+
+    expect(await resolveBinding(binding, siteAndStudy())).toEqual(polygon);
+  });
+
+  it('hands over a grid on the scope Thing as it is held', async () => {
+    expect(await resolveBinding({ kind: 'value', property: 'heights' }, siteAndStudy())).toEqual(heights);
+  });
+
+  it('hands over a number as a number, and nothing for a property the Thing does not hold', async () => {
+    const context = siteAndStudy();
+
+    expect(await resolveBinding({ kind: 'value', property: 'elevation' }, context)).toBe(100);
+    expect(await resolveBinding({ kind: 'value', property: 'slope' }, context)).toBeNull();
+  });
+});
