@@ -16,8 +16,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     // write took fifteen, and a shorter wait reported the source as failed while the write went on to land.
     public static readonly TimeSpan BrokerPatience = TimeSpan.FromSeconds(30);
 
-    // The broker refuses a request over 30,000,000 bytes and a deposited reading is about 140, so a year of hourly
-    // readings of every climate property, about 29 MB, goes in several requests.
+    // The broker refuses a request above its body limit, and one slice of every climate property comes close to it, so a
+    // slice goes in several requests.
     public const int ReadingsPerDeposit = 50_000;
 
     private readonly TimeProvider _clock;
