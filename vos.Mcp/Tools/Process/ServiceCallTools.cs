@@ -20,6 +20,7 @@ public sealed class ServiceCallTools(ModelClients clients, TimeProvider? clock =
     public const int SelectionReadsAtMost = 3;
 
     private static readonly TimeSpan BetweenReads = TimeSpan.FromSeconds(2);
+    private static readonly IReadOnlyDictionary<Guid, JsonElement> NothingStamped = new Dictionary<Guid, JsonElement>();
     private static readonly JsonSerializerOptions AsTheServerWrites = new(JsonSerializerDefaults.Web);
 
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
@@ -86,6 +87,7 @@ public sealed class ServiceCallTools(ModelClients clients, TimeProvider? clock =
         {
             var missing = ServiceCalls.NamedButNotCarried(thing, selection);
             if (missing.Count == 0) break;
+            if (reads > 1 && ServiceCalls.On(thing, selection, NothingStamped).Calls.All(call => call.Service is not null)) break;
             selection = ServiceCalls.Together(
                 selection, (await mycelium.ReadSelectionAsync(ServiceCalls.SelectorOf(missing))).GetProperty("snapshot"));
         }
