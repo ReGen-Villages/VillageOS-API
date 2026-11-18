@@ -33,6 +33,14 @@ server read-only: no tool that writes is listed.
 
 Log lines go to standard error, because standard output carries the protocol.
 
+## Tools
+
+| Tool | What it answers | Policy it needs | Listed only where the model binds | Changes anything |
+| --- | --- | --- | --- | --- |
+| `list_models` | The models the key may reach, each with its identifier and name | ReadModel | — | No |
+
+Whoever adds a tool adds its row here.
+
 ## Which tools a key is shown
 
 One key sees one list, decided by its role and its own model's bindings; a tool called with another model
