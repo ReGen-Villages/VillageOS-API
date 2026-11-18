@@ -1135,7 +1135,11 @@ async function resolveHistory(
       windowSeconds: binding.windowSeconds,
       ...(offset !== null ? { utcOffsetSeconds: offset } : {}),
       steps,
+      ...(binding.bins ? { bins: binding.bins } : {}),
+      ...(binding.pairedWith ? { pairedWith: binding.pairedWith } : {}),
     });
+    if (binding.answer === 'coverage')
+      return [{ samples: answer.Samples, unpairedSamples: answer.UnpairedSamples ?? 0, unusableSamples: answer.UnusableSamples }];
     return answer.Groups.map((group) => ({ key: group.Key, value: group.Value }));
   } catch {
     return null;

@@ -60,6 +60,7 @@ export function emptyWidget(kind: Widget['type'], title: string): Widget {
     case 'polarShares': return {
       type: 'polarShares', title, counts: UNBOUND, cells: UNBOUND, bearingKey: '', classOrderKey: '', classLabelKey: '', classColourKey: '',
     };
+    case 'densityGrid': return { type: 'densityGrid', title, cells: UNBOUND, across: { label: '' }, up: { label: '' } };
     case 'lineSeries': return { type: 'lineSeries', title, series: [] };
     case 'heatmap': return { type: 'heatmap', title, value: UNBOUND };
     case 'stackedShares': return { type: 'stackedShares', title, classes: [] };
@@ -82,6 +83,7 @@ export function unboundSlots(widget: Widget): string[] {
     case 'depthProfile':
       return widget.rows ? [] : ['rows'];
     case 'leaderboard': return widget.entities ? [] : ['entities'];
+    case 'densityGrid': return widget.cells ? [] : ['cells'];
     case 'polarShares': return [widget.counts ? null : 'counts', widget.cells ? null : 'cells'].filter((slot): slot is string => slot !== null);
     case 'rangeBar':
     case 'boxPlot':

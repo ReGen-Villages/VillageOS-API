@@ -2693,4 +2693,41 @@ describe('history reads the platform reduction over a property series', () => {
     expect(await resolveBinding(share, siteContext('site1'))).toBeNull();
     expect(temporalApi.reduce).not.toHaveBeenCalled();
   });
+
+  const cellsOfTwoReadings: Binding = {
+    kind: 'history', property: 'temperature', windowSeconds: A_YEAR,
+    steps: [{ fold: 'cell', function: 'Count' }],
+    bins: { width: 1 }, pairedWith: { property: 'humidityRatio', bins: { width: 1, upTo: 30 } },
+  };
+
+  it('asks a paired read with both properties and their bins', async () => {
+    await resolveBinding(cellsOfTwoReadings, siteContext('site1'));
+
+    expect(temporalApi.reduce).toHaveBeenCalledWith({
+      thingId: 'site1', property: 'temperature', windowSeconds: A_YEAR,
+      steps: [{ fold: 'cell', function: 'Count' }],
+      bins: { width: 1 }, pairedWith: { property: 'humidityRatio', bins: { width: 1, upTo: 30 } },
+    });
+  });
+
+  it('answers how many readings the question read as one row when the binding asks for its coverage', async () => {
+    vi.mocked(temporalApi.reduce).mockResolvedValue({
+      Groups: [{ Key: '21,14', Value: 3 }], Samples: 3, UnusableSamples: 1, UnpairedSamples: 2,
+    });
+
+    expect(await resolveBinding({ ...cellsOfTwoReadings, answer: 'coverage' }, siteContext('site1'))).toEqual([
+      { samples: 3, unpairedSamples: 2, unusableSamples: 1 },
+    ]);
+  });
+
+  it('asks the same question once for its groups and its coverage', async () => {
+    const context = siteContext('site1');
+
+    await Promise.all([
+      resolveBinding(cellsOfTwoReadings, context),
+      resolveBinding({ ...cellsOfTwoReadings, answer: 'coverage' }, context),
+    ]);
+
+    expect(temporalApi.reduce).toHaveBeenCalledTimes(1);
+  });
 });

@@ -9,7 +9,7 @@
  * Every domain word lives in the model's specification — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
-import type { HistoryFold, HistoryFunction, OriginKind } from './vos';
+import type { HistoryBins, HistoryFold, HistoryFunction, HistoryPairing, OriginKind } from './vos';
 
 /** The Thing property holding the JSON-encoded {@link DashboardSpecification}. */
 export const DASHBOARD_SPECIFICATION_PROPERTY = 'specification';
@@ -254,8 +254,21 @@ export type Binding =
    *  platform refuses the question, which it does past ten thousand groups.
    *
    *  Costs one request per distinct question per refresh: the same question from several widgets is
-   *  asked once. The platform walks the property's retained samples once per question. */
-  | { kind: 'history'; property: string; windowSeconds: number; steps: HistoryStepBinding[] };
+   *  asked once. The platform walks the property's retained samples once per question.
+   *
+   *  A `cell` first step pairs `property` with `pairedWith.property` at the same instants and keys each
+   *  pair by the lower bounds of its two bins, `"21,14"`. With `answer: 'coverage'` the same question
+   *  resolves to one row of how many readings it read, `{ samples, unpairedSamples, unusableSamples }`,
+   *  instead of its groups; it is still asked once. */
+  | {
+    kind: 'history';
+    property: string;
+    windowSeconds: number;
+    steps: HistoryStepBinding[];
+    bins?: HistoryBins;
+    pairedWith?: HistoryPairing;
+    answer?: 'groups' | 'coverage';
+  };
 
 /**
  * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
@@ -667,6 +680,37 @@ export interface PolarSharesWidget {
   classWordingKey?: string;
 }
 
+/** One axis of a density grid: what its property is called and the unit its bins are written in. */
+export interface DensityGridAxis {
+  label: string;
+  unit?: string;
+}
+
+/** A shape drawn over a density grid, such as a comfort zone, or a line, such as a humidity curve.
+ *  `shape` binds a property holding a GeoJSON Polygon or LineString whose coordinates are in the
+ *  chart's own units, across then up; a polygon is filled faintly and a line is not. */
+export interface DensityGridOutline {
+  label: string;
+  colour: string;
+  shape: Binding;
+}
+
+/** The hours two readings of one Thing spent together in each cell of their bins, as a grid shaded by
+ *  each cell's share of the hours counted. `cells` is a `history` binding whose first step is `cell`,
+ *  counted; across is its `property`, up its `pairedWith.property`, each cell as wide as its axis's
+ *  bins. `coverage` is the same binding with `answer: 'coverage'`: where some readings had no partner
+ *  at their instant, a note says how many, since the grid leaves them out. */
+export interface DensityGridWidget {
+  type: 'densityGrid';
+  title?: string;
+  hint?: string;
+  cells: Binding;
+  coverage?: Binding;
+  across: DensityGridAxis;
+  up: DensityGridAxis;
+  outlines?: DensityGridOutline[];
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 export interface DepthProfilePart {
   label: string;
@@ -988,6 +1032,7 @@ export type Widget = Placed & (
   | BoxPlotWidget
   | DepthProfileWidget
   | PolarSharesWidget
+  | DensityGridWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

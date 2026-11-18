@@ -50,7 +50,7 @@ export const BINDING_FIELDS: BindingFields = {
   timeseries: ['archetype', 'happenedAt', 'property', 'reduction', 'bucketSeconds', 'buckets', 'bucketsPerPoint', 'scope'],
   latest: ['series'],
   service: ['endpoint', 'body', 'select'],
-  history: ['property', 'windowSeconds', 'steps'],
+  history: ['property', 'windowSeconds', 'steps', 'bins', 'pairedWith', 'answer'],
 };
 
 /** Each kind's fields as a set, with the discriminant every binding carries put back. Built once

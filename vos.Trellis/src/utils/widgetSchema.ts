@@ -22,7 +22,7 @@ const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
 const SEVERITIES = ['good', 'warning', 'critical'] as const;
 const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
 const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
-const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value'];
+const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value', 'cell', 'monthOfYear,cell'];
 const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
 export const STEP_DIRECTIONS = ['out', 'in'] as const;
@@ -142,6 +142,11 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     text('classOrderKey', 'rowKey', true), text('classLabelKey', 'rowKey', true), text('classColourKey', 'rowKey', true),
     text('classWordingKey', 'rowKey', true),
   ],
+  densityGrid: [
+    title, hint, binding('cells', 'series'), binding('coverage', 'rows'),
+    group('across', [text('label'), unit]), group('up', [text('label'), unit]),
+    list('outlines', [text('label'), text('colour', undefined, true), binding('shape', 'number')]),
+  ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),
@@ -165,6 +170,8 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
 };
 
 const historyStep = [choice('fold', FOLDS), choice('function', FUNCTIONS), bound('percentile'), bound('from'), bound('to'), bound('threshold')];
+const historyBins = [number('width'), number('upTo')];
+const HISTORY_ANSWERS = ['groups', 'coverage'] as const;
 
 export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   const: [number('value')],
@@ -183,7 +190,10 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   timeseries: [archetype, text('happenedAt', 'property', true), property, choice('reduction', REDUCTIONS), number('bucketSeconds'), number('buckets'), number('bucketsPerPoint'), scope],
   latest: [binding('series', 'series')],
   service: [text('endpoint', 'endpoint', true), { key: 'body', kind: 'json' }, text('select', undefined, true)],
-  history: [property, number('windowSeconds'), list('steps', historyStep)],
+  history: [
+    property, number('windowSeconds'), list('steps', historyStep), group('bins', historyBins),
+    group('pairedWith', [property, group('bins', historyBins)]), choice('answer', HISTORY_ANSWERS),
+  ],
 };
 
 export const BINDING_KINDS = Object.keys(BINDING_SCHEMAS) as Binding['kind'][];
