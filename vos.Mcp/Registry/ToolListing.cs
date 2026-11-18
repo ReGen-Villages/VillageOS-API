@@ -21,8 +21,8 @@ public static class ToolListing
 
                 var available = new List<Tool>();
                 foreach (var tool in listed.Tools)
-                    if (!tools.TryGetValue(tool.Name, out var declared)
-                        || await IsAvailableAsync(declared, caller, context.Services!))
+                    if (tools.TryGetValue(tool.Name, out var declared)
+                        && await IsAvailableAsync(declared, caller, context.Services!))
                         available.Add(tool);
 
                 listed.Tools = available;
@@ -34,8 +34,8 @@ public static class ToolListing
                 try
                 {
                     var caller = await context.Services!.GetRequiredService<CallerSource>().ReadAsync();
-                    if (context.MatchedPrimitive is McpServerTool tool
-                        && !await IsAvailableAsync(tool, caller, context.Services!))
+                    if (context.MatchedPrimitive is not McpServerTool tool
+                        || !await IsAvailableAsync(tool, caller, context.Services!))
                         return Refusal(NotAvailable);
 
                     return await next(context, cancellationToken);
@@ -47,13 +47,15 @@ public static class ToolListing
             });
         });
 
+    // A tool the registry can read no condition for is offered to nobody, whatever route it arrived by.
     private static async Task<bool> IsAvailableAsync(McpServerTool tool, Caller caller, IServiceProvider services)
     {
-        foreach (var condition in tool.Metadata.OfType<ListingConditionAttribute>())
+        var conditions = tool.Metadata.OfType<ListingConditionAttribute>().ToList();
+        foreach (var condition in conditions)
             if (!await condition.HoldsForAsync(caller, services))
                 return false;
 
-        return true;
+        return conditions.Count > 0;
     }
 
     private static CallToolResult Refusal(string reason) => new()

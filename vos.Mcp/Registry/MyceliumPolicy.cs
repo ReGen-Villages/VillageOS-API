@@ -13,6 +13,8 @@ public enum MyceliumPolicy
 
 public static class MyceliumPolicies
 {
+    // The role names as Mycelium writes them in a token's role claim. The test that calls each role's listed
+    // tools against a real engine is what proves them and the table below.
     private const string Viewer = "viewer";
     private const string Editor = "editor";
     private const string Admin = "admin";

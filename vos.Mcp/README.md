@@ -44,6 +44,8 @@ checks that model when it is called.
 - The list is worked out again each time the Mycelium issues a new token, so a changed role or a newly
   bound role shows within one token's life.
 - A call to a tool that is not listed is refused in the same words for every such tool.
+- A tool that declares no condition, or that reaches the server by a route the registry cannot read a
+  declaration from, is listed for nobody and a call to it is refused.
 
 The Mycelium's own policy check stays the guard. The marks on a tool (only reads, destroys, repeating
 changes nothing more) are hints to the chat application, which uses them to decide when to ask the person.
