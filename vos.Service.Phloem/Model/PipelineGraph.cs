@@ -12,7 +12,12 @@ public sealed class GraphThing
 
     public string? PropertyString(string name) =>
         Properties.TryGetValue(name, out var v)
-            ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
+            ? v.ValueKind switch
+            {
+                JsonValueKind.String => v.GetString(),
+                JsonValueKind.Null => null,
+                _ => v.ToString(),
+            }
             : null;
 
     // A template declares a port's marks as booleans and the page writes them as text, so both are read as one.

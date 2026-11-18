@@ -1579,6 +1579,46 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task A_node_run_and_an_attempt_whose_error_the_model_holds_as_null_read_back_with_no_error()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeRunId = Guid.NewGuid();
+        var attemptId = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, $$$"""
+                {"snapshot":{"things":[
+                  {"id":"{{{runId}}}","name":"PipelineRun","properties":{"error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{pipelineId}}}","name":"Review a submission","properties":{}},
+                  {"id":"{{{nodeRunId}}}","name":"NodeRun Review","properties":{
+                    "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{attemptId}}}","name":"Attempt 1","properties":{
+                    "number":{"typeInfo":"vos.String","value":"1"},
+                    "startedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:00.0000000+00:00"},
+                    "finishedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:01.0000000+00:00"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{hasId}}}","name":"has","properties":{}},
+                  {"id":"{{{ofId}}}","name":"of","properties":{}}],
+                 "relationships":[
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{nodeRunId}}}","predicateId":"{{{hasId}}}","targetId":"{{{attemptId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
+                """)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        record!.Nodes[nodeId].Error.Should().BeNull();
+        record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Error.Should().BeNull();
+    }
+
+    [Fact]
     public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_with_its_number_and_the_first_count()
     {
         var runId = Guid.NewGuid();

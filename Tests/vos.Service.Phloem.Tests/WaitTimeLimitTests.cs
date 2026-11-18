@@ -55,6 +55,20 @@ public class WaitTimeLimitTests
     }
 
     [Fact]
+    public async Task A_wait_that_fails_writes_why_it_failed_whatever_error_its_record_read_back_with()
+    {
+        var setup = Arrange(NinetyMinutes);
+        var runId = await AWaitingRunAsync(setup);
+        var key = (runId, setup.Box.Wait.Id);
+        setup.Gateway.Records[key] = setup.Gateway.Records[key] with { Error = "" };
+
+        setup.Real.Advance(TimeSpan.FromMinutes(91));
+        await setup.Executor.ExpireDueWaitsAsync(CancellationToken.None);
+
+        setup.Gateway.Records[key].Error.Should().Be($"'{TestGraphs.WaitBox}' waited 90 model minutes for 'Submission 12' to enter 'decided', and it did not.");
+    }
+
+    [Fact]
     public async Task A_wait_answered_before_its_time_carries_on_and_nothing_fails_later()
     {
         var setup = Arrange(NinetyMinutes);

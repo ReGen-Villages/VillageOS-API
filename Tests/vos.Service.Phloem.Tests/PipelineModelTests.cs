@@ -423,6 +423,23 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_NamesAPortWhoseNameTheModelHoldsAsNullByItsThing_AndReadsANullDirectionAsIn()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var memo = fx.Thing("decide.memo", ("type", "any"));
+        fx.Hold(memo, "portName", null!);
+        fx.Hold(memo, "direction", null!);
+        fx.Rel(memo, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("Decide"), fx.Get("has"), memo);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var port = dag.Node(fx.Get("Decide").Id)!.Ports.Single(p => p.Id == memo.Id);
+        port.PortName.Should().Be("decide.memo");
+        port.IsInput.Should().BeTrue();
+    }
+
+    [Fact]
     public void Build_ReadsTheChoicesTheNodeHolds_WithTheThingsEachComparesWith()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
