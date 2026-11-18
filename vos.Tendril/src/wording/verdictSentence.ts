@@ -1,5 +1,5 @@
-import type { NumberFormat } from '@tendril-ui/tendril';
-import { formatNumber } from './format';
+import type { NumberFormat } from '../types/dashboard';
+import { formatNumberIn } from './formatNumber';
 
 /**
  * The sentence a verdict reads as: the wording the model supplied, with the judged figure and the
@@ -13,12 +13,13 @@ import { formatNumber } from './format';
 export function verdictSentence(
   reads: string,
   figures: { value: number | null; target: number | null },
+  language: string,
   format?: NumberFormat,
   unit?: string,
 ): string {
   const substituted = reads.replace(/\{(value|target)\}/g, (_, placeholder) => {
     const figure = placeholder === 'value' ? figures.value : figures.target;
-    return figure === null ? '' : `${formatNumber(figure, format)}${unit ? ` ${unit}` : ''}`;
+    return figure === null ? '' : `${formatNumberIn(figure, format, language)}${unit ? ` ${unit}` : ''}`;
   });
   return substituted.replace(/\s{2,}/g, ' ').trim();
 }

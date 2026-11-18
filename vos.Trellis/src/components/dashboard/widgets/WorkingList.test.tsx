@@ -5,7 +5,7 @@ import type { WorkingWidget } from '@tendril-ui/tendril';
 import type { ResolveContext } from '@tendril-ui/tendril';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
 
 const resolved = new Map<string, unknown>();

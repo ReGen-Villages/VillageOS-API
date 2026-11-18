@@ -1,20 +1,9 @@
+import { numberIn as numberInALanguage } from '@tendril-ui/tendril';
 import i18n from './index';
 
-const formats = new Map<string, Intl.NumberFormat>();
-
-/**
- * A number written the way the chosen language writes it: its grouping, its decimal mark, where its
- * percent sign goes. The digits stay Western in every language, because every count the translations
- * interpolate is written that way, and one line holding two number systems reads as two numbers.
- */
+/** A number written the way the chosen language writes it, with Western digits in every language. */
 export function numberIn(value: number, options: Intl.NumberFormatOptions = {}): string {
-  const key = `${i18n.language}|${JSON.stringify(options)}`;
-  let format = formats.get(key);
-  if (!format) {
-    format = new Intl.NumberFormat(i18n.language, { numberingSystem: 'latn', ...options });
-    formats.set(key, format);
-  }
-  return format.format(value);
+  return numberInALanguage(value, i18n.language, options);
 }
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

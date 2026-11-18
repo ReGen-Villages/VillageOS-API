@@ -593,30 +593,55 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
   return undefined;
 }
 
+/** One input at the bottom of a derived figure. `heldBy` is the Thing whose value it is; an input a
+ *  total reads is held by each member instead, and carries the members' kind and no single holder. */
+export interface FigureInput {
+  figure: string;
+  term: string;
+  heldBy?: string;
+  memberKind?: string;
+  /** Whether the figure rises as the input rises, or falls. */
+  figureMoves: 'with' | 'against';
+  /** The input's name by language, where the model declares one. */
+  words?: Readonly<Record<string, string>>;
+}
+
+/** An input left out because nothing can say which way it moves the figure: the definition declares
+ *  no direction for it, or two routes to it move the figure opposite ways. */
+export interface InputLeftOut {
+  figure: string;
+  term: string;
+  memberKind?: string;
+  reason: 'noDirection' | 'routesDisagree';
+}
+
+type Leaf = { term: string; memberKind?: string; sign: 1 | -1 | 0 };
+
 /** Every input at the bottom of a figure's derivation, each with the way the figure moves as it
  *  rises. A term with its own definition is expanded into that definition's terms with the signs
- *  composed, so the offers name what a person could actually change — a term whose definition names
+ *  composed, so what is named is what a person could actually change — a term whose definition names
  *  it back is read as a leaf rather than walked forever. A term the definition declares no
- *  direction for is dropped with its subtree: under a shortfall a wrong direction is worse than
- *  none. Reduction inputs live on each member, so those carry the members' archetype. */
+ *  direction for is reported with a sign of zero and its subtree is not walked: under a shortfall a
+ *  wrong direction is worse than none. Reduction inputs live on each member, so those carry the
+ *  members' kind. */
 function leafInfluences(
   property: string,
   definitions: Readonly<Record<string, DerivedDefinition>>,
   sign: 1 | -1,
   visiting: Set<string>,
-): { term: string; memberArchetype?: string; sign: 1 | -1 }[] {
+): Leaf[] {
   const definition = definitions[property];
   if (!definition) return [];
   visiting.add(property);
   const rises = new Set(definition.RisesWith ?? []);
   const falls = new Set(definition.FallsWith ?? []);
-  const leaves: { term: string; memberArchetype?: string; sign: 1 | -1 }[] = [];
+  const memberKind = definition.Expression === undefined ? definition.RelatedType ?? undefined : undefined;
+  const leaves: Leaf[] = [];
   for (const term of definition.Reads ?? []) {
     const direction = rises.has(term) ? 1 : falls.has(term) ? -1 : 0;
-    if (!direction) continue;
-    const composed = (sign * direction) as 1 | -1;
-    if (definition.Expression === undefined) {
-      leaves.push({ term, memberArchetype: definition.RelatedType ?? undefined, sign: composed });
+    const composed = (sign * direction) as 1 | -1 | 0;
+    if (composed === 0 || definition.Expression === undefined) {
+      leaves.push({ term, memberKind, sign: composed });
     } else {
       const below = definitions[term] && !visiting.has(term)
         ? leafInfluences(term, definitions, composed, visiting)
@@ -629,13 +654,47 @@ function leafInfluences(
 }
 
 /**
- * What would move a judged figure toward leaving the state it holds, in the order the derivation
- * reads them. The held comparison says which way the result must move — a state held by sitting
- * below its target is left by rising, one held by sitting above it by falling — and each leaf's
- * composed sign says which way that input goes. An input reached along two agreeing routes is one
- * offer; one whose routes disagree is dropped, since offering either direction would be the client
- * taking a side. An input held by members is named from their archetype, any other from the judged
- * Thing's own.
+ * The inputs at the bottom of a Thing's derived figures, in the order each derivation reads them:
+ * of the one figure named, or of every figure the Thing derives. An input reached along two
+ * agreeing routes is named once. One with no declared direction, or whose routes disagree, is left
+ * out and reported with the reason, since naming either direction would be taking a side.
+ */
+export function inputsOf(thing: VosThing, index: ModelIndex, figure?: string): { inputs: FigureInput[]; leftOut: InputLeftOut[] } {
+  const definitions = effectiveDerivedDefinitions(thing, index);
+  const inputs: FigureInput[] = [];
+  const leftOut: InputLeftOut[] = [];
+  for (const derived of figure === undefined ? Object.keys(definitions) : [figure]) {
+    const routes = new Map<string, Leaf & { reason?: InputLeftOut['reason'] }>();
+    for (const leaf of leafInfluences(derived, definitions, 1, new Set())) {
+      const key = `${leaf.term}\u0000${leaf.memberKind ?? ''}`;
+      const seen = routes.get(key);
+      if (!seen) routes.set(key, { ...leaf, ...(leaf.sign === 0 ? { reason: 'noDirection' as const } : {}) });
+      else if (seen.sign !== leaf.sign && !seen.reason) Object.assign(seen, { sign: 0, reason: 'routesDisagree' as const });
+    }
+    for (const leaf of routes.values()) {
+      const held = leaf.memberKind !== undefined ? { memberKind: leaf.memberKind } : {};
+      if (leaf.reason) {
+        leftOut.push({ figure: derived, term: leaf.term, ...held, reason: leaf.reason });
+        continue;
+      }
+      const holderIds = leaf.memberKind !== undefined ? typeIdsNamed(leaf.memberKind, index) : [thing.Id];
+      const words = declaredWords(leaf.term, holderIds, index);
+      inputs.push({
+        figure: derived,
+        term: leaf.term,
+        ...(leaf.memberKind !== undefined ? held : { heldBy: thing.Id }),
+        figureMoves: leaf.sign > 0 ? 'with' : 'against',
+        ...(words ? { words } : {}),
+      });
+    }
+  }
+  return { inputs, leftOut };
+}
+
+/**
+ * What would move a judged figure toward leaving the state it holds. The held comparison says which
+ * way the result must move — a state held by sitting below its target is left by rising, one held
+ * by sitting above it by falling — and each input says which way the figure moves with it.
  */
 function leversFor(
   property: string,
@@ -643,30 +702,16 @@ function leversFor(
   judged: VosThing,
   index: ModelIndex,
 ): Lever[] {
-  const definitions = effectiveDerivedDefinitions(judged, index);
-  const resultMustMove = operator === '<' || operator === '<=' ? 1
-    : operator === '>' || operator === '>=' ? -1
+  const figureMustRise = operator === '<' || operator === '<=' ? true
+    : operator === '>' || operator === '>=' ? false
     : null;
-  if (resultMustMove === null) return [];
-  const routes = new Map<string, { term: string; memberArchetype?: string; sign: 1 | -1 | 0 }>();
-  for (const leaf of leafInfluences(property, definitions, 1, new Set())) {
-    const key = `${leaf.term}\u0000${leaf.memberArchetype ?? ''}`;
-    const seen = routes.get(key);
-    if (!seen) routes.set(key, { ...leaf });
-    else if (seen.sign !== leaf.sign) seen.sign = 0;
-  }
-  return [...routes.values()]
-    .filter((leaf) => leaf.sign !== 0)
-    .map((leaf) => {
-      const holderIds = leaf.memberArchetype !== undefined ? typeIdsNamed(leaf.memberArchetype, index) : [judged.Id];
-      const words = declaredWords(leaf.term, holderIds, index);
-      return {
-        term: leaf.term,
-        ...(leaf.memberArchetype !== undefined ? { memberArchetype: leaf.memberArchetype } : {}),
-        direction: resultMustMove * leaf.sign > 0 ? 'raise' as const : 'lower' as const,
-        ...(words ? { words } : {}),
-      };
-    });
+  if (figureMustRise === null) return [];
+  return inputsOf(judged, index, property).inputs.map((input) => ({
+    term: input.term,
+    ...(input.memberKind !== undefined ? { memberArchetype: input.memberKind } : {}),
+    direction: (input.figureMoves === 'with') === figureMustRise ? 'raise' as const : 'lower' as const,
+    ...(input.words ? { words: input.words } : {}),
+  }));
 }
 
 /** The Things a binding reads: the one its reference names, or — when it declares a path — the

@@ -1,15 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import type { KpiWidget } from '@tendril-ui/tendril';
-import { ORIGIN_KINDS, type OriginKind } from '@tendril-ui/tendril';
 import type { ResolveContext, Row } from '@tendril-ui/tendril';
-import { asNumber, asRows, asSeries } from '@tendril-ui/tendril';
+import { asNumber, asRows, asSeries, figureText, originLines } from '@tendril-ui/tendril';
 import { useBinding } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { Sparkline } from './Sparkline';
 import { DerivedFigure } from './DerivedFigure';
 import { formatNumber, formatDelta, deltaTone, originTone } from './format';
-import { originSentence } from './originSentence';
 
 /** Width to draw at before the card has been measured, and the floor a narrow card still gets. */
 const MINIMUM_SPARK_WIDTH = 108;
@@ -23,7 +21,7 @@ export function KpiCard({
   context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const value = useBinding(widget.value, context);
   const delta = useBinding(widget.delta, context);
   const spark = useBinding(widget.spark, context);
@@ -80,7 +78,7 @@ export function KpiCard({
               footnote={widget.footnote}
               openDetail={openDetail}
             >
-              {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : word ?? formatNumber(v, widget.format)}
+              {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : figureText(value.value, widget.format, i18n.language)}
               {widget.unit && word === null && <span className="text-sm text-zinc-400 dark:text-zinc-500 font-semibold ml-1">{widget.unit}</span>}
             </DerivedFigure>
           </div>
@@ -136,20 +134,8 @@ export function KpiCard({
  * placeholder would read as an answer.
  */
 export function OriginLines({ rows }: { rows: Row[] }) {
-  const lines = rows
-    .filter((row) => ORIGIN_KINDS.includes(row.origin as OriginKind) && typeof row.reads === 'string')
-    .map((row, i) => ({
-      key: `${String(row.origin)}-${i}`,
-      origin: row.origin as OriginKind,
-      sentence: originSentence(row.reads as string, {
-        source: typeof row.source === 'string' ? row.source : null,
-        resolvedAt: typeof row.resolvedAt === 'string' ? row.resolvedAt : null,
-      }),
-    }))
-    .filter((line) => line.sentence !== '');
-
-  return lines.map((line) => (
-    <div key={line.key} className={`text-[11px] mt-1.5 ${originTone(line.origin)}`}>
+  return originLines(rows).map((line, position) => (
+    <div key={`${line.origin}-${position}`} className={`text-[11px] mt-1.5 ${originTone(line.origin)}`}>
       {line.sentence}
     </div>
   ));

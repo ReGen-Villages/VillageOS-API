@@ -1,11 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { VerdictCandidate, VerdictRow, VerdictWidget } from '@tendril-ui/tendril';
-import { wordsInLanguage } from '@tendril-ui/tendril';
-import type { Lever, ResolveContext, Row } from '@tendril-ui/tendril';
-import { asRows, nullableNumber } from '@tendril-ui/tendril';
+import type { VerdictRow, VerdictWidget } from '@tendril-ui/tendril';
+import type { LeverReading, ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows, verdictReadings } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
-import { verdictSentence } from './verdictSentence';
 
 /**
  * Each judged quantity read as a sentence: what was measured, what it was judged against, and the
@@ -34,45 +32,23 @@ export function VerdictList({ widget, context }: { widget: VerdictWidget; contex
 }
 
 function VerdictRowView({ row, verdicts }: { row: VerdictRow; verdicts: Row[] }) {
-  const candidates: VerdictCandidate[] = row.verdicts.kind === 'verdict' ? row.verdicts.states : [];
-  const sentences = verdicts
-    .map((verdict) => {
-      const levers = Array.isArray(verdict.levers) ? (verdict.levers as Lever[]) : [];
-      const wording = candidates.find((candidate) => candidate.state === verdict.state)?.levers;
-      return {
-        state: String(verdict.state),
-        sentence: verdictSentence(
-          typeof verdict.reads === 'string' ? verdict.reads : '',
-          { value: nullableNumber(verdict.value), target: nullableNumber(verdict.target) },
-          row.format,
-          row.unit,
-        ),
-        leverLines: wording
-          ? levers.map((lever) => ({
-              lever,
-              wording: lever.direction === 'raise' ? wording.raise : wording.lower,
-            }))
-          : [],
-      };
-    })
-    // A row bound to something other than a verdict resolves to rows with no wording on them. There
-    // is no sentence to read, so it draws none rather than a run of empty lines.
-    .filter((read) => read.sentence !== '');
+  const { i18n } = useTranslation();
+  const readings = verdictReadings(row, verdicts, i18n.language);
 
   return (
     <div>
       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {row.label}
       </div>
-      {sentences.map((read) => (
+      {readings.map((read) => (
         <div key={read.state}>
           <p className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-200">
             {read.sentence}
           </p>
-          {read.leverLines.map(({ lever, wording }) => (
-            <p key={`${lever.term} ${lever.memberArchetype ?? ''}`}
+          {read.levers.map((reading) => (
+            <p key={`${reading.lever.term} ${reading.lever.memberArchetype ?? ''}`}
                className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-              <LeverLine wording={wording} lever={lever} />
+              <LeverLine reading={reading} />
             </p>
           ))}
         </div>
@@ -81,16 +57,13 @@ function VerdictRowView({ row, verdicts }: { row: VerdictRow; verdicts: Row[] })
   );
 }
 
-/** The state's wording with `{term}` filled by the name the model declares for the input, in the
- *  reader's language. An input with no declared name is drawn by the model's word, the way the working
- *  widget draws it, with the members' archetype beside an input each member holds; a declared name
- *  needs no archetype, because it was declared for the property on that archetype. */
-function LeverLine({ wording, lever }: { wording: string; lever: Lever }) {
-  const { i18n } = useTranslation();
-  const [before, after] = wording.split('{term}', 2);
-  const declared = wordsInLanguage(lever.words, i18n.language);
-  const name = declared !== undefined ? (
-    <span className="text-zinc-600 dark:text-zinc-300">{declared}</span>
+/** The state's wording around the input's name. A name the model declares needs no kind beside it,
+ *  because it was declared for the property on that kind; an input with none is drawn by the model's
+ *  word, the way the working widget draws it, with the members' kind beside an input each member holds. */
+function LeverLine({ reading }: { reading: LeverReading }) {
+  const { lever, before, after, declaredName } = reading;
+  const name = declaredName !== undefined ? (
+    <span className="text-zinc-600 dark:text-zinc-300">{declaredName}</span>
   ) : (
     <>
       <span className="font-mono text-zinc-600 dark:text-zinc-300">{lever.term}</span>
