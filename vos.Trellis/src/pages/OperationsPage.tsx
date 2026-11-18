@@ -52,7 +52,7 @@ export function OperationsPage() {
     [dashboard, i18n.language],
   );
 
-  const entities = useMemo(() => (specification ? computeScopeEntities(specification, index) : []), [specification, index]);
+  const entities = useMemo(() => (specification ? computeScopeEntities(specification, index, i18n.language) : []), [specification, index, i18n.language]);
 
   const [chosenScopeId, setScopeId] = useState<string | null>(null);
   // With only one entity, All means that entity, and selecting it is what lets a figure that follows a relationship from it be drawn.

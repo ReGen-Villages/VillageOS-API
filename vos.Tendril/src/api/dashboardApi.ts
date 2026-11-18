@@ -43,6 +43,8 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import { tendrilWord } from '../i18n/words';
 import { wordingIn } from '../i18n/termWording';
+import { BASE_LANGUAGE } from '../i18n/languages';
+import { compareNamesIn } from './compareNames';
 import { BINDS_PREDICATE_NAME, PAGE_ROLE_ID, PREDICATE_ROLE_ID } from './platformRoles';
 import {
   NAMED_PROPERTY,
@@ -84,10 +86,11 @@ export interface ModelIndex {
    *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
    *  without a new index, and a per-row binding repeats the same question once per row. */
   archetypeMembers: Map<string, Set<string>>;
-  /** The model's dashboards, parsed the first time they are asked for and discarded with the index.
-   *  The navigation and the page both ask, and a specification is JSON in a property — parsing every one of
-   *  them twice per model change is work neither reader needs done again. */
-  dashboards: DashboardDescriptor[] | null;
+  /** The model's dashboards by the language they are listed in, parsed the first time they are asked
+   *  for and discarded with the index. The navigation and the page both ask, and a specification is
+   *  JSON in a property — parsing every one of them twice per model change is work neither reader
+   *  needs done again. */
+  dashboards: Map<string, DashboardDescriptor[]>;
   /** Archetype id → property → the words the model declares as that property's name there. Built
    *  the first time a lever asks and discarded with the index, because a page offers levers on every
    *  refresh and the names change only with the model. */
@@ -172,7 +175,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
-    dashboards: null,
+    dashboards: new Map(),
     propertyNames: null,
   };
 }
@@ -297,8 +300,15 @@ function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
  *
  *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
  *  dashboard's position in the navigation would move whenever the model changed. */
-export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescriptor[] {
-  if (index.dashboards) return index.dashboards;
+export function discoverDashboardsFromIndex(index: ModelIndex, language: string = BASE_LANGUAGE): DashboardDescriptor[] {
+  const listed = index.dashboards.get(language);
+  if (listed) return listed;
+  const parsed = index.dashboards.values().next().value;
+  if (parsed) {
+    const inThisLanguage = [...parsed].sort((a, b) => compareNamesIn(language)(a.name, b.name));
+    index.dashboards.set(language, inThisLanguage);
+    return inThisLanguage;
+  }
   // Every page Thing is listed, including one whose specification did not read. A specification is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
@@ -306,7 +316,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
     thing,
     specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
-  found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
+  found.sort((a, b) => compareNamesIn(language)(a.thing.Name, b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
   const bearers = new Map<string, number>();
   for (const slug of slugs) bearers.set(slug, (bearers.get(slug) ?? 0) + 1);
@@ -316,7 +326,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
     routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
     specification: d.specification,
   }));
-  index.dashboards = out;
+  index.dashboards.set(language, out);
   return out;
 }
 
@@ -364,15 +374,21 @@ export function parseSpecification(raw: unknown): DashboardSpecification | null 
   return null;
 }
 
-export function scopeEntities(specification: DashboardSpecification, index: ModelIndex): ScopeEntity[] {
+export function scopeEntities(specification: DashboardSpecification, index: ModelIndex, language: string = BASE_LANGUAGE): ScopeEntity[] {
   if (!specification.compare) return [];
   return thingsOfArchetype(specification.compare.archetype, index)
     .map((t) => ({ id: t.Id, name: t.Name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => compareNamesIn(language)(a.name, b.name));
 }
 
 export interface ResolveContext {
   index: ModelIndex;
+  /** The language the page is read in, which orders the names a reader sees listed. English where
+   *  none is given. */
+  language?: string;
+  /** Told what a page description asks that cannot be asked, where the binding then resolves to
+   *  nothing. Nobody is told where this is absent. */
+  warn?: (warning: string) => void;
   /** Selected compare-entity id, or null for "All". */
   scopeId: string | null;
   /** Archetype of compare entities (for `$scope` averaging + compareEntities). */
@@ -403,6 +419,10 @@ export interface ResolveContext {
    *  needs, say — in its own language. Nothing returned, or no function, shows the endpoint's own
    *  `error`. */
   wordRefusal?: (answer: Record<string, unknown>) => string | undefined;
+}
+
+function namesInOrder(context: ResolveContext): (a: string, b: string) => number {
+  return compareNamesIn(context.language ?? BASE_LANGUAGE);
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a
@@ -672,7 +692,7 @@ async function thingsReached(
   return reached
     .map((id) => context.index.byId.get(id))
     .filter((t): t is VosThing => !!t)
-    .sort((a, b) => a.Name.localeCompare(b.Name));
+    .sort((a, b) => namesInOrder(context)(a.Name, b.Name));
 }
 
 /**
@@ -880,7 +900,7 @@ async function resolveRelated(binding: Extract<Binding, { kind: 'related' }>, co
   if (!values.length) return null;
   if (values.length === 1 && typeof values[0] === 'number') return values[0];
   // Sorted so a cell naming several Things reads the same on every refresh, whatever order the relationships arrive in.
-  return [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b)).join(', ');
+  return [...new Set(values.map(String))].sort(namesInOrder(context)).join(', ');
 }
 
 async function resolveStateOf(binding: Extract<Binding, { kind: 'stateOf' }>, context: ResolveContext): Promise<BindingResult> {
@@ -1018,7 +1038,7 @@ async function resolveThingList(binding: Extract<Binding, { kind: 'thingList' }>
     const inState = new Set(((await context.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
     list = list.filter((t) => inState.has(t.Id));
   }
-  list.sort((a, b) => a.Name.localeCompare(b.Name));
+  list.sort((a, b) => namesInOrder(context)(a.Name, b.Name));
   if (binding.limit) list = list.slice(0, binding.limit);
   const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, context.index) }) as Row);
   return withComputedColumns(rows, binding.computed, context);
@@ -1063,7 +1083,7 @@ async function seriesPoints(
   // model has not got, while these are questions the specification cannot ask, and an author has no other
   // sign of them.
   if (binding.scope?.direction === 'in') {
-    console.warn(
+    context.warn?.(
       `timeseries over ${binding.archetype}: the platform narrows to what a container reaches, so a ` +
         'scope reaching the other way cannot be asked for.',
     );
@@ -1073,7 +1093,7 @@ async function seriesPoints(
   // A point of one bucket is that bucket, whatever the reduction — an average included.
   const fold = bucketsPerPoint === 1 ? (buckets: number[]) => buckets[0] : FOLDS[binding.reduction];
   if (!fold) {
-    console.warn(
+    context.warn?.(
       `timeseries over ${binding.archetype}: an ${binding.reduction} of several buckets is not the ` +
         `${binding.reduction} of their values, so a point cannot be folded up from them.`,
     );

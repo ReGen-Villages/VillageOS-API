@@ -39,20 +39,29 @@ export interface StateNarrowing {
 export function thingsInStatePath(stateName: string, narrowing?: StateNarrowing): string {
   const path = `/api/states/${encodeURIComponent(stateName)}/things`;
   if (!narrowing) return path;
-  const query = new URLSearchParams();
-  if (narrowing.alsoIn?.length) query.set('alsoIn', narrowing.alsoIn.join(','));
-  if (narrowing.notIn?.length) query.set('notIn', narrowing.notIn.join(','));
-  if (narrowing.type) query.set('type', narrowing.type);
+  const asked: string[] = [];
+  const ask = (name: string, value: string) => asked.push(`${name}=${asInAForm(value)}`);
+  if (narrowing.alsoIn?.length) ask('alsoIn', narrowing.alsoIn.join(','));
+  if (narrowing.notIn?.length) ask('notIn', narrowing.notIn.join(','));
+  if (narrowing.type) ask('type', narrowing.type);
   // The endpoint refuses a container without the predicate it is reached by, so half a scope is not
   // a question worth spending a request on.
   if (narrowing.within && narrowing.withinPredicate) {
-    query.set('within', narrowing.within);
-    query.set('withinPredicate', narrowing.withinPredicate);
+    ask('within', narrowing.within);
+    ask('withinPredicate', narrowing.withinPredicate);
   }
-  if (narrowing.includeArchetypes) query.set('includeArchetypes', 'true');
-  if (narrowing.limit !== undefined) query.set('limit', String(narrowing.limit));
-  if (narrowing.properties?.length) query.set('properties', narrowing.properties.join(','));
-  if (narrowing.countOnly) query.set('countOnly', 'true');
-  const suffix = query.toString();
-  return suffix ? `${path}?${suffix}` : path;
+  if (narrowing.includeArchetypes) ask('includeArchetypes', 'true');
+  if (narrowing.limit !== undefined) ask('limit', String(narrowing.limit));
+  if (narrowing.properties?.length) ask('properties', narrowing.properties.join(','));
+  if (narrowing.countOnly) ask('countOnly', 'true');
+  return asked.length ? `${path}?${asked.join('&')}` : path;
+}
+
+/** A value written the way a form sends one, which is what a browser's own query builder writes.
+ *  Written out because that builder exists in a browser and in Node and not in every engine this
+ *  reader runs in. */
+function asInAForm(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    .replace(/[!'()~]/g, (kept) => `%${kept.charCodeAt(0).toString(16).toUpperCase()}`);
 }
