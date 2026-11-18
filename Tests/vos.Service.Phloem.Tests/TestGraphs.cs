@@ -1212,11 +1212,8 @@ public static class TestGraphs
 
     public const string RelateBox = "Balance its energy";
 
-    // A start node hands the run's subject to a relate box standing for the predicate `balancesEnergy`, which names the
-    // connection the platform calls along `notifies`; the box relates the subject along the predicate to that connection's
-    // service and waits for the state the connection is proven by, and Publish runs on what the box hands on.
-    // provesByAState false leaves the connection naming no such state; predicateNamesTheConnection false leaves the
-    // predicate naming none; standsForTheConnection has the box stand for the connection itself.
+    // A start node hands the run's subject to a relate box standing for the predicate `balancesEnergy`, which names
+    // `balancesEnergy connection` along `notifies`, and Publish runs on what the box hands on.
     public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool predicateNamesTheConnection = true,
         bool standsForTheConnection = false, object? waitsAtMostMinutes = null)
     {
