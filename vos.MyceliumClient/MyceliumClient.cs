@@ -283,7 +283,9 @@ public partial class MyceliumClient
             ("type", narrowing.Type),
             ("within", narrowing.Within?.ToString()),
             ("limit", narrowing.Limit?.ToString()),
-            ("properties", narrowing.Properties)));
+            ("properties", narrowing.Properties),
+            ("propertyName", narrowing.PropertyName),
+            ("propertyValue", narrowing.PropertyValue)));
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return JsonDocument.Parse("[]").RootElement;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -291,6 +293,23 @@ public partial class MyceliumClient
         return answer.ValueKind == JsonValueKind.Object
             ? JsonDocument.Parse($"[{answer.GetRawText()}]").RootElement
             : answer;
+    }
+
+    // Null where the model has no range engine yet, which is the platform's 404 on this route.
+    public virtual async Task<JsonElement?> GetModelDeclarationsAsync()
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/model/declarations");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetPropertyTypesAsync()
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/properties/types");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     // Every Thing's resolved properties in one call, keyed by Thing id. `scope` is effective (own and
@@ -974,9 +993,12 @@ public partial class MyceliumClient
 // What a list read may be narrowed by, in the platform's own words: the kind a Thing `is`, the container
 // that reaches it, the most to answer, the properties to send, and the names to look up instead of listing.
 public sealed record ThingListNarrowing(
-    string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null)
+    string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null,
+    string? PropertyName = null, string? PropertyValue = null)
 {
-    public bool IsEmpty => Type is null && Within is null && Limit is null && Properties is null && Names is null;
+    public bool IsEmpty =>
+        Type is null && Within is null && Limit is null && Properties is null && Names is null
+        && PropertyName is null && PropertyValue is null;
 }
 
 public sealed record StateListNarrowing(
