@@ -1579,6 +1579,122 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task A_node_run_and_an_attempt_whose_error_the_model_holds_as_null_read_back_with_no_error()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeRunId = Guid.NewGuid();
+        var attemptId = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, $$$"""
+                {"snapshot":{"things":[
+                  {"id":"{{{runId}}}","name":"PipelineRun","properties":{"error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{pipelineId}}}","name":"Review a submission","properties":{}},
+                  {"id":"{{{nodeRunId}}}","name":"NodeRun Review","properties":{
+                    "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{attemptId}}}","name":"Attempt 1","properties":{
+                    "number":{"typeInfo":"vos.String","value":"1"},
+                    "startedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:00.0000000+00:00"},
+                    "finishedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:01.0000000+00:00"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{hasId}}}","name":"has","properties":{}},
+                  {"id":"{{{ofId}}}","name":"of","properties":{}}],
+                 "relationships":[
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{nodeRunId}}}","predicateId":"{{{hasId}}}","targetId":"{{{attemptId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
+                """)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        record!.Nodes[nodeId].Error.Should().BeNull();
+        record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Error.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("run", "parameters")]
+    [InlineData("run", "status")]
+    [InlineData("run", "callRecordId")]
+    [InlineData("nodeRun", "status")]
+    [InlineData("nodeRun", "outputs")]
+    [InlineData("nodeRun", "error")]
+    [InlineData("nodeRun", "decision")]
+    [InlineData("nodeRun", "index")]
+    [InlineData("nodeRun", "total")]
+    [InlineData("attempt", "number")]
+    [InlineData("attempt", "startedUtc")]
+    [InlineData("attempt", "finishedUtc")]
+    [InlineData("attempt", "status")]
+    [InlineData("attempt", "error")]
+    public async Task A_run_record_reads_a_name_the_model_holds_as_null_as_if_the_Thing_did_not_hold_it(string holder, string name)
+    {
+        var (runId, pipelineId, nodeId, nodeRunId, attemptId, hasId, ofId) =
+            (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        static object Text(string? value) => new { typeInfo = "vos.String", value };
+        Dictionary<string, object> Held(string thing, Dictionary<string, object> properties, bool asNull)
+        {
+            if (thing == holder)
+            {
+                properties.Remove(name);
+                if (asNull) properties[name] = Text(null);
+            }
+            return properties;
+        }
+        string Snapshot(bool asNull) => JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new object[]
+                {
+                    new { id = runId, name = "PipelineRun", properties = Held("run", new()
+                    {
+                        ["parameters"] = Text("{\"site\":7}"), ["status"] = Text("succeeded"), ["callRecordId"] = Text(Guid.NewGuid().ToString()),
+                    }, asNull) },
+                    new { id = pipelineId, name = "Review a submission", properties = new { } },
+                    new { id = nodeRunId, name = "NodeRun Review", properties = Held("nodeRun", new()
+                    {
+                        ["nodeId"] = Text(nodeId.ToString()), ["status"] = Text("failed"), ["outputs"] = Text("{\"out\":1}"),
+                        ["error"] = Text("east is dry"), ["decision"] = Text(Guid.NewGuid().ToString()),
+                    }, asNull) },
+                    new { id = attemptId, name = "Attempt 1", properties = Held("attempt", new()
+                    {
+                        ["number"] = Text("1"), ["startedUtc"] = Text("2026-10-15T12:00:00.0000000+00:00"),
+                        ["finishedUtc"] = Text("2026-10-15T12:00:01.0000000+00:00"), ["status"] = Text("failed"), ["error"] = Text("east is dry"),
+                    }, asNull) },
+                    new { id = hasId, name = "has", properties = new { } },
+                    new { id = ofId, name = "of", properties = new { } },
+                },
+                relationships = new[]
+                {
+                    new { id = Guid.NewGuid(), subjectId = runId, predicateId = hasId, targetId = nodeRunId, properties = new { } },
+                    new { id = Guid.NewGuid(), subjectId = nodeRunId, predicateId = hasId, targetId = attemptId, properties = new { } },
+                    new { id = Guid.NewGuid(), subjectId = runId, predicateId = ofId, targetId = pipelineId, properties = new { } },
+                },
+            },
+        });
+        async Task<string> ReadAsync(bool asNull)
+        {
+            var snapshot = Snapshot(asNull);
+            var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.OK, snapshot)
+                : RespondLikeAModelThatBindsItsRoles(request));
+            var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+            return string.Join("|", record!.Status, record.Parameters.ValueKind, record.CallRecordId is not null,
+                string.Join(";", record.Nodes.Values.Select(node => $"{node.Status},{node.Error ?? "<none>"},{node.Decision is not null},{node.Number},{node.Outputs.Count}," +
+                    string.Join("+", node.AttemptsMade.Select(attempt => $"{attempt.Number}/{attempt.Status}/{attempt.Error ?? "<none>"}")))));
+        }
+
+        (await ReadAsync(asNull: true)).Should().Be(await ReadAsync(asNull: false));
+    }
+
+    [Fact]
     public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_with_its_number_and_the_first_count()
     {
         var runId = Guid.NewGuid();

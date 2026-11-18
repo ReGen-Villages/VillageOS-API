@@ -86,6 +86,36 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
             "the platform answers the relate box once the study is worked out");
     }
 
+    [FactAgainstTheEngine]
+    public async Task A_waiting_box_written_with_no_error_reads_back_with_none()
+    {
+        var drawing = await DrawAsync();
+        var study = await AStudyAsync(drawing);
+
+        var run = await RunAsync(drawing, study);
+
+        var record = await Gateway().ReadRunRecordAsync(run.RunId, CancellationToken.None);
+        record!.Nodes[drawing.Relate].Status.Should().Be(RunStatus.Waiting);
+        record.Nodes[drawing.Relate].Error.Should().BeNull();
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_box_resumed_from_its_record_carries_no_error_on_a_wire_from_its_error_port()
+    {
+        var drawing = await DrawAsync(errorPortCarriesOnSuccess: true);
+        var study = await AStudyAsync(drawing);
+        var run = await RunAsync(drawing, study);
+
+        var resumed = await new PipelineExecutor(Gateway(), NullLogger<PipelineExecutor>.Instance, new ModelClock())
+            .ResumeAsync(run.RunId, drawing.Relate, CancellationToken.None);
+
+        resumed.Should().Be(ResumeOutcome.Resumed);
+        var result = JsonDocument.Parse((await _engine.ValueOfAsync(run.RunId, ModelNames.Result))!).RootElement;
+        result.GetProperty(Problem).ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    private const string Problem = "problem";
+
     private sealed record Drawing(Guid Pipeline, Guid Relate, Guid Connection, Guid Service, Guid WorkedOut, Guid StudyKind);
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
@@ -114,7 +144,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
 
     // The vocabulary and the kinds are written once per engine; each case draws its own pipeline and connection,
     // because each case has a service listening on a port of its own.
-    private async Task<Drawing> DrawAsync()
+    private async Task<Drawing> DrawAsync(bool errorPortCarriesOnSuccess = false)
     {
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
@@ -232,6 +262,8 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         }
         await WireAsync(start, subjectOut, relate, await _engine.TheOnlyThingNamedAsync(RelateThingIn));
         await WireAsync(relate, await _engine.TheOnlyThingNamedAsync(RelateThingOut), end, endIn);
+        if (errorPortCarriesOnSuccess)
+            await WireAsync(relate, await _engine.TheOnlyThingNamedAsync("error"), end, await PortAsync(end, Problem, ModelNames.DirectionIn));
 
         return new Drawing(pipeline, relate, connection, service, stateWorkedOut, studyArchetype);
     }
