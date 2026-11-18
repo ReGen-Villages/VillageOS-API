@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { NodeInspector } from './NodeInspector';
 import type { PipelineNodeData } from './PipelineNodeView';
 import type { VosThing } from '@tendril-ui/tendril';
@@ -15,11 +15,14 @@ const site = thing('site', 'North field');
 const names = new Map([nearest, cheapest, site].map((t) => [t.Id, t.Name]));
 const SEARCH_THE_OFFERED_KINDS = 'Search every Thing of the kinds the ports offer, not only what they offer';
 
+const NO_WAIT_CHOICES = { states: [], predicatesFrom: () => [] };
+
 function inspect(nodeId: string, data: PipelineNodeData, handlers: Partial<Parameters<typeof NodeInspector>[0]> = {}) {
   render(<NodeInspector nodeId={nodeId} data={data} wiredInputs={new Set()}
     offeredByPort={{}} widerList={[nearest, cheapest, site]} onWiden={vi.fn()} nameOf={(id) => names.get(id) ?? id}
     standsForOptions={[]} onSetStandsFor={vi.fn()}
-    onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} {...handlers} />);
+    onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()}
+    waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} onClose={vi.fn()} {...handlers} />);
 }
 
 const passing = (prefix: string, portName: string) =>
@@ -209,7 +212,8 @@ describe('NodeInspector', () => {
 
     const { unmount } = render(<NodeInspector nodeId="decide" data={decide({ choices })} wiredInputs={new Set()}
       offeredByPort={offering.offeredByPort} widerList={[nearest, cheapest, site]} onWiden={onWiden} nameOf={(id) => names.get(id) ?? id}
-      standsForOptions={[]} onSetStandsFor={vi.fn()} onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} />);
+      standsForOptions={[]} onSetStandsFor={vi.fn()} onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()}
+      waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} onClose={vi.fn()} />);
     expect(onWiden).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
@@ -239,5 +243,50 @@ describe('NodeInspector', () => {
     fireEvent.click(screen.getByLabelText('Stop comparing with North field'));
 
     expect(onSetChoices).toHaveBeenCalledWith('decide', [{ ...accept, comparesWith: ['s1'] }]);
+  });
+});
+
+describe('a wait box in the inspector', () => {
+  const states = [
+    { id: 'discovered', name: 'Discovered', judgedKindId: 'site-kind', judgedKindName: 'Site' },
+    { id: 'decided', name: 'Decided', judgedKindId: 'submission-kind', judgedKindName: 'Submission' },
+  ];
+  const decidedBy = thing('decided-by', 'decidedBy');
+  const locatedIn = thing('located-in', 'locatedIn');
+  const predicatesFrom = (kindId: string | undefined) => (kindId === 'submission-kind' ? [decidedBy] : [decidedBy, locatedIn]);
+  const waitBox = (waitsFor?: string, follows?: string): PipelineNodeData =>
+    ({ label: 'Wait', kind: 'wait', ports: [], waitsFor, follows });
+
+  it('offers every state grouped by the kind it judges, and sets the one chosen', () => {
+    const onSetWait = vi.fn();
+    inspect('wait', waitBox(), { waitChoices: { states, predicatesFrom }, onSetWait });
+
+    expect(screen.getByRole('group', { name: 'Site' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Submission' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Waits for' }), { target: { value: 'decided' } });
+    expect(onSetWait).toHaveBeenCalledWith('wait', { waitsFor: 'decided', follows: undefined });
+  });
+
+  it('offers the predicates of the chosen state\'s kind to follow, and keeps one followed that the kind no longer offers', () => {
+    const onSetWait = vi.fn();
+    const nameOf = (id: string) => [decidedBy, locatedIn].find((predicate) => predicate.Id === id)?.Name ?? id;
+    inspect('wait', waitBox('decided', 'located-in'), { waitChoices: { states, predicatesFrom }, onSetWait, nameOf });
+
+    const follows = screen.getByRole('combobox', { name: 'Then follows' });
+    expect(within(follows).getAllByRole('option').map((option) => option.textContent)).toEqual(['nothing chosen', 'locatedIn', 'decidedBy']);
+    fireEvent.change(follows, { target: { value: 'decided-by' } });
+    expect(onSetWait).toHaveBeenCalledWith('wait', { waitsFor: 'decided', follows: 'decided-by' });
+  });
+
+  it('sets the most minutes the box waits, and an empty field waits with no limit', () => {
+    const onSetWait = vi.fn();
+    inspect('wait', { ...waitBox('decided'), waitsAtMostMinutes: 90 }, { waitChoices: { states, predicatesFrom }, onSetWait });
+
+    const limit = screen.getByRole('spinbutton', { name: 'Waits at most (minutes)' });
+    expect(limit).toHaveValue(90);
+    fireEvent.change(limit, { target: { value: '120' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: 120 });
+    fireEvent.change(limit, { target: { value: '' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: undefined });
   });
 });

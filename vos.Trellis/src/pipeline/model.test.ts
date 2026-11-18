@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { PREDICATE_ROLE_ID } from '@tendril-ui/tendril';
 import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
@@ -685,6 +686,48 @@ describe('what a node chose, and what a choice may compare with', () => {
   it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
     expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
     expect(offeringModel().thingsOfKinds([])).toEqual([]);
+  });
+});
+
+describe('what a wait box may wait for and follow', () => {
+  function stateModel(): PipelineModel {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('RANGE', 'Condition', playing(ROLE.Range));
+    T('judges', 'appliesTo', playing(ROLE.JudgedThing));
+    T('ROOT', 'Verb', playing(PREDICATE_ROLE_ID));
+    T('SITE', 'Site'); T('SUBMISSION', 'Submission');
+    things.find((thing) => thing.Id === 'RANGE')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'SITE')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'SUBMISSION')!.IsArchetype = true;
+    T('DISCOVERED', 'Discovered'); R('DISCOVERED', 'is', 'RANGE'); R('DISCOVERED', 'judges', 'SITE');
+    T('AWAITING', 'Awaiting discovery'); R('AWAITING', 'is', 'RANGE'); R('AWAITING', 'judges', 'SITE');
+    T('DECIDED', 'Decided'); R('DECIDED', 'is', 'RANGE'); R('DECIDED', 'judges', 'SUBMISSION');
+    T('LOOSE', 'Judging nothing'); R('LOOSE', 'is', 'RANGE');
+    T('decidedBy', 'decidedBy'); R('decidedBy', 'is', 'ROOT');
+    T('locatedIn', 'locatedIn'); R('locatedIn', 'is', 'ROOT');
+    T('S1', 'A submission'); R('S1', 'is', 'SUBMISSION'); R('S1', 'decidedBy', 'DECIDED');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+
+  it('lists every declared state with the kind it judges, by kind and then name', () => {
+    expect(stateModel().declaredStates().map((state) => [state.judgedKindName, state.name])).toEqual([
+      ['', 'Judging nothing'], ['Site', 'Awaiting discovery'], ['Site', 'Discovered'], ['Submission', 'Decided'],
+    ]);
+  });
+
+  it('offers the predicates relationships from Things of the judged kind run along, leaving out is and has', () => {
+    expect(stateModel().predicatesFollowedFrom('SUBMISSION').map((predicate) => predicate.Name)).toEqual(['decidedBy']);
+  });
+
+  it('offers every Predicate where nothing of the judged kind relates to anything, or no kind is judged', () => {
+    const model = stateModel();
+    expect(model.predicatesFollowedFrom('SITE').map((predicate) => predicate.Name)).toEqual(['decidedBy', 'locatedIn']);
+    expect(model.predicatesFollowedFrom(undefined).map((predicate) => predicate.Name)).toEqual(['decidedBy', 'locatedIn']);
   });
 });
 

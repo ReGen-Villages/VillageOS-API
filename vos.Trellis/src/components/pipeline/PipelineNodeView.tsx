@@ -23,6 +23,10 @@ export interface PipelineNodeData {
   choices?: EditorChoice[];
   chosen?: Record<string, string>;
   rule?: string;
+  waitsFor?: string;
+  follows?: string;
+  waitsAtMostMinutes?: number;
+  waitsForName?: string;
   [key: string]: unknown;
 }
 
@@ -87,6 +91,11 @@ export function PipelineNodeView({ data }: NodeProps) {
         <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
           <span className="uppercase tracking-wide text-[9px] text-zinc-400">{t(END_KIND_LABEL_KEY[d.standsFor.kind])}</span>{' '}
           {d.standsFor.name}
+        </div>
+      )}
+      {d.kind === 'wait' && (
+        <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
+          {d.waitsForName ? t('pipeline.waitingFor', { state: d.waitsForName }) : t('pipeline.waitsForNothing')}
         </div>
       )}
       <div className="flex justify-between gap-4 py-2 text-xs">

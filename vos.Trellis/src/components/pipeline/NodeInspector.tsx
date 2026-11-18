@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PipelineNamed, PortInformation } from '../../pipeline/model';
+import type { DeclaredState, PipelineNamed, PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
 import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
 import type { VosThing } from '@tendril-ui/tendril';
@@ -27,7 +27,16 @@ interface Props {
   onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
   onSetChoices: (nodeId: string, choices: EditorChoice[]) => void;
   onSetRule: (nodeId: string, rule: string | undefined) => void;
+  waitChoices: WaitChoices;
+  onSetWait: (nodeId: string, wait: WaitSetting) => void;
   onClose: () => void;
+}
+
+export type WaitSetting = Partial<Pick<PipelineNodeData, 'waitsFor' | 'follows' | 'waitsAtMostMinutes'>>;
+
+export interface WaitChoices {
+  states: DeclaredState[];
+  predicatesFrom: (kindId: string | undefined) => VosThing[];
 }
 
 const FIELD = 'flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900';
@@ -41,7 +50,7 @@ const NO_FAILURE_REACHED = '$count(failures) = 0';
  *  node holds. */
 export function NodeInspector({
   nodeId, data, wiredInputs, offeredByPort, widerList, onWiden, nameOf, standsForOptions, onSetStandsFor,
-  onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
+  onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, waitChoices, onSetWait, onClose,
 }: Props) {
   const { t } = useTranslation();
   const [searchingChoices, setSearchingChoices] = useState<ReadonlySet<string>>(new Set());
@@ -75,7 +84,9 @@ export function NodeInspector({
         <span className="truncate">{data.label}</span>
         <button onClick={onClose} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
       </div>
-      {data.kind === 'tell' || data.kind === 'followOn' ? (
+      {data.kind === 'wait' ? (
+        <WaitSettings nodeId={nodeId} data={data} choices={waitChoices} nameOf={nameOf} onSetWait={onSetWait} />
+      ) : data.kind === 'tell' || data.kind === 'followOn' ? (
         <PassedOn
           nodeId={nodeId}
           data={data}
@@ -274,6 +285,75 @@ function PassedOn({ nodeId, data, standsForOptions, nameOf, onSetStandsFor, onSe
         onClick={() => onSetPorts(nodeId, [...data.ports, ...passedOn(`port${taken.length + 1}`)])}
         className="mt-1 text-blue-500 hover:text-blue-600 text-left"
       >{t('pipeline.addPort')}</button>
+    </div>
+  );
+}
+
+interface WaitSettingsProperties {
+  nodeId: string;
+  data: PipelineNodeData;
+  choices: WaitChoices;
+  nameOf: (thingId: string) => string;
+  onSetWait: (nodeId: string, wait: WaitSetting) => void;
+}
+
+/** The state a wait box waits for, grouped by the kind each state judges, and the predicate it follows once the
+ *  state is entered. The predicate followed stays listed when another state's kind offers it no longer, because a
+ *  select whose value is not among its options shows the first one instead. */
+function WaitSettings({ nodeId, data, choices, nameOf, onSetWait }: WaitSettingsProperties) {
+  const { t } = useTranslation();
+  const kinds = [...new Set(choices.states.map((state) => state.judgedKindName))];
+  const judged = choices.states.find((state) => state.id === data.waitsFor)?.judgedKindId;
+  const offered = choices.predicatesFrom(judged);
+  const following = data.follows;
+  const predicates = following && !offered.some((predicate) => predicate.Id === following)
+    ? [{ Id: following, Name: nameOf(following), Properties: {} }, ...offered]
+    : offered;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{t('pipeline.waitsFor')}</span>
+        <select
+          aria-label={t('pipeline.waitsFor')}
+          value={data.waitsFor ?? ''}
+          onChange={(e) => onSetWait(nodeId, { waitsFor: e.target.value || undefined, follows: following })}
+          className={FIELD}
+        >
+          <option value="">{t('pipeline.nothingChosen')}</option>
+          {kinds.map((kind) => (
+            <optgroup key={kind} label={kind || t('pipeline.judgesNoKind')}>
+              {choices.states.filter((state) => state.judgedKindName === kind)
+                .map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{t('pipeline.followsAlong')}</span>
+        <select
+          aria-label={t('pipeline.followsAlong')}
+          value={following ?? ''}
+          onChange={(e) => onSetWait(nodeId, { waitsFor: data.waitsFor, follows: e.target.value || undefined })}
+          className={FIELD}
+        >
+          <option value="">{t('pipeline.nothingChosen')}</option>
+          {predicates.map((predicate) => <option key={predicate.Id} value={predicate.Id}>{predicate.Name}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{t('pipeline.waitsAtMostMinutes')}</span>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          aria-label={t('pipeline.waitsAtMostMinutes')}
+          placeholder={t('pipeline.noTimeLimit')}
+          value={data.waitsAtMostMinutes ?? ''}
+          onChange={(e) => onSetWait(nodeId, { waitsAtMostMinutes: e.target.value === '' ? undefined : Number(e.target.value) })}
+          className={FIELD}
+        />
+      </label>
     </div>
   );
 }

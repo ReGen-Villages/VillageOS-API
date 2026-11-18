@@ -11,6 +11,7 @@ import { handStateToOrchestrator } from '../pipeline/handOver';
 import { relationshipApi } from '../api/relationshipApi';
 import type { PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import type { WirePaths } from '../components/pipeline/WireInspector';
+import type { WaitSetting } from '../components/pipeline/NodeInspector';
 import { useEditorHistory } from './useEditorHistory';
 
 let nodeSequence = 0;
@@ -45,7 +46,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       const d = n.data as unknown as PipelineNodeData;
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
       return {
-        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind,
+        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsFor: d.waitsFor,
+        waitsAtMostMinutes: d.waitsAtMostMinutes,
         ...(stood ? { standsFor: { name: stood.name, kind: stood.kind, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
       };
     });
@@ -62,6 +64,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   // it, and a start node says that placing it is not what starts a run.
   const canvasNodes = useMemo(() => nodes.map((n) => {
     const d = n.data as unknown as PipelineNodeData;
+    if (d.kind === 'wait') return { ...n, data: { ...n.data, waitsForName: d.waitsFor ? model.thing(d.waitsFor)?.Name : undefined } };
     if (!d.kind || !d.standsForId) return n;
     const standsFor = model.endInformation(d.standsForId);
     const note = d.kind === 'input' ? t('pipeline.note.startNotCalled') : undefined;
@@ -181,7 +184,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule, waitsFor: d.waitsFor, follows: d.follows, waitsAtMostMinutes: d.waitsAtMostMinutes };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -235,7 +238,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule, waitsFor: n.waitsFor, follows: n.follows, waitsAtMostMinutes: n.waitsAtMostMinutes } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
@@ -290,6 +293,16 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
+  const placeWait = useCallback(() => {
+    place({ label: t('pipeline.outputs.wait'), kind: 'wait', ports: model.resolvePorts(model.boundTo(ROLE.PipelineWait)!) });
+  }, [place, model, t]);
+
+  const setWait = useCallback((nodeId: string, wait: WaitSetting) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...wait } } : n)));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
   // Recorded once when a node drag starts, not on every move, and before a delete, so undo restores the canvas
   // as it was. A delete also marks the canvas changed since the last save.
   const onNodeDragStart = useCallback(() => recordSnapshot(), [recordSnapshot]);
@@ -302,8 +315,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     nodes, edges, setNodes, onNodesChange, onEdgesChange, canvasNodes, canvasEdges, validationIssues,
     name, setName, savedId, editingPipelineId, busy, thingIdByCanvasId, currentNodes,
     canUndo: history.canUndo, dirty: history.dirty, onUndo: history.onUndo,
-    save, load, startNew, place, addNode, placeStart, placeOutput, handOver,
-    setEdgePath, setEdgeTakenOn, setDeclaredPorts, setStandsFor, onConnect, setBinding, setChosen, setChoices, setRule,
+    save, load, startNew, place, addNode, placeStart, placeOutput, placeWait, handOver,
+    setEdgePath, setEdgeTakenOn, setDeclaredPorts, setStandsFor, onConnect, setBinding, setChosen, setChoices, setRule, setWait,
     onNodeDragStart, onNodesDelete, onEdgesDelete,
   };
 }

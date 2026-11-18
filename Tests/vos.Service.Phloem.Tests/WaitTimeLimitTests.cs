@@ -82,6 +82,21 @@ public class WaitTimeLimitTests
         setup.Gateway.Records[(runId, setup.Box.Wait.Id)].Status.Should().Be(RunStatus.Waiting);
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"\"")]
+    [InlineData("\"   \"")]
+    public async Task A_wait_whose_limit_is_written_empty_waits_without_one(string written)
+    {
+        var setup = Arrange(waitsAtMostMinutes: JsonDocument.Parse(written).RootElement);
+
+        var runId = await AWaitingRunAsync(setup);
+
+        setup.Gateway.Records[(runId, setup.Box.Wait.Id)].Status.Should().Be(RunStatus.Waiting);
+        setup.Gateway.Watches[(runId, setup.Box.Wait.Id)].Until.Should().BeNull();
+        setup.Executor.WaitsHeldWithATimeLimit.Should().Be(0);
+    }
+
     [Fact]
     public async Task A_stopped_run_lets_go_of_its_waits_deadline()
     {

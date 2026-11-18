@@ -15,6 +15,7 @@ import i18n from '../i18n';
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
 const BOOLEAN: VosTypeName = 'vos.Boolean';
+const INTEGER: VosTypeName = 'vos.Integer';
 const env = (typeInfo: VosTypeName, value: unknown) => ({ typeInfo, value });
 
 export interface EditorNode {
@@ -37,6 +38,10 @@ export interface EditorNode {
   chosen?: Record<string, string>;
   /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
   rule?: string;
+  /** A wait box's state, and the predicate whose reached Things it hands on once the state is entered. */
+  waitsFor?: string;
+  follows?: string;
+  waitsAtMostMinutes?: number;
 }
 
 export type EditorChoice = ChoiceInformation;
@@ -111,6 +116,7 @@ export async function savePipeline(
     : [];
   await saveWires(edges, nodes, nodeThingId, persistedNodeIds, roles, model);
   await relateEachChoice(nodes, nodeThingId, model);
+  await relateEachWait(nodes, nodeThingId, model);
   await retractWhatTheCanvasDropped(fragment, nodeThingId, persistedNodeIds, model);
 
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
@@ -171,6 +177,10 @@ function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles 
   const comparesWithId = model.boundTo(ROLE.ComparesWith);
   if (nodes.some((n) => n.choices?.some((choice) => choice.comparesWith.length)) && !comparesWithId)
     throw new Error(i18n.t('pipeline.noComparesWithRole'));
+  const waits = nodes.filter((n) => n.kind === 'wait');
+  if ((waits.length > 0 && (!model.boundTo(ROLE.CompletionRange) || !model.boundTo(ROLE.AwaitsThrough)))
+      || (waits.some((n) => n.follows) && !model.boundTo(ROLE.ReachedAlong)))
+    throw new Error(i18n.t('pipeline.noWaitRoles'));
 
   return {
     isId, hasId, wireId, pipelineArchetype, nodeArchetype, wireArchetype, inputConnector, outputConnector, takenOnId,
@@ -205,6 +215,11 @@ function pipelineFragment(
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
+    if (n.kind === 'wait') {
+      // A fragment keeps a value it leaves out, so a cleared limit is written empty, and the orchestrator reads empty as none.
+      if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
+      else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
+    }
     fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
@@ -357,6 +372,17 @@ async function retractWhatTheCanvasDropped(
     }
 }
 
+async function relateEachWait(nodes: EditorNode[], nodeThingId: Map<string, string>, model: PipelineModel): Promise<void> {
+  for (const n of nodes) {
+    if (n.kind !== 'wait') continue;
+    const thingId = nodeThingId.get(n.id)!;
+    const inPort = n.ports.find((port) => port.direction === 'in');
+    await relateToExactly(thingId, ROLE.CompletionRange, n.waitsFor ? [n.waitsFor] : [], model);
+    await relateToExactly(thingId, ROLE.AwaitsThrough, inPort ? [inPort.portId] : [], model);
+    await relateToExactly(thingId, ROLE.ReachedAlong, n.follows ? [n.follows] : [], model);
+  }
+}
+
 async function relateToExactly(subjectId: string, roleId: string, wanted: string[], model: PipelineModel): Promise<void> {
   const held = model.relationshipsAndTargetsAlong(subjectId, roleId);
   const reached = new Set(held.map((relationship) => relationship.thingId));
@@ -378,6 +404,13 @@ function parseParameterBindings(raw: unknown): Record<string, string> | undefine
   } catch {
     return undefined;
   }
+}
+
+// A template may write the limit as text; text that is no number is kept as NaN so validation reports it.
+function minutesOf(raw: unknown): number | undefined {
+  if (typeof raw === 'number') return raw;
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  return Number(raw);
 }
 
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
@@ -402,9 +435,13 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       const stood = model.standsFor(t.Id);
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
       const ports = portsAreTheKinds(kind) ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
+      const wait = kind === 'wait' ? model.waitOf(t.Id) : undefined;
+      const limit = kind === 'wait' ? minutesOf(stated.waitsAtMostMinutes) : undefined;
       return {
         ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),
+        ...(wait?.state ? { waitsFor: wait.state.thingId } : {}), ...(wait?.follows ? { follows: wait.follows.thingId } : {}),
+        ...(limit !== undefined ? { waitsAtMostMinutes: limit } : {}),
       };
     }
 
