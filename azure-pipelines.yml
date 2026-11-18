@@ -299,6 +299,11 @@ jobs:
     workingDirectory: tools/pipeline-playground
     condition: always()
 
+  - script: python3 -m unittest discover
+    displayName: 'Test test-seed'
+    workingDirectory: tools/test-seed
+    condition: always()
+
   # The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
   # lint errors accumulated across the pages, panels and hooks with nothing to fail, and the
   # GUI test suite — the guard for the binding resolver, the property panels and the live-update path
