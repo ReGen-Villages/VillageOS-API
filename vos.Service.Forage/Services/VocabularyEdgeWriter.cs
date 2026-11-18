@@ -57,26 +57,63 @@ public sealed class VocabularyEdgeWriter
                 unresolved.Source, unresolved.Word, unresolved.SubjectName,
                 unresolved.Property, unresolved.Vocabulary);
 
-        var written = new List<PlannedVocabularyEdge>();
-        var notWritten = new List<PlannedVocabularyEdge>();
+        var (written, notWritten, refused, faulted) = (new List<PlannedVocabularyEdge>(), new List<PlannedVocabularyEdge>(), new List<RefusedWord>(), new List<RefusedWord>());
+        var unknown = resolution.Unresolved.ToList();
         foreach (var edge in resolution.Edges)
-            (await WriteAsync(edge, cancellationToken) ? written : notWritten).Add(edge);
-        return new WordsResolved(written, notWritten, resolution.Unresolved);
+        {
+            var outcome = await _mycelium.WriteRelationshipAsync(
+                $"'{edge.Word}' for {edge.SubjectName}", edge.SubjectId, edge.PredicateId, edge.MemberId,
+                edge.ReplacedMemberIds, cancellationToken);
+            switch (outcome.Answer)
+            {
+                case WriteAnswer.Written:
+                    _logger.LogInformation("Resolved '{Word}' into an edge for {Subject}", edge.Word, edge.SubjectName);
+                    written.Add(edge);
+                    break;
+                case WriteAnswer.Refused:
+                    _logger.LogWarning("The platform refused relating {Subject} to the member '{Word}' names, and will refuse it "
+                        + "again: {Reason}", edge.SubjectName, edge.Word, outcome.Reason);
+                    refused.Add(new RefusedWord(edge, outcome.Reason ?? string.Empty));
+                    break;
+                case WriteAnswer.Rejected:
+                    switch (await WhatARejectionMeansAsync(edge, fetched, cancellationToken))
+                    {
+                        case (Rejection.TheWriteItself, _):
+                            faulted.Add(new RefusedWord(edge, outcome.Reason ?? string.Empty));
+                            break;
+                        case (Rejection.TheWordNamesNoMemberNow, { } gone):
+                            unknown.Add(gone);
+                            break;
+                        default:
+                            notWritten.Add(edge);
+                            break;
+                    }
+                    break;
+                default:
+                    _logger.LogError("Could not relate {Subject} to the member '{Word}' names: {Reason}",
+                        edge.SubjectName, edge.Word, outcome.Reason);
+                    notWritten.Add(edge);
+                    break;
+            }
+        }
+        return new WordsResolved(written, notWritten, unknown) { Refused = refused, Faulted = faulted };
     }
 
-    private async Task<bool> WriteAsync(PlannedVocabularyEdge edge, CancellationToken cancellationToken)
-    {
-        if (await _mycelium.WriteRelationshipAsync(
-                $"'{edge.Word}' for {edge.SubjectName}", edge.SubjectId, edge.PredicateId, edge.MemberId,
-                edge.ReplacedMemberIds, cancellationToken))
-        {
-            _logger.LogInformation("Resolved '{Word}' into an edge for {Subject}", edge.Word, edge.SubjectName);
-            return true;
-        }
+    private enum Rejection { TheWriteItself, TheModelChangedSinceTheRead, TheWordNamesNoMemberNow }
 
-        _logger.LogError("Could not relate {Subject} to the member '{Word}' names; the word stays "
-            + "unresolved until the next discovery run", edge.SubjectName, edge.Word);
-        return false;
+    // A 400 carries only words, so the model read again tells a write that lost a race from one that is malformed.
+    private async Task<(Rejection, UnresolvedWord?)> WhatARejectionMeansAsync(
+        PlannedVocabularyEdge edge, IReadOnlyList<FetchedWords> fetched, CancellationToken cancellationToken)
+    {
+        var forSubject = fetched.Where(words => words.SubjectId == edge.SubjectId).ToList();
+        if (await ReadDeclarationsAsync(forSubject, cancellationToken) is not { } snapshot) return (Rejection.TheModelChangedSinceTheRead, null);
+
+        var again = DiscoveredVocabularyResolver.Resolve(snapshot, forSubject);
+        if (again.Edges.Any(planned => planned.Word == edge.Word && planned.PredicateId == edge.PredicateId && planned.MemberId == edge.MemberId))
+            return (Rejection.TheWriteItself, null);
+        return again.Unresolved.FirstOrDefault(word => word.Word == edge.Word && word.SubjectName == edge.SubjectName) is { } gone
+            ? (Rejection.TheWordNamesNoMemberNow, gone)
+            : (Rejection.TheModelChangedSinceTheRead, null);
     }
 
     private async Task<SnapshotDocument?> ReadDeclarationsAsync(
@@ -103,4 +140,10 @@ public sealed class VocabularyEdgeWriter
 public sealed record WordsResolved(
     IReadOnlyList<PlannedVocabularyEdge> Written,
     IReadOnlyList<PlannedVocabularyEdge> NotWritten,
-    IReadOnlyList<UnresolvedWord> Unknown);
+    IReadOnlyList<UnresolvedWord> Unknown)
+{
+    public IReadOnlyList<RefusedWord> Refused { get; init; } = [];
+    public IReadOnlyList<RefusedWord> Faulted { get; init; } = [];
+}
+
+public sealed record RefusedWord(PlannedVocabularyEdge Edge, string Reason);

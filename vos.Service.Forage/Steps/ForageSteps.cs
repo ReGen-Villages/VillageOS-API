@@ -36,7 +36,10 @@ public sealed class ForageSteps : DagNodeService
             PortDescriptor.Output("resolved", "object"), PortDescriptor.Output("unresolved", "object"),
         ]),
         new(ResolveWords, "resolve words",
-            [PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"), PortDescriptor.Output("unknownWords", "object")]),
+        [
+            PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"),
+            PortDescriptor.Output("unknownWords", "object"), PortDescriptor.Output("refusedWords", "object"),
+        ]),
         new(MarkDiscovered, "mark discovered",
         [
             PortDescriptor.Input("site", "object"),
@@ -166,7 +169,15 @@ public sealed class ForageSteps : DagNodeService
         {
             ["written"] = Json(words.Written.Select(Relationship)),
             ["unknownWords"] = Json(words.Unknown),
+            ["refusedWords"] = Json(words.Refused.Select(refused => new
+            {
+                subjectId = refused.Edge.SubjectId, subject = refused.Edge.SubjectName, word = refused.Edge.Word, reason = refused.Reason,
+            })),
         };
+        if (words.Faulted.Count > 0)
+            throw new InvalidOperationException(
+                "The platform rejected the relationships for: "
+                + string.Join("; ", words.Faulted.Select(faulted => $"'{faulted.Edge.Word}' on {faulted.Edge.SubjectName}: {faulted.Reason}")) + ".");
         if (words.NotWritten.Count > 0)
             throw new FailureCanBeTriedAgainException(
                 "Could not write the relationships for: " + string.Join(", ", words.NotWritten.Select(edge => $"'{edge.Word}' on {edge.SubjectName}")) + ".",

@@ -100,9 +100,33 @@ public class MyceliumRelationshipClientTests
         var related = await Client(handler, logger).WriteRelationshipAsync(
             "'steady' for Willow Bend spring", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), [], default);
 
-        related.Should().BeFalse();
+        related.Should().Be(new WriteOutcome(WriteAnswer.Rejected, "A Thing cannot be related to itself."));
         logger.Lines.Should().ContainSingle().Which.Should()
             .Contain("BadRequest").And.Contain("related to itself",
                 "a refusal logged without its reason cannot be told apart from any other");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, WriteAnswer.Refused)]
+    [InlineData(HttpStatusCode.BadRequest, WriteAnswer.Rejected)]
+    [InlineData(HttpStatusCode.Unauthorized, WriteAnswer.Unanswered)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, WriteAnswer.Unanswered)]
+    public async Task WriteRelationshipAsync_AnswersWhatTheStatusMeansWithThePlatformsWords(HttpStatusCode status, WriteAnswer answer)
+    {
+        var handler = new MockHttpMessageHandler(_ => Json(status, """{"error":"the platform's words"}"""));
+
+        var related = await Client(handler).WriteRelationshipAsync("'steady' for Willow Bend spring", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), [], default);
+
+        related.Should().Be(new WriteOutcome(answer, "the platform's words"));
+    }
+
+    [Fact]
+    public async Task WriteRelationshipAsync_ATransportFailureIsUnanswered()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("connection refused"));
+
+        var related = await Client(handler).WriteRelationshipAsync("'steady' for Willow Bend spring", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), [], default);
+
+        related.Answer.Should().Be(WriteAnswer.Unanswered);
     }
 }

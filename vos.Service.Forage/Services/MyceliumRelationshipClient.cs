@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using vos.Service.Shared;
 
@@ -16,9 +17,9 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
 
-    public Task<bool> WriteCoverageAsync(
+    public async Task<bool> WriteCoverageAsync(
         Guid coverageId, string name, IReadOnlyList<(Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken) =>
-        PostFragmentAsync(name, new
+        (await PostFragmentAsync(name, new
         {
             name,
             things = new[] { new { id = coverageId, name } },
@@ -28,10 +29,10 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
                 predicate = relationship.Predicate,
                 target = relationship.Target,
             }),
-        }, cancellationToken);
+        }, cancellationToken)).Answer == WriteAnswer.Written;
 
     // Each replaced relationship is removed in the same write, so the subject never ends with both or with neither.
-    public Task<bool> WriteRelationshipAsync(
+    public Task<WriteOutcome> WriteRelationshipAsync(
         string name, Guid subjectId, Guid predicateId, Guid targetId, IReadOnlyList<Guid> replacedTargetIds,
         CancellationToken cancellationToken) =>
         PostFragmentAsync(name, new
@@ -41,9 +42,10 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
             retractions = replacedTargetIds.Select(replaced => new { subject = subjectId, predicate = predicateId, target = replaced }),
         }, cancellationToken);
 
-    public Task<bool> RelateAsync(
+    public async Task<bool> RelateAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
-        WriteRelationshipAsync($"{subjectId} -{predicateId}-> {targetId}", subjectId, predicateId, targetId, [], cancellationToken);
+        (await WriteRelationshipAsync($"{subjectId} -{predicateId}-> {targetId}", subjectId, predicateId, targetId, [], cancellationToken))
+        .Answer == WriteAnswer.Written;
 
     // A Fact rather than an Observation: a run asserts what its own call came to, and nothing samples it
     // from a provider. The properties are declared FactOnly, so an observation would be refused.
@@ -62,22 +64,50 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         }
     }
 
-    private async Task<bool> PostFragmentAsync(string name, object fragment, CancellationToken cancellationToken)
+    private async Task<WriteOutcome> PostFragmentAsync(string name, object fragment, CancellationToken cancellationToken)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
             var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/model/fragment", fragment, cancellationToken);
-            if (response.IsSuccessStatusCode) return true;
+            if (response.IsSuccessStatusCode) return new WriteOutcome(WriteAnswer.Written);
 
-            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode,
-                await response.Content.ReadAsStringAsync(cancellationToken));
-            return false;
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode, body);
+            var reason = ErrorIn(body) ?? $"{(int)response.StatusCode}: {body}";
+            return response.StatusCode switch
+            {
+                HttpStatusCode.Forbidden => new WriteOutcome(WriteAnswer.Refused, reason),
+                HttpStatusCode.BadRequest => new WriteOutcome(WriteAnswer.Rejected, reason),
+                _ => new WriteOutcome(WriteAnswer.Unanswered, reason),
+            };
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "Error writing {Name}", name);
-            return false;
+            return new WriteOutcome(WriteAnswer.Unanswered, exception.Message);
+        }
+    }
+
+    private static string? ErrorIn(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String
+                ? error.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 }
+
+// Refused is a 403, which no retry passes; Rejected is a 400, whose cause only the model can tell; Unanswered is
+// anything a later try may pass.
+public enum WriteAnswer { Written, Refused, Rejected, Unanswered }
+
+public sealed record WriteOutcome(WriteAnswer Answer, string? Reason = null);
