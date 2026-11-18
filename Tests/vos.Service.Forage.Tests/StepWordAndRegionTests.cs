@@ -61,9 +61,11 @@ public class StepWordAndRegionTests
         written = new { flowRegime = word },
     };
 
-    private static Func<HttpRequestMessage, HttpResponseMessage> Catchment(Dictionary<string, Guid> ids, bool refuseRelating = false) => request =>
+    private static Func<HttpRequestMessage, HttpResponseMessage> Catchment(Dictionary<string, Guid> ids, HttpStatusCode? relatingAnswered = null) => request =>
         RelationshipWrite.In(request) is not null
-            ? refuseRelating ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") } : Ok("{}")
+            ? relatingAnswered is { } status
+                ? new HttpResponseMessage(status) { Content = new StringContent("""{"error":"the platform's words"}""", Encoding.UTF8, "application/json") }
+                : Ok("{}")
             : RouteSnapshotRead(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes()) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
 
     [Fact]
@@ -84,15 +86,41 @@ public class StepWordAndRegionTests
     }
 
     [Fact]
-    public async Task Resolve_words_whose_relationship_the_model_refuses_answers_a_failure_that_may_be_tried_again()
+    public async Task Resolve_words_whose_relationship_the_platform_did_not_answer_answers_a_failure_that_may_be_tried_again()
     {
         var ids = CatchmentIds();
 
-        var answer = await StepAsync(Catchment(ids, refuseRelating: true), "resolveWords", new { resolved = new[] { Resolved(ids, "steady") } });
+        var answer = await StepAsync(Catchment(ids, HttpStatusCode.ServiceUnavailable), "resolveWords", new { resolved = new[] { Resolved(ids, "steady") } });
 
         answer.GetProperty("result").GetString().Should().Be("fail");
         answer.TryGetProperty("retry", out _).Should().BeTrue();
         answer.GetProperty("error").GetString().Should().Be("Could not write the relationships for: 'steady' on WillowBend.");
+    }
+
+    [Fact]
+    public async Task Resolve_words_whose_relationship_the_platform_refuses_for_good_reports_it_and_succeeds()
+    {
+        var ids = CatchmentIds();
+
+        var answer = await StepAsync(Catchment(ids, HttpStatusCode.Forbidden), "resolveWords", new { resolved = new[] { Resolved(ids, "steady") } });
+
+        answer.GetProperty("result").GetString().Should().Be("success");
+        var refused = answer.GetProperty("outputs").GetProperty("refusedWords").EnumerateArray().Should().ContainSingle().Subject;
+        refused.GetProperty("word").GetString().Should().Be("steady");
+        refused.GetProperty("subject").GetString().Should().Be("WillowBend");
+        refused.GetProperty("reason").GetString().Should().Be("the platform's words");
+    }
+
+    [Fact]
+    public async Task Resolve_words_whose_relationship_is_rejected_while_it_still_resolves_fails_at_once_with_the_platforms_words()
+    {
+        var ids = CatchmentIds();
+
+        var answer = await StepAsync(Catchment(ids, HttpStatusCode.BadRequest), "resolveWords", new { resolved = new[] { Resolved(ids, "steady") } });
+
+        answer.GetProperty("result").GetString().Should().Be("fail");
+        answer.TryGetProperty("retry", out _).Should().BeFalse();
+        answer.GetProperty("error").GetString().Should().Contain("'steady' on WillowBend").And.Contain("the platform's words");
     }
 
     private const string AreaNameEndpoint = "area-name-at-position";
