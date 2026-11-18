@@ -11,7 +11,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole(console => console.LogToStandardErrorThreshold = LogLevel.Trace);
 
 builder.Services
-    .AddPlatformServer(new MyceliumClient(options.MyceliumUrl, options.ApiKey, ServerProgram.Name))
+    .AddPlatformServer(ServerProgram.ClientFor(options.MyceliumUrl, options.ApiKey))
     .WithStdioServerTransport();
 
 await builder.Build().RunAsync();

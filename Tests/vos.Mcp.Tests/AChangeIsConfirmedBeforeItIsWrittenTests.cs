@@ -91,6 +91,26 @@ public class AChangeIsConfirmedBeforeItIsWrittenTests
     }
 
     [Fact]
+    public async Task A_change_that_is_no_longer_what_the_person_was_shown_is_shown_again_before_it_is_written()
+    {
+        var chatApplication = AChatApplicationThatAsksThePerson(AnswersACallWithInputRequired, "accept");
+        var asking = chatApplication.Handlers.ElicitationHandler!;
+        chatApplication.Handlers.ElicitationHandler = (asked, cancellationToken) =>
+        {
+            if (_shownToThePerson.Count == 0) _name = "Reservoir";
+            return asking(asked, cancellationToken);
+        };
+        await using var server = await StartAsync(
+            MyceliumFor(() => "editor", AModelHoldingTheThing), chatApplication, toolTypes: typeof(SampleTools));
+
+        var answer = await server.Client.CallToolAsync("sample_delete", TheThing());
+
+        _shownToThePerson.Should().Equal("Delete the Thing named Spring.", "Delete the Thing named Reservoir.");
+        TextOf(answer).Should().Be("deleted");
+        Deletions(server).Should().Be(1);
+    }
+
+    [Fact]
     public async Task An_older_chat_application_is_sent_the_older_request()
     {
         await using var server = await StartAsync(
