@@ -189,12 +189,14 @@ public class DeclaredVocabularyReaderTests
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.LandCoverClass,
             LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
             LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
             LandIntakeRoles.PlaceNesting));
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.LandCoverClass));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
             SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
@@ -247,6 +249,20 @@ public class DeclaredVocabularyReaderTests
     public void A_model_declaring_no_soil_depths_reads_none_rather_than_refusing()
     {
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_model_declaring_land_cover_classes_reads_them_and_one_declaring_none_reads_none()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("LandCoverClass").Bound(LandIntakeRoles.LandCoverClass, "LandCoverClass")
+            .With("cropland").Relate("cropland", "is", "LandCoverClass");
+
+        var classes = DeclaredVocabularyReader.Read(model.Build()).LandCoverClasses;
+
+        classes!.Terms.Select(term => term.Name).Should().Equal("cropland");
+        classes.Predicate.Id.Should().Be(model.Id("assesses"));
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).LandCoverClasses.Should().BeNull();
     }
 
     [Fact]

@@ -242,17 +242,23 @@ public static class SubmissionFragmentComposer
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
 
-        // Discovery reads a site's soil once per horizon the site has, as it grades a hazard once per assessment.
-        if (archetypes.SoilHorizon is { } horizonArchetype && vocabulary.SoilDepths is { } soilDepths)
-            foreach (var depth in soilDepths.Terms)
+        // A site's soil and land cover are read once per Thing it holds for each term, as a hazard is graded once per assessment.
+        void OnePerTerm(DeclaredTerm? archetype, DeclaredTerms? declared, string kind)
+        {
+            if (archetype is null || declared is null) return;
+            foreach (var term in declared.Terms)
             {
-                var horizon = new NamedThing(
-                    StableIdentity.Derive(submissionId, $"soil:{Key(depth.Name)}"), $"{siteName} {depth.Name}");
-                things.Add(new FragmentThing(horizon.Id, horizon.Name, new Dictionary<string, TypedValue>()));
-                Relate(siteThing, predicates.Has, horizon);
-                BeArchetype(horizon, horizonArchetype);
-                RelateToTerm(horizon, soilDepths, depth);
+                var held = new NamedThing(
+                    StableIdentity.Derive(submissionId, $"{kind}:{Key(term.Name)}"), $"{siteName} {term.Name}");
+                things.Add(new FragmentThing(held.Id, held.Name, new Dictionary<string, TypedValue>()));
+                Relate(siteThing, predicates.Has, held);
+                BeArchetype(held, archetype);
+                RelateToTerm(held, declared, term);
             }
+        }
+
+        OnePerTerm(archetypes.SoilHorizon, vocabulary.SoilDepths, "soil");
+        OnePerTerm(archetypes.LandCoverShare, vocabulary.LandCoverClasses, "landcover");
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",
