@@ -115,4 +115,9 @@ public interface IMyceliumGateway
     Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken);
 
     Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken cancellationToken);
+
+    Task<RunsToJudge> RunsToJudgeAsync(CancellationToken cancellationToken);
+
+    // Two levels along `has`, because a run holds its node runs and they hold their attempts.
+    Task<int> ClearRunAsync(Guid runId, CancellationToken cancellationToken);
 }
