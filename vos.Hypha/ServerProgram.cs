@@ -9,7 +9,7 @@ public static class ServerProgram
     public const string Name = "Hypha";
 
     public static MyceliumClient ClientFor(
-        string myceliumUrl, string? apiKey, HttpClient? transport = null, Func<DateTime>? clock = null) =>
+        string myceliumUrl, string? apiKey, HttpMessageHandler? transport = null, Func<DateTime>? clock = null) =>
         transport is null
             ? new MyceliumClient(myceliumUrl, apiKey, Name)
             : new MyceliumClient(myceliumUrl, apiKey, transport, clock, programName: Name);

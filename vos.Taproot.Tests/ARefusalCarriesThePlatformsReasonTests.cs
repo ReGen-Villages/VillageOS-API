@@ -141,7 +141,7 @@ public class ARefusalCarriesThePlatformsReasonTests
                 Content = new StringContent(
                     $$"""{"error":"{{ThePlatformsReason}}"}""", Encoding.UTF8, "application/json"),
             });
-        return new MyceliumClient("https://localhost:7243", "an-api-key", new HttpClient(handler));
+        return new MyceliumClient("https://localhost:7243", "an-api-key", handler);
     }
 
     private static IEnumerable<string> TaprootSources() =>
