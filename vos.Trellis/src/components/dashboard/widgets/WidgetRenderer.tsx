@@ -26,6 +26,7 @@ import { PolarShares } from './PolarShares';
 import { DensityGrid } from './DensityGrid';
 import { GridMap } from './GridMap';
 import { ProfileLine } from './ProfileLine';
+import { RaisedSurface } from './RaisedSurface';
 import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
 import { StackedShares } from './StackedShares';
@@ -87,6 +88,8 @@ export function WidgetRenderer({
       return <GridMap widget={widget} context={context} />;
     case 'profileLine':
       return <ProfileLine widget={widget} context={context} />;
+    case 'raisedSurface':
+      return <RaisedSurface widget={widget} context={context} />;
     case 'lineSeries':
       return <LineSeries widget={widget} context={context} />;
     case 'heatmap':

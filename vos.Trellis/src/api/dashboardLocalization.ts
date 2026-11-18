@@ -13,6 +13,7 @@ import type {
   DensityGridWidget,
   GridMapWidget,
   ProfileLineWidget,
+  RaisedSurfaceWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -206,6 +207,10 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         up: { label: tr(widget.up.label), unit: tr(widget.up.unit) },
         outlines: widget.outlines?.map((outline) => ({ ...outline, label: tr(outline.label) })),
       };
+      return w;
+    }
+    case 'raisedSurface': {
+      const w: RaisedSurfaceWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
       return w;
     }
     case 'profileLine': {

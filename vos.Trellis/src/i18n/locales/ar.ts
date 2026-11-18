@@ -433,6 +433,10 @@ export const ar: WithArabicPluralForms<Resources> = {
       warmest: "الأعلى {{value}} في {{when}}",
       coldest: "الأدنى {{value}} في {{when}}",
     },
+    raisedSurface: {
+      notASurface: "يحتاج السطح البارز إلى شبكة من صفين وعمودين على الأقل.",
+      range: "من {{lowest}} إلى {{highest}}",
+    },
     profileLine: {
       figures: "الأدنى {{lowest}}، الأعلى {{highest}}، الفرق {{difference}}",
       notAProfile: "يقرأ المقطع شبكة من صف واحد أو عمود واحد.",
@@ -759,6 +763,7 @@ export const ar: WithArabicPluralForms<Resources> = {
         densityGrid: 'شبكة الكثافة',
         gridMap: 'خريطة شبكية',
         profileLine: 'خط المقطع',
+        raisedSurface: 'سطح بارز',
         lineSeries: 'سلسلة خطية',
         heatmap: 'خريطة حرارية',
         stackedShares: 'حصص مكدسة',
@@ -1009,6 +1014,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       scale: 'المقياس',
       profile: 'المقطع',
       span: 'المقطع على طول الخط',
+      surface: 'السطح',
+      exaggeration: 'المبالغة الرأسية',
       counted: 'محسوبة من النموذج',
       groups: 'المجموعات',
       colourKey: 'اللون من',

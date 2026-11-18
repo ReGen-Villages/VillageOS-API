@@ -391,6 +391,10 @@ export const de: PartialResources = {
       warmest: 'Höchstwert {{value}} am {{when}}',
       coldest: 'Tiefstwert {{value}} am {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'Eine erhöhte Fläche braucht ein Raster mit mindestens zwei Zeilen und zwei Spalten.',
+      range: 'Von {{lowest}} bis {{highest}}',
+    },
     profileLine: {
       figures: 'Tiefster Punkt {{lowest}}, höchster {{highest}}, Unterschied {{difference}}',
       notAProfile: 'Ein Profil liest ein Raster mit einer Zeile oder einer Spalte.',
@@ -685,6 +689,7 @@ export const de: PartialResources = {
         densityGrid: 'Dichteraster',
         gridMap: 'Rasterkarte',
         profileLine: 'Profillinie',
+        raisedSurface: 'Erhöhte Fläche',
         lineSeries: 'Linienreihe',
         heatmap: 'Heatmap',
         stackedShares: 'Gestapelte Anteile',
@@ -931,6 +936,8 @@ export const de: PartialResources = {
       scale: 'Skala',
       profile: 'Profil',
       span: 'Abschnitt entlang der Linie',
+      surface: 'Fläche',
+      exaggeration: 'Überhöhung',
       counted: 'Aus dem Modell gezählt',
       groups: 'Gruppen',
       colourKey: 'Farbe aus',

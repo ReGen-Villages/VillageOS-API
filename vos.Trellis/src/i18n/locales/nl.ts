@@ -391,6 +391,10 @@ export const nl: PartialResources = {
       warmest: 'Hoogste {{value}} op {{when}}',
       coldest: 'Laagste {{value}} op {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'Een verhoogd vlak heeft een raster van minstens twee rijen en twee kolommen nodig.',
+      range: 'Van {{lowest}} tot {{highest}}',
+    },
     profileLine: {
       figures: 'Laagste {{lowest}}, hoogste {{highest}}, verschil {{difference}}',
       notAProfile: 'Een profiel leest een raster van één rij of één kolom.',
@@ -685,6 +689,7 @@ export const nl: PartialResources = {
         densityGrid: 'Dichtheidsraster',
         gridMap: 'Rasterkaart',
         profileLine: 'Profiellijn',
+        raisedSurface: 'Verhoogd vlak',
         lineSeries: 'Lijnreeks',
         heatmap: 'Warmtekaart',
         stackedShares: 'Gestapelde aandelen',
@@ -931,6 +936,8 @@ export const nl: PartialResources = {
       scale: 'Schaal',
       profile: 'Profiel',
       span: 'Stuk langs de lijn',
+      surface: 'Vlak',
+      exaggeration: 'Verticale overdrijving',
       counted: 'Geteld uit het model',
       groups: 'Groepen',
       colourKey: 'Kleur uit',

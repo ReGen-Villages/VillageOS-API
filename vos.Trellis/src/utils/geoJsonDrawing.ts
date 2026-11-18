@@ -28,6 +28,7 @@ export const GEOJSON_DRAWN_IN: Record<Widget['type'], 'chartUnits' | 'map' | nul
   densityGrid: 'chartUnits',
   gridMap: 'map',
   profileLine: null,
+  raisedSurface: null,
   lineSeries: null,
   heatmap: null,
   stackedShares: null,

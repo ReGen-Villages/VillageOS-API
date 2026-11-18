@@ -391,6 +391,10 @@ export const fr: PartialResources = {
       warmest: 'Maximum {{value}} le {{when}}',
       coldest: 'Minimum {{value}} le {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'Une surface en relief demande une grille d’au moins deux lignes et deux colonnes.',
+      range: 'De {{lowest}} à {{highest}}',
+    },
     profileLine: {
       figures: 'Plus bas {{lowest}}, plus haut {{highest}}, différence {{difference}}',
       notAProfile: 'Un profil lit une grille d’une ligne ou d’une colonne.',
@@ -685,6 +689,7 @@ export const fr: PartialResources = {
         densityGrid: 'Grille de densité',
         gridMap: 'Carte en grille',
         profileLine: 'Ligne de profil',
+        raisedSurface: 'Surface en relief',
         lineSeries: 'Série de lignes',
         heatmap: 'Carte thermique',
         stackedShares: 'Parts empilées',
@@ -931,6 +936,8 @@ export const fr: PartialResources = {
       scale: 'Échelle',
       profile: 'Profil',
       span: 'Tronçon le long de la ligne',
+      surface: 'Surface',
+      exaggeration: 'Exagération verticale',
       counted: 'Comptées depuis le modèle',
       groups: 'Groupes',
       colourKey: 'Couleur depuis',

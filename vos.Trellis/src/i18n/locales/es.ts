@@ -391,6 +391,10 @@ export const es: PartialResources = {
       warmest: 'Máximo {{value}} el {{when}}',
       coldest: 'Mínimo {{value}} el {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'Una superficie elevada necesita una cuadrícula de al menos dos filas y dos columnas.',
+      range: 'De {{lowest}} a {{highest}}',
+    },
     profileLine: {
       figures: 'Mínimo {{lowest}}, máximo {{highest}}, diferencia {{difference}}',
       notAProfile: 'Un perfil lee una cuadrícula de una fila o una columna.',
@@ -685,6 +689,7 @@ export const es: PartialResources = {
         densityGrid: 'Cuadrícula de densidad',
         gridMap: 'Mapa de cuadrícula',
         profileLine: 'Línea de perfil',
+        raisedSurface: 'Superficie elevada',
         lineSeries: 'Serie de líneas',
         heatmap: 'Mapa de calor',
         stackedShares: 'Cuotas apiladas',
@@ -931,6 +936,8 @@ export const es: PartialResources = {
       scale: 'Escala',
       profile: 'Perfil',
       span: 'Tramo a lo largo de la línea',
+      surface: 'Superficie',
+      exaggeration: 'Exageración vertical',
       counted: 'Contadas desde el modelo',
       groups: 'Grupos',
       colourKey: 'Color desde',

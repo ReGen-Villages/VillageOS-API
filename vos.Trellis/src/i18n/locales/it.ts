@@ -391,6 +391,10 @@ export const it: PartialResources = {
       warmest: 'Massimo {{value}} il {{when}}',
       coldest: 'Minimo {{value}} il {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'Una superficie in rilievo richiede una griglia di almeno due righe e due colonne.',
+      range: 'Da {{lowest}} a {{highest}}',
+    },
     profileLine: {
       figures: 'Minimo {{lowest}}, massimo {{highest}}, differenza {{difference}}',
       notAProfile: 'Un profilo legge una griglia di una riga o di una colonna.',
@@ -685,6 +689,7 @@ export const it: PartialResources = {
         densityGrid: 'Griglia di densità',
         gridMap: 'Mappa a griglia',
         profileLine: 'Linea di profilo',
+        raisedSurface: 'Superficie in rilievo',
         lineSeries: 'Serie di linee',
         heatmap: 'Mappa di calore',
         stackedShares: 'Quote impilate',
@@ -931,6 +936,8 @@ export const it: PartialResources = {
       scale: 'Scala',
       profile: 'Profilo',
       span: 'Tratto lungo la linea',
+      surface: 'Superficie',
+      exaggeration: 'Esagerazione verticale',
       counted: 'Contate dal modello',
       groups: 'Gruppi',
       colourKey: 'Colore da',

@@ -1,0 +1,62 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type { Binding, RaisedSurfaceWidget } from '@tendril-ui/tendril';
+import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
+import type { RaisedSurface as Surface } from './surfaceGeometry';
+
+const values = new Map<string, BindingResult>();
+
+vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
+  useBindings: (bindings: (Binding | undefined)[]) =>
+    bindings.map((binding) => ({
+      loading: false,
+      error: false,
+      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
+    })),
+}));
+
+// The scene needs a graphics card; this stand-in shows what it was handed.
+vi.mock('./RaisedSurfaceScene', () => ({
+  default: ({ surface, colours }: { surface: Surface; colours: string[] }) => (
+    <div data-testid="scene" data-triangles={surface.indices.length / 3} data-box={surface.boxHeight} data-first-colour={colours[0]} />
+  ),
+}));
+
+const { RaisedSurface } = await import('./RaisedSurface');
+
+function held(property: string, rows: number, columns: number, numbers: (number | null)[]): Binding {
+  const binding: Binding = { kind: 'value', property };
+  values.set(JSON.stringify(binding), {
+    originLatitude: 25, originLongitude: 55, cellSizeMetres: 10, latitudeStepDegrees: 0.0001, longitudeStepDegrees: 0.0001,
+    rows, columns, values: numbers,
+  });
+  return binding;
+}
+
+const widget: RaisedSurfaceWidget = { type: 'raisedSurface', title: 'Surface', surface: held('levels', 2, 2, [100, 100.5, 101, 101.2]), unit: 'm', exaggeration: 3 };
+
+describe('the raised surface', () => {
+  it('hands the scene the grid raised by the exaggeration, within its box', async () => {
+    render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
+
+    const scene = await screen.findByTestId('scene');
+    expect(scene.getAttribute('data-triangles')).toBe('2');
+    expect(Number(scene.getAttribute('data-box'))).toBeCloseTo(3.6, 5);
+  });
+
+  it('names the lowest and highest values under the drawing', async () => {
+    render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
+
+    await screen.findByTestId('scene');
+    expect(screen.getByText('100 m')).toBeTruthy();
+    expect(screen.getByText('101.2 m')).toBeTruthy();
+  });
+
+  it('draws nothing and says so for a grid of one row or one column', () => {
+    render(<RaisedSurface widget={{ ...widget, surface: held('line', 1, 3, [1, 2, 3]) }} context={{} as ResolveContext} />);
+
+    expect(screen.queryByTestId('scene')).toBeNull();
+    expect(screen.getByText('A raised surface needs a grid of at least two rows and two columns.')).toBeTruthy();
+  });
+});

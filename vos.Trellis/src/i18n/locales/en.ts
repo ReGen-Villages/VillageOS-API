@@ -390,6 +390,10 @@ export const en = {
       warmest: 'Highest {{value}} on {{when}}',
       coldest: 'Lowest {{value}} on {{when}}',
     },
+    raisedSurface: {
+      notASurface: 'A raised surface needs a grid of at least two rows and two columns.',
+      range: 'From {{lowest}} to {{highest}}',
+    },
     profileLine: {
       figures: 'Lowest {{lowest}}, highest {{highest}}, difference {{difference}}',
       notAProfile: 'A profile reads a grid of one row or one column.',
@@ -684,6 +688,7 @@ export const en = {
         densityGrid: 'Density grid',
         gridMap: 'Grid map',
         profileLine: 'Profile line',
+        raisedSurface: 'Raised surface',
         lineSeries: 'Line series',
         heatmap: 'Heatmap',
         stackedShares: 'Stacked shares',
@@ -930,6 +935,8 @@ export const en = {
       scale: 'Scale',
       profile: 'Profile',
       span: 'Span along the line',
+      surface: 'Surface',
+      exaggeration: 'Vertical exaggeration',
       counted: 'Counted from the model',
       groups: 'Groups',
       colourKey: 'Colour from',

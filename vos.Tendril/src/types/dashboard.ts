@@ -750,6 +750,21 @@ export interface ProfileLineWidget {
   unit?: string;
 }
 
+/** A grid's values drawn as a raised surface in 3D, shaded on one hue from the lowest value to the highest.
+ *  `surface` is a `value` binding onto a `vos.Grid` the page's own Thing holds. Each point rises by its value
+ *  above the lowest, times `exaggeration` (one when left out), the box kept between eight hundredths and
+ *  four tenths of the grid's larger side. The 3D drawing loads only when the widget is shown. What the
+ *  values are is the page's to say, in its title and `unit`. */
+export interface RaisedSurfaceWidget {
+  type: 'raisedSurface';
+  title?: string;
+  hint?: string;
+  surface: Binding;
+  exaggeration?: number;
+  format?: NumberFormat;
+  unit?: string;
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 interface DepthProfilePart {
   label: string;
@@ -1074,6 +1089,7 @@ export type Widget = Placed & (
   | DensityGridWidget
   | GridMapWidget
   | ProfileLineWidget
+  | RaisedSurfaceWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget
