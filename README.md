@@ -35,6 +35,12 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 widgets that write, so an application other than Trellis draws a model's pages the same way. Trellis
 uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/README.md).
 
+### Pages (page reader for C#)
+
+**vos.Pages** — a class library that lists and reads a model's pages with Tendril's own reader, run
+inside a C# process, so a program that is not a browser answers a page as Trellis draws it. See
+[vos.Pages/README.md](vos.Pages/README.md).
+
 ### Taproot (CLI)
 
 **vos.Taproot** — Command-line interface for the Mycelium.

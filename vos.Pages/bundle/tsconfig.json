@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": [],
+    "typeRoots": [],
+    "baseUrl": ".",
+    "paths": {
+      "i18next": [
+        "../../vos.Tendril/node_modules/i18next"
+      ]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "files": [
+    "readerHost.ts"
+  ]
+}

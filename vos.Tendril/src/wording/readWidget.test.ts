@@ -109,3 +109,36 @@ describe('a widget read out for a reader with no screen', () => {
     expect(read).toHaveProperty('slots', [{ kind: 'thingList', result: [expect.objectContaining({ id: 'r1', name: 'Spring reservoir', storedLitres: 12500.5 })] }]);
   });
 });
+
+describe('a widget holding a value binding, read out for a reader with no screen', () => {
+  const shoreline = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+  const holdingAShape: ResolveContext = {
+    index: buildModelIndex([thing('r1', 'Spring reservoir', { Properties: { shoreline: { Json: JSON.stringify(shoreline) } } })], []),
+    scopeId: 'r1',
+    reads: {} as ModelReads,
+    language: 'en',
+  };
+
+  it('reads a shape a widget draws as the object the model holds, with no sentence', async () => {
+    const widget = {
+      type: 'densityGrid',
+      title: 'Level against inflow',
+      cells: { kind: 'const', value: 0 },
+      across: {},
+      up: {},
+      outlines: [{ shape: { kind: 'value', thing: '$scope', property: 'shoreline' } }],
+    } as unknown as Widget;
+
+    expect(await readWidget(widget, holdingAShape)).toEqual({
+      type: 'densityGrid',
+      title: 'Level against inflow',
+      slots: [{ kind: 'const', result: 0 }, { kind: 'value', result: shoreline }],
+    });
+  });
+
+  it('gives a figure slot holding an object no wording of its own', async () => {
+    const widget: Widget = { type: 'kpi', title: 'Shoreline', value: { kind: 'value', thing: '$scope', property: 'shoreline' } };
+
+    expect(await readWidget(widget, holdingAShape)).toMatchObject({ type: 'kpi', worded: '—', value: shoreline, origin: [] });
+  });
+});
