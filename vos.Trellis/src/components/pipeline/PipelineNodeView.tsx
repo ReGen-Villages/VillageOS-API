@@ -27,6 +27,8 @@ export interface PipelineNodeData {
   follows?: string;
   waitsAtMostMinutes?: number;
   waitsForName?: string;
+  /** For a relate box: what it relates along and waits for, or why the orchestrator would refuse it. */
+  relating?: string;
   [key: string]: unknown;
 }
 
@@ -96,6 +98,11 @@ export function PipelineNodeView({ data }: NodeProps) {
       {d.kind === 'wait' && (
         <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
           {d.waitsForName ? t('pipeline.waitingFor', { state: d.waitsForName }) : t('pipeline.waitsForNothing')}
+        </div>
+      )}
+      {d.kind === 'relate' && d.relating && (
+        <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
+          {d.relating}
         </div>
       )}
       <div className="flex justify-between gap-4 py-2 text-xs">

@@ -15,6 +15,8 @@ export interface ValidationNode {
   standsFor?: { name: string; kind: EndKind; mayStart: boolean; mayEnd: boolean };
   waitsFor?: string;
   waitsAtMostMinutes?: number;
+  /** For a relate box standing for something: why the orchestrator would refuse it, where it would. */
+  relates?: { refusal?: string };
 }
 
 export interface ValidationEdge {
@@ -26,7 +28,12 @@ export interface ValidationEdge {
 
 export type ValidationIssue =
   | { kind: 'unbound-required-input'; nodeId: string; port: string; message: string }
-  | { kind: 'wait-without-state' | 'wait-without-thing' | 'wait-limit-not-whole-minutes'; nodeId: string; message: string }
+  | {
+      kind: 'wait-without-state' | 'wait-without-thing' | 'wait-limit-not-whole-minutes'
+        | 'relate-without-predicate' | 'relate-refused' | 'relate-without-thing';
+      nodeId: string;
+      message: string;
+    }
   | EndIssue
   | {
       kind: 'dangling-wire';
@@ -114,12 +121,22 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
 
   // The orchestrator refuses each of these before anything runs, so they are said here in its terms.
   for (const n of nodes) {
-    if (n.kind !== 'wait') continue;
-    if (!n.waitsFor)
-      issues.push({ kind: 'wait-without-state', nodeId: n.id, message: i18n.t('pipeline.waitWithoutState', { node: n.label }) });
+    if (n.kind !== 'wait' && n.kind !== 'relate') continue;
     const inPort = n.ports.find((p) => p.direction === 'in');
-    if (!inPort || !wiredInputs.has(key(n.id, inPort.portName)))
-      issues.push({ kind: 'wait-without-thing', nodeId: n.id, message: i18n.t('pipeline.waitWithoutThing', { node: n.label }) });
+    const wired = inPort !== undefined && wiredInputs.has(key(n.id, inPort.portName));
+    if (n.kind === 'wait') {
+      if (!n.waitsFor)
+        issues.push({ kind: 'wait-without-state', nodeId: n.id, message: i18n.t('pipeline.waitWithoutState', { node: n.label }) });
+      if (!wired)
+        issues.push({ kind: 'wait-without-thing', nodeId: n.id, message: i18n.t('pipeline.waitWithoutThing', { node: n.label }) });
+    } else {
+      if (!n.relates)
+        issues.push({ kind: 'relate-without-predicate', nodeId: n.id, message: i18n.t('pipeline.relateWithoutPredicate', { node: n.label }) });
+      else if (n.relates.refusal)
+        issues.push({ kind: 'relate-refused', nodeId: n.id, message: i18n.t('pipeline.relateRefused', { node: n.label, reason: n.relates.refusal }) });
+      if (!wired)
+        issues.push({ kind: 'relate-without-thing', nodeId: n.id, message: i18n.t('pipeline.relateWithoutThing', { node: n.label }) });
+    }
     const limit = n.waitsAtMostMinutes;
     if (limit !== undefined && !(Number.isInteger(limit) && limit >= 1))
       issues.push({
