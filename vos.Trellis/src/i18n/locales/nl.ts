@@ -1245,7 +1245,7 @@ export const nl: PartialResources = {
       pipelineArchetype: "archetype gekoppeld aan de rol pipeline",
       nodeArchetype: "archetype gekoppeld aan de rol pipelineknooppunt",
       wireArchetype: "archetype gekoppeld aan de rol verbinding",
-      wirePredicate: "verbindingspredicaat (een predicaat van het verbindingsarchetype dat geen knooppunt vasthoudt)",
+      wirePredicate: "predicaat gekoppeld aan de rol verbindingspredicaat (van een verbinding naar het knooppunt dat zij voedt)",
       inputConnector: "predicaat gekoppeld aan de rol invoerconnector (van een verbinding naar de uitgang waaruit zij haar waarde neemt)",
       outputConnector: "predicaat gekoppeld aan de rol uitvoerconnector (van een verbinding naar de ingang waaraan zij haar waarde levert)",
       takenOnPredicate: "predicaat gekoppeld aan de rol ‘genomen bij’ (van een verbinding naar het resultaat of de keuze waarbij zij verdergaat)",

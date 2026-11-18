@@ -45,7 +45,7 @@ function graphWithVocabulary() {
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  T('is', 'is'); T('has', 'has'); T('carries', 'carries');
+  T('is', 'is'); T('has', 'has'); T('carries', 'carries', playing(ROLE.WirePredicate));
   T('arch-pipeline', 'Workflow', playing(ROLE.Pipeline));
   T('arch-node', 'Step', playing(ROLE.PipelineNode));
   T('arch-connection', 'Endpoint', playing(ROLE.Connection));
@@ -57,7 +57,6 @@ function graphWithVocabulary() {
   // Boundary-node archetypes; each is-a pipeline node so the node collection picks its instances up.
   T('arch-input', 'Start', playing(ROLE.PipelineInput)); R('arch-input', 'is', 'arch-node');
   T('arch-output', 'Finish', playing(ROLE.PipelineOutput)); R('arch-output', 'is', 'arch-node');
-  R('carries', 'is', 'arch-wire');
   T('taken-on', 'firesOn', playing(ROLE.TakenOn));
   T('success', 'Worked', playing(ROLE.Success));
   T('fail', 'Broke', playing(ROLE.Fail));
@@ -610,13 +609,16 @@ describe('savePipeline — the first pipeline in a model with no wire yet', () =
     expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'carries', expect.any(String));
   });
 
-  it('names what it did not find when the model binds no wire archetype', async () => {
+  it.each([
+    ['arch-wire', /wire role/],
+    ['carries', /wire predicate role/],
+  ])('names what it did not find when the model lacks %s', async (missing, named) => {
     const { T, R, things, relationships } = graphWithVocabulary();
-    things.splice(things.findIndex((t) => t.Id === 'arch-wire'), 1);
+    things.splice(things.findIndex((t) => t.Id === missing), 1);
     T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection');
 
     await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
-      .rejects.toThrow(/wire predicate/);
+      .rejects.toThrow(named);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 

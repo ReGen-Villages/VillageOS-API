@@ -88,6 +88,16 @@ class RoleBindingTests(unittest.TestCase):
             self.assertEqual(kit.things[G.role_id(word)]["Name"], word[0].upper() + word[1:])
         self.assertEqual([(t["Name"], name) for t in things for name in t["Properties"] if name.startswith("__Is")], [])
 
+    def test_the_wire_predicate_is_bound_by_its_role_and_is_a_predicate_not_a_wire(self):
+        kit = G.build()
+        things, rels = list(kit.things.values()), list(kit.rels.values())
+        [carries] = bound_by(things, rels, "wirePredicate")
+        is_ids = {t["Id"] for t in things if t["Name"] == "is"}
+        kinds = {r["Target"] for r in rels if r["Subject"] == carries and r["Predicate"] in is_ids}
+        [predicate_root] = bound_by(things, rels, "predicate")
+        self.assertEqual(kit.things[carries]["Name"], "carries")
+        self.assertEqual(kinds, {predicate_root}, "carries is a Predicate and nothing else, not a kind of wire")
+
     def test_every_role_thing_is_role_and_role_is_configuration(self):
         kit = G.build()
         things, rels = list(kit.things.values()), list(kit.rels.values())

@@ -1245,7 +1245,7 @@ export const de: PartialResources = {
       pipelineArchetype: "an die Rolle Pipeline gebundener Archetyp",
       nodeArchetype: "an die Rolle Pipeline-Knoten gebundener Archetyp",
       wireArchetype: "an die Rolle Verbindung gebundener Archetyp",
-      wirePredicate: "Verbindungsprädikat (ein Prädikat des Verbindungs-Archetyps, das kein Knoten hält)",
+      wirePredicate: "an die Rolle Verbindungsprädikat gebundenes Prädikat (von einer Verbindung zum Knoten, den sie speist)",
       inputConnector: "an die Rolle Eingangsanschluss gebundenes Prädikat (von einer Verbindung zu dem Ausgang, aus dem sie ihren Wert nimmt)",
       outputConnector: "an die Rolle Ausgangsanschluss gebundenes Prädikat (von einer Verbindung zu dem Eingang, an den sie ihren Wert liefert)",
       takenOnPredicate: "an die Rolle „genommen bei“ gebundenes Prädikat (von einer Verbindung zu dem Ergebnis oder der Wahl, bei der sie weiterführt)",

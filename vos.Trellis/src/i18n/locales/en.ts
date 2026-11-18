@@ -1243,7 +1243,7 @@ export const en = {
       pipelineArchetype: "archetype bound to the pipeline role",
       nodeArchetype: "archetype bound to the pipeline node role",
       wireArchetype: "archetype bound to the wire role",
-      wirePredicate: "wire predicate (a predicate of the wire archetype that no node holds)",
+      wirePredicate: "predicate bound to the wire predicate role (from a wire to the node it feeds)",
       inputConnector: "predicate bound to the input connector role (from a wire to the out port it takes from)",
       outputConnector: "predicate bound to the output connector role (from a wire to the in port it delivers to)",
       takenOnPredicate: "predicate bound to the taken-on role (from a wire to the result or choice it carries on)",

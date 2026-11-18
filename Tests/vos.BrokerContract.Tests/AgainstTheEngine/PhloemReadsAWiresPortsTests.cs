@@ -53,7 +53,6 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var decisionPath = await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath");
         var comparesWith = await PlayingAsync(PipelineRoles.ComparesWith, "comparesWith", isArchetype: false);
         var carries = await _engine.DeclareOnceAsync("carries");
-        if (firstDrawing) await _engine.RelateAsync(carries, @is, wireArchetype);
 
         var transform = await _engine.DeclareAsync("Transform service");
         var portHolder = transform;

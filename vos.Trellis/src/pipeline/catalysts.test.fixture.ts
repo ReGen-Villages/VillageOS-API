@@ -73,8 +73,7 @@ export function catalystFixture({
   const kindArchetype = thing('Letter', playing(ROLE.MessageKind), true);
   const wireArchetype = thing('Link', playing(ROLE.PipelineWire), true);
   const portArchetype = thing('Socket', playing(ROLE.Port), true);
-  const carries = thing('carries');
-  relate(carries, is, wireArchetype);
+  const carries = thing('carries', playing(ROLE.WirePredicate));
   const inputConnector = thing('takesFrom', playing(ROLE.InputConnector));
   const outputConnector = thing('deliversTo', playing(ROLE.OutputConnector));
   const takenOn = thing('firesOn', playing(ROLE.TakenOn));
