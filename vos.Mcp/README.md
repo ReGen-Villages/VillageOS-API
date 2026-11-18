@@ -95,9 +95,9 @@ chat application with a failed tool call carrying the Mycelium's own words, whic
 the person.
 
 To refuse for a reason of the tool's own, throw the SDK's `McpException` with the words to answer. The chat
-application receives a failed tool call carrying those words after the SDK's own opening, "An error occurred
-invoking '<tool>': ". Any other exception reaches it as a bare
-failure with no reason, so use this one whenever the person can act on the reason.
+application receives a failed tool call carrying those words after the SDK's own opening,
+`An error occurred invoking '<tool>':`. Any other exception reaches it as a bare failure with no reason, so
+use this one whenever the person can act on the reason.
 
 ### A role in a selector rule
 

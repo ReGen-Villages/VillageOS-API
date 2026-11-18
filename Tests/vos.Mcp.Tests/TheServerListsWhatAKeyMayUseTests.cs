@@ -87,7 +87,11 @@ public class TheServerListsWhatAKeyMayUseTests
         await server.ListedToolNamesAsync();
         await server.ListedToolNamesAsync();
 
-        server.Mycelium.Requests.Count(request => request.RequestUri!.Query.StartsWith("?boundBy=")).Should().Be(1);
+        server.Mycelium.Requests
+            .Select(request => request.RequestUri!.Query)
+            .Where(query => query.StartsWith("?boundBy="))
+            .Should().Contain($"?boundBy={SampleTools.BoundRole}")
+            .And.OnlyHaveUniqueItems("each role is asked about once, however many tools depend on a role");
     }
 
     [Fact]
