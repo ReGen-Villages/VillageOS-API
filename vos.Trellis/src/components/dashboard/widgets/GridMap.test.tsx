@@ -101,10 +101,10 @@ describe('the grid map', () => {
   });
 
   it('draws no outline read across a relationship, though the binding answers one', () => {
-    const studyShape: Binding = { kind: 'value', via: [{ predicate: 'studies', direction: 'in' }], property: 'boundary' };
-    values.set(JSON.stringify(studyShape), values.get(JSON.stringify(boundary)) ?? null);
+    const relatedShape: Binding = { kind: 'value', via: [{ predicate: 'outlines', direction: 'in' }], property: 'boundary' };
+    values.set(JSON.stringify(relatedShape), values.get(JSON.stringify(boundary)) ?? null);
 
-    const { container } = draw({ ...widget, outline: studyShape });
+    const { container } = draw({ ...widget, outline: relatedShape });
 
     expect(container.querySelector('path[data-outline]')).toBeNull();
     expect(container.querySelectorAll('rect[data-row]')).toHaveLength(5);
@@ -145,11 +145,13 @@ describe('the grid map', () => {
     expect(screen.getByText('This grid holds 65,536 cells; a grid map draws at most 10,000.')).toBeTruthy();
   });
 
-  it('names a cell\'s value when the pointer is over it', () => {
+  it('names where a cell is, as the table numbers it, and its value once, when the pointer is over it', () => {
     const { container } = draw();
 
     fireEvent.mouseEnter(cellAt(container, 1, 2)!);
 
-    expect(screen.getByRole('tooltip').textContent).toContain('112 m');
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain('Row 2, column 3');
+    expect(tooltip.textContent!.split('112 m')).toHaveLength(2);
   });
 });

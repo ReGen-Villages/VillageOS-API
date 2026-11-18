@@ -394,6 +394,7 @@ export const nl: PartialResources = {
     },
     gridMap: {
       tooManyCells: 'Dit raster heeft {{cells}} cellen; een rasterkaart tekent er hoogstens {{most}}.',
+      cellAt: 'Rij {{row}}, kolom {{column}}',
     },
     densityGrid: {
       coverage: '{{pairs}} uur hadden beide metingen; {{unpaired}} metingen hadden geen meting van de ander op hetzelfde moment en worden niet getekend.',
@@ -814,7 +815,7 @@ export const nl: PartialResources = {
       columnOnAnUnboundedValue: 'Een kolom op “{{named}}”, een waarde zonder grens in het model, bepaalt de paginabreedte.',
       stateBindingWithoutScope: 'Een toestandstelling of -lijst op een vergelijkende pagina noemt geen bereik, dus de schakelaar kan hem niet beperken.',
       widgetBoundToNothing: 'Een widget is aan niets gebonden en tekent een tijdelijke aanduiding.',
-      mapReadsAcrossARelationship: 'Een kaart leest een vorm of raster via een relatie; ze leest alleen het eigen Ding van de pagina, omdat de vormen van een studie niet op de grond liggen.',
+      mapReadsAcrossARelationship: 'Een kaart leest een vorm of raster via een relatie; ze leest alleen het eigen Ding van de pagina, omdat de vormen van een gekoppeld Ding in grafiekeenheden kunnen staan in plaats van op de grond.',
       gridOverTheMostAMapDraws: 'Een Ding van deze soort heeft een raster van {{named}} cellen, meer dan een rasterkaart tekent, dus de kaart toont een opmerking in plaats van de cellen.',
     },
     translations: {

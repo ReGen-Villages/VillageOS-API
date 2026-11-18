@@ -394,6 +394,7 @@ export const es: PartialResources = {
     },
     gridMap: {
       tooManyCells: 'Esta cuadrícula tiene {{cells}} celdas; un mapa de cuadrícula dibuja como máximo {{most}}.',
+      cellAt: 'Fila {{row}}, columna {{column}}',
     },
     densityGrid: {
       coverage: '{{pairs}} horas tuvieron ambas lecturas; {{unpaired}} lecturas no tuvieron lectura de la otra a la misma hora y no se dibujan.',
@@ -814,7 +815,7 @@ export const es: PartialResources = {
       columnOnAnUnboundedValue: 'Una columna sobre «{{named}}», un valor sin límite en el modelo, decide el ancho de la página.',
       stateBindingWithoutScope: 'Un recuento o lista de estado en una página comparativa no nombra ningún ámbito, así que el selector no puede acotarlo.',
       widgetBoundToNothing: 'Un widget no está vinculado a nada y dibuja un marcador.',
-      mapReadsAcrossARelationship: 'Un mapa lee una forma o una cuadrícula a través de una relación; solo lee la Cosa propia de la página, porque las formas de un estudio no están sobre el terreno.',
+      mapReadsAcrossARelationship: 'Un mapa lee una forma o una cuadrícula a través de una relación; solo lee la Cosa propia de la página, porque las formas de una Cosa relacionada pueden estar en unidades del gráfico y no sobre el terreno.',
       gridOverTheMostAMapDraws: 'Una Cosa de este tipo tiene una cuadrícula de {{named}} celdas, más de las que dibuja un mapa de cuadrícula, así que el mapa muestra una nota en lugar de sus celdas.',
     },
     translations: {

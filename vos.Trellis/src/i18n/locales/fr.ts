@@ -394,6 +394,7 @@ export const fr: PartialResources = {
     },
     gridMap: {
       tooManyCells: 'Cette grille compte {{cells}} cellules ; une carte en grille en dessine au plus {{most}}.',
+      cellAt: 'Ligne {{row}}, colonne {{column}}',
     },
     densityGrid: {
       coverage: '{{pairs}} heures avaient les deux relevés ; {{unpaired}} relevés n’avaient pas de relevé de l’autre au même moment et ne sont pas dessinés.',
@@ -814,7 +815,7 @@ export const fr: PartialResources = {
       columnOnAnUnboundedValue: 'Une colonne sur « {{named}} », une valeur sans borne dans le modèle, décide la largeur de la page.',
       stateBindingWithoutScope: 'Un compte ou une liste d’état sur une page comparative ne nomme aucune portée, le sélecteur ne peut donc pas le restreindre.',
       widgetBoundToNothing: 'Un widget n’est lié à rien et dessine un substitut.',
-      mapReadsAcrossARelationship: 'Une carte lit une forme ou une grille à travers une relation ; elle ne lit que la Chose propre de la page, car les formes d’une étude ne sont pas sur le terrain.',
+      mapReadsAcrossARelationship: 'Une carte lit une forme ou une grille à travers une relation ; elle ne lit que la Chose propre de la page, car les formes d’une Chose liée peuvent être en unités du graphique et non sur le terrain.',
       gridOverTheMostAMapDraws: 'Une Chose de ce type tient une grille de {{named}} cellules, plus qu’une carte en grille n’en dessine, donc la carte affiche une note au lieu de ses cellules.',
     },
     translations: {

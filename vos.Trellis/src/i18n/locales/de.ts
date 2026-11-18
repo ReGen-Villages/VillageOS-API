@@ -394,6 +394,7 @@ export const de: PartialResources = {
     },
     gridMap: {
       tooManyCells: 'Dieses Raster hat {{cells}} Zellen; eine Rasterkarte zeichnet höchstens {{most}}.',
+      cellAt: 'Zeile {{row}}, Spalte {{column}}',
     },
     densityGrid: {
       coverage: '{{pairs}} Stunden hatten beide Messwerte; {{unpaired}} Messwerte hatten keinen Messwert des anderen zur selben Zeit und sind nicht dargestellt.',
@@ -814,7 +815,7 @@ export const de: PartialResources = {
       columnOnAnUnboundedValue: 'Eine Spalte auf „{{named}}“, einem Wert ohne Grenze im Modell, bestimmt die Seitenbreite.',
       stateBindingWithoutScope: 'Eine Zustandszählung oder -liste auf einer vergleichenden Seite nennt keinen Bereich, daher kann der Umschalter sie nicht eingrenzen.',
       widgetBoundToNothing: 'Ein Widget ist an nichts gebunden und zeichnet einen Platzhalter.',
-      mapReadsAcrossARelationship: 'Eine Karte liest eine Form oder ein Raster über eine Beziehung; sie liest nur das eigene Ding der Seite, da die Formen einer Studie nicht auf dem Boden liegen.',
+      mapReadsAcrossARelationship: 'Eine Karte liest eine Form oder ein Raster über eine Beziehung; sie liest nur das eigene Ding der Seite, da die Formen eines verbundenen Dings in Diagrammeinheiten statt auf dem Boden liegen können.',
       gridOverTheMostAMapDraws: 'Ein Ding dieser Art hat ein Raster mit {{named}} Zellen, mehr als eine Rasterkarte zeichnet, daher zeigt die Karte statt der Zellen einen Hinweis.',
     },
     translations: {

@@ -8,7 +8,7 @@ export function cellsIn(grid: GridValue): number {
   return grid.rows * grid.columns;
 }
 
-const GRID_NUMBERS =['originLatitude', 'originLongitude', 'cellSizeMetres', 'latitudeStepDegrees', 'longitudeStepDegrees'] as const;
+const GRID_NUMBERS = ['originLatitude', 'originLongitude', 'cellSizeMetres', 'latitudeStepDegrees', 'longitudeStepDegrees'] as const;
 
 export function gridOf(value: unknown): GridValue | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;

@@ -392,6 +392,7 @@ export const en = {
     },
     gridMap: {
       tooManyCells: 'This grid holds {{cells}} cells; a grid map draws at most {{most}}.',
+      cellAt: 'Row {{row}}, column {{column}}',
     },
     densityGrid: {
       coverage: '{{pairs}} hours had both readings; {{unpaired}} readings had no reading of the other at the same time and are not drawn.',
@@ -812,7 +813,7 @@ export const en = {
       columnOnAnUnboundedValue: 'A column on “{{named}}”, a value the model puts no bound on, decides the page’s width.',
       stateBindingWithoutScope: 'A state count or list on a comparing page names no scope, so the switcher cannot narrow it.',
       widgetBoundToNothing: 'A widget is bound to nothing and draws a placeholder.',
-      mapReadsAcrossARelationship: 'A map reads a shape or grid across a relationship; it reads only the page’s own Thing, since a study’s shapes are not on the ground.',
+      mapReadsAcrossARelationship: 'A map reads a shape or grid across a relationship; it reads only the page’s own Thing, since a related Thing’s shapes may be in a chart’s units, not on the ground.',
       gridOverTheMostAMapDraws: 'A Thing of this kind holds a grid of {{named}} cells, more than a grid map draws, so the map shows a note instead of its cells.',
     },
     translations: {

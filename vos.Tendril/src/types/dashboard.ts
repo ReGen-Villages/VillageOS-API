@@ -38,7 +38,7 @@ export type NumberFormat =
   | 'money';
 
 /** A step of a history reduction as the specification writes it. A parameter — a percentile, a band's bound, a
- *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
+ *  threshold — is a number, or a binding onto the model's own value (a setpoint a Thing declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
 export type BoundNumber = number | Binding;
 export interface HistoryStepBinding {

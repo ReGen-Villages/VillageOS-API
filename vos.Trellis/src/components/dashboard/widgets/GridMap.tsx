@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
-import type { Binding, GridMapWidget, GridValue } from '@tendril-ui/tendril';
-import { readsOnlyThePage } from '../../../utils/geoJsonDrawing';
-import type { ResolveContext } from '@tendril-ui/tendril';
+import { useTranslation } from 'react-i18next';
+import type { Binding, GridMapWidget, GridValue, ResolveContext } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
+import { readsOnlyThePage } from '../../../utils/geoJsonDrawing';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, SeriesTable } from './chartChrome';
 import { rampColour } from './chartRamp';
 import { classHolding, drawnClassesOf, type DrawnClass } from './chartClasses';
-import { useTranslation } from 'react-i18next';
 import { MOST_CELLS_A_MAP_DRAWS, cellBounds, cellsIn, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 import { formatNumber } from './format';
 import { useChartSurface } from './useChartSurface';
@@ -137,7 +136,12 @@ export function GridMap({ widget, context }: { widget: GridMapWidget; context: R
           ))}
         </svg>
         {active && (
-          <ChartTooltip left={active.x} top={active.y} width={width} title={figure(active.value)}>
+          <ChartTooltip
+            left={active.x}
+            top={active.y}
+            width={width}
+            title={t('widgets.gridMap.cellAt', { row: active.row + 1, column: active.column + 1 })}
+          >
             <span className="tabular-nums">{figure(active.value)}</span>
           </ChartTooltip>
         )}
