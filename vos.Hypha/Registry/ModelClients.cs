@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using vos.Taproot;
 
 namespace vos.Mcp.Registry;
