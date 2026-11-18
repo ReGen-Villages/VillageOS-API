@@ -18,12 +18,12 @@ const RIGHT_GUTTER = 8;
 const TICKS = 5;
 const POINT_RADIUS = 3;
 
-/** The known heights as unbroken runs, so a height that is not known leaves a gap in the line. */
+/** The known values as unbroken runs, so a value that is not known leaves a gap in the line. */
 function runsOf(points: ProfilePoint[]): ProfilePoint[][] {
   const runs: ProfilePoint[][] = [];
   let run: ProfilePoint[] = [];
   for (const point of points) {
-    if (point.height === null) {
+    if (point.value === null) {
       if (run.length > 0) runs.push(run);
       run = [];
     } else {
@@ -46,9 +46,9 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
   const worded = figures ? profileWords(figures, widget.format, widget.unit, i18n.language) : null;
 
   const width = measuredWidth || FALLBACK_WIDTH;
-  const known = (points ?? []).flatMap((point) => (point.height === null ? [] : [point.height]));
-  const heights = extentOf(known);
-  const [floor, ceiling] = heights ? paddedDomain([heights.lowest, heights.highest]) : [0, 1];
+  const known = (points ?? []).flatMap((point) => (point.value === null ? [] : [point.value]));
+  const range = extentOf(known);
+  const [floor, ceiling] = range ? paddedDomain([range.lowest, range.highest]) : [0, 1];
   const furthest = points && points.length > 1 ? points[points.length - 1].distanceMetres : 1;
   const x = linearScale([0, furthest], [LEFT_GUTTER, width - RIGHT_GUTTER]);
   const y = linearScale([floor, ceiling], [TOP_GUTTER + PLOT_HEIGHT, TOP_GUTTER]);
@@ -80,7 +80,7 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
             />
           )}
           {niceTicks(floor, ceiling, TICKS).filter((tick) => tick >= floor && tick <= ceiling).map((tick) => (
-            <g key={`height-${tick}`}>
+            <g key={`value-${tick}`}>
               <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
               <text x={LEFT_GUTTER - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
                 {formatNumber(tick)}
@@ -96,18 +96,18 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
             <path
               key={run[0].distanceMetres}
               data-profile
-              d={run.map((point, at) => `${at === 0 ? 'M' : 'L'}${x(point.distanceMetres).toFixed(2)},${y(point.height!).toFixed(2)}`).join(' ')}
+              d={run.map((point, at) => `${at === 0 ? 'M' : 'L'}${x(point.distanceMetres).toFixed(2)},${y(point.value!).toFixed(2)}`).join(' ')}
               fill="none"
               stroke="var(--chart-ink)"
               strokeWidth={1.5}
             />
           ))}
-          {points.map((point) => point.height === null ? null : (
+          {points.map((point) => point.value === null ? null : (
             <circle
               key={point.distanceMetres}
               data-distance={point.distanceMetres}
               cx={x(point.distanceMetres)}
-              cy={y(point.height)}
+              cy={y(point.value)}
               r={POINT_RADIUS}
               fill="var(--chart-ink)"
               fillOpacity={active === point ? 1 : 0}
@@ -116,9 +116,9 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
             />
           ))}
         </svg>
-        {active && active.height !== null && (
-          <ChartTooltip left={x(active.distanceMetres)} top={y(active.height)} width={width} title={t('widgets.profileLine.along', { distance: distance(active.distanceMetres) })}>
-            <span className="font-semibold tabular-nums">{figure(active.height)}</span>
+        {active && active.value !== null && (
+          <ChartTooltip left={x(active.distanceMetres)} top={y(active.value)} width={width} title={t('widgets.profileLine.along', { distance: distance(active.distanceMetres) })}>
+            <span className="font-semibold tabular-nums">{figure(active.value)}</span>
           </ChartTooltip>
         )}
       </div>
@@ -127,8 +127,8 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
       )}
       <SeriesTable
         caption={widget.title ?? ''}
-        columns={[t('widgets.profileLine.height')]}
-        rows={points.map((point) => ({ name: distance(point.distanceMetres), cells: [point.height === null ? '—' : figure(point.height)] }))}
+        columns={[t('widgets.profileLine.value')]}
+        rows={points.map((point) => ({ name: distance(point.distanceMetres), cells: [point.value === null ? '—' : figure(point.value)] }))}
       />
     </WidgetCard>
   );

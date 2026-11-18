@@ -395,7 +395,7 @@ export const es: PartialResources = {
       figures: 'Mínimo {{lowest}}, máximo {{highest}}, diferencia {{difference}}',
       notAProfile: 'Un perfil lee una cuadrícula de una fila o una columna.',
       along: '{{distance}} a lo largo de la línea',
-      height: 'Altura',
+      value: 'Valor',
     },
     gridMap: {
       tooManyCells: 'Esta cuadrícula tiene {{cells}} celdas; un mapa de cuadrícula dibuja como máximo {{most}}.',

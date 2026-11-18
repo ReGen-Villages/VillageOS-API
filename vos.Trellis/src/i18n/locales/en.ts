@@ -394,7 +394,7 @@ export const en = {
       figures: 'Lowest {{lowest}}, highest {{highest}}, difference {{difference}}',
       notAProfile: 'A profile reads a grid of one row or one column.',
       along: '{{distance}} along the line',
-      height: 'Height',
+      value: 'Value',
     },
     gridMap: {
       tooManyCells: 'This grid holds {{cells}} cells; a grid map draws at most {{most}}.',

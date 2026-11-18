@@ -735,10 +735,11 @@ export interface GridMapWidget {
   unit?: string;
 }
 
-/** Heights along a line, from a one-row (west to east) or one-column (south to north) `vos.Grid` the
+/** Values along a line, from a one-row (west to east) or one-column (south to north) `vos.Grid` the
  *  page's own Thing holds, read through a `value` binding, each point a cell's size further along. The
  *  stretch from `span.from` to `span.to` metres along the line is shaded, and its lowest and highest
- *  height and their difference are written under the chart; with no span, the whole line's. */
+ *  value and their difference are written under the chart; with no span, the whole line's. What the
+ *  values are is the page's to say, in its title and `unit`. */
 export interface ProfileLineWidget {
   type: 'profileLine';
   title?: string;

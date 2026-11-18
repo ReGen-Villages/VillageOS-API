@@ -22,9 +22,9 @@ function held(binding: Binding, value: unknown): Binding {
   return binding;
 }
 
-const along = (rows: number, columns: number, heights: (number | null)[]) => ({
+const along = (rows: number, columns: number, values: (number | null)[]) => ({
   originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003,
-  rows, columns, values: heights,
+  rows, columns, values,
 });
 
 const westToEast = held({ kind: 'value', property: 'westToEast' }, along(1, 5, [84, 112, null, 96, 70]));
@@ -40,7 +40,7 @@ function draw(drawn: ProfileLineWidget = widget) {
 }
 
 describe('the profile line', () => {
-  it('draws the known heights as a line, broken where a height is not known', () => {
+  it('draws the known values as a line, broken where a value is not known', () => {
     const { container } = draw();
 
     const pieces = [...container.querySelectorAll('path[data-profile]')];
@@ -86,7 +86,7 @@ describe('the profile line', () => {
     expect(screen.getByText('A profile reads a grid of one row or one column.')).toBeTruthy();
   });
 
-  it('names a point\'s distance along the line and its height when the pointer is over it', () => {
+  it('names a point\'s distance along the line and its value when the pointer is over it', () => {
     const { container } = draw();
 
     fireEvent.mouseEnter(container.querySelector('circle[data-distance="30"]')!);

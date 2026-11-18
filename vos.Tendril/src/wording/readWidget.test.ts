@@ -110,13 +110,13 @@ describe('a widget read out for a reader with no screen', () => {
   });
 
   it('reads a profile line as its lowest, highest and difference within the span, in words', async () => {
-    const heights = { originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003, rows: 1, columns: 4, values: [84, 112, 96, 70] };
+    const levels = { originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003, rows: 1, columns: 4, values: [84, 112, 96, 70] };
     const alongTheLine: ResolveContext = {
       ...context('en'),
-      index: buildModelIndex([thing('r1', 'Spring reservoir', { Properties: { heights, spanFrom: 30, spanTo: 60 } })], []),
+      index: buildModelIndex([thing('r1', 'Spring reservoir', { Properties: { levels, spanFrom: 30, spanTo: 60 } })], []),
     };
     const widget: Widget = {
-      type: 'profileLine', title: 'West to east', profile: { kind: 'value', property: 'heights' }, unit: 'm', format: 'integer',
+      type: 'profileLine', title: 'West to east', profile: { kind: 'value', property: 'levels' }, unit: 'm', format: 'integer',
       span: { from: { kind: 'property', thing: '$scope', property: 'spanFrom' }, to: { kind: 'property', thing: '$scope', property: 'spanTo' } },
     };
 

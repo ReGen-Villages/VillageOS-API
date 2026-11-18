@@ -9,7 +9,7 @@ const along = (rows: number, columns: number, values: (number | null)[]) => ({
 describe('the points of a profile', () => {
   it('reads a one-row grid west to east, each point a cell further along', () => {
     expect(profilePoints(along(1, 3, [84, null, 92]))).toEqual([
-      { distanceMetres: 0, height: 84 }, { distanceMetres: 30, height: null }, { distanceMetres: 60, height: 92 },
+      { distanceMetres: 0, value: 84 }, { distanceMetres: 30, value: null }, { distanceMetres: 60, value: 92 },
     ]);
   });
 
@@ -26,7 +26,7 @@ describe('the points of a profile', () => {
 describe('the figures of a profile', () => {
   const points = profilePoints(along(1, 5, [84, 112, null, 96, 70]))!;
 
-  it('gives the lowest, the highest and their difference over the known heights', () => {
+  it('gives the lowest, the highest and their difference over the known values', () => {
     expect(profileFigures(points, null)).toEqual({ lowest: 70, highest: 112, difference: 42 });
   });
 
@@ -34,7 +34,7 @@ describe('the figures of a profile', () => {
     expect(profileFigures(points, { from: 30, to: 90 })).toEqual({ lowest: 96, highest: 112, difference: 16 });
   });
 
-  it('gives nothing where the span holds no known height', () => {
+  it('gives nothing where the span holds no known value', () => {
     expect(profileFigures(points, { from: 55, to: 65 })).toBeNull();
   });
 

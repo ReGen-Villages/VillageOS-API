@@ -395,7 +395,7 @@ export const fr: PartialResources = {
       figures: 'Plus bas {{lowest}}, plus haut {{highest}}, différence {{difference}}',
       notAProfile: 'Un profil lit une grille d’une ligne ou d’une colonne.',
       along: '{{distance}} le long de la ligne',
-      height: 'Hauteur',
+      value: 'Valeur',
     },
     gridMap: {
       tooManyCells: 'Cette grille compte {{cells}} cellules ; une carte en grille en dessine au plus {{most}}.',

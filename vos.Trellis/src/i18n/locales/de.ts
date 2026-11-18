@@ -395,7 +395,7 @@ export const de: PartialResources = {
       figures: 'Tiefster Punkt {{lowest}}, höchster {{highest}}, Unterschied {{difference}}',
       notAProfile: 'Ein Profil liest ein Raster mit einer Zeile oder einer Spalte.',
       along: '{{distance}} entlang der Linie',
-      height: 'Höhe',
+      value: 'Wert',
     },
     gridMap: {
       tooManyCells: 'Dieses Raster hat {{cells}} Zellen; eine Rasterkarte zeichnet höchstens {{most}}.',

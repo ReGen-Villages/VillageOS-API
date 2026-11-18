@@ -395,7 +395,7 @@ export const it: PartialResources = {
       figures: 'Minimo {{lowest}}, massimo {{highest}}, differenza {{difference}}',
       notAProfile: 'Un profilo legge una griglia di una riga o di una colonna.',
       along: '{{distance}} lungo la linea',
-      height: 'Altezza',
+      value: 'Valore',
     },
     gridMap: {
       tooManyCells: 'Questa griglia ha {{cells}} celle; una mappa a griglia ne disegna al massimo {{most}}.',

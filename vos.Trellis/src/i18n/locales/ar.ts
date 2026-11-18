@@ -437,7 +437,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       figures: "الأدنى {{lowest}}، الأعلى {{highest}}، الفرق {{difference}}",
       notAProfile: "يقرأ المقطع شبكة من صف واحد أو عمود واحد.",
       along: "{{distance}} على طول الخط",
-      height: "الارتفاع",
+      value: "القيمة",
     },
     gridMap: {
       tooManyCells: "تحتوي هذه الشبكة على {{cells}} خلية؛ ترسم الخريطة الشبكية {{most}} خلية على الأكثر.",

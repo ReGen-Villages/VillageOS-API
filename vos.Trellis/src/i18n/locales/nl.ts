@@ -395,7 +395,7 @@ export const nl: PartialResources = {
       figures: 'Laagste {{lowest}}, hoogste {{highest}}, verschil {{difference}}',
       notAProfile: 'Een profiel leest een raster van één rij of één kolom.',
       along: '{{distance}} langs de lijn',
-      height: 'Hoogte',
+      value: 'Waarde',
     },
     gridMap: {
       tooManyCells: 'Dit raster heeft {{cells}} cellen; een rasterkaart tekent er hoogstens {{most}}.',
