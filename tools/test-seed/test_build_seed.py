@@ -210,7 +210,7 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
         bounded = [name for name in self.seed.members_of("PropertyName") if "lowest" in name["Properties"]]
         self.assertTrue(bounded)
         for name in bounded:
-            lowest, highest, step = (name["Properties"][each]["value"] for each in ("lowest", "highest", "step"))
+            lowest, highest, step = (name["Properties"][each]["value"] for each in ("lowest", "highest", "stepSize"))
             self.assertLess(lowest, highest)
             self.assertTrue(0 < step <= highest - lowest)
             default = kind["Properties"][name["Properties"]["namedProperty"]["value"]].get("value")

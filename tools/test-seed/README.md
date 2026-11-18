@@ -28,7 +28,7 @@ Change the model by editing `build_seed.py`, run it, and commit the script and b
 | `Site`, `Catchment`, `Reservoir`, `Spring` and their members | Things to read, with sites named outside ASCII so name order is tested |
 | Derived figures on `Catchment` | A formula, a total over members, a figure worked out from another figure, an input added and taken away in one formula, and an input reached along two routes that disagree |
 | Ranges on `Catchment`, and three range Things | States a page counts, lists and words as a verdict |
-| Property-name Things | The model's words for an input in three languages, some with `lowest`, `highest` and `step` |
+| Property-name Things | The model's words for an input in three languages, some with `lowest`, `highest` and `stepSize` |
 | One property of each origin on `Ålvik north slope` | Stated, measured, assumed and unknown |
 | `surveysCatchment` | A connection a state starts, so a catchment awaiting a survey gets a call record |
 | `echo` | The same echo service at a subdomain, which the page's form and one choice post to |

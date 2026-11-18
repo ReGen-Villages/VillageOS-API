@@ -193,7 +193,7 @@ def declare_property_names(model):
         properties = {"namedProperty": typed(property_name, "vos.String"), "wording": words}
         if bounds:
             properties.update({name: typed(value, "vos.Double")
-                               for name, value in zip(("lowest", "highest", "step"), bounds)})
+                               for name, value in zip(("lowest", "highest", "stepSize"), bounds)})
         name = model.member("PropertyName", f"{kind_name} {property_name}", own=properties)
         model.relate(name, names_property_of, model.kinds[kind_name])
 
