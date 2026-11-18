@@ -41,15 +41,15 @@ const DESIGN_PATH = '/design';
  * workbench is keyed on the page it opened, so opening another starts afresh.
  */
 export function DesignPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { dashboardKey } = useParams();
   const navigate = useNavigate();
   useSubscription(WHOLE_MODEL);
   const loaded = useModelStore((state) => state.loaded);
   const modelIndex = useModelIndex();
   const pages = useMemo(
-    () => discoverDashboardsFromIndex(modelIndex).filter((page): page is DesignablePage => page.specification !== null),
-    [modelIndex],
+    () => discoverDashboardsFromIndex(modelIndex, i18n.language).filter((page): page is DesignablePage => page.specification !== null),
+    [modelIndex, i18n.language],
   );
   const [started, setStarted] = useState<string | null>(null);
   const opened = dashboardKey ? pages.find((page) => page.routeKey === dashboardKey) : undefined;

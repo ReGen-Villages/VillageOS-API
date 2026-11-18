@@ -25,8 +25,9 @@ import { fileURLToPath } from 'node:url';
  */
 
 const API_DIRECTORY = dirname(fileURLToPath(import.meta.url));
-const VOCABULARY = join(API_DIRECTORY, '../../../vos.Tendril/src/types/dashboard.ts');
-const COLLECTOR = join(API_DIRECTORY, 'dashboardSubscription.ts');
+const TENDRIL = join(API_DIRECTORY, '../../../vos.Tendril/src');
+const VOCABULARY = join(TENDRIL, 'types/dashboard.ts');
+const COLLECTOR = join(TENDRIL, 'api/pageSelector.ts');
 
 const INTERFACE = /export interface (\w+)\s*\{([\s\S]*?)\n\}/g;
 /** `value: Binding`, `origin?: Binding`, `rows: Binding[]`, `spark?: Binding | null`. */

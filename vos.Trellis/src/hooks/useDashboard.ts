@@ -3,6 +3,7 @@
  * and the selected scope.
  */
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   discoverDashboardsFromIndex,
   modelIndexFor,
@@ -28,9 +29,12 @@ export function useModelIndex(): ModelIndex {
  *  a session opens, and a page that moved when the model changed would be a page a reader loses. */
 export function useDashboards(): DashboardDescriptor[] {
   const declared = usePlatformPagesStore((s) => s.pages);
-  const published = discoverDashboardsFromIndex(useModelIndex());
+  const { i18n } = useTranslation();
+  const published = discoverDashboardsFromIndex(useModelIndex(), i18n.language);
   return useMemo(() => [...declared, ...published], [declared, published]);
 }
+
+const warnInTheConsole = (warning: string) => console.warn(warning);
 
 /** Wrap a shared model index + the selected scope into a resolve context.
  *
@@ -53,9 +57,11 @@ export function useResolveContext(
 ): ResolveContext {
   const stateVersions = useUiStore((s) => s.stateVersions);
   const loadsApplied = useModelStore((s) => s.loadsApplied);
+  const { i18n } = useTranslation();
+  const language = i18n.language;
   return useMemo(
-    () => ({ index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, reads: makeReads(), wrote }),
+    () => ({ index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, reads: makeReads(), wrote, language, warn: warnInTheConsole }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, wrote],
+    [index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, wrote, language],
   );
 }

@@ -43,6 +43,8 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import { tendrilWord } from '../i18n/words';
 import { wordingIn } from '../i18n/termWording';
+import { BASE_LANGUAGE } from '../i18n/languages';
+import { compareNamesIn } from './compareNames';
 import { BINDS_PREDICATE_NAME, PAGE_ROLE_ID, PREDICATE_ROLE_ID } from './platformRoles';
 import {
   NAMED_PROPERTY,
@@ -84,10 +86,11 @@ export interface ModelIndex {
    *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
    *  without a new index, and a per-row binding repeats the same question once per row. */
   archetypeMembers: Map<string, Set<string>>;
-  /** The model's dashboards, parsed the first time they are asked for and discarded with the index.
-   *  The navigation and the page both ask, and a specification is JSON in a property — parsing every one of
-   *  them twice per model change is work neither reader needs done again. */
-  dashboards: DashboardDescriptor[] | null;
+  /** The model's dashboards by the language they are listed in, parsed the first time they are asked
+   *  for and discarded with the index. The navigation and the page both ask, and a specification is
+   *  JSON in a property — parsing every one of them twice per model change is work neither reader
+   *  needs done again. */
+  dashboards: Map<string, DashboardDescriptor[]>;
   /** Archetype id → property → the words the model declares as that property's name there. Built
    *  the first time a lever asks and discarded with the index, because a page offers levers on every
    *  refresh and the names change only with the model. */
@@ -172,7 +175,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
-    dashboards: null,
+    dashboards: new Map(),
     propertyNames: null,
   };
 }
@@ -297,8 +300,15 @@ function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
  *
  *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
  *  dashboard's position in the navigation would move whenever the model changed. */
-export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescriptor[] {
-  if (index.dashboards) return index.dashboards;
+export function discoverDashboardsFromIndex(index: ModelIndex, language: string = BASE_LANGUAGE): DashboardDescriptor[] {
+  const listed = index.dashboards.get(language);
+  if (listed) return listed;
+  const parsed = index.dashboards.values().next().value;
+  if (parsed) {
+    const inThisLanguage = [...parsed].sort((a, b) => compareNamesIn(language)(a.name, b.name));
+    index.dashboards.set(language, inThisLanguage);
+    return inThisLanguage;
+  }
   // Every page Thing is listed, including one whose specification did not read. A specification is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
@@ -306,7 +316,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
     thing,
     specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
-  found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
+  found.sort((a, b) => compareNamesIn(language)(a.thing.Name, b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
   const bearers = new Map<string, number>();
   for (const slug of slugs) bearers.set(slug, (bearers.get(slug) ?? 0) + 1);
@@ -316,7 +326,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
     routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
     specification: d.specification,
   }));
-  index.dashboards = out;
+  index.dashboards.set(language, out);
   return out;
 }
 
@@ -364,15 +374,21 @@ export function parseSpecification(raw: unknown): DashboardSpecification | null 
   return null;
 }
 
-export function scopeEntities(specification: DashboardSpecification, index: ModelIndex): ScopeEntity[] {
+export function scopeEntities(specification: DashboardSpecification, index: ModelIndex, language: string = BASE_LANGUAGE): ScopeEntity[] {
   if (!specification.compare) return [];
   return thingsOfArchetype(specification.compare.archetype, index)
     .map((t) => ({ id: t.Id, name: t.Name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => compareNamesIn(language)(a.name, b.name));
 }
 
 export interface ResolveContext {
   index: ModelIndex;
+  /** The language the page is read in, which orders the names a reader sees listed. English where
+   *  none is given. */
+  language?: string;
+  /** Told what a page description asks that cannot be asked, where the binding then resolves to
+   *  nothing. Nobody is told where this is absent. */
+  warn?: (warning: string) => void;
   /** Selected compare-entity id, or null for "All". */
   scopeId: string | null;
   /** Archetype of compare entities (for `$scope` averaging + compareEntities). */
@@ -403,6 +419,10 @@ export interface ResolveContext {
    *  needs, say — in its own language. Nothing returned, or no function, shows the endpoint's own
    *  `error`. */
   wordRefusal?: (answer: Record<string, unknown>) => string | undefined;
+}
+
+function namesInOrder(context: ResolveContext): (a: string, b: string) => number {
+  return compareNamesIn(context.language ?? BASE_LANGUAGE);
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a
@@ -573,30 +593,55 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
   return undefined;
 }
 
+/** One input at the bottom of a derived figure. `heldBy` is the Thing whose value it is; an input a
+ *  total reads is held by each member instead, and carries the members' kind and no single holder. */
+export interface FigureInput {
+  figure: string;
+  term: string;
+  heldBy?: string;
+  memberKind?: string;
+  /** Whether the figure rises as the input rises, or falls. */
+  figureMoves: 'with' | 'against';
+  /** The input's name by language, where the model declares one. */
+  words?: Readonly<Record<string, string>>;
+}
+
+/** An input left out because nothing can say which way it moves the figure: the definition declares
+ *  no direction for it, or two routes to it move the figure opposite ways. */
+export interface InputLeftOut {
+  figure: string;
+  term: string;
+  memberKind?: string;
+  reason: 'noDirection' | 'routesDisagree';
+}
+
+type Leaf = { term: string; memberKind?: string; sign: 1 | -1 | 0 };
+
 /** Every input at the bottom of a figure's derivation, each with the way the figure moves as it
  *  rises. A term with its own definition is expanded into that definition's terms with the signs
- *  composed, so the offers name what a person could actually change — a term whose definition names
+ *  composed, so what is named is what a person could actually change — a term whose definition names
  *  it back is read as a leaf rather than walked forever. A term the definition declares no
- *  direction for is dropped with its subtree: under a shortfall a wrong direction is worse than
- *  none. Reduction inputs live on each member, so those carry the members' archetype. */
+ *  direction for is reported with a sign of zero and its subtree is not walked: under a shortfall a
+ *  wrong direction is worse than none. Reduction inputs live on each member, so those carry the
+ *  members' kind. */
 function leafInfluences(
   property: string,
   definitions: Readonly<Record<string, DerivedDefinition>>,
   sign: 1 | -1,
   visiting: Set<string>,
-): { term: string; memberArchetype?: string; sign: 1 | -1 }[] {
+): Leaf[] {
   const definition = definitions[property];
   if (!definition) return [];
   visiting.add(property);
   const rises = new Set(definition.RisesWith ?? []);
   const falls = new Set(definition.FallsWith ?? []);
-  const leaves: { term: string; memberArchetype?: string; sign: 1 | -1 }[] = [];
+  const memberKind = definition.Expression === undefined ? definition.RelatedType ?? undefined : undefined;
+  const leaves: Leaf[] = [];
   for (const term of definition.Reads ?? []) {
     const direction = rises.has(term) ? 1 : falls.has(term) ? -1 : 0;
-    if (!direction) continue;
-    const composed = (sign * direction) as 1 | -1;
-    if (definition.Expression === undefined) {
-      leaves.push({ term, memberArchetype: definition.RelatedType ?? undefined, sign: composed });
+    const composed = (sign * direction) as 1 | -1 | 0;
+    if (composed === 0 || definition.Expression === undefined) {
+      leaves.push({ term, memberKind, sign: composed });
     } else {
       const below = definitions[term] && !visiting.has(term)
         ? leafInfluences(term, definitions, composed, visiting)
@@ -609,13 +654,47 @@ function leafInfluences(
 }
 
 /**
- * What would move a judged figure toward leaving the state it holds, in the order the derivation
- * reads them. The held comparison says which way the result must move — a state held by sitting
- * below its target is left by rising, one held by sitting above it by falling — and each leaf's
- * composed sign says which way that input goes. An input reached along two agreeing routes is one
- * offer; one whose routes disagree is dropped, since offering either direction would be the client
- * taking a side. An input held by members is named from their archetype, any other from the judged
- * Thing's own.
+ * The inputs at the bottom of a Thing's derived figures, in the order each derivation reads them:
+ * of the one figure named, or of every figure the Thing derives. An input reached along two
+ * agreeing routes is named once. One with no declared direction, or whose routes disagree, is left
+ * out and reported with the reason, since naming either direction would be taking a side.
+ */
+export function inputsOf(thing: VosThing, index: ModelIndex, figure?: string): { inputs: FigureInput[]; leftOut: InputLeftOut[] } {
+  const definitions = effectiveDerivedDefinitions(thing, index);
+  const inputs: FigureInput[] = [];
+  const leftOut: InputLeftOut[] = [];
+  for (const derived of figure === undefined ? Object.keys(definitions) : [figure]) {
+    const routes = new Map<string, Leaf & { reason?: InputLeftOut['reason'] }>();
+    for (const leaf of leafInfluences(derived, definitions, 1, new Set())) {
+      const key = `${leaf.term}\u0000${leaf.memberKind ?? ''}`;
+      const seen = routes.get(key);
+      if (!seen) routes.set(key, { ...leaf, ...(leaf.sign === 0 ? { reason: 'noDirection' as const } : {}) });
+      else if (seen.sign !== leaf.sign && !seen.reason) Object.assign(seen, { sign: 0, reason: 'routesDisagree' as const });
+    }
+    for (const leaf of routes.values()) {
+      const held = leaf.memberKind !== undefined ? { memberKind: leaf.memberKind } : {};
+      if (leaf.reason) {
+        leftOut.push({ figure: derived, term: leaf.term, ...held, reason: leaf.reason });
+        continue;
+      }
+      const holderIds = leaf.memberKind !== undefined ? typeIdsNamed(leaf.memberKind, index) : [thing.Id];
+      const words = declaredWords(leaf.term, holderIds, index);
+      inputs.push({
+        figure: derived,
+        term: leaf.term,
+        ...(leaf.memberKind !== undefined ? held : { heldBy: thing.Id }),
+        figureMoves: leaf.sign > 0 ? 'with' : 'against',
+        ...(words ? { words } : {}),
+      });
+    }
+  }
+  return { inputs, leftOut };
+}
+
+/**
+ * What would move a judged figure toward leaving the state it holds. The held comparison says which
+ * way the result must move — a state held by sitting below its target is left by rising, one held
+ * by sitting above it by falling — and each input says which way the figure moves with it.
  */
 function leversFor(
   property: string,
@@ -623,30 +702,16 @@ function leversFor(
   judged: VosThing,
   index: ModelIndex,
 ): Lever[] {
-  const definitions = effectiveDerivedDefinitions(judged, index);
-  const resultMustMove = operator === '<' || operator === '<=' ? 1
-    : operator === '>' || operator === '>=' ? -1
+  const figureMustRise = operator === '<' || operator === '<=' ? true
+    : operator === '>' || operator === '>=' ? false
     : null;
-  if (resultMustMove === null) return [];
-  const routes = new Map<string, { term: string; memberArchetype?: string; sign: 1 | -1 | 0 }>();
-  for (const leaf of leafInfluences(property, definitions, 1, new Set())) {
-    const key = `${leaf.term}\u0000${leaf.memberArchetype ?? ''}`;
-    const seen = routes.get(key);
-    if (!seen) routes.set(key, { ...leaf });
-    else if (seen.sign !== leaf.sign) seen.sign = 0;
-  }
-  return [...routes.values()]
-    .filter((leaf) => leaf.sign !== 0)
-    .map((leaf) => {
-      const holderIds = leaf.memberArchetype !== undefined ? typeIdsNamed(leaf.memberArchetype, index) : [judged.Id];
-      const words = declaredWords(leaf.term, holderIds, index);
-      return {
-        term: leaf.term,
-        ...(leaf.memberArchetype !== undefined ? { memberArchetype: leaf.memberArchetype } : {}),
-        direction: resultMustMove * leaf.sign > 0 ? 'raise' as const : 'lower' as const,
-        ...(words ? { words } : {}),
-      };
-    });
+  if (figureMustRise === null) return [];
+  return inputsOf(judged, index, property).inputs.map((input) => ({
+    term: input.term,
+    ...(input.memberKind !== undefined ? { memberArchetype: input.memberKind } : {}),
+    direction: (input.figureMoves === 'with') === figureMustRise ? 'raise' as const : 'lower' as const,
+    ...(input.words ? { words: input.words } : {}),
+  }));
 }
 
 /** The Things a binding reads: the one its reference names, or — when it declares a path — the
@@ -672,7 +737,7 @@ async function thingsReached(
   return reached
     .map((id) => context.index.byId.get(id))
     .filter((t): t is VosThing => !!t)
-    .sort((a, b) => a.Name.localeCompare(b.Name));
+    .sort((a, b) => namesInOrder(context)(a.Name, b.Name));
 }
 
 /**
@@ -880,7 +945,7 @@ async function resolveRelated(binding: Extract<Binding, { kind: 'related' }>, co
   if (!values.length) return null;
   if (values.length === 1 && typeof values[0] === 'number') return values[0];
   // Sorted so a cell naming several Things reads the same on every refresh, whatever order the relationships arrive in.
-  return [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b)).join(', ');
+  return [...new Set(values.map(String))].sort(namesInOrder(context)).join(', ');
 }
 
 async function resolveStateOf(binding: Extract<Binding, { kind: 'stateOf' }>, context: ResolveContext): Promise<BindingResult> {
@@ -961,6 +1026,7 @@ async function resolveWorking(binding: Extract<Binding, { kind: 'working' }>, co
 
 function resolveCompareEntities(binding: Extract<Binding, { kind: 'compareEntities' }>, context: ResolveContext) {
   const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+  entities.sort((a, b) => namesInOrder(context)(a.Name, b.Name));
   const rows = entities.map((t) => {
     const row: Row = { id: t.Id, name: t.Name };
     for (const p of binding.properties) row[p] = number(effectiveProperties(t, context.index)[p]);
@@ -1018,7 +1084,7 @@ async function resolveThingList(binding: Extract<Binding, { kind: 'thingList' }>
     const inState = new Set(((await context.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
     list = list.filter((t) => inState.has(t.Id));
   }
-  list.sort((a, b) => a.Name.localeCompare(b.Name));
+  list.sort((a, b) => namesInOrder(context)(a.Name, b.Name));
   if (binding.limit) list = list.slice(0, binding.limit);
   const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, context.index) }) as Row);
   return withComputedColumns(rows, binding.computed, context);
@@ -1063,7 +1129,7 @@ async function seriesPoints(
   // model has not got, while these are questions the specification cannot ask, and an author has no other
   // sign of them.
   if (binding.scope?.direction === 'in') {
-    console.warn(
+    context.warn?.(
       `timeseries over ${binding.archetype}: the platform narrows to what a container reaches, so a ` +
         'scope reaching the other way cannot be asked for.',
     );
@@ -1073,7 +1139,7 @@ async function seriesPoints(
   // A point of one bucket is that bucket, whatever the reduction — an average included.
   const fold = bucketsPerPoint === 1 ? (buckets: number[]) => buckets[0] : FOLDS[binding.reduction];
   if (!fold) {
-    console.warn(
+    context.warn?.(
       `timeseries over ${binding.archetype}: an ${binding.reduction} of several buckets is not the ` +
         `${binding.reduction} of their values, so a point cannot be folded up from them.`,
     );

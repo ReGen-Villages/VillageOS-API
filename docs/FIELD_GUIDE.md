@@ -2783,7 +2783,7 @@ mapping over the binding union, so a kind added and left out of it fails the bui
 
 **Navigation.** Where the rail shows a single **Operations** entry for a model that publishes no
 page and the platform declares none, a model that publishes some gets one entry each in its place,
-ordered by name. The pages the platform declares for the signed-in account come first — they are
+ordered by name as the page language orders names. The pages the platform declares for the signed-in account come first — they are
 the same whichever model a session opens, and a page that moved when the model changed would be one
 a reader loses — and the platform lists such a page only to the accounts it is for.
 
@@ -2817,7 +2817,7 @@ the entities instead. A reference matching neither resolves to nothing.
 | `aggregate` | A function over a property across the members of an archetype, optionally narrowed by a scope and a comparison | Nothing: the loaded model |
 | `ratio` | Two bindings divided | Nothing |
 | `stateCount`, `stateList` | How many Things hold a state, and which; narrowed by archetype, scope, an excluded state and a cap, all sent on the request so the server answers the question asked | One request per distinct question per refresh, shared across every widget asking it |
-| `thingList` | Every Thing of an archetype whatever state it is in, ordered by name | Nothing: the loaded model |
+| `thingList` | Every Thing of an archetype whatever state it is in, ordered by name as the page language orders names; a `limit` keeps the first rows in that order | Nothing: the loaded model |
 | `related`, `stateOf` | What a relationship says; which of several states a Thing holds | Nothing |
 | `timeseries`, `latest`, `history` | The two temporal reductions (chapter 91) | One request per distinct question per refresh |
 | `verdict`, `working`, `origin` | A judged value as a sentence; a figure's formula and inputs; where a figure came from | One range read per judged Thing; nothing; nothing |

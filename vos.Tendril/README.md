@@ -15,7 +15,35 @@ copy of its own.**
     its own questions and post to its own route, and decided rows can sit behind a switch.
   - the **form**: records something no row on the page lists yet.
   - the **fields** either widget asks a person to fill before a press.
-- **Builds what a press posts**: the body, and the route the widget's `via` names.
+- **Builds what a press posts**: the body, and the route the widget's `via` names. `pressOf` composes
+  the writes a press makes and sends nothing; `sendPress` sends them and stops at a refusal.
+- **Words a figure**: a number in the format and the language asked for, a verdict's sentence, the
+  line saying where a value came from, and what a figure was worked out from. The console's KPI
+  card, verdict list and working list take their text from these, and `readWidget` reads a whole
+  widget out for a program with no screen.
+- **Says which Things a page needs**: `subscriptionForSpecification` turns a page description into
+  the selector the platform reads.
+- **Names a figure's inputs**: `inputsOf` walks a Thing's derived figures to the inputs at the
+  bottom, says which way each moves the figure, and names the ones it leaves out with the reason.
+
+## Two entries
+
+| Import | Carries | For |
+| --- | --- | --- |
+| `@tendril-ui/tendril` | Everything, the widgets and hooks included | An application that draws pages with React |
+| `@tendril-ui/tendril/reader` | The reader, the wording, the selector, the inputs and the press composition | A program with no browser |
+
+Nothing reachable from the reader entry imports React or needs a browser's types. `src/reader.test.ts`
+fails if React becomes reachable, and `npm run typecheck` checks the entry with no browser types.
+
+## Order and language
+
+- **Names a reader sees listed follow the language of the context**: the pages, the Things a page
+  compares (as a list to choose from and as the rows of a comparison), the rows of a list of Things,
+  and several names joined in one cell. English where the
+  context gives no language. A list with a limit keeps the first rows in that language's order.
+- **Which of two sibling kinds a Thing takes a value from never follows a language.** The kind whose
+  name is last wins, compared code unit by code unit, so every reader resolves the same value.
 
 ## What the application that embeds it supplies
 
@@ -27,6 +55,9 @@ copy of its own.**
 - **The loaded model and the reads it cannot answer**, through ports the application fills.
 - **The words for a refusal.** The endpoint's whole answer goes to `wordRefusal(answer)` on the
   context, beside `wrote`. Without one, the endpoint's own words are shown.
+- **The language**, as `language` on the context, and **where a warning goes**, as `warn`. The
+  reader warns where a page description asks a question that cannot be asked, and resolves that
+  binding to nothing.
 - **Colours.** Tendril reads them from CSS custom properties, one per role: `--tendril-text`,
   `--tendril-muted`, `--tendril-refusal`, `--tendril-action`, `--tendril-action-hover`,
   `--tendril-action-text`, `--tendril-field-border` and `--tendril-field`. Each class falls back to
