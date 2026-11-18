@@ -1,5 +1,5 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
-import { PREDICATE_ROLE_ID, statedProperties } from '@tendril-ui/tendril';
+import { NOTIFIED_CONNECTION_ROLE_ID, PREDICATE_ROLE_ID, statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -78,6 +78,8 @@ export const ROLE = {
   // When a connection's call counts as finished: the choices, and the predicate a connection or its service names one along.
   CallCompletion: 'cbb25882-3197-56fd-9bab-2ebcc1a000bf',
   CompletesWhen: 'd508b5e4-6534-5e41-afbb-2eaa8ab08b29',
+  // A predicate names the connection a relationship along it calls.
+  NotifiedConnection: NOTIFIED_CONNECTION_ROLE_ID,
 } as const;
 
 /** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
@@ -100,6 +102,7 @@ export function portsAreTheKinds(kind: NodeKind): boolean {
 }
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
+const INTERVAL_MINUTES_PROPERTY = 'intervalMinutes';
 
 /** Written by the orchestrator onto a run it starts from a request; the request log is outside the model,
  *  so the run names the entry rather than relating to it. */
@@ -449,6 +452,23 @@ export class PipelineModel {
         } : {}),
         ...(started ? { startsPipeline: { id: started.Id, name: started.Name } } : {}),
       };
+    });
+  }
+
+  /** Every predicate that names a connection along `notifies`, which a relationship along the predicate calls. An archetype
+   *  naming one is left out: it names where its members' call records are answered, and is no predicate. */
+  predicatesNotifying(): { predicate: VosThing; connectionId: string }[] {
+    return this.thingsOf(ROLE.Connection).flatMap((connection) =>
+      this.reachingAlong(connection.Id, ROLE.NotifiedConnection)
+        .filter((predicate) => !predicate.IsArchetype)
+        .map((predicate) => ({ predicate, connectionId: connection.Id })));
+  }
+
+  /** Every cadence, with how many model minutes apart the orchestrator starts its runs. */
+  cadences(): { id: string; name: string; everyMinutes: number }[] {
+    return this.thingsOf(ROLE.Cadence).map((cadence) => {
+      const minutes = Number(this.stated(cadence.Id)[INTERVAL_MINUTES_PROPERTY] ?? 0);
+      return { id: cadence.Id, name: cadence.Name, everyMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 0 };
     });
   }
 

@@ -90,10 +90,11 @@ public class ObservationIngestService
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
-        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default, Action? onReshaped = null)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
+        onReshaped?.Invoke();
 
         if (!TryParseReadings(transformed, subjectId != null, out var readings, out var parseError))
             return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);

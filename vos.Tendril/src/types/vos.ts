@@ -130,7 +130,8 @@ export type HistoryFold =
   | 'hour' | 'day' | 'month' | 'year'
   | 'hourOfDay' | 'dayOfYear' | 'monthOfYear'
   | 'hourOfDay,dayOfYear' | 'monthOfYear,hourOfDay'
-  | 'all';
+  | 'all'
+  | 'value' | 'monthOfYear,value';
 
 export type HistoryFunction =
   | 'Min' | 'Max' | 'Average' | 'Sum' | 'Count' | 'Percentile' | 'ShareWithin'

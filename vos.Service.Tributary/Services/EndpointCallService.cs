@@ -416,12 +416,26 @@ public sealed class EndpointCallService
 
         if (plan.Reshape.Transform is { } transform && status is >= 200 and < 300)
         {
-            deadline.Awaiting = AwaitedStep.ReadingsWrite;
+            deadline.Awaiting = AwaitedStep.Reshaping;
+            var started = _clock.GetTimestamp();
+            var reshapedIn = TimeSpan.Zero;
             var ingestResult = await _observationService.CreateObservationsAsync(
-                endpointThingId, transform, body, request.SubjectId, observed, deadline.Token);
+                endpointThingId, transform, body, request.SubjectId, observed, deadline.Token,
+                onReshaped: () =>
+                {
+                    reshapedIn = _clock.GetElapsedTime(started);
+                    // The reshape cannot be cancelled, so a deadline it overran is noticed here, before anything is written.
+                    deadline.Token.ThrowIfCancellationRequested();
+                    deadline.Awaiting = AwaitedStep.ReadingsWrite;
+                });
             if (!ingestResult.Success)
                 return new Refusal(400, ingestResult.Error ?? "Observation ingest failed.",
                     new Dictionary<string, object?> { ["detail"] = ingestResult.Detail }).ToResult();
+
+            _logger.LogInformation(
+                "Endpoint {EndpointName} answered {Characters} characters, reshaped in {ReshapeMilliseconds:0} ms; {Readings} readings written in {WriteMilliseconds:0} ms",
+                request.EndpointName, body.Length, reshapedIn.TotalMilliseconds, ingestResult.ObservationsSubmitted,
+                (_clock.GetElapsedTime(started) - reshapedIn).TotalMilliseconds);
 
             return EndpointCallResult.Ingested(new IngestSummary(
                 endpointThingId, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted,

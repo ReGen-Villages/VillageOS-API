@@ -133,8 +133,8 @@ public class DivisionResolverTests
     private static DivisionResolver ResolverOver(ScriptedReader reader, RecordingWriter writer) =>
         new(reader, writer, NullLogger<DivisionResolver>.Instance);
 
-    private static string DivisionAddressing(SiteCoverage coverage) =>
-        coverage.Covering.Single().Calls.Single().Values.GetValueOrDefault(CodeProperty, string.Empty);
+    private static string DivisionAddressing(IReadOnlyDictionary<string, string>? region) =>
+        region?.GetValueOrDefault(CodeProperty, string.Empty) ?? string.Empty;
 
     private sealed class ScriptedReader : IEndpointBodyReader
     {
@@ -198,7 +198,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
         var resolver = ResolverOver(new ScriptedReader(InPortugal, DivisionsNamedSantarem), writer);
 
-        await resolver.AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await resolver.RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
         writer.Facts.Should().Contain((SiteId, NameProperty, "Portugal / Santarem / Santarem"));
@@ -212,7 +212,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
         var reader = new ScriptedReader(InPortugalAsTheGeocoderWritesIt, DivisionsNamedSantarem);
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Santarém");
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
@@ -221,14 +221,14 @@ public class DivisionResolverTests
     // On this run, not the next: a site graded only after a whole service call had been waited out would sit
     // ungraded for as long as the platform allows a run to take.
     [Fact]
-    public async Task TheResolvedDivisionAddressesThisRunsOwnCalls()
+    public async Task TheResolvedDivisionIsAnsweredForTheSitesCalls()
     {
         var resolver = ResolverOver(
             new ScriptedReader(InPortugal, DivisionsNamedSantarem), new RecordingWriter());
 
-        var addressed = await resolver.AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        var region = await resolver.RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
-        DivisionAddressing(addressed).Should().Be("24889");
+        DivisionAddressing(region).Should().Be("24889");
     }
 
     // Found by the standard's code rather than by a name: the geocoder answers English, the portal holds
@@ -241,7 +241,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(reader, writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Poland(), Mazowieckie()), CancellationToken.None);
+            .RegionAsync(SiteId, AtKirsztajnowAmong(Poland(), Mazowieckie()), CancellationToken.None);
 
         writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
         DivisionAddressing(addressed).Should().Be("2376");
@@ -256,7 +256,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(new ScriptedReader(InPoland), writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), Poland("185")), CancellationToken.None);
+            .RegionAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), Poland("185")), CancellationToken.None);
 
         writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
         DivisionAddressing(addressed).Should().Be("2376");
@@ -270,7 +270,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(reader, writer)
-            .AddressAsync(SiteId, AtWillowBendAmong(Portugal()), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBendAmong(Portugal()), CancellationToken.None);
 
         writer.Related.Should().Equal((SiteId, NestingPredicateId, PortugalId));
         reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Santarem");
@@ -284,7 +284,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(division: null, siteIsIn: true)), CancellationToken.None);
+            .RegionAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(division: null, siteIsIn: true)), CancellationToken.None);
 
         writer.Related.Should().BeEmpty();
     }
@@ -296,7 +296,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter { RefusesRelating = true };
 
         var addressed = await ResolverOver(new ScriptedReader(InPortugalWithItsCode, DivisionsNamedSantarem), writer)
-            .AddressAsync(SiteId, AtWillowBendAmong(Portugal("185")), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBendAmong(Portugal("185")), CancellationToken.None);
 
         writer.Related.Should().BeEmpty();
         DivisionAddressing(addressed).Should().Be("24889");
@@ -311,7 +311,7 @@ public class DivisionResolverTests
         var twice = new CodedPlace(Guid.NewGuid(), "Masovia", "PL-14", false, ValuesOf("99"));
 
         var addressed = await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), twice, Poland("185")), CancellationToken.None);
+            .RegionAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), twice, Poland("185")), CancellationToken.None);
 
         writer.Related.Should().Equal((SiteId, NestingPredicateId, PolandId));
         DivisionAddressing(addressed).Should().Be("185");
@@ -323,7 +323,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(new ScriptedReader(InPortugalWithItsCode, DivisionsNamedSantarem), writer)
-            .AddressAsync(SiteId, AtWillowBendAmong(), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBendAmong(), CancellationToken.None);
 
         writer.Related.Should().BeEmpty();
         DivisionAddressing(addressed).Should().Be("24889");
@@ -346,7 +346,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(reader, writer)
-            .AddressAsync(SiteId, AtKirsztajnowWithLocalNames(), CancellationToken.None);
+            .RegionAsync(SiteId, AtKirsztajnowWithLocalNames(), CancellationToken.None);
 
         reader.Asked.Select(asked => asked.AreaName).Should().Equal(
             null, null,
@@ -363,7 +363,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
 
         await ResolverOver(reader, writer)
-            .AddressAsync(SiteId, CoverageOf(LookupWithLocalNames, ("latitude", "41.4"), ("longitude", "-70.6")), CancellationToken.None);
+            .RegionAsync(SiteId, CoverageOf(LookupWithLocalNames, ("latitude", "41.4"), ("longitude", "-70.6")), CancellationToken.None);
 
         reader.Asked.Select(asked => asked.Endpoint).Take(3).Should().Equal(AreaNameEndpoint, LocalAreaNameEndpoint, SearchEndpoint);
         writer.Facts.Should().Contain((SiteId, CodeProperty, "29898"));
@@ -374,7 +374,7 @@ public class DivisionResolverTests
     {
         var reader = new ScriptedReader(InPortugal, DivisionsNamedSantarem);
 
-        await ResolverOver(reader, new RecordingWriter()).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, new RecordingWriter()).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Select(asked => asked.Endpoint).Should().Equal(AreaNameEndpoint, SearchEndpoint);
     }
@@ -388,7 +388,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
         var coverage = CoverageOf(Lookup, ("latitude", "39.5012"), (CodeProperty, "2409"));
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, coverage, CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, coverage, CancellationToken.None);
 
         reader.Asked.Should().BeEmpty();
         writer.Facts.Should().BeEmpty();
@@ -402,7 +402,7 @@ public class DivisionResolverTests
         var reader = new ScriptedReader(OnMarthasVineyard, NoDivisionOfThatName, DivisionsNamedDukes);
         var writer = new RecordingWriter();
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Should().Equal(
             (AreaNameEndpoint, null),
@@ -418,7 +418,7 @@ public class DivisionResolverTests
             NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName, DivisionsNamedMassachusetts);
         var writer = new RecordingWriter();
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Select(asked => asked.AreaName).Should().Equal(
             null, "Dukes County", "Dukes", "County", "Massachusetts");
@@ -433,7 +433,7 @@ public class DivisionResolverTests
         var reader = new ScriptedReader(OnMarthasVineyard, null, DivisionsNamedMassachusetts);
         var writer = new RecordingWriter();
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Should().HaveCount(2);
         writer.Facts.Should().BeEmpty();
@@ -445,7 +445,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter();
         var reader = new ScriptedReader(InPortugal, """{"data": [{"code": 8836, "admin0": "Brazil", "admin1": "Para", "admin2": "Santarem"}]}""");
 
-        var addressed = await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        var addressed = await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         writer.Facts.Should().BeEmpty();
         DivisionAddressing(addressed).Should().BeEmpty();
@@ -459,7 +459,7 @@ public class DivisionResolverTests
         var reader = new ScriptedReader(null, DivisionsNamedSantarem);
         var writer = new RecordingWriter();
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Should().ContainSingle().Which.Endpoint.Should().Be(AreaNameEndpoint);
         writer.Facts.Should().BeEmpty();
@@ -471,7 +471,7 @@ public class DivisionResolverTests
         var reader = new ScriptedReader("""{"error": "Unable to geocode"}""", DivisionsNamedSantarem);
         var writer = new RecordingWriter();
 
-        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+        await ResolverOver(reader, writer).RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         reader.Asked.Should().ContainSingle();
         writer.Facts.Should().BeEmpty();
@@ -483,7 +483,7 @@ public class DivisionResolverTests
         var reader = new ScriptedReader(InPortugal, DivisionsNamedSantarem);
 
         var addressed = await ResolverOver(reader, new RecordingWriter())
-            .AddressAsync(SiteId, AtWillowBendWithNoLookupDeclared(), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBendWithNoLookupDeclared(), CancellationToken.None);
 
         reader.Asked.Should().BeEmpty();
         DivisionAddressing(addressed).Should().BeEmpty();
@@ -497,7 +497,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter { RefusedProperty = CodeProperty };
 
         var addressed = await ResolverOver(new ScriptedReader(InPortugal, DivisionsNamedSantarem), writer)
-            .AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         writer.Facts.Should().BeEmpty();
         DivisionAddressing(addressed).Should().BeEmpty();
@@ -511,7 +511,7 @@ public class DivisionResolverTests
         var writer = new RecordingWriter { RefusedProperty = NameProperty };
 
         var addressed = await ResolverOver(new ScriptedReader(InPortugal, DivisionsNamedSantarem), writer)
-            .AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+            .RegionAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
         DivisionAddressing(addressed).Should().Be("24889");

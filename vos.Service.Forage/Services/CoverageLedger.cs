@@ -70,41 +70,6 @@ public sealed class CoverageLedger
         return outstanding;
     }
 
-    // The covering sources, holding only the calls still to make. A source every one of whose calls has
-    // been answered drops out entirely rather than being called with an empty list.
-    public static IReadOnlyList<CoveringSource> CallsStillToMake(
-        IReadOnlyList<CoveringSource> covering, IReadOnlyList<OutstandingCall> outstanding)
-    {
-        var wanted = outstanding
-            .GroupBy(call => call.Source.SourceId)
-            .ToDictionary(group => group.Key, group => (IReadOnlyList<SourceCall>)[.. group.Select(call => call.Call)]);
-
-        return
-        [
-            .. covering
-                .Where(source => wanted.ContainsKey(source.SourceId))
-                .Select(source => source with { Calls = wanted[source.SourceId] })
-        ];
-    }
-
-    // Each outcome against the coverage of the call it came from, matched by identity rather than by
-    // name: two Things may share a name, and an answer written onto the wrong coverage would report one
-    // source's outage as another's.
-    public async Task RecordAllAsync(
-        IReadOnlyList<OutstandingCall> outstanding, DiscoveryReport report, CancellationToken cancellationToken)
-    {
-        var byCall = outstanding.ToDictionary(call => (call.Call.SubjectId, call.Source.SourceId));
-
-        foreach (var outcome in report.Resolved.Concat(report.Unresolved))
-        {
-            // An outcome naming neither came from no call this run made, so there is no coverage it
-            // belongs on. Recording it against a guess would put one source's answer on another's.
-            if (outcome.SubjectId is not { } subjectId || outcome.SourceId is not { } sourceId) continue;
-            if (byCall.TryGetValue((subjectId, sourceId), out var call))
-                await RecordAsync(call, outcome, cancellationToken);
-        }
-    }
-
     // What one call came to. A resolved call is stamped and stops being asked; a failed one keeps the
     // provider's own words and the count of how often it has been tried, and stays outstanding.
     public async Task RecordAsync(OutstandingCall outstanding, SourceOutcome outcome, CancellationToken cancellationToken)

@@ -6,6 +6,7 @@ import type {
   DashboardSpecification,
   DepthProfileWidget,
   FunnelWidget,
+  PolarSharesWidget,
   KpiWidget,
   LeaderboardWidget,
   TableWidget,
@@ -362,6 +363,28 @@ describe('localizeSpecification over a boxPlot widget', () => {
     expect(localized.hint).toBe('por mes');
     expect(localized.unit).toBe('grados');
     expect(localized.bands?.[0].label).toBe('Peligro');
+  });
+});
+
+describe('localizeSpecification over a polarShares widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'polarShares',
+              title: 'Wind rose',
+              hint: 'whole year',
+              counts: { kind: 'const', value: 1 },
+              cells: { kind: 'const', value: 1 },
+              bearingKey: 'centreDegrees', classOrderKey: 'order', classLabelKey: 'name', classColourKey: 'colour',
+            } satisfies PolarSharesWidget] }],
+    translations: { es: { 'Wind rose': 'Rosa de los vientos', 'whole year': 'todo el año' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as PolarSharesWidget;
+
+  it('translates the wording the widget shows, and keeps the row keys it reads', () => {
+    expect(localized.title).toBe('Rosa de los vientos');
+    expect(localized.hint).toBe('todo el año');
+    expect(localized.bearingKey).toBe('centreDegrees');
   });
 });
 

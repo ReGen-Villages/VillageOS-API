@@ -48,6 +48,63 @@ public class PassedOnRequestLimitHandleTests
             reason: "The broker had not accepted the readings within 28 of the 30 seconds");
     }
 
+    // The fault this guards: a slow reshape was reported as a broker that had not accepted the readings (Bug 8455).
+    [Fact]
+    public async Task Handle_WhenTheDeadlinePassesWhileTheAnswerIsReshaped_AnswersThatTheReshapeHadNotFinished()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+        StalledHost? host = null;
+
+        await using (host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request =>
+            {
+                if (request.RequestUri!.Host == "api.test")
+                {
+                    host!.Clock.Advance(Deadline);
+                    return Json("""{"regime":"steady"}""");
+                }
+                return RouteFindThing(request, thingId, "EP")
+                    ?? RouteEffectiveProperties(request, thingId, props)
+                    ?? RouteKindsFromProperties(request, thingId, props)
+                    ?? RouteRelationshipWrite(request)
+                    ?? RouteObservationWrite(request, subjectId);
+            }))
+        {
+            var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP", subjectId });
+
+            response.StatusCode.Should().Be(HttpStatusCode.GatewayTimeout);
+            (await response.Content.ReadAsStringAsync()).Should()
+                .Contain("Tributary had not finished reshaping the answer within 28 of the 30 seconds");
+        }
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheReadingsAreWritten_LogsHowLongTheReshapeAndTheWriteTook()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request => request.RequestUri!.Host == "api.test"
+                ? Json("""{"regime":"steady"}""")
+                : RouteFindThing(request, thingId, "EP")
+                  ?? RouteEffectiveProperties(request, thingId, props)
+                  ?? RouteKindsFromProperties(request, thingId, props)
+                  ?? RouteRelationshipWrite(request)
+                  ?? RouteObservationWrite(request, subjectId));
+
+        (await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP", subjectId })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        host.Log.Lines.Should().ContainSingle(line => line.Contains("EP") && line.Contains("reshaped in") && line.Contains("1 readings written in"));
+    }
+
     [Fact]
     public async Task Handle_WhenTheDataSourceHasNotAnsweredByTheDeadline_AnswersSo()
     {

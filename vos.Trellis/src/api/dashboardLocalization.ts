@@ -17,6 +17,7 @@ import type {
   BoxPlotWidget,
   BulletWidget,
   DepthProfileWidget,
+  PolarSharesWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -199,6 +200,10 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         unit: tr(widget.unit),
         parts: widget.parts.map((part) => ({ ...part, label: tr(part.label) })),
       };
+      return w;
+    }
+    case 'polarShares': {
+      const w: PolarSharesWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint) };
       return w;
     }
     case 'rangeBar':

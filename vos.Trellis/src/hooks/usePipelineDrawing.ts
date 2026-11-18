@@ -112,10 +112,11 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   }, [place]);
 
   // Where the run comes from: a start node standing for the catalyst it was placed from, whose out port
-  // is the run's parameter — the message that arrived, or the Thing that entered the state or the
-  // relationship. Placed from nothing, it is a start by hand, filled from the parameters typed above.
+  // is the run's parameter — the message that arrived, the Thing that entered the state or the
+  // relationship, or the instant a cadence was due. Placed from nothing, it is a start by hand, filled
+  // from the parameters typed above.
   const placeStart = useCallback((row: CatalystRow | undefined) => {
-    const portName = row === undefined || row.kind === 'message' ? 'payload' : 'subject';
+    const portName = row === undefined || row.kind === 'message' ? 'payload' : row.kind === 'cadence' ? 'due' : 'subject';
     place({
       label: row ? (row.who ? `${row.who} · ${row.what}` : row.what) : t('pipeline.boundaryInput'),
       kind: 'input',

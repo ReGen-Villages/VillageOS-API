@@ -47,8 +47,12 @@ describe('the Pipelines page subscription', () => {
     expect(KINDS_READ).toContain(ROLE.NodeRun);
   });
 
+  it('follows each connection one step back along notifies, to the predicate a relationship along which calls it', () => {
+    expect(PIPELINE_PAGE.traverse).toContainEqual({ predicateRole: ROLE.NotifiedConnection, direction: 'incoming' });
+  });
+
   it('follows one step along the predicates that reach Things no role does, by role, and keeps following', () => {
-    expect(PIPELINE_PAGE.traverse).toEqual(FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role })));
+    expect(PIPELINE_PAGE.traverse).toEqual(expect.arrayContaining(FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role }))));
     expect(FOLLOWED_ONE_STEP).toEqual(expect.arrayContaining([ROLE.StandsFor, ROLE.Choice, ROLE.ComparesWith]));
     expect(PIPELINE_PAGE.includeLaterMatches).toBe(true);
   });

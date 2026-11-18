@@ -1357,13 +1357,17 @@ public static class TestGraphs
     // springPathBeside adds Read spring → Read level, which shares nothing with the readings.
     public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string listTransform = "", string itemTransform = "", string fromPath = "",
         AlsoFillingRecordLevel alsoFilling = AlsoFillingRecordLevel.Nothing, bool checkAnswersAList = false, bool springPathBeside = false,
-        bool readingsReachCheck = true, bool checkRetries = false)
+        bool readingsReachCheck = true, bool checkRetries = false, int? checkItemsAtOnce = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
         var checkProto = InputOutputPrototype(fx, vocabulary, "CheckProto", collectionIn: true, collectionOut: checkAnswersAList);
-        var check = ServiceNode(fx, vocabulary, checkProto, "Check reading", "check",
-            checkRetries ? [("onItemError", onItemError), ("attempts", 3), ("pauseMinutes", 1)] : [("onItemError", onItemError)]);
+        var checkProperties = new List<(string Name, object Value)> { ("onItemError", onItemError) };
+        if (checkRetries)
+            checkProperties.AddRange([("attempts", 3), ("pauseMinutes", 1)]);
+        if (checkItemsAtOnce is { } itemsAtOnce)
+            checkProperties.Add((ModelNames.ItemsAtOnce, itemsAtOnce));
+        var check = ServiceNode(fx, vocabulary, checkProto, "Check reading", "check", [.. checkProperties]);
         var record = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "RecordProto"), "Record level", "record",
             alsoFilling == AlsoFillingRecordLevel.AParameter ? [("onItemError", "continue"), ("parameterBindings", "{\"in\":\"spare\"}")] : [("onItemError", "continue")]);
         var tell = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell", ("onItemError", "continue"));

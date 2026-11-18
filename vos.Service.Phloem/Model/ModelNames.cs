@@ -29,6 +29,7 @@ public static class ModelNames
     // An out port whose answers are Things: the node run is related to each.
     public const string Produces = "produces";
     public const string OnItemError = "onItemError";
+    public const string ItemsAtOnce = "itemsAtOnce";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
     // The run's record: its parameters as given, and when it and each node run started and finished. A
