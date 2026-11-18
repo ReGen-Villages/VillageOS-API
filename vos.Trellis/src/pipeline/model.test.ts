@@ -246,12 +246,13 @@ describe('the vocabulary the editor holds', () => {
    *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
    *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
    *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either. */
+   *  platform's to judge, so the orchestrator reads none of its choices either, nor which connection a
+   *  relationship along a predicate calls. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
-    ROLE.CallCompletion, ROLE.CompletesWhen,
+    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.NotifiedConnection,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -271,6 +272,7 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.RunResumption, 'runResumption'],
     [ROLE.CallCompletion, 'callCompletion'],
     [ROLE.CompletesWhen, 'completesWhen'],
+    [ROLE.NotifiedConnection, 'notifiedConnection'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });
@@ -716,5 +718,31 @@ describe('what a node chose, and what a choice may compare with', () => {
   it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
     expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
     expect(offeringModel().thingsOfKinds([])).toEqual([]);
+  });
+});
+
+describe('how often a cadence comes due', () => {
+  function cadences(...held: [string, Partial<VosThing>][]) {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-cadence', Name: 'Metronome', Properties: playing(ROLE.Cadence), IsArchetype: true },
+    ];
+    const relationships: VosRelationship[] = [];
+    for (const [id, thing] of held) {
+      things.push({ Id: id, Name: id, Properties: {}, ...thing });
+      relationships.push({ Id: `r-${id}`, Name: '', SubjectId: id, PredicateId: 'is', TargetId: 'arch-cadence', Properties: {} });
+    }
+    return new PipelineModel(...withRoles(things, relationships)).cadences();
+  }
+
+  it('reads the interval a cadence states in its override store, where a value its archetype declares lands', () => {
+    expect(cadences(['hourly', {
+      InheritedOverrides: { 'arch-cadence': { SourceId: 'arch-cadence', SourceName: 'Metronome', Properties: { intervalMinutes: 60 } } },
+    }])).toEqual([{ id: 'hourly', name: 'hourly', everyMinutes: 60 }]);
+  });
+
+  it('reads no interval where a cadence states none, or one that is not a positive number', () => {
+    expect(cadences(['none', {}], ['zero', { Properties: { intervalMinutes: 0 } }], ['word', { Properties: { intervalMinutes: 'often' } }])
+      .map((cadence) => cadence.everyMinutes)).toEqual([0, 0, 0]);
   });
 });
