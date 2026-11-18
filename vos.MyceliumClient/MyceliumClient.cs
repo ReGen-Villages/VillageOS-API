@@ -8,7 +8,9 @@ namespace vos.PlatformClient;
 
 public readonly record struct LogDownload(string FileName, Stream Content);
 
-public class MyceliumClient
+public sealed class KeyRefusedException(string message) : InvalidOperationException(message);
+
+public partial class MyceliumClient
 {
     private readonly HttpClient _httpClient;
     private readonly HttpClient _clientWithNoTimeLimit;
@@ -20,7 +22,7 @@ public class MyceliumClient
 
     public MyceliumClient(string myceliumUrl) : this(myceliumUrl, null) { }
 
-    public MyceliumClient(string myceliumUrl, string? apiKey)
+    public MyceliumClient(string myceliumUrl, string? apiKey, string programName = ProgramName)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
@@ -34,18 +36,18 @@ public class MyceliumClient
         {
             Timeout = Timeout.InfiniteTimeSpan
         };
-        NameThisProgram(_httpClient);
-        NameThisProgram(_clientWithNoTimeLimit);
+        NameThisProgram(_httpClient, programName);
+        NameThisProgram(_clientWithNoTimeLimit, programName);
     }
 
     public const string ProgramHeader = "X-Vos-Client";
     public const string ProgramName = "Taproot";
 
     // So the broker can say which program a person was using when it tells the model's recipients.
-    private static void NameThisProgram(HttpClient client)
+    private static void NameThisProgram(HttpClient client, string programName)
     {
         if (!client.DefaultRequestHeaders.Contains(ProgramHeader))
-            client.DefaultRequestHeaders.Add(ProgramHeader, ProgramName);
+            client.DefaultRequestHeaders.Add(ProgramHeader, programName);
     }
 
     // The server's certificate is checked unless VOS_INSECURE_TLS is set, which is for a local broker with a
@@ -63,15 +65,15 @@ public class MyceliumClient
 
     internal MyceliumClient(
         string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null,
-        HttpClient? clientWithNoTimeLimit = null)
+        HttpClient? clientWithNoTimeLimit = null, string programName = ProgramName)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _httpClient = httpClient;
         _clientWithNoTimeLimit = clientWithNoTimeLimit ?? httpClient;
         _clock = clock ?? (() => DateTime.UtcNow);
-        NameThisProgram(_httpClient);
-        NameThisProgram(_clientWithNoTimeLimit);
+        NameThisProgram(_httpClient, programName);
+        NameThisProgram(_clientWithNoTimeLimit, programName);
     }
 
     // Tells the broker what the person did, so it can tell the people the model names. Kind is
@@ -94,8 +96,8 @@ public class MyceliumClient
 
         if (string.IsNullOrWhiteSpace(_apiKey))
         {
-            throw new InvalidOperationException(
-                "No API key configured. Set the VOS_API_KEY environment variable before starting the CLI.");
+            throw new KeyRefusedException(
+                "No API key configured. Set the VOS_API_KEY environment variable before starting this program.");
         }
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"{_myceliumUrl}/api/auth/token");
@@ -105,7 +107,7 @@ public class MyceliumClient
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException($"API key authentication failed ({response.StatusCode}): {body}");
+            throw new KeyRefusedException($"API key authentication failed ({response.StatusCode}): {body}");
         }
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -256,6 +258,17 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{id}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Null where the model binds nothing to the role, or binds something the caller may not read.
+    public virtual async Task<JsonElement?> GetThingBoundByAsync(Guid roleId)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things{Query(("boundBy", roleId.ToString()))}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         await EnsureSuccessCarryingTheReasonAsync(response);

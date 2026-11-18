@@ -10,6 +10,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="vos.Taproot" />
     <InternalsVisibleTo Include="vos.Taproot.Tests" />
+    <InternalsVisibleTo Include="vos.Mcp.Tests" />
+    <InternalsVisibleTo Include="vos.BrokerContract.Tests" />
   </ItemGroup>
 
 </Project>
