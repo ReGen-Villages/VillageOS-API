@@ -79,6 +79,22 @@ describe('the order a reader sees names in', () => {
     expect(await resolveBinding(binding, context('sv'))).toBe('Zone reservoir, Åsen reservoir');
   });
 
+  it('orders the Things a page compares by name, whatever order they were loaded in', async () => {
+    const binding: Binding = { kind: 'compareEntities', properties: [] };
+    const loadedInTheOtherOrder = (language: string): ResolveContext => {
+      const held = index();
+      return {
+        ...context(language),
+        compareArchetype: 'Reservoir',
+        index: buildModelIndex([...held.byId.values()].reverse(), held.relationships),
+      };
+    };
+
+    expect(names(await resolveBinding(binding, { ...context('en'), compareArchetype: 'Reservoir' }))).toEqual(['Åsen reservoir', 'Zone reservoir']);
+    expect(names(await resolveBinding(binding, loadedInTheOtherOrder('en')))).toEqual(['Åsen reservoir', 'Zone reservoir']);
+    expect(names(await resolveBinding(binding, loadedInTheOtherOrder('sv')))).toEqual(['Zone reservoir', 'Åsen reservoir']);
+  });
+
   it('orders as English does where no language is given', async () => {
     expect(names(await resolveBinding({ kind: 'thingList', archetype: 'Reservoir' }, context()))).toEqual(['Åsen reservoir', 'Zone reservoir']);
   });

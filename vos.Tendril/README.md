@@ -39,7 +39,8 @@ fails if React becomes reachable, and `npm run typecheck` checks the entry with 
 ## Order and language
 
 - **Names a reader sees listed follow the language of the context**: the pages, the Things a page
-  compares, the rows of a list of Things, and several names joined in one cell. English where the
+  compares (as a list to choose from and as the rows of a comparison), the rows of a list of Things,
+  and several names joined in one cell. English where the
   context gives no language. A list with a limit keeps the first rows in that language's order.
 - **Which of two sibling kinds a Thing takes a value from never follows a language.** The kind whose
   name is last wins, compared code unit by code unit, so every reader resolves the same value.

@@ -1026,6 +1026,7 @@ async function resolveWorking(binding: Extract<Binding, { kind: 'working' }>, co
 
 function resolveCompareEntities(binding: Extract<Binding, { kind: 'compareEntities' }>, context: ResolveContext) {
   const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+  entities.sort((a, b) => namesInOrder(context)(a.Name, b.Name));
   const rows = entities.map((t) => {
     const row: Row = { id: t.Id, name: t.Name };
     for (const p of binding.properties) row[p] = number(effectiveProperties(t, context.index)[p]);
