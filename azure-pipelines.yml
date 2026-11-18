@@ -315,6 +315,16 @@ jobs:
     workingDirectory: vos.Tendril
     condition: always()
 
+  # vos.Pages embeds the reader as one committed JavaScript file, so the solution builds without
+  # Node. This is what keeps that file from falling behind the reader it was built from.
+  - script: node vos.Pages/bundle/build.mjs --check
+    displayName: 'Check the embedded page reader is what the reader builds to'
+    condition: always()
+
+  - script: node vos.Tendril/node_modules/typescript/bin/tsc -p vos.Pages/bundle/tsconfig.json
+    displayName: 'Type-check the page reader bundle entry'
+    condition: always()
+
   - script: npm run lint
     displayName: 'Lint Tendril'
     workingDirectory: vos.Tendril
