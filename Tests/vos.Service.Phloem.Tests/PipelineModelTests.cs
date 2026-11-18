@@ -554,6 +554,24 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_ReadsHowManyItemsANodeHoldsAtOnce_AndNoLimitWithoutOne()
+    {
+        var limited = TestGraphs.RetryPipeline(policy: [(ModelNames.ItemsAtOnce, 2)]);
+        var unlimited = TestGraphs.RetryPipeline();
+
+        PipelineDagBuilder.Build(limited.Fixture.Build(), limited.PipelineId).Node(limited.Echo.Id)!.ItemsAtOnce.Should().Be(2);
+        PipelineDagBuilder.Build(unlimited.Fixture.Build(), unlimited.PipelineId).Node(unlimited.Echo.Id)!.ItemsAtOnce.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_RefusesANodeHoldingFewerThanOneItemAtOnce()
+    {
+        var none = TestGraphs.RetryPipeline(policy: [(ModelNames.ItemsAtOnce, 0)]);
+
+        PipelineDagBuilder.Build(none.Fixture.Build(), none.PipelineId).Problems.Should().ContainMatch("*'Echo'*holds 0 items at once*");
+    }
+
+    [Fact]
     public void A_retry_pause_grows_by_its_multiplier_each_attempt_and_its_spread_adds_up_to_that_fraction()
     {
         var policy = new RetryPolicy(Attempts: 4, PauseMinutes: 2, PauseGrowth: 3, PauseSpread: 0.5, TryingMinutes: 60);
