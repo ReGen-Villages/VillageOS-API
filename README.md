@@ -46,6 +46,10 @@ uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/READM
 - Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
 - Seeds, models and fragments (serialize, deserialize, plant, apply, ingest), submissions and accounts
 
+**vos.Taproot.Client** — the library Taproot reaches the Mycelium through: the client for its routes,
+name lookup, and reading a model by its role bindings. A program other than Taproot references it to
+make the same calls.
+
 ### Microservices
 
 | Service | Type | Description |

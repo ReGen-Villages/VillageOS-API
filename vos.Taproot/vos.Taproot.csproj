@@ -13,4 +13,12 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\vos.Taproot.Client\vos.Taproot.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="vos.Taproot.Tests" />
+  </ItemGroup>
+
 </Project>
