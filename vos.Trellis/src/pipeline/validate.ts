@@ -15,7 +15,7 @@ export interface ValidationNode {
   standsFor?: { name: string; kind: EndKind; mayStart: boolean; mayEnd: boolean };
   waitsFor?: string;
   waitsAtMostMinutes?: number;
-  /** For a relate box standing for something: why the orchestrator would refuse it, where it would. */
+  /** Absent until a relate box stands for something. */
   relates?: { refusal?: string };
 }
 

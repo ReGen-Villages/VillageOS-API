@@ -4,8 +4,7 @@ import { PipelineModel, ROLE } from './model';
 import { relateChoicesOf, relateRefusalReason, relatingLine } from './relate';
 import { playing, withRoles } from './roles.test.fixture';
 
-// Each case is one of the outcomes of the orchestrator's RelatingOf (vos.Service.Phloem/Model/PipelineDagBuilder.cs), so
-// the page offers exactly the predicates the orchestrator accepts and gives its reason for the rest.
+// The cases follow the outcomes of RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs one for one.
 function relateModel(edit: (things: VosThing[], relationships: VosRelationship[]) => void = () => {}): PipelineModel {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];

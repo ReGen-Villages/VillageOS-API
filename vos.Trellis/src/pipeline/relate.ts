@@ -1,13 +1,11 @@
 import i18n from '../i18n';
 import { ROLE, type PipelineModel } from './model';
-/** A relate box's choices, each name in the page language: the predicates the orchestrator would accept, and what any
- *  Thing a box stands for reads as, with the state and service it leads to or the orchestrator's reason to refuse it. */
+
 export interface RelateChoices {
   predicates: { id: string; name: string }[];
   readingOf: (thingId: string) => { name: string; state?: string; service?: string; refusal?: string };
 }
 
-/** What the inspector offers a relate box. */
 export function relateChoicesOf(model: PipelineModel, language: string): RelateChoices {
   return {
     predicates: model.relatablePredicates()
@@ -23,8 +21,6 @@ export function relateChoicesOf(model: PipelineModel, language: string): RelateC
   };
 }
 
-/** The orchestrator's reason for refusing a relate box standing for this Thing, in the page language; none when it
- *  would accept it. */
 export function relateRefusalReason(model: PipelineModel, standsForId: string, language: string): string | undefined {
   const reading = model.relatingOf(standsForId);
   if (reading.accepted) return undefined;
@@ -38,8 +34,6 @@ export function relateRefusalReason(model: PipelineModel, standsForId: string, l
   return i18n.t(`pipeline.relate.${reading.refusal}`, words);
 }
 
-/** What a relate box says on the canvas: the predicate it relates along and the state it then waits for, the
- *  orchestrator's reason where it would be refused, or that it stands for nothing yet. */
 export function relatingLine(model: PipelineModel, standsForId: string | undefined, language: string): string {
   if (!standsForId) return i18n.t('pipeline.relatesAlongNothing', { lng: language });
   const reading = model.relatingOf(standsForId);

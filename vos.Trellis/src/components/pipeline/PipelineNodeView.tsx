@@ -27,7 +27,6 @@ export interface PipelineNodeData {
   follows?: string;
   waitsAtMostMinutes?: number;
   waitsForName?: string;
-  /** For a relate box: what it relates along and waits for, or why the orchestrator would refuse it. */
   relating?: string;
   [key: string]: unknown;
 }

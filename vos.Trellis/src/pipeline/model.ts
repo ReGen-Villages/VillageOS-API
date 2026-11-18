@@ -469,9 +469,7 @@ export class PipelineModel {
         .map((predicate) => ({ predicate, connectionId: connection.Id })));
   }
 
-  /** What a relate box standing for this Thing would do, decided as the orchestrator's RelatingOf decides it
-   *  (vos.Service.Phloem/Model/PipelineDagBuilder.cs): accepted with the connection the Thing names along the notified
-   *  connection role, that connection's service and the one state it is proven by, or refused for the same reason. */
+  /** Mirrors RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs, so the page never offers a box the run refuses. */
   relatingOf(thingId: string): RelateReading {
     const connection = this.reachedAlong(thingId, ROLE.NotifiedConnection).find((called) => this.isOf(called.Id, ROLE.Connection));
     if (!connection)
@@ -484,13 +482,11 @@ export class PipelineModel {
     return { accepted: true, connectionId: connection.Id, serviceId: service.Id, stateId: states[0].Id };
   }
 
-  /** The predicates a relate box may stand for: each that names a connection the orchestrator would accept. */
   relatablePredicates(): VosThing[] {
     const named = new Map(this.predicatesNotifying().map(({ predicate }) => [predicate.Id, predicate]));
     return [...named.values()].filter((predicate) => this.relatingOf(predicate.Id).accepted);
   }
 
-  /** A Thing's name in the page language: its wording in that language where the model holds one, else its own name. */
   labelOf(thingId: string, language: string): string {
     const thing = this.byId.get(thingId);
     return wordsInLanguage(wordingIn(this.stated(thingId).wording) ?? undefined, language) ?? thing?.Name ?? thingId;

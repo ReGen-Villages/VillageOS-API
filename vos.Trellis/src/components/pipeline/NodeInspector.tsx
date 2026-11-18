@@ -358,9 +358,7 @@ interface RelateSettingsProperties {
   onSetWait: (nodeId: string, wait: WaitSetting) => void;
 }
 
-/** The predicate a relate box stands for, chosen from those the orchestrator accepts, and the most minutes it waits.
- *  A box loaded standing for something the orchestrator would refuse keeps it listed with the reason, so nothing
- *  changes until the person chooses. */
+/** A loaded box standing for something the orchestrator would refuse keeps it listed, so nothing changes until the person chooses. */
 function RelateSettings({ nodeId, data, choices, onSetStandsFor, onSetWait }: RelateSettingsProperties) {
   const { t } = useTranslation();
   const standing = data.standsForId;
