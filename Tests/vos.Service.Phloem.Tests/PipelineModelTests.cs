@@ -422,6 +422,47 @@ public class PipelineModelTests
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("wire", "fromPath")]
+    [InlineData("wire", "toPath")]
+    [InlineData("wire", "listTransform")]
+    [InlineData("wire", "itemTransform")]
+    [InlineData("start.subject", "portName")]
+    [InlineData("start.subject", "direction")]
+    [InlineData("start.subject", "type")]
+    [InlineData("Decide", "onItemError")]
+    [InlineData("Decide", "parameterBindings")]
+    [InlineData("Decide", "attempts")]
+    [InlineData("Decide", "pauseMinutes")]
+    [InlineData("Decide", "itemsAtOnce")]
+    [InlineData("Decide", "waitsAtMostMinutes")]
+    [InlineData("accept", "when")]
+    [InlineData("refuse", "when")]
+    public void Build_ReadsANameTheModelHoldsAsNullAsIfTheThingDidNotHoldIt(string holder, string name)
+    {
+        var (absent, absentId) = TestGraphs.DecisionPipeline();
+        var (held, heldId) = TestGraphs.DecisionPipeline();
+        GraphThing HolderIn(GraphFixture fixture) => holder == "wire"
+            ? fixture.Build().OutgoingTargets(fixture.Get("Start"), "has").Single(thing => thing.Name.Contains(" to "))
+            : fixture.Get(holder);
+        foreach (var fixture in new[] { absent, held })
+            ((Dictionary<string, JsonElement>)HolderIn(fixture).Properties).Remove(name);
+        held.Hold(HolderIn(held), name, null!);
+
+        Shape(PipelineDagBuilder.Build(held.Build(), heldId)).Should().Equal(Shape(PipelineDagBuilder.Build(absent.Build(), absentId)));
+    }
+
+    private static List<string> Shape(PipelineDag dag) =>
+    [
+        .. dag.Nodes.OrderBy(node => node.Name).Select(node => string.Join("|",
+            node.Name, node.Kind, node.Subdomain, node.OnItemError, node.ItemsAtOnce, node.Retries, node.Waits,
+            string.Join(",", node.ParameterBindings.OrderBy(binding => binding.Key).Select(binding => $"{binding.Key}={binding.Value}")),
+            string.Join(",", node.Ports.OrderBy(port => port.PortName).Select(port => $"{port.PortName}/{port.Direction}/{port.Type}")),
+            string.Join(",", node.DecisionPaths.OrderBy(path => path.Name).Select(path => $"{path.Name}:{path.When is not null}")))),
+        .. dag.Wires.Select(wire => $"{wire.From.Node.Name}.{wire.From.Port.PortName}>{wire.To.Node.Name}.{wire.To.Port.PortName}"
+            + $"|{wire.FromPath}|{wire.ToPath}|{wire.ListTransform}|{wire.ItemTransform}").Order(),
+    ];
+
     [Fact]
     public void Build_NamesAPortWhoseNameTheModelHoldsAsNullByItsThing_AndReadsANullDirectionAsIn()
     {
