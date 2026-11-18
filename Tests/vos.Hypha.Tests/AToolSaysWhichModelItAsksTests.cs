@@ -110,6 +110,21 @@ public class AToolSaysWhichModelItAsksTests
     }
 
     [Fact]
+    public async Task Each_model_is_asked_once_what_it_binds_however_calls_for_different_models_alternate()
+    {
+        await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
+
+        await server.Client.CallToolAsync("sample_bound", Asking("Hillside"));
+        await server.Client.CallToolAsync("sample_bound", Asking("Riverbend"));
+        await server.Client.CallToolAsync("sample_bound", Asking("Hillside"));
+
+        server.Mycelium.Requests
+            .Count(request => request.RequestUri!.Query.StartsWith("?boundBy=")
+                && request.Headers.Authorization?.Parameter == TokenFor($"?modelId={Hillside}"))
+            .Should().Be(1);
+    }
+
+    [Fact]
     public async Task The_list_is_decided_by_the_keys_own_model_whatever_model_a_call_names()
     {
         await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
