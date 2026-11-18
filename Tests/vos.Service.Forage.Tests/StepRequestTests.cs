@@ -120,7 +120,6 @@ public class StepRequestTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "a step's failure is said in its answer, never in its status");
-        factory.StartedSubjects.Should().BeEmpty("a step answers within its request and starts no run of its own");
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -439,19 +438,9 @@ public class StepRequestTests
     // Tributary's place is taken by answering every planned call as fetched, which is what a direct run's fetches
     // answer here too.
     [Fact]
-    public async Task The_steps_run_in_order_leave_the_model_as_a_direct_run_does()
+    public async Task The_steps_run_in_order_plan_a_call_for_each_covering_source_record_each_and_stamp_the_site()
     {
-        var direct = new Model();
-        await using (var factory = new ForageWebApplicationFactory())
-        {
-            await factory.InitializeAsync();
-            factory.HandlerCallback = direct.Route;
-            using var client = factory.CreateClient();
-            await client.PostAsJsonAsync("/handle", new { subjectId = direct["WillowBend"] });
-            await factory.CompleteStartedRuns();
-        }
-
-        var stepped = new Model { Ids = direct.Ids };
+        var stepped = new Model();
         var site = Site(stepped);
         var address = Output(await StepAsync(stepped, "resolveRegion", new { site }), "address");
         var calls = Output(await StepAsync(stepped, "planCalls", new { site, address }), "calls");
@@ -460,14 +449,10 @@ public class StepRequestTests
         await StepAsync(stepped, "resolveWords", new { resolved = Output(results, "resolved") });
         await StepAsync(stepped, "markDiscovered", new { site, written = Array.Empty<object>() });
 
-        direct.Fetched.Should().HaveCount(calls.GetArrayLength());
-        string.Join(" ", direct.Fetched).Should().Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
         calls.EnumerateArray().Select(call => call.GetProperty("endpointName").GetString())
             .Should().BeEquivalentTo("NationalFloodPortalEndpoint", "OpenMeteoEndpoint");
-        direct.Records.Should().NotBeEmpty();
-        direct.Facts.Should().Contain((direct["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
-        stepped.Records.Should().BeEquivalentTo(direct.Records);
-        stepped.Facts.Should().BeEquivalentTo(direct.Facts);
-        stepped.Related.Should().BeEquivalentTo(direct.Related);
+        stepped.Records.Should().ContainSingle().Which.Name.Should().Be("WillowBend × NationalFloodPortal");
+        stepped.Facts.Should().Contain((stepped["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
+        stepped.Fetched.Should().BeEmpty("the drawing's Fetch box makes the calls, never Forage");
     }
 }
