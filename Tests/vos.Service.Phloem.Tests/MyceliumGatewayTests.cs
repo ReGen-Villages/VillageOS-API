@@ -359,12 +359,14 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
-                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id]));
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id,
+                 PipelineRoles.NotifiedConnection.Id]));
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
+                PipelineRoles.NotifiedConnection.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
                 PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString(), ModelNames.Has);
         rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
@@ -875,7 +877,7 @@ public class MyceliumGatewayTests
         // The role Things are asked for by identifier, so what each binds can be read off the snapshot.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().Contain([PipelineRoles.StateWatch.Id, PipelineRoles.StandsFor.Id, PipelineRoles.PipelineStart.Id,
-                PipelineRoles.Pipeline.Id, PipelineRoles.PipelineInput.Id, PipelineRoles.Connection.Id]);
+                PipelineRoles.Pipeline.Id, PipelineRoles.PipelineInput.Id, PipelineRoles.Connection.Id, PipelineRoles.NotifiedConnection.Id]);
 
         // Traversals expand in order, so the watched state has to be reached before the nodes standing for it.
         var traversals = selector.GetProperty("traverse").EnumerateArray()
@@ -889,12 +891,15 @@ public class MyceliumGatewayTests
             (PipelineRoles.StandsFor.Id.ToString(), null, "incoming"),
             (null, ModelNames.Has, "incoming"));
         traversals.Should().Contain((PipelineRoles.PipelineStart.Id.ToString(), null, "outgoing"));
+        traversals.Should().Contain((PipelineRoles.NotifiedConnection.Id.ToString(), null, "outgoing"),
+            "a predicate's start is read only when the predicate names a connection, so that connection comes with it");
 
         // Relationship rules keep the read to those edges: a state connection accumulates one service call
         // record per entry, and the wider reading would carry every one on every start.
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("relationships").EnumerateArray().Should().HaveCountGreaterThan(0);
         Rules(selector).Should().Contain((PipelineRoles.StandsFor.Id.ToString(), "outgoing"))
+            .And.Contain((PipelineRoles.NotifiedConnection.Id.ToString(), "outgoing"))
             .And.NotContain((null, "outgoing"), "every relationship out of a Thing in the read would carry each one it ever gained");
     }
 

@@ -1053,7 +1053,7 @@ public sealed class PipelineExecutor
             return Failure(node, $"'{node.Name}' relates the Thing reaching its port '{ModelNames.Thing}', but what reached it names no Thing.");
 
         async Task<bool> AlreadyRelatedAsync() =>
-            (await _gateway.ReachedAlongAsync(thing.Id, relating.ConnectionId, cancellationToken)).Any(target => target.Id == relating.ServiceId);
+            (await _gateway.ReachedAlongAsync(thing.Id, relating.PredicateId, cancellationToken)).Any(target => target.Id == relating.ServiceId);
 
         bool written;
         try
@@ -1062,21 +1062,21 @@ public sealed class PipelineExecutor
         }
         catch (Exception ex)
         {
-            return Failure(node, $"'{node.Name}' could not read whether '{thing.Name}' is related along '{relating.ConnectionName}': {ex.Message}");
+            return Failure(node, $"'{node.Name}' could not read whether '{thing.Name}' is related along '{relating.PredicateName}': {ex.Message}");
         }
         if (written)
         {
             try
             {
-                await _gateway.WriteRelationshipAsync(thing.Id, relating.ConnectionId, relating.ServiceId, cancellationToken);
+                await _gateway.WriteRelationshipAsync(thing.Id, relating.PredicateId, relating.ServiceId, cancellationToken);
             }
             catch (Exception ex)
             {
                 var landedMeanwhile = false;
                 try { landedMeanwhile = await AlreadyRelatedAsync(); }
-                catch (Exception readAgain) { _logger.LogWarning(readAgain, "Could not read again whether '{Thing}' is related along '{Connection}'", thing.Name, relating.ConnectionName); }
+                catch (Exception readAgain) { _logger.LogWarning(readAgain, "Could not read again whether '{Thing}' is related along '{Predicate}'", thing.Name, relating.PredicateName); }
                 if (!landedMeanwhile)
-                    return Failure(node, $"'{node.Name}' could not relate '{thing.Name}' along '{relating.ConnectionName}': {ex.Message}");
+                    return Failure(node, $"'{node.Name}' could not relate '{thing.Name}' along '{relating.PredicateName}': {ex.Message}");
                 written = false;
             }
         }

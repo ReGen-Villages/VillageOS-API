@@ -5,10 +5,10 @@ namespace vos.Service.Phloem.Execution;
 
 public sealed record SubjectReading(RunSubject? Subject, string? Refusal);
 
-// Answers which pipeline a relationship the broker sends starts, by reading from the model which connection it came
-// through. A `runs` write names its pipeline as the target, and a state's call record names its connection
-// as the target. Any other target is only what a write along a predicate joined its subject to, and there the
-// connection is the predicate, read off the relationship itself.
+// Answers which pipeline a relationship the broker sends starts. A `runs` write names its pipeline as the target, and a
+// state's call record names its connection as the target. Any other relationship was written along a predicate: a
+// pipeline drawn from that predicate starts when the predicate names a connection along notifies, and otherwise the
+// pipeline drawn from what the relationship reaches does.
 public sealed class PipelineStarter
 {
     private readonly IMyceliumGateway _gateway;
@@ -28,9 +28,9 @@ public sealed class PipelineStarter
         if (await _gateway.PredicateOfAsync(relationshipId.Value, cancellationToken) is { } predicateId)
         {
             var predicateGraph = await _gateway.LoadStartSubgraphAsync(predicateId, arrivingRelatesTo, cancellationToken);
-            if (predicateGraph.Thing(predicateId) is { } predicate
-                && predicateGraph.IsOf(predicate, PipelineRoles.Connection))
-                return PipelineStart.Resolve(predicateGraph, predicateId, arrivingRelatesTo);
+            if (predicateGraph.Thing(predicateId) is { } predicate && NamesAConnection(predicateGraph, predicate)
+                && PipelineStart.Resolve(predicateGraph, predicateId, arrivingRelatesTo) is { Started: true } fromThePredicate)
+                return fromThePredicate;
         }
 
         return PipelineStart.Resolve(graph, targetId, arrivingRelatesTo);
@@ -59,6 +59,9 @@ public sealed class PipelineStarter
                                   && Guid.TryParse(id.GetString(), out var parsed) => parsed,
         _ => null,
     };
+
+    private static bool NamesAConnection(PipelineGraph graph, GraphThing predicate) =>
+        graph.OutgoingAlong(predicate, PipelineRoles.NotifiedConnection).Any(called => graph.IsOf(called, PipelineRoles.Connection));
 
     private static bool NamesWhatStarts(PipelineGraph graph, Guid targetId) =>
         graph.Thing(targetId) is { } target

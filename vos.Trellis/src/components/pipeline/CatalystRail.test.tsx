@@ -72,8 +72,8 @@ describe('CatalystRail', () => {
 
   it('offers no start node for a catalyst no run can start from', () => {
     rail();
-    expect(screen.queryByRole('button', { name: 'Place a start node standing for ripens' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Place a start node standing for feeds' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Place a start node standing for feeds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Place a start node standing for ripens' })).toBeInTheDocument();
   });
 
   it('says a group holds nothing rather than drawing an empty list, and shows every group', () => {
