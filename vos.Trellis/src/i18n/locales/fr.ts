@@ -392,6 +392,9 @@ export const fr: PartialResources = {
       warmest: 'Maximum {{value}} le {{when}}',
       coldest: 'Minimum {{value}} le {{when}}',
     },
+    gridMap: {
+      tooManyCells: 'Cette grille compte {{cells}} cellules ; une carte en grille en dessine au plus {{most}}.',
+    },
     densityGrid: {
       coverage: '{{pairs}} heures avaient les deux relevés ; {{unpaired}} relevés n’avaient pas de relevé de l’autre au même moment et ne sont pas dessinés.',
       byMonthNotDrawn: 'Ce graphique dessine une seule grille pour toute la période, donc un pliage par mois n’est pas dessiné.',
@@ -812,6 +815,7 @@ export const fr: PartialResources = {
       stateBindingWithoutScope: 'Un compte ou une liste d’état sur une page comparative ne nomme aucune portée, le sélecteur ne peut donc pas le restreindre.',
       widgetBoundToNothing: 'Un widget n’est lié à rien et dessine un substitut.',
       mapReadsAcrossARelationship: 'Une carte lit une forme ou une grille à travers une relation ; elle ne lit que la Chose propre de la page, car les formes d’une étude ne sont pas sur le terrain.',
+      gridOverTheMostAMapDraws: 'Une Chose de ce type tient une grille de {{named}} cellules, plus qu’une carte en grille n’en dessine, donc la carte affiche une note au lieu de ses cellules.',
     },
     translations: {
       title: 'Les mots dans chaque langue',

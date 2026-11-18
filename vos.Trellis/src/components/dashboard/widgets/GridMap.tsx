@@ -8,7 +8,8 @@ import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, SeriesTable } from './chartChrome';
 import { rampColour } from './chartRamp';
 import { classHolding, drawnClassesOf, type DrawnClass } from './chartClasses';
-import { cellBounds, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
+import { useTranslation } from 'react-i18next';
+import { MOST_CELLS_A_MAP_DRAWS, cellBounds, cellsIn, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 import { formatNumber } from './format';
 import { useChartSurface } from './useChartSurface';
 
@@ -59,6 +60,7 @@ function layOut(grid: GridValue | null, rings: Ring[], width: number): { cells: 
 }
 
 export function GridMap({ widget, context }: { widget: GridMapWidget; context: ResolveContext }) {
+  const { t } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<Cell | null>(null);
   const surface = useChartSurface();
@@ -71,8 +73,10 @@ export function GridMap({ widget, context }: { widget: GridMapWidget; context: R
 
   // A binding's answer keeps its identity until the next refresh, so these are worked out once per answer.
   const grid = useMemo(() => gridOf(heldGrid.value), [heldGrid.value]);
+  const tooManyCells = grid !== null && cellsIn(grid) > MOST_CELLS_A_MAP_DRAWS;
+  const drawn = tooManyCells ? null : grid;
   const { cells, outlines } = useMemo(
-    () => layOut(grid, outerRingsOf(heldOutline.value), width), [grid, heldOutline.value, width]);
+    () => layOut(drawn, outerRingsOf(heldOutline.value), width), [drawn, heldOutline.value, width]);
   const classKey = JSON.stringify(drawnClassesOf(widget.classes, classBounds));
   const classes = useMemo<DrawnClass[]>(() => JSON.parse(classKey), [classKey]);
 
@@ -108,6 +112,14 @@ export function GridMap({ widget, context }: { widget: GridMapWidget; context: R
 
   return (
     <WidgetCard title={widget.title} hint={widget.hint}>
+      {tooManyCells && grid && (
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          {t('widgets.gridMap.tooManyCells', {
+            cells: formatNumber(cellsIn(grid), 'integer'),
+            most: formatNumber(MOST_CELLS_A_MAP_DRAWS, 'integer'),
+          })}
+        </p>
+      )}
       <div ref={measure} className="relative mt-2">
         <svg width={width} height={PLOT_HEIGHT} viewBox={`0 0 ${width} ${PLOT_HEIGHT}`} role="img" aria-label={widget.title ?? ''} className="block max-w-full">
           {drawnCells}
@@ -150,14 +162,14 @@ export function GridMap({ widget, context }: { widget: GridMapWidget; context: R
           <span>{figure(ceiling)}</span>
         </div>
       )}
-      {grid && (
+      {drawn && (
         <SeriesTable
           caption={widget.title ?? ''}
-          columns={Array.from({ length: grid.columns }, (_, column) => String(column + 1))}
-          rows={Array.from({ length: grid.rows }, (_, at) => grid.rows - 1 - at).map((row) => ({
+          columns={Array.from({ length: drawn.columns }, (_, column) => String(column + 1))}
+          rows={Array.from({ length: drawn.rows }, (_, at) => drawn.rows - 1 - at).map((row) => ({
             name: String(row + 1),
-            cells: Array.from({ length: grid.columns }, (_, column) => {
-              const value = grid.values[row * grid.columns + column];
+            cells: Array.from({ length: drawn.columns }, (_, column) => {
+              const value = drawn.values[row * drawn.columns + column];
               return value === null ? '—' : figure(value);
             }),
           }))}

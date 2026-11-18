@@ -1,6 +1,14 @@
 import type { GridValue } from '@tendril-ui/tendril';
 
-const GRID_NUMBERS = ['originLatitude', 'originLongitude', 'cellSizeMetres', 'latitudeStepDegrees', 'longitudeStepDegrees'] as const;
+/** Above this a grid map draws no cells. Measured in Chrome on a production build, a first draw at this count
+ *  stays well under half a second, while a grid at the platform's own limit freezes the page for seconds. */
+export const MOST_CELLS_A_MAP_DRAWS = 10_000;
+
+export function cellsIn(grid: GridValue): number {
+  return grid.rows * grid.columns;
+}
+
+const GRID_NUMBERS =['originLatitude', 'originLongitude', 'cellSizeMetres', 'latitudeStepDegrees', 'longitudeStepDegrees'] as const;
 
 export function gridOf(value: unknown): GridValue | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;

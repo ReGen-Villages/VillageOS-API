@@ -89,6 +89,23 @@ describe('a widget', () => {
     expect(codes(page(map({ kind: 'value', thing: 'Spring A', property: 'heights' })))).toContain('refusal:mapReadsAcrossARelationship');
   });
 
+  it('warns about a map bound to a grid larger than a map draws, when a Thing of the kind holds one', () => {
+    const gridOf = (rows: number, columns: number) => ({
+      originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.001, longitudeStepDegrees: 0.001,
+      rows, columns, values: new Array(rows * columns).fill(1),
+    });
+    const holding = (example: unknown): DesignCheckContext => ({
+      ...context,
+      propertiesOf: (kind) => (kind === 'Reservoir' ? [{ name: 'heights', declaredBy: 'Reservoir', example, numeric: false }] : undefined),
+    });
+    const map = page({ type: 'gridMap', title: 'm', grid: { kind: 'value', property: 'heights' } });
+    const found = (example: unknown) => checkDesign(map, 'Springs', holding(example)).map((finding) => `${finding.code}:${finding.named ?? ''}`);
+
+    expect(found(gridOf(1, 10_001))).toContain('gridOverTheMostAMapDraws:10001');
+    expect(found(gridOf(100, 100))).not.toContain('gridOverTheMostAMapDraws:10000');
+    expect(found(null).some((each) => each.startsWith('gridOverTheMostAMapDraws'))).toBe(false);
+  });
+
   it('holds a table to a row cap, to a sort key a column carries, and to search keys a row carries', () => {
     const rows = { kind: 'thingList' as const, archetype: 'Spring' };
     each('tableWithoutARowCap', page({ type: 'table', title: 't', columns: [], rows }));

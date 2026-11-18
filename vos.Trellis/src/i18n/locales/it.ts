@@ -392,6 +392,9 @@ export const it: PartialResources = {
       warmest: 'Massimo {{value}} il {{when}}',
       coldest: 'Minimo {{value}} il {{when}}',
     },
+    gridMap: {
+      tooManyCells: 'Questa griglia ha {{cells}} celle; una mappa a griglia ne disegna al massimo {{most}}.',
+    },
     densityGrid: {
       coverage: '{{pairs}} ore avevano entrambe le letture; {{unpaired}} letture non avevano una lettura dell’altra nello stesso momento e non sono disegnate.',
       byMonthNotDrawn: 'Questo grafico disegna una sola griglia per l’intero periodo, quindi una piegatura per mese non è disegnata.',
@@ -812,6 +815,7 @@ export const it: PartialResources = {
       stateBindingWithoutScope: 'Un conteggio o un elenco di stato su una pagina di confronto non nomina alcun ambito, quindi il selettore non può restringerlo.',
       widgetBoundToNothing: 'Un widget non è legato a niente e disegna un segnaposto.',
       mapReadsAcrossARelationship: 'Una mappa legge una forma o una griglia attraverso una relazione; legge solo la Cosa propria della pagina, perché le forme di uno studio non stanno sul terreno.',
+      gridOverTheMostAMapDraws: 'Una Cosa di questo tipo ha una griglia di {{named}} celle, più di quante ne disegni una mappa a griglia, quindi la mappa mostra una nota al posto delle celle.',
     },
     translations: {
       title: 'Le parole in ogni lingua',

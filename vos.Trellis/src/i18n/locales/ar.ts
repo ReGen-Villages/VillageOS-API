@@ -433,6 +433,9 @@ export const ar: WithArabicPluralForms<Resources> = {
       warmest: "الأعلى {{value}} في {{when}}",
       coldest: "الأدنى {{value}} في {{when}}",
     },
+    gridMap: {
+      tooManyCells: "تحتوي هذه الشبكة على {{cells}} خلية؛ ترسم الخريطة الشبكية {{most}} خلية على الأكثر.",
+    },
     densityGrid: {
       coverage: "{{pairs}} ساعة كانت فيها القراءتان؛ {{unpaired}} قراءة لم تكن لها قراءة من الأخرى في الوقت نفسه ولم تُرسم.",
       byMonthNotDrawn: "يرسم هذا المخطط شبكة واحدة للفترة كلها، لذلك لا يُرسم الطيّ حسب الشهر.",
@@ -889,6 +892,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       stateBindingWithoutScope: 'عدّ حالة أو قائمة حالة في صفحة مقارنة لا تسمّي نطاقًا، فلا يمكن للمبدّل تضييقها.',
       widgetBoundToNothing: 'عنصر غير مرتبط بشيء ويرسم عنصرًا نائبًا.',
       mapReadsAcrossARelationship: 'خريطة تقرأ شكلًا أو شبكة عبر علاقة؛ إنها تقرأ فقط الشيء الخاص بالصفحة، لأن أشكال الدراسة ليست على الأرض.',
+      gridOverTheMostAMapDraws: 'شيء من هذا النوع يحمل شبكة من {{named}} خلية، أكثر مما ترسمه الخريطة الشبكية، لذلك تعرض الخريطة ملاحظة بدلًا من خلاياها.',
     },
     translations: {
       title: 'الكلمات بكل لغة',

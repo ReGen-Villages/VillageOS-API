@@ -116,17 +116,34 @@ describe('the grid map', () => {
     expect(container.querySelector('rect[data-row]')).toBeNull();
   });
 
-  it('draws a grid as large as the platform holds', () => {
-    const side = 256;
-    const full = held('fullGrid', {
+  function gridOfCells(property: string, rows: number, columns: number): Binding {
+    return held(property, {
       originLatitude: 25.1, originLongitude: 55.3, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003,
-      rows: side, columns: side, values: Array.from({ length: side * side }, (_, at) => at % 97),
+      rows, columns, values: Array.from({ length: rows * columns }, (_, at) => at % 97),
     });
+  }
 
-    const { container } = draw({ ...widget, grid: full, outline: undefined });
+  it('draws a grid of as many cells as it draws at most', () => {
+    const { container } = draw({ ...widget, grid: gridOfCells('mostDrawn', 100, 100), outline: undefined });
 
-    expect(container.querySelectorAll('rect[data-row]')).toHaveLength(side * side);
-  }, 60_000);
+    expect(container.querySelectorAll('rect[data-row]')).toHaveLength(10_000);
+    expect(screen.queryByText(/draws at most/)).toBeNull();
+  });
+
+  it('draws no cells of a grid one cell larger, and says how many it holds and the most it draws', () => {
+    const { container } = draw({ ...widget, grid: gridOfCells('oneTooMany', 1, 10_001) });
+
+    expect(container.querySelector('rect[data-row]')).toBeNull();
+    expect(screen.getByText('This grid holds 10,001 cells; a grid map draws at most 10,000.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+  });
+
+  it('draws no cells of a grid as large as the platform holds, without overflowing', () => {
+    const { container } = draw({ ...widget, grid: gridOfCells('platformLimit', 256, 256), outline: undefined });
+
+    expect(container.querySelector('rect[data-row]')).toBeNull();
+    expect(screen.getByText('This grid holds 65,536 cells; a grid map draws at most 10,000.')).toBeTruthy();
+  });
 
   it('names a cell\'s value when the pointer is over it', () => {
     const { container } = draw();

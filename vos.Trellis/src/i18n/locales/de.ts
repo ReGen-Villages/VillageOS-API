@@ -392,6 +392,9 @@ export const de: PartialResources = {
       warmest: 'Höchstwert {{value}} am {{when}}',
       coldest: 'Tiefstwert {{value}} am {{when}}',
     },
+    gridMap: {
+      tooManyCells: 'Dieses Raster hat {{cells}} Zellen; eine Rasterkarte zeichnet höchstens {{most}}.',
+    },
     densityGrid: {
       coverage: '{{pairs}} Stunden hatten beide Messwerte; {{unpaired}} Messwerte hatten keinen Messwert des anderen zur selben Zeit und sind nicht dargestellt.',
       byMonthNotDrawn: 'Dieses Diagramm zeichnet ein Raster für den ganzen Zeitraum, daher wird eine Faltung nach Monat nicht dargestellt.',
@@ -812,6 +815,7 @@ export const de: PartialResources = {
       stateBindingWithoutScope: 'Eine Zustandszählung oder -liste auf einer vergleichenden Seite nennt keinen Bereich, daher kann der Umschalter sie nicht eingrenzen.',
       widgetBoundToNothing: 'Ein Widget ist an nichts gebunden und zeichnet einen Platzhalter.',
       mapReadsAcrossARelationship: 'Eine Karte liest eine Form oder ein Raster über eine Beziehung; sie liest nur das eigene Ding der Seite, da die Formen einer Studie nicht auf dem Boden liegen.',
+      gridOverTheMostAMapDraws: 'Ein Ding dieser Art hat ein Raster mit {{named}} Zellen, mehr als eine Rasterkarte zeichnet, daher zeigt die Karte statt der Zellen einen Hinweis.',
     },
     translations: {
       title: 'Die Wörter in jeder Sprache',
