@@ -381,7 +381,8 @@ def catchments_page():
                 {"type": "kpi", "title": "Springs decided today", "format": "integer",
                  "value": {"kind": "latest", "series": DAILY_DECISIONS}, "spark": DAILY_DECISIONS},
                 {"type": "kpi", "title": "Service answer",
-                 "value": {"kind": "service", "endpoint": ECHO_SUBDOMAIN, "body": {"about": "$scope"},
+                 "value": {"kind": "service", "endpoint": f"/api/endpoints/{ECHO_SUBDOMAIN}",
+                           "body": {"about": "$scope"},
                            "select": "echo"}},
             ]},
             {"title": "Water", "layout": "split", "widgets": [
@@ -476,7 +477,10 @@ def catchments_page():
     }
 
 
+UNREADABLE_PAGE = "Reservoir levels"
 UNREADABLE_DESCRIPTION = '{"title": "Reservoir levels", "sections": ['
+# The platform's check of these seeds expects a seed with this file beside it to be refused with exactly these errors.
+REFUSALS_OF_THE_UNREADABLE_PAGE = f"Dashboard '{UNREADABLE_PAGE}': its 'specification' is not valid JSON\n"
 
 
 def declare_pages(model,with_an_unreadable_page):
@@ -484,7 +488,7 @@ def declare_pages(model,with_an_unreadable_page):
     page_kind = model.kind("Dashboard", role="page")
     descriptions = {"Catchments": json.dumps(catchments_page(), ensure_ascii=False)}
     if with_an_unreadable_page:
-        descriptions["Reservoir levels"] = UNREADABLE_DESCRIPTION
+        descriptions[UNREADABLE_PAGE] = UNREADABLE_DESCRIPTION
     for name, description in descriptions.items():
         page = kit.thing(identifier("page", name), name, {"specification": typed(description, "vos.String")})
         model.relate(page, model.is_, page_kind)
@@ -555,6 +559,9 @@ def main():
         path = folder / committed.name
         dump_seed(seed, path)
         print(f"Wrote {path}: {len(seed['Things'])} things, {len(seed['Relationships'])} relationships.")
+    refusals = folder / COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE.name.replace(".json", ".refusals.txt")
+    refusals.write_text(REFUSALS_OF_THE_UNREADABLE_PAGE, encoding="utf-8")
+    print(f"Wrote {refusals}.")
 
 
 if __name__ == "__main__":

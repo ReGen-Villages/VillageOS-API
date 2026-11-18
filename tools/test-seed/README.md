@@ -36,7 +36,9 @@ Change the model by editing `build_seed.py`, run it, and commit the script and b
 
 `CatchmentsWithAnUnreadablePage.seed.json` is the same model plus a page whose description is not readable
 JSON, for tests of how an unreadable page is listed. The seed validator refuses that page by design, so
-only `Catchments.seed.json` has to pass it.
+only `Catchments.seed.json` has to pass it. `CatchmentsWithAnUnreadablePage.seed.refusals.txt` beside it
+lists the one error the validator must answer, a line per error: the platform's check of these seeds
+expects a seed with such a file to be refused with exactly those errors, and every other seed to pass.
 
 ## Identifiers and shared code
 

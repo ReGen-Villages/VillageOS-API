@@ -86,6 +86,13 @@ class CommittedFilesTests(unittest.TestCase):
                 self.assertEqual(path.read_text(encoding="utf-8"), written(seed),
                                  f"run tools/test-seed/build_seed.py and commit {path.name}")
 
+    def test_the_seed_the_validator_must_refuse_names_its_one_refusal_beside_it(self):
+        refusals = B.COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE.with_name(
+            B.COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE.name.replace(".json", ".refusals.txt"))
+        self.assertEqual([f"Dashboard '{B.UNREADABLE_PAGE}': its 'specification' is not valid JSON"],
+                         refusals.read_text(encoding="utf-8").splitlines())
+        self.assertFalse(B.COMMITTED_SEED.with_name(B.COMMITTED_SEED.name.replace(".json", ".refusals.txt")).exists())
+
     def test_building_twice_writes_the_same_seed(self):
         self.assertEqual(written(B.as_seed(B.build())), written(B.as_seed(B.build())))
 
@@ -173,6 +180,10 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
         to_the_platform = [choice for choice in writes["choices"] if choice.get("via", "").startswith("/")]
         self.assertEqual((1, 1, 1), (len(replacing), len(to_an_endpoint), len(to_the_platform)))
         self.assertTrue(any(asked.get("options") for asked in to_an_endpoint[0]["asks"]))
+
+    def test_the_service_binding_reads_the_declared_endpoint_by_its_path(self):
+        (service,) = [binding for binding in bindings_in(self.description) if binding["kind"] == "service"]
+        self.assertEqual(f"/api/endpoints/{B.ECHO_SUBDOMAIN}", service["endpoint"])
 
     def test_the_form_posts_to_the_endpoint_the_model_declares(self):
         (form,) = [widget for widget in widgets_in(self.description) if widget["type"] == "form"]
