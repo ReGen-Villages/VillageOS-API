@@ -58,9 +58,9 @@ describe('the rail of catalysts', () => {
     expect(group('clock')[0].handling).toBeUndefined();
   });
 
-  it('lists a predicate that is a connection as a relationship written along it', () => {
+  it('lists a connection used as a predicate as a relationship written along it, offering no start node when it names no connection', () => {
     const row = group('relationships').find((each) => each.standsForId === id.feeds);
-    expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: 'Handler', placeable: true });
+    expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: 'Handler', placeable: false });
   });
 
   it('lists a predicate naming a connection along notifies once, with the service of the connection it names', () => {
@@ -70,8 +70,8 @@ describe('the rail of catalysts', () => {
     expect(rowFor(id.balancesCalled)).toBeUndefined();
   });
 
-  it('lists a predicate that is no connection but names one along notifies, offering no start node, which Phloem cannot start from', () => {
-    expect(rowFor(id.ripens)).toMatchObject({ kind: 'relationship', what: 'ripens', today: 'Balancer', placeable: false });
+  it('lists a predicate that is no connection but names one along notifies, offering a start node that Phloem starts from', () => {
+    expect(rowFor(id.ripens)).toMatchObject({ kind: 'relationship', what: 'ripens', today: 'Balancer', placeable: true });
     expect(rowFor(id.ripensCalled)).toBeUndefined();
   });
 
