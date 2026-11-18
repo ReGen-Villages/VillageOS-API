@@ -150,6 +150,19 @@ export interface HistoryStep {
   threshold?: number;
 }
 
+/** A `vos.Grid` value: numbers sampled at points over the ground, row by row from the south-west point,
+ *  west to east, `null` where a value is not known. */
+export interface GridValue {
+  originLatitude: number;
+  originLongitude: number;
+  cellSizeMetres: number;
+  latitudeStepDegrees: number;
+  longitudeStepDegrees: number;
+  rows: number;
+  columns: number;
+  values: (number | null)[];
+}
+
 /** Bins of one property's readings, counted from nought in steps of `width`; a reading at or above `upTo`
  *  falls in the bin below it. */
 export interface HistoryBins {
