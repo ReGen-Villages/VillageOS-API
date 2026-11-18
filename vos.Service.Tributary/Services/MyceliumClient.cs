@@ -106,9 +106,12 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public Task<bool> CreateRelationshipAsync(
+    // Through a fragment, because the relationship route refuses a relationship already held and the fragment route leaves it alone.
+    public Task<bool> RelateUnlessHeldAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default) =>
-        PostRelationshipAsync(subjectId, predicateId, targetId, BrokerPatience, cancellationToken);
+        ApplyFragmentAsync(
+            new { Name = "Relationship", Relationships = new[] { new { Subject = subjectId, Predicate = predicateId, Target = targetId } } },
+            cancellationToken);
 
     public async Task<bool> SubmitObservationsAsync(
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)

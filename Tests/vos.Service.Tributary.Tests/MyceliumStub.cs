@@ -31,8 +31,8 @@ internal static class MyceliumStub
 
     internal static HttpResponseMessage? RouteRelationshipWrite(HttpRequestMessage request)
     {
-        if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/relationships")
-            return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
+        if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/model/fragment")
+            return Json("{\"relationshipsCreated\":1}");
         return null;
     }
 

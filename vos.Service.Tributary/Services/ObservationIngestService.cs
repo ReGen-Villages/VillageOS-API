@@ -258,7 +258,7 @@ public class ObservationIngestService
                 _predicateId = ObservedEdges.CreatedPredicateId;
             }
 
-            if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId, cancellationToken))
+            if (!await _myceliumClient.RelateUnlessHeldAsync(_endpointThingId, _predicateId.Value, thingId, cancellationToken))
                 return "Failed to relate entity to endpoint.";
 
             return null;
