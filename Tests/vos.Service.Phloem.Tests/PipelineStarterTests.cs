@@ -29,22 +29,24 @@ public class PipelineStarterTests
     {
         var fixture = TestGraphs.StatePipeline();
         var catchment = fixture.Fixture.Thing("Catchment 3");
+        var drains = NamingTheWatchingConnection(fixture, "drains");
+        PublishedStandingFor(fixture.Fixture, "Drawn from drains", drains);
         var gateway = new FakeGateway(fixture.Fixture.Build());
         var starter = new PipelineStarter(gateway);
         var callRecord = Guid.NewGuid();
-        var writtenAlongTheConnection = Guid.NewGuid();
-        gateway.PredicatesByRelationship[writtenAlongTheConnection] = fixture.WatchingConnectionId;
+        var writtenAlongThePredicate = Guid.NewGuid();
+        gateway.PredicatesByRelationship[writtenAlongThePredicate] = drains.Id;
 
         var stateEntry = await starter.ResolveAsync(fixture.WatchingConnectionId, callRecord, null, CancellationToken.None);
         var runsWrite = await starter.ResolveAsync(fixture.DrawnPipelineId, Guid.NewGuid(), null, CancellationToken.None);
-        var writeAlongAConnection = await starter.ResolveAsync(catchment.Id, writtenAlongTheConnection, null, CancellationToken.None);
+        var writeAlongAPredicate = await starter.ResolveAsync(catchment.Id, writtenAlongThePredicate, null, CancellationToken.None);
         var noRelationship = await starter.ResolveAsync(fixture.WatchingConnectionId, null, null, CancellationToken.None);
 
         stateEntry.CallRecordId.Should().Be(callRecord);
         runsWrite.Started.Should().BeTrue();
         runsWrite.CallRecordId.Should().BeNull();
-        writeAlongAConnection.Started.Should().BeTrue();
-        writeAlongAConnection.CallRecordId.Should().BeNull();
+        writeAlongAPredicate.Started.Should().BeTrue();
+        writeAlongAPredicate.CallRecordId.Should().BeNull();
         noRelationship.CallRecordId.Should().BeNull();
     }
 
@@ -55,6 +57,13 @@ public class PipelineStarterTests
         var arriving = fx.Thing("an arriving document");
         fx.Rel(arriving, fx.Thing("from"), system);
         return (arriving, system);
+    }
+
+    private static GraphThing NamingTheWatchingConnection(TestGraphs.StartFixture fixture, string name)
+    {
+        var predicate = fixture.Fixture.Thing(name);
+        fixture.Fixture.Rel(predicate, fixture.Fixture.Playing("notifies", PipelineRoles.NotifiedConnection), fixture.Fixture.Get("watchingConn"));
+        return predicate;
     }
 
     private static GraphThing PublishedStandingFor(GraphFixture fx, string name, params GraphThing[] standsFor)
@@ -86,16 +95,17 @@ public class PipelineStarterTests
     }
 
     [Fact]
-    public async Task ResolveAsync_ARelationshipWrittenAlongAConnection_StartsThePipelineNamingTheArrivingThingsSystem()
+    public async Task ResolveAsync_ARelationshipAlongAPredicateNamingAConnection_StartsThePipelineNamingThePredicateAndTheArrivingThingsSystem()
     {
         var fixture = TestGraphs.StatePipeline();
         var fx = fixture.Fixture;
         var (arriving, system) = ArrivingFromTheWaterBoard(fx);
-        var fromTheWaterBoard = PublishedStandingFor(fx, "From the water board", fx.Get("watchingConn"), system);
+        var drains = NamingTheWatchingConnection(fixture, "drains");
+        var fromTheWaterBoard = PublishedStandingFor(fx, "From the water board", drains, system);
         var joined = fx.Thing("the Thing the document was joined to").Id;
         var gateway = new FakeGateway(fx.Build());
         var written = Guid.NewGuid();
-        gateway.PredicatesByRelationship[written] = fixture.WatchingConnectionId;
+        gateway.PredicatesByRelationship[written] = drains.Id;
 
         var resolution = await new PipelineStarter(gateway).ResolveAsync(joined, written, arriving.Id, CancellationToken.None);
 
@@ -133,18 +143,54 @@ public class PipelineStarterTests
     }
 
     [Fact]
-    public async Task ResolveAsync_ARelationshipWrittenAlongAConnection_StartsThePipelineDrawnFromThatConnection()
+    public async Task ResolveAsync_ARelationshipAlongAPredicateNamingAConnection_StartsThePipelineDrawnFromThePredicate()
     {
         var fixture = TestGraphs.StatePipeline();
+        var drains = NamingTheWatchingConnection(fixture, "drains");
+        var drawnFromDrains = PublishedStandingFor(fixture.Fixture, "Drawn from drains", drains);
         var joined = fixture.Fixture.Thing("the Thing the subject was joined to").Id;
+        var gateway = new FakeGateway(fixture.Fixture.Build());
+        var written = Guid.NewGuid();
+        gateway.PredicatesByRelationship[written] = drains.Id;
+
+        var resolution = await new PipelineStarter(gateway).ResolveAsync(joined, written, null, CancellationToken.None);
+
+        resolution.PipelineId.Should().Be(drawnFromDrains.Id);
+        gateway.StartTargetsAsked.Should().Equal(joined, drains.Id);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_APredicateNamingNoConnection_DoesNotStartTheRunDrawnFromIt_AndResolvesFromItsTarget()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var beside = fixture.Fixture.Thing("sits beside");
+        PublishedStandingFor(fixture.Fixture, "Drawn from beside", beside);
+        var joined = fixture.Fixture.Thing("the Thing the subject was joined to");
+        var gateway = new FakeGateway(fixture.Fixture.Build());
+        var written = Guid.NewGuid();
+        gateway.PredicatesByRelationship[written] = beside.Id;
+
+        var resolution = await new PipelineStarter(gateway).ResolveAsync(joined.Id, written, null, CancellationToken.None);
+
+        resolution.Started.Should().BeFalse();
+        resolution.Refusal.Should().StartWith($"No published pipeline is drawn from '{joined.Name}'");
+    }
+
+    // Since the platform calls a connection for a relationship only when its predicate names the connection along notifies,
+    // a connection written along directly is no catalyst of its own.
+    [Fact]
+    public async Task ResolveAsync_AConnectionUsedAsAPredicateNamingNoConnection_ResolvesOnlyFromItsTarget()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var joined = fixture.Fixture.Thing("the Thing the subject was joined to");
         var gateway = new FakeGateway(fixture.Fixture.Build());
         var written = Guid.NewGuid();
         gateway.PredicatesByRelationship[written] = fixture.WatchingConnectionId;
 
-        var resolution = await new PipelineStarter(gateway).ResolveAsync(joined, written, null, CancellationToken.None);
+        var resolution = await new PipelineStarter(gateway).ResolveAsync(joined.Id, written, null, CancellationToken.None);
 
-        resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
-        gateway.StartTargetsAsked.Should().Equal(joined, fixture.WatchingConnectionId);
+        resolution.Started.Should().BeFalse();
+        resolution.Refusal.Should().StartWith($"No published pipeline is drawn from '{joined.Name}'");
     }
 
     [Fact]
