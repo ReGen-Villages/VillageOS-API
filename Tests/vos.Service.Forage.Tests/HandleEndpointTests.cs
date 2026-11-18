@@ -1,278 +1,35 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
-using vos.Service.Forage.Helpers;
+using vos.Service.Forage.Steps;
 using vos.Service.Shared.DagNode;
 using Xunit;
-using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// The /handle surface in vos.Service.Forage/Program.cs, driven end to end: read the model, call
-// each covering source through the fetching service, report both halves. The coverage rules are
-// pinned in Helpers/CoveringSourceResolverTests and the run's own behaviour in
-// Services/DiscoveryRunnerTests; these cover what the endpoint composes from them.
-//
-// A run resolves its sources in parallel, so the handler callback below is entered on several threads
-// at once. Anything a test collects from it has to be a concurrent collection: a plain List loses an
-// entry often enough to red a build about once in six runs, and it reds as a wrong count rather than
-// as a race.
+// The /handle surface in vos.Service.Forage/Program.cs: a pipeline box's call is answered by its step
+// (StepRequestTests), and anything else is refused.
 public class HandleEndpointTests
 {
-    // The subdomain the run forwards a fetch to, left at its default by the test host.
-    private const string FetchRoute = "/api/endpoints/tributary";
-
-    private static Dictionary<string, Guid> Names(params string[] names) =>
-        names.ToDictionary(name => name, _ => Guid.NewGuid(), StringComparer.Ordinal);
-
-    private static HttpResponseMessage Ok(string body) =>
-        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-
-    private static Edge[] TwoCoveringSources() =>
-    [
-        new Edge("WillowBend", "isIn", "Portugal"),
-        new Edge("Portugal", "isIn", "Earth"),
-        new Edge("NationalFloodPortal", "covers", "Portugal"),
-        new Edge("NationalFloodPortal", "resolvedBy", "NationalFloodPortalEndpoint"),
-        new Edge("OpenMeteo", "covers", "Earth"),
-        new Edge("OpenMeteo", "resolvedBy", "OpenMeteoEndpoint"),
-    ];
-
-    private static Dictionary<string, Guid> TwoSourceNames() => Names(
-        "WillowBend", "Portugal", "Earth", "isIn", "covers", "resolvedBy",
-        "NationalFloodPortal", "NationalFloodPortalEndpoint", "OpenMeteo", "OpenMeteoEndpoint");
-
     [Fact]
-    public async Task Handle_CallsEveryCoveringSource_AndReportsThemResolved()
+    public async Task Handle_ARelationshipCall_IsRefusedSayingDiscoveryIsTheDrawnPipeline_AndReadsAndCallsNothing()
     {
-        var ids = TwoSourceNames();
-        var fetched = new ConcurrentBag<string>();
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == FetchRoute)
-            {
-                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
-                return Ok("""{"success":true}""");
-            }
-            return RouteSnapshotRead(req, ids, TwoCoveringSources())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        fetched.Should().HaveCount(2);
-        // The fetch names the registration, never the source — one is a planner's word for a
-        // provider, the other is what the fetching service resolves.
-        string.Join(" ", fetched).Should()
-            .Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
-    }
-
-    // What a failed source leaves behind is the runner's own answer, covered in DiscoveryRunnerTests. What
-    // this holds is that one provider being down does not stop the sources beside it.
-    [Fact]
-    public async Task Handle_OneSourceFailing_StillIngestsTheOthers()
-    {
-        var ids = TwoSourceNames();
-        var fetched = new ConcurrentBag<string>();
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == FetchRoute)
-            {
-                var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-                fetched.Add(body);
-                return body.Contains("NationalFloodPortalEndpoint")
-                    ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-                    {
-                        Content = new StringContent("portal is down for maintenance", Encoding.UTF8, "text/plain")
-                    }
-                    : Ok("""{"success":true}""");
-            }
-            return RouteSnapshotRead(req, ids, TwoCoveringSources())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted, "one provider being down is not the run failing");
-        fetched.Should().HaveCount(2, "a provider that is down does not stop the sources beside it");
-    }
-
-    [Fact]
-    public async Task Handle_PassesWhatTheSiteStatesToEverySource()
-    {
-        var ids = TwoSourceNames();
-        var bodies = new ConcurrentBag<string>();
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == FetchRoute)
-            {
-                bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
-                return Ok("""{"success":true}""");
-            }
-            return RouteSnapshotRead(req, ids, TwoCoveringSources(),
-                       siteValues: new Dictionary<string, string> { ["lat"] = "-25.75", ["lng"] = "28.19" })
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        bodies.Should().HaveCount(2);
-        bodies.Should().OnlyContain(body => body.Contains("-25.75") && body.Contains("28.19"));
-    }
-
-    [Fact]
-    public async Task Handle_SiteNoSourceCovers_ReportsBothHalvesEmptyRatherThanAnError()
-    {
-        // Covered by nothing is a real answer about the model, not a failure.
-        var ids = Names("WillowBend", "Portugal", "isIn", "covers", "resolvedBy");
-        var fetches = 0;
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == FetchRoute) { fetches++; return Ok("{}"); }
-            return RouteSnapshotRead(req, ids, new Edge("WillowBend", "isIn", "Portugal"))
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        fetches.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Handle_ModelReadFails_WritesNothingRatherThanReportingNoCoverage()
-    {
-        // The distinction the whole path exists for: an unreachable gateway must not read as "no source
-        // covers this site", which is the silently-short list that hides real sources. The run can no
-        // longer say so in its answer — it has already given one — so it says it by writing nothing. The
-        // site stays in the state that started it, and the run is driven again.
-        var fetches = 0;
-        var writes = 0;
+        var requests = new System.Collections.Concurrent.ConcurrentBag<string>();
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = request =>
         {
-            if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
-            if (RelationshipWrite.In(request) is not null) writes++;
-            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            requests.Add($"{request.Method} {request.RequestUri!.AbsolutePath}");
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid() });
-        await factory.CompleteStartedRuns();
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid(), targetName = "discoversSite" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        fetches.Should().Be(0, "a coverage read that failed selected no sources, and no source is not none");
-        writes.Should().Be(0, "starting the analysis would claim a discovery that never happened");
-    }
-
-    // The same rule one read later: the subject was read as a site, and it is the read of what covers it
-    // that fails. Told by the mark the site's read asks for, so that the read failing is the one meant.
-    [Fact]
-    public async Task Handle_TheSitesCoverageReadFails_WritesNothingRatherThanReportingNoCoverage()
-    {
-        var ids = TwoSourceNames();
-        var coverageReads = 0;
-        var fetches = 0;
-        var writes = 0;
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = request =>
-        {
-            if (request.Method == HttpMethod.Post
-                && request.RequestUri!.AbsolutePath == "/api/snapshots"
-                && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
-                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionRole.Id.ToString(), StringComparison.Ordinal))
-            {
-                coverageReads++;
-                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-            }
-            if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
-            if (request.Method == HttpMethod.Post && request.RequestUri.AbsolutePath.EndsWith("/facts", StringComparison.Ordinal)) writes++;
-            return RouteSnapshotRead(request, ids, TwoCoveringSources())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        coverageReads.Should().Be(1);
-        fetches.Should().Be(0);
-        writes.Should().Be(0, "stamped, the site would read as worked out by a run that read nothing");
-    }
-
-    // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
-    // beside the subject belongs to the record-relationship the service call wrote, and a run reads none of them — but
-    // a service that refused the whole body over them is a service nothing in the platform can call.
-    [Fact]
-    public async Task Handle_TheBodyAServiceCallPosts_RunsTheSiteItNames()
-    {
-        var ids = TwoSourceNames();
-        var fetched = new ConcurrentBag<string>();
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == FetchRoute)
-            {
-                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
-                return Ok("""{"success":true}""");
-            }
-            return RouteSnapshotRead(req, ids, TwoCoveringSources())
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new
-        {
-            relationshipId = Guid.NewGuid().ToString(),
-            subjectId = ids["WillowBend"].ToString(),
-            targetId = Guid.NewGuid().ToString(),
-            subjectName = "WillowBend",
-            targetName = "discoversSite",
-            properties = new Dictionary<string, object?> { ["__CallState"] = "Pending" },
-        });
-        await factory.CompleteStartedRuns();
-
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        fetched.Should().HaveCount(2);
-        string.Join(" ", fetched).Should().Contain(ids["WillowBend"].ToString());
-    }
-
-    [Fact]
-    public async Task Handle_StartsTheRunUnderTheSubjectTheServiceCallNamed()
-    {
-        // The starter holds a run back while another for the same subject is in flight, so the
-        // subject it is told is what keeps one site's runs apart and lets separate sites run together.
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        using var client = factory.CreateClient();
-        var subject = Guid.NewGuid();
-
-        await client.PostAsJsonAsync("/handle", new { subjectId = subject });
-
-        factory.StartedSubjects.Should().Equal(subject);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain(ForageSteps.RelationshipCallRefusal);
+        requests.Should().NotContain(request => request.Contains("/api/snapshots") || request.Contains("/api/endpoints/"));
     }
 
     [Fact]
@@ -309,31 +66,6 @@ public class HandleEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should()
             .Contain(HandleRequestRouter.DescribeExpectedShapes("Forage"));
-    }
-
-    [Fact]
-    public async Task Handle_ReadsTheModelWithoutOpeningASubscription()
-    {
-        var ids = Names("WillowBend", "isIn", "covers", "resolvedBy");
-        var reads = 0;
-        var subscriptionRequests = 0;
-        await using var factory = new ForageWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/snapshots")
-                Interlocked.Increment(ref reads);
-            if (req.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions", StringComparison.Ordinal))
-                Interlocked.Increment(ref subscriptionRequests);
-            return RouteSnapshotRead(req, ids) ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.CompleteStartedRuns();
-
-        reads.Should().BeGreaterThan(1, "a run reads what the subject is, then what it reaches");
-        subscriptionRequests.Should().Be(0);
     }
 
     [Fact]

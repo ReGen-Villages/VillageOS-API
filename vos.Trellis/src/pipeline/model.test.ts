@@ -228,13 +228,14 @@ describe('the vocabulary the editor holds', () => {
    *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
    *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
    *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either. The orchestrator follows any
-   *  relationship from a wire to a node, so only the page, which writes new wires, needs the wire predicate. */
+   *  platform's to judge, so the orchestrator reads none of its choices either, nor which connection a
+   *  relationship along a predicate calls. The orchestrator follows any relationship from a wire to a node, so
+   *  only the page, which writes new wires, needs the wire predicate. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
-    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate,
+    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate, ROLE.NotifiedConnection,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -255,6 +256,7 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.CallCompletion, 'callCompletion'],
     [ROLE.CompletesWhen, 'completesWhen'],
     [ROLE.WirePredicate, 'wirePredicate'],
+    [ROLE.NotifiedConnection, 'notifiedConnection'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });
@@ -321,6 +323,59 @@ describe('typesCompatible', () => {
     expect(typesCompatible('', 'string')).toBe(true);
     expect(typesCompatible('any', 'number')).toBe(true);
     expect(typesCompatible('string', 'number')).toBe(false);
+  });
+});
+
+// A kind that declares the names a run writes stores each value as an override, not among the run's own values.
+describe('a run whose kind declares the names it writes', () => {
+  const declared = (values: Record<string, unknown>) =>
+    ({ InheritedOverrides: { kind: { SourceId: 'kind', SourceName: 'NodeRunKind', Properties: values } } });
+
+  function overriddenRun() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, overrides: Record<string, unknown>, own: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: own, ...declared(overrides) };
+      things.push(t);
+      return t;
+    };
+    const has = T('has', {});
+    const pipeline = T('Discover a site', {});
+    const of = T('of', {});
+    const run = T('PipelineRun', { status: 'failed', startedUtc: '2030-06-01T12:00:00Z', error: 'stopped mid-call', requestId: 'request 7' });
+    things.push({ Id: 'run-kind', Name: 'RunKind', Properties: playing(ROLE.PipelineRun), IsArchetype: true });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: 'is', TargetId: 'run-kind', Properties: {} });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: of.Id, TargetId: pipeline.Id, Properties: {} });
+    things.push({ Id: 'is', Name: 'is', Properties: {} });
+    const aggregate = T('NodeRun Fetch', { nodeId: 'node-fetch', status: 'interrupted' });
+    const item = T('NodeRun Fetch #0', { nodeId: 'node-fetch', status: 'succeeded', index: '0', total: '2' });
+    for (const nodeRun of [aggregate, item])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
+    return { model: new PipelineModel(...withRoles(things, relationships)), run, pipeline };
+  }
+
+  it('reads the run, node-run and item values held as overrides', () => {
+    const { model, run, pipeline } = overriddenRun();
+
+    expect(model.runStatus(run.Id)).toBe('failed');
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-fetch': 'interrupted' });
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-fetch': { done: 1, reached: 1, spreadOver: 2 } });
+    expect(model.runsOf(pipeline.Id)).toEqual([{ runId: run.Id, status: 'failed', startedUtc: '2030-06-01T12:00:00Z', requestId: 'request 7' }]);
+    expect(model.runsARestartStopped()).toEqual([
+      { runId: run.Id, pipelineName: 'Discover a site', startedUtc: '2030-06-01T12:00:00Z', reason: 'stopped mid-call' },
+    ]);
+  });
+
+  it('takes a live value, filed among own values, over the override it replaces', () => {
+    const things: VosThing[] = [
+      { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'run', Name: 'PipelineRun', Properties: {} },
+      { Id: 'node-run', Name: 'NodeRun Fetch', Properties: { status: 'succeeded' }, ...declared({ nodeId: 'node-fetch', status: 'running' }) },
+    ];
+    const relationships: VosRelationship[] = [{ Id: 'r1', Name: '', SubjectId: 'run', PredicateId: 'has', TargetId: 'node-run', Properties: {} }];
+
+    expect(new PipelineModel(...withRoles(things, relationships)).nodeRunStatuses('run')).toEqual({ 'node-fetch': 'succeeded' });
   });
 });
 
@@ -630,5 +685,31 @@ describe('what a node chose, and what a choice may compare with', () => {
   it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
     expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
     expect(offeringModel().thingsOfKinds([])).toEqual([]);
+  });
+});
+
+describe('how often a cadence comes due', () => {
+  function cadences(...held: [string, Partial<VosThing>][]) {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-cadence', Name: 'Metronome', Properties: playing(ROLE.Cadence), IsArchetype: true },
+    ];
+    const relationships: VosRelationship[] = [];
+    for (const [id, thing] of held) {
+      things.push({ Id: id, Name: id, Properties: {}, ...thing });
+      relationships.push({ Id: `r-${id}`, Name: '', SubjectId: id, PredicateId: 'is', TargetId: 'arch-cadence', Properties: {} });
+    }
+    return new PipelineModel(...withRoles(things, relationships)).cadences();
+  }
+
+  it('reads the interval a cadence states in its override store, where a value its archetype declares lands', () => {
+    expect(cadences(['hourly', {
+      InheritedOverrides: { 'arch-cadence': { SourceId: 'arch-cadence', SourceName: 'Metronome', Properties: { intervalMinutes: 60 } } },
+    }])).toEqual([{ id: 'hourly', name: 'hourly', everyMinutes: 60 }]);
+  });
+
+  it('reads no interval where a cadence states none, or one that is not a positive number', () => {
+    expect(cadences(['none', {}], ['zero', { Properties: { intervalMinutes: 0 } }], ['word', { Properties: { intervalMinutes: 'often' } }])
+      .map((cadence) => cadence.everyMinutes)).toEqual([0, 0, 0]);
   });
 });

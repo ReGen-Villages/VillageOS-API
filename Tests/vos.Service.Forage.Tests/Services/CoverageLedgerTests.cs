@@ -41,12 +41,12 @@ public class CoverageLedgerTests
     private static SiteCoverage Coverage(
         IReadOnlyList<CoveringSource> covering,
         IReadOnlyList<RecordedCoverage>? recorded = null) =>
-        new(covering, null, recorded ?? [], Vocabulary, null, new Dictionary<string, string>());
+        new(covering, [], recorded ?? [], Vocabulary, null, new Dictionary<string, string>());
 
     // Spelled out rather than defaulted through the helper above: "no vocabulary" is the case under
     // test, and a helper that filled one in would pass it for the wrong reason.
     private static SiteCoverage CoverageWithoutVocabulary(IReadOnlyList<CoveringSource> covering) =>
-        new(covering, null, [], null, null, new Dictionary<string, string>());
+        new(covering, [], [], null, null, new Dictionary<string, string>());
 
     // A writer that answers and remembers, so a test reads as what the ledger decided rather than as
     // what a gateway happened to do.
@@ -315,65 +315,6 @@ public class CoverageLedgerTests
 
         _writer.Facts.Should().ContainSingle()
             .Which.Should().Be((SiteId, CoverageLedger.CoverageMatchedAtProperty, (object?)Now.UtcDateTime));
-    }
-
-    // A source every one of whose calls has been answered drops out of the run entirely. Left in with an
-    // empty call list it would be reported as a source that resolved nothing, which is what a provider
-    // outage looks like.
-    [Fact]
-    public void ASourceWithNothingOutstandingIsNotCalledAtAll()
-    {
-        var answered = SourceCalling(Guid.NewGuid(), SiteId);
-        var outstanding = SourceCalling(Guid.NewGuid(), SiteId);
-        var still = CoverageLedger.CallsStillToMake(
-            [answered, outstanding],
-            [new OutstandingCall(outstanding, Call(SiteId), Guid.NewGuid(), 0)]);
-
-        still.Should().ContainSingle().Which.SourceId.Should().Be(outstanding.SourceId);
-    }
-
-    [Fact]
-    public void ASourceKeepsOnlyTheCallsStillOutstanding()
-    {
-        var silent = Guid.NewGuid();
-        var source = SourceCalling(Guid.NewGuid(), Guid.NewGuid(), silent);
-
-        var still = CoverageLedger.CallsStillToMake(
-            [source], [new OutstandingCall(source, Call(silent), Guid.NewGuid(), 0)]);
-
-        still.Should().ContainSingle().Which.Calls.Should().ContainSingle()
-            .Which.SubjectId.Should().Be(silent);
-    }
-
-    [Fact]
-    public void NothingOutstandingLeavesNoSourceToCall()
-    {
-        CoverageLedger.CallsStillToMake([SourceCalling(Guid.NewGuid(), SiteId)], []).Should().BeEmpty();
-    }
-
-    // Matched by identity, never by name: two sources sharing a name would otherwise be written each
-    // other's answers, and a resolved call would stamp a coverage whose source never answered.
-    [Fact]
-    public async Task AnOutcomeIsRecordedAgainstTheCallItCameFrom()
-    {
-        var first = SourceCalling(Guid.NewGuid(), SiteId);
-        var second = SourceCalling(Guid.NewGuid(), SiteId);
-        var firstCoverage = Guid.NewGuid();
-        var secondCoverage = Guid.NewGuid();
-        var outstanding = new[]
-        {
-            new OutstandingCall(first, Call(SiteId), firstCoverage, 0),
-            new OutstandingCall(second, Call(SiteId), secondCoverage, 0),
-        };
-        var report = new DiscoveryReport(
-            [new SourceOutcome(first.Name, true, null, SubjectId: SiteId, SourceId: first.SourceId)],
-            [new SourceOutcome(second.Name, false, "503", SubjectId: SiteId, SourceId: second.SourceId)]);
-
-        await Ledger().RecordAllAsync(outstanding, report, default);
-
-        _writer.Facts.Should().Contain((firstCoverage, "resolvedAt", (object?)Now.UtcDateTime));
-        _writer.Facts.Should().Contain((secondCoverage, "failureReason", (object?)"503"));
-        _writer.Facts.Should().NotContain(fact => fact.Thing == secondCoverage && fact.Property == "resolvedAt");
     }
 
     private static SourceCall Call(Guid subject) => new(subject, "subject", new Dictionary<string, string>());

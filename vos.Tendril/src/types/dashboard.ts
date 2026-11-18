@@ -619,6 +619,79 @@ export interface RangeBarWidget {
   ceiling?: number;
 }
 
+/** The five figures a box plot draws for one period, each a binding resolving to groups, one per month for
+ *  the monthly boxes and one for the whole window for the annual box. Which percentile each is, is the
+ *  binding's own step; the 5th, 25th, 50th, 75th and 95th are the usual five. */
+export interface BoxSeries {
+  whiskerLow: Binding;
+  boxLow: Binding;
+  median: Binding;
+  boxHigh: Binding;
+  whiskerHigh: Binding;
+}
+
+/** Twelve boxes, one a month, against bands the model declares, with the same figures over the whole
+ *  window as one box beside them. Each box runs from `boxLow` to `boxHigh` with the median across it,
+ *  and a line from `whiskerLow` to `whiskerHigh` through it. `floor` and `ceiling` fix the axis; absent,
+ *  it fits the data and the bands. */
+export interface BoxPlotWidget {
+  type: 'boxPlot';
+  title?: string;
+  hint?: string;
+  months: BoxSeries;
+  annual?: BoxSeries;
+  bands?: RangeBand[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** Hours counted under each cell Thing, drawn as a rose: each cell sits in the sector its row's `bearingKey`
+ *  names (degrees, nought north, clockwise) and stacks outward by `classOrderKey`, coloured and labelled by
+ *  its row. `counts` is a `history` binding folded by `value` (one rose) or `monthOfYear,value` (a rose a
+ *  month, all on one scale) and counted; `cells` is a row binding, one row per cell Thing, whose `id` the
+ *  counts are keyed by. Each wedge's reach is its share of the hours counted under a declared cell. */
+export interface PolarSharesWidget {
+  type: 'polarShares';
+  title?: string;
+  hint?: string;
+  counts: Binding;
+  cells: Binding;
+  bearingKey: string;
+  classOrderKey: string;
+  classLabelKey: string;
+  classColourKey: string;
+  /** A column holding the class Thing's `wording`; its words in the page language label the class, and
+   *  the `classLabelKey` column does where it has none. */
+  classWordingKey?: string;
+}
+
+/** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
+export interface DepthProfilePart {
+  label: string;
+  key: string;
+  colour: string;
+}
+
+/** One row a layer, top down by `orderKey` (or in the order the rows arrive), each named by `labelKey`.
+ *  Several parts stack across a row; one part draws a bar from the floor. A row holding no number for
+ *  any part is left out. `floor` and `ceiling` fix the axis; absent, it runs from nought to the largest
+ *  row. */
+export interface DepthProfileWidget {
+  type: 'depthProfile';
+  title?: string;
+  hint?: string;
+  rows: Binding;
+  labelKey: string;
+  orderKey?: string;
+  parts: DepthProfilePart[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
 export interface LineSeriesEntry {
@@ -650,8 +723,8 @@ export interface SunPosition {
   utcOffsetSeconds?: Binding;
 }
 
-/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
- *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+/** Every hour of every day of the year, or of every month, as one cell coloured by value — a `history`
+ *  binding — painted on a canvas because the grid can be thousands of cells, with the
  *  sunrise and sunset curves over it where the specification binds the coordinates. The ramp is one hue,
  *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
  *  absent it fits the data. */
@@ -659,8 +732,12 @@ export interface HeatmapWidget {
   type: 'heatmap';
   title?: string;
   hint?: string;
+  /** Folded by `hourOfDay,dayOfYear` for a column a day, or by `monthOfYear,hourOfDay` for a column a month. */
   value: Binding;
   sun?: SunPosition;
+  /** Present, each cell takes the colour of the first class holding its value, from inclusive and to
+   *  exclusive, and the legend gives each class's share of the cells; a cell no class holds is not painted. */
+  classes?: RangeBand[];
   format?: NumberFormat;
   unit?: string;
   floor?: number;
@@ -675,6 +752,8 @@ export interface StackedSharesClass {
   /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
   colour: string | Binding;
   share: Binding;
+  /** Its share of the whole window: the same question folded by `all`, drawn as a column after December. */
+  annual?: Binding;
 }
 
 /** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
@@ -682,11 +761,29 @@ export interface StackedSharesClass {
  *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
  *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
  *  out, and so is a month no class was answered for. */
+/** Classes read from the model rather than listed: `groups` is a row binding, one row per group Thing,
+ *  carrying its order, label and colour under the keys named; `counts` is a `history` binding folded by
+ *  `monthOfYear,value` and counted, keyed by each group's `id`; `annual`, folded by `value`, is the column
+ *  for the whole window. Each share is a group's hours over the hours counted under a declared group. */
+export interface StackedSharesCounted {
+  counts: Binding;
+  annual?: Binding;
+  groups: Binding;
+  orderKey: string;
+  labelKey: string;
+  colourKey: string;
+  /** A column holding the group Thing's `wording`; its words in the page language label the group, and
+   *  the `labelKey` column does where it has none. */
+  wordingKey?: string;
+}
+
 export interface StackedSharesWidget {
   type: 'stackedShares';
   title?: string;
   hint?: string;
   classes: StackedSharesClass[];
+  /** Present, the classes come from it and `classes` is not read. */
+  counted?: StackedSharesCounted;
 }
 
 /** One direction of a diverging bar: what it is called, the binding whose groups are its monthly
@@ -888,6 +985,9 @@ export type Widget = Placed & (
   | WorkingWidget
   | ExceptionWidget
   | RangeBarWidget
+  | BoxPlotWidget
+  | DepthProfileWidget
+  | PolarSharesWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

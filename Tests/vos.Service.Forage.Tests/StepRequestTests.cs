@@ -15,7 +15,6 @@ public class StepRequestTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
 
-    // Two sources cover the site; OpenMeteo already holds a record for it. The site has a study and one analysis.
     private static Dictionary<string, Guid> Ids() =>
         new[]
         {
@@ -23,8 +22,7 @@ public class StepRequestTests
             CoveringSourceResolver.ResolvesOntoPredicate, "Assessment",
             "NationalFloodPortal", "NationalFloodPortalEndpoint", "OpenMeteo", "OpenMeteoEndpoint",
             "SourceCoverage", CoveringSourceResolver.AppliesToPredicate, CoveringSourceResolver.SourcedFromPredicate,
-            "WillowBend × OpenMeteo", "WillowBendStudy",
-            "SiteAnalysisConnection", "balancesEnergy", "balancesEnergy service", "EnergyBalance prototype",
+            "WillowBend × OpenMeteo", "WillowBendStudy", "SecondStudy",
         }.ToDictionary(name => name, _ => Guid.NewGuid(), StringComparer.Ordinal);
 
     private static Edge[] Edges(bool withStudy = true) =>
@@ -38,23 +36,13 @@ public class StepRequestTests
         new Edge("OpenMeteo", "resolvedBy", "OpenMeteoEndpoint"),
         new Edge("WillowBend × OpenMeteo", CoveringSourceResolver.AppliesToPredicate, "WillowBend"),
         new Edge("WillowBend × OpenMeteo", CoveringSourceResolver.SourcedFromPredicate, "OpenMeteo"),
-        .. withStudy
-            ? new[]
-            {
-                new Edge("WillowBendStudy", "studies", "WillowBend"),
-                new Edge("balancesEnergy", "is", "SiteAnalysisConnection"),
-                new Edge("balancesEnergy", "has", "balancesEnergy service"),
-                new Edge("balancesEnergy service", "is", "EnergyBalance prototype"),
-            }
-            : [],
+        .. withStudy ? new[] { new Edge("WillowBendStudy", "studies", "WillowBend") } : [],
     ];
 
     private static Archetype[] Archetypes(bool withCoverage = true) =>
     [
         new Archetype("Site", BoundBy: CoveringSourceResolver.SiteRole),
         .. withCoverage ? new[] { new Archetype("SourceCoverage", BoundBy: CoveringSourceResolver.SourceCoverageRole) } : [],
-        new Archetype("SiteAnalysisConnection", BoundBy: CoveringSourceResolver.SiteAnalysisConnectionRole),
-        new Archetype("EnergyBalance prototype"),
     ];
 
     private static readonly IReadOnlyDictionary<string, string> SiteValues = new Dictionary<string, string> { ["lat"] = "39.4" };
@@ -68,8 +56,8 @@ public class StepRequestTests
         public Carrying[] Carrying { get; init; } = [];
         public bool ReadsFail { get; init; }
         public bool FactsFail { get; init; }
-        public bool RelatingFails { get; init; }
 
+        public ConcurrentBag<string> Paths { get; } = new();
         public ConcurrentBag<string> Fetched { get; } = new();
         public ConcurrentBag<(Guid Id, string Name)> Records { get; } = new();
         public ConcurrentBag<(Guid Thing, string Property)> Facts { get; } = new();
@@ -78,6 +66,7 @@ public class StepRequestTests
         public HttpResponseMessage Route(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
+            Paths.Add(path);
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
             if (path == FetchRoute)
             {
@@ -86,8 +75,6 @@ public class StepRequestTests
             }
             if (RelationshipWrite.In(request) is { } write)
             {
-                if (RelatingFails)
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("refused") };
                 Related.Add(write.Relationship);
                 return Json("{}");
             }
@@ -135,7 +122,6 @@ public class StepRequestTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "a step's failure is said in its answer, never in its status");
-        factory.StartedSubjects.Should().BeEmpty("a step answers within its request and starts no run of its own");
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -157,7 +143,7 @@ public class StepRequestTests
     [Theory]
     [InlineData("resolveRegion")]
     [InlineData("planCalls")]
-    [InlineData("startAnalysis")]
+    [InlineData("markDiscovered")]
     public async Task A_step_that_cannot_read_the_model_answers_a_failure_that_may_be_tried_again(string step)
     {
         var model = new Model { ReadsFail = true };
@@ -291,29 +277,36 @@ public class StepRequestTests
     }
 
     [Fact]
-    public async Task Start_analysis_stamps_the_site_and_starts_its_analysis()
+    public async Task Mark_discovered_stamps_the_site_and_answers_it_and_its_study_and_starts_nothing()
     {
         var model = new Model();
+        var site = Site(model);
 
-        var answer = await StepAsync(model, "startAnalysis", new { site = Site(model) });
+        var answer = await StepAsync(model, "markDiscovered", new { site, written = Array.Empty<object>() });
 
         ResultOf(answer).Should().Be("success");
         model.Facts.Should().Contain((model["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
-        model.Related.Should().Contain((model["WillowBendStudy"], model["balancesEnergy"], model["EnergyBalance prototype"]));
-        Output(answer, "started").EnumerateArray().Select(name => name.GetString()).Should().Equal("balancesEnergy");
+        model.Related.Should().BeEmpty("no analysis is started by a relationship");
+        Output(answer, "site").GetRawText().Should().Be(JsonSerializer.SerializeToElement(site).GetRawText());
+        Output(answer, "study").GetProperty("id").GetGuid().Should().Be(model["WillowBendStudy"]);
+        Output(answer, "study").GetProperty("name").GetString().Should().Be("WillowBendStudy");
     }
 
-    [Fact]
-    public async Task Start_analysis_for_a_site_with_no_study_starts_nothing_and_says_why()
+    [Theory]
+    [InlineData(false, "has no study that studies it.")]
+    [InlineData(true, "has 2 studies that study it, so which one its analyses read is not clear.")]
+    public async Task Mark_discovered_fails_and_leaves_the_site_unstamped_unless_one_study_studies_it(bool twoStudies, string said)
     {
-        var model = new Model { Edges = Edges(withStudy: false) };
+        var model = new Model
+        {
+            Edges = twoStudies ? [.. Edges(), new Edge("SecondStudy", "studies", "WillowBend")] : Edges(withStudy: false),
+        };
 
-        var answer = await StepAsync(model, "startAnalysis", new { site = Site(model) });
+        var answer = await StepAsync(model, "markDiscovered", new { site = Site(model), written = Array.Empty<object>() });
 
-        ResultOf(answer).Should().Be("success");
-        Output(answer, "started").GetArrayLength().Should().Be(0);
-        Output(answer, "reason").GetString().Should().Be("The site has no study to analyse.");
-        model.Facts.Should().Contain((model["WillowBend"], CoverageLedger.CoverageMatchedAtProperty), "a site no source or study covers was still looked at");
+        ResultOf(answer).Should().Be("fail");
+        answer.GetProperty("error").GetString().Should().Be($"Site {model["WillowBend"]} {said}");
+        model.Facts.Should().BeEmpty();
     }
 
     [Fact]
@@ -331,6 +324,44 @@ public class StepRequestTests
         model.Records.Select(record => record.Id).Should().Equal(expectedRecord);
         model.Facts.Should().Contain((model["NationalFloodPortal"], CoverageLedger.CoverageMatchedAtProperty));
         model.Fetched.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Offer_a_source_with_no_registration_records_no_call_and_still_stamps_it_offered()
+    {
+        var model = new Model { Edges = [.. Edges().Where(edge => edge.Predicate != "resolvedBy" || edge.Subject != "NationalFloodPortal")] };
+
+        var answer = await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "outstanding").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+        model.Facts.Should().Contain((model["NationalFloodPortal"], CoverageLedger.CoverageMatchedAtProperty));
+    }
+
+    [Fact]
+    public async Task Plan_calls_for_a_site_no_source_covers_answers_no_calls_and_records_none()
+    {
+        var model = new Model { Edges = [new Edge("WillowBend", "is", "Site")] };
+
+        var answer = await StepAsync(model, "planCalls", new { site = Site(model) });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "calls").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_steps_read_the_model_without_opening_a_subscription()
+    {
+        var model = new Model();
+        var site = Site(model);
+
+        var address = Output(await StepAsync(model, "resolveRegion", new { site }), "address");
+        await StepAsync(model, "planCalls", new { site, address });
+        await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        model.Paths.Should().Contain("/api/snapshots").And.NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -382,7 +413,7 @@ public class StepRequestTests
     }
 
     [Theory]
-    [InlineData("startAnalysis", "site")]
+    [InlineData("markDiscovered", "site")]
     [InlineData("offerSource", "source")]
     public async Task A_stamp_the_model_refuses_answers_a_failure_that_may_be_tried_again(string step, string port)
     {
@@ -393,20 +424,6 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         MayBeTriedAgain(answer).Should().BeTrue();
-        model.Related.Should().BeEmpty("the analysis is started only once the site is stamped");
-    }
-
-    [Fact]
-    public async Task Start_analysis_whose_relationship_the_model_refuses_answers_a_failure_that_may_be_tried_again()
-    {
-        var model = new Model { RelatingFails = true };
-
-        var answer = await StepAsync(model, "startAnalysis", new { site = Site(model) });
-
-        ResultOf(answer).Should().Be("fail");
-        MayBeTriedAgain(answer).Should().BeTrue();
-        answer.GetProperty("error").GetString().Should().Be("Could not start: balancesEnergy.");
-        Output(answer, "started").GetArrayLength().Should().Be(0);
     }
 
     [Fact]
@@ -428,7 +445,7 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         answer.GetProperty("error").GetString().Should().Be(
-            "A Forage box names its step in the 'step' setting, one of: resolveRegion, planCalls, recordResults, resolveWords, startAnalysis, offerSource.");
+            "A Forage box names its step in the 'step' setting, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
     }
 
     [Fact]
@@ -461,35 +478,21 @@ public class StepRequestTests
     // Tributary's place is taken by answering every planned call as fetched, which is what a direct run's fetches
     // answer here too.
     [Fact]
-    public async Task The_steps_run_in_order_leave_the_model_as_a_direct_run_does()
+    public async Task The_steps_run_in_order_plan_a_call_for_each_covering_source_record_each_and_stamp_the_site()
     {
-        var direct = new Model();
-        await using (var factory = new ForageWebApplicationFactory())
-        {
-            await factory.InitializeAsync();
-            factory.HandlerCallback = direct.Route;
-            using var client = factory.CreateClient();
-            await client.PostAsJsonAsync("/handle", new { subjectId = direct["WillowBend"] });
-            await factory.CompleteStartedRuns();
-        }
-
-        var stepped = new Model { Ids = direct.Ids };
+        var stepped = new Model();
         var site = Site(stepped);
         var address = Output(await StepAsync(stepped, "resolveRegion", new { site }), "address");
         var calls = Output(await StepAsync(stepped, "planCalls", new { site, address }), "calls");
         var outcomes = calls.EnumerateArray().Select(call => new { call, written = (object?)null }).ToArray();
         var results = await StepAsync(stepped, "recordResults", new { resolved = outcomes });
         await StepAsync(stepped, "resolveWords", new { resolved = Output(results, "resolved") });
-        await StepAsync(stepped, "startAnalysis", new { site });
+        await StepAsync(stepped, "markDiscovered", new { site, written = Array.Empty<object>() });
 
-        direct.Fetched.Should().HaveCount(calls.GetArrayLength());
-        string.Join(" ", direct.Fetched).Should().Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
         calls.EnumerateArray().Select(call => call.GetProperty("endpointName").GetString())
             .Should().BeEquivalentTo("NationalFloodPortalEndpoint", "OpenMeteoEndpoint");
-        direct.Records.Should().NotBeEmpty();
-        direct.Related.Should().NotBeEmpty();
-        stepped.Records.Should().BeEquivalentTo(direct.Records);
-        stepped.Facts.Should().BeEquivalentTo(direct.Facts);
-        stepped.Related.Should().BeEquivalentTo(direct.Related);
+        stepped.Records.Should().ContainSingle().Which.Name.Should().Be("WillowBend × NationalFloodPortal");
+        stepped.Facts.Should().Contain((stepped["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
+        stepped.Fetched.Should().BeEmpty("the drawing's Fetch box makes the calls, never Forage");
     }
 }

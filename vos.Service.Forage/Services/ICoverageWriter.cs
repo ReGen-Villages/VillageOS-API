@@ -1,9 +1,6 @@
 namespace vos.Service.Forage.Services;
 
-// The model writes a run makes for itself: minting a coverage, relating it, and recording what its
-// call came to. Separate from the fetcher, which speaks to endpoint services rather than to the model,
-// and an interface for the reason ISourceFetcher is one — what the ledger decides is worth testing
-// without a gateway in the way.
+// An interface so what the ledger decides can be tested without a gateway in the way.
 public interface ICoverageWriter
 {
     // The record and its relationships go in one write, so a record is never left reaching nothing. False where the

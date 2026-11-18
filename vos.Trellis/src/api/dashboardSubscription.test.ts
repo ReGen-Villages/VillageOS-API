@@ -475,6 +475,60 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a boxPlot widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const part = (archetype: string) => ({ kind: 'aggregate', archetype, reduction: 'count' }) as const;
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'boxPlot',
+              title: 'Wet bulb',
+              months: { whiskerLow: part('Low'), boxLow: part('BoxLow'), median: part('Median'), boxHigh: part('BoxHigh'), whiskerHigh: part('High') },
+              annual: { whiskerLow: part('YearLow'), boxLow: part('YearBoxLow'), median: part('YearMedian'), boxHigh: part('YearBoxHigh'), whiskerHigh: part('YearHigh') },
+              bands: [{ label: 'Danger', from: part('DangerFrom'), to: part('DangerTo'), colour: '#f00' }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining([
+      'Low', 'BoxLow', 'Median', 'BoxHigh', 'High', 'YearLow', 'YearBoxLow', 'YearMedian', 'YearBoxHigh', 'YearHigh', 'DangerFrom', 'DangerTo',
+    ]));
+  });
+});
+
+describe('subscriptionForSpec over a polarShares widget', () => {
+  it('asks for the counts and the cells it draws', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'polarShares',
+              title: 'Rose',
+              counts: { kind: 'aggregate', archetype: 'Counted', reduction: 'count' },
+              cells: { kind: 'aggregate', archetype: 'Cells', reduction: 'count' },
+              bearingKey: 'centreDegrees', classOrderKey: 'order', classLabelKey: 'name', classColourKey: 'colour',
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Counted', 'Cells']));
+  });
+});
+
+describe('subscriptionForSpec over a depthProfile widget', () => {
+  it('asks for the rows it draws', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'depthProfile',
+              title: 'Soil',
+              rows: { kind: 'aggregate', archetype: 'Layers', reduction: 'count' },
+              labelKey: 'name',
+              parts: [{ label: 'Sand', key: 'sand', colour: '#e0b973' }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Layers']));
+  });
+});
+
 describe('subscriptionForSpec over a lineSeries widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(
@@ -498,11 +552,12 @@ describe('subscriptionForSpec over a heatmap widget', () => {
               title: 'Sun',
               value: { kind: 'aggregate', archetype: 'Reading', reduction: 'count' },
               sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', reduction: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', reduction: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', reduction: 'count' } },
+              classes: [{ label: 'warm', colour: '#f00', from: { kind: 'aggregate', archetype: 'WarmFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'WarmTo', reduction: 'count' } }],
             }),
       null,
     );
 
-    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset']));
+    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset', 'WarmFrom', 'WarmTo']));
   });
 });
 
@@ -514,13 +569,32 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
               title: 'Cover',
               classes: [
                 { label: 'Trees', colour: '#080', share: { kind: 'aggregate', archetype: 'Trees', reduction: 'count' } },
-                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', reduction: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', reduction: 'count' } },
+                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', reduction: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', reduction: 'count' }, annual: { kind: 'aggregate', archetype: 'GrassAllYear', reduction: 'count' } },
               ],
             }),
       null,
     );
 
-    expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'GrassColour', 'Grass']));
+    expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'GrassColour', 'Grass', 'GrassAllYear']));
+  });
+
+  it('asks for the counts and the group Things of a chart counted from the model', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'stackedShares',
+              title: 'Strategies',
+              classes: [],
+              counted: {
+                counts: { kind: 'aggregate', archetype: 'ByMonth', reduction: 'count' },
+                annual: { kind: 'aggregate', archetype: 'WholeWindow', reduction: 'count' },
+                groups: { kind: 'aggregate', archetype: 'Groups', reduction: 'count' },
+                orderKey: 'order', labelKey: 'wording', colourKey: 'colour',
+              },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['ByMonth', 'WholeWindow', 'Groups']));
   });
 });
 
