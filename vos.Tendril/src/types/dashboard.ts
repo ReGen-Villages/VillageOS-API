@@ -647,6 +647,26 @@ export interface BoxPlotWidget {
   ceiling?: number;
 }
 
+/** Hours counted under each cell Thing, drawn as a rose: each cell sits in the sector its row's `bearingKey`
+ *  names (degrees, nought north, clockwise) and stacks outward by `classOrderKey`, coloured and labelled by
+ *  its row. `counts` is a `history` binding folded by `value` (one rose) or `monthOfYear,value` (a rose a
+ *  month, all on one scale) and counted; `cells` is a row binding, one row per cell Thing, whose `id` the
+ *  counts are keyed by. Each wedge's reach is its share of the hours counted under a declared cell. */
+export interface PolarSharesWidget {
+  type: 'polarShares';
+  title?: string;
+  hint?: string;
+  counts: Binding;
+  cells: Binding;
+  bearingKey: string;
+  classOrderKey: string;
+  classLabelKey: string;
+  classColourKey: string;
+  /** A column holding the class Thing's `wording`; its words in the page language label the class, and
+   *  the `classLabelKey` column does where it has none. */
+  classWordingKey?: string;
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 export interface DepthProfilePart {
   label: string;
@@ -741,11 +761,29 @@ export interface StackedSharesClass {
  *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
  *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
  *  out, and so is a month no class was answered for. */
+/** Classes read from the model rather than listed: `groups` is a row binding, one row per group Thing,
+ *  carrying its order, label and colour under the keys named; `counts` is a `history` binding folded by
+ *  `monthOfYear,value` and counted, keyed by each group's `id`; `annual`, folded by `value`, is the column
+ *  for the whole window. Each share is a group's hours over the hours counted under a declared group. */
+export interface StackedSharesCounted {
+  counts: Binding;
+  annual?: Binding;
+  groups: Binding;
+  orderKey: string;
+  labelKey: string;
+  colourKey: string;
+  /** A column holding the group Thing's `wording`; its words in the page language label the group, and
+   *  the `labelKey` column does where it has none. */
+  wordingKey?: string;
+}
+
 export interface StackedSharesWidget {
   type: 'stackedShares';
   title?: string;
   hint?: string;
   classes: StackedSharesClass[];
+  /** Present, the classes come from it and `classes` is not read. */
+  counted?: StackedSharesCounted;
 }
 
 /** One direction of a diverging bar: what it is called, the binding whose groups are its monthly
@@ -949,6 +987,7 @@ export type Widget = Placed & (
   | RangeBarWidget
   | BoxPlotWidget
   | DepthProfileWidget
+  | PolarSharesWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

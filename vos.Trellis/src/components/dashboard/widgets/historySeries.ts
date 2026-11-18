@@ -1,10 +1,11 @@
 /**
  * What the chart widgets read off a `history` binding and its answer: the groups by key, the window
- * the binding covers, and the calendar words the axes are labelled with. Shared so every chart reads
+ * the binding covers, the calendar words the axes are labelled with, and the labels of the Things
+ * the groups are keyed by. Shared so every chart reads
  * a series the same way and names a month the same way.
  */
-import { asRows, nullableNumber, type BindingResult } from '@tendril-ui/tendril';
-import type { Binding } from '@tendril-ui/tendril';
+import { asRows, nullableNumber, wordingIn, wordsInLanguage, type BindingResult } from '@tendril-ui/tendril';
+import type { Binding, Row } from '@tendril-ui/tendril';
 
 const SECONDS_PER_DAY = 86_400;
 const SECONDS_PER_YEAR = 365 * SECONDS_PER_DAY;
@@ -28,6 +29,11 @@ export function groupsByKey(result: BindingResult): Map<string, number> {
     if (typeof row.key === 'string' && value !== null) groups.set(row.key, value);
   }
   return groups;
+}
+
+export function rowLabel(row: Row, labelKey: string, wordingKey: string | undefined, language: string): string {
+  const words = wordingKey === undefined ? undefined : wordingIn(row[wordingKey]) ?? undefined;
+  return wordsInLanguage(words, language) ?? String(row[labelKey] ?? '');
 }
 
 /** The twelve month names in the reader's language, abbreviated, January first. */
