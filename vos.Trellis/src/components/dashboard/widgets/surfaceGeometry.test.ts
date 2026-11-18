@@ -7,7 +7,7 @@ const grid = (rows: number, columns: number, values: (number | null)[], cellSize
   rows, columns, values,
 })!;
 
-const heightAt = (surface: NonNullable<ReturnType<typeof raisedSurfaceOf>>, point: number) => surface.positions[point * 3 + 1];
+const riseAt = (surface: NonNullable<ReturnType<typeof raisedSurfaceOf>>, point: number) => surface.positions[point * 3 + 1];
 
 describe('a raised surface', () => {
   it('places each point a cell apart across and back, centred, with north away from the viewer', () => {
@@ -23,7 +23,7 @@ describe('a raised surface', () => {
     const surface = raisedSurfaceOf(grid(2, 2, [100, 101, 102, 103], 10), 1)!;
 
     expect(surface.boxHeight).toBeCloseTo(3, 10);
-    expect(heightAt(surface, 3)).toBeCloseTo(3, 10);
+    expect(riseAt(surface, 3)).toBeCloseTo(3, 10);
     expect(raisedSurfaceOf(grid(2, 2, [100, 101, 102, 103], 10), 1.2)!.boxHeight).toBeCloseTo(3.6, 10);
   });
 
@@ -31,7 +31,7 @@ describe('a raised surface', () => {
     const surface = raisedSurfaceOf(grid(2, 2, [0, 0, 0, 1000], 10), 3)!;
 
     expect(surface.boxHeight).toBeCloseTo(4, 10);
-    expect(heightAt(surface, 3)).toBeCloseTo(4, 10);
+    expect(riseAt(surface, 3)).toBeCloseTo(4, 10);
   });
 
   it('keeps the box at least eight hundredths of the width, however flat the values', () => {
