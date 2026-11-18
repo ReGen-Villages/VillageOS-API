@@ -99,8 +99,7 @@ public sealed class ServiceCallTools(ModelClients clients, TimeProvider? clock =
         return selection;
     }
 
-    // A call's state is written onto its relationship without being announced, so each is read by itself. A wait
-    // repeats only these reads: the selection grows with every relationship the Thing has.
+    // A wait repeats only these reads, because the selection grows with every relationship the Thing has.
     private static async Task<ServiceCallsOnAThing> WithEachCallReadAgainAsync(
         MyceliumClient mycelium, Guid thing, JsonElement selection)
     {

@@ -161,7 +161,6 @@ public class ServiceCallsTests
         JsonDocument.Parse($$"""{ "Properties": {{properties}} }""").RootElement;
 }
 
-// A seed in the shape Mycelium answers a selection with, which a test adds Things and relationships to.
 public sealed class SelectionFromASeed
 {
     private readonly JsonArray _things = [];
