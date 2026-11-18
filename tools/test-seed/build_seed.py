@@ -65,23 +65,18 @@ def judged_by(name, criteria):
 
 
 class Model:
-    """The seed under construction: the kit that holds its Things and relationships, and the vocabulary
-    every later step relates along."""
-
     def __init__(self):
         self.kit = Kit()
-        kit = self.kit
-        self.is_ = kit.predicate("is")
-        self.has = kit.predicate("has")
+        self.is_ = self.kit.predicate("is")
+        self.has = self.kit.predicate("has")
         self.kinds = {}
         self.configured = []
-        self.operational = []
 
     def predicate(self, name, role=None):
         predicate = self.kit.predicate(name)
         return self.kit.bind(role, predicate) if role else predicate
 
-    def kind(self, name, properties=None, derived=None, ranges=None, role=None, operational=False):
+    def kind(self, name, properties=None, derived=None, ranges=None, role=None):
         kind = self.kit.thing(identifier("kind", name), name, properties, archetype=True)
         if derived:
             self.kit.things[kind]["DerivedProperties"] = derived
@@ -89,15 +84,15 @@ class Model:
             self.kit.things[kind]["OwnRanges"] = {each["Name"]: each for each in ranges}
         if role:
             self.kit.bind(role, kind)
-        (self.operational if operational else self.configured).append(kind)
+        self.configured.append(kind)
         self.kinds[name] = kind
         return kind
 
-    def member(self, kind_name, name, stated=None, own=None, key=None):
-        """A Thing of a kind. `stated` holds values for names the kind declares, written as the override the
-        platform keeps for them; `own` holds properties only this Thing carries."""
+    def member(self, kind_name, name, stated=None, own=None):
+        """`stated` holds values for names the kind declares, which a seed writes as an override under the kind;
+        `own` holds properties only this Thing carries."""
         kind = self.kinds[kind_name]
-        thing = self.kit.thing(identifier(kind_name, key or name), name, own)
+        thing = self.kit.thing(identifier(kind_name, name), name, own)
         if stated:
             self.kit.things[thing]["InheritedOverrides"] = {
                 kind: {"SourceId": kind, "SourceName": kind_name, "Properties": stated, "Inherited": None}}
@@ -114,9 +109,7 @@ class Model:
             roots[name] = kit.bind(role, kit.thing(identifier("kind", name), name, archetype=True))
         for kind in self.configured:
             kit.rel(kind, self.is_, roots["Configuration"])
-        for kind in self.operational:
-            kit.rel(kind, self.is_, roots["Operation"])
-        binds = kit.thing(playground.stable_id("pipeline-playground", "predicate", "binds"), "binds")
+        binds = kit.thing(playground.stable_id(playground._TAG, "predicate", "binds"), "binds")
         for predicate in (binds, *sorted(kit.predicates)):
             kit.rel(predicate, self.is_, roots["Predicate"])
         role_kind = kit.thing(ROLE_ARCHETYPE, "Role", archetype=True)
@@ -258,9 +251,7 @@ def declare_things(model):
         "2026-05-20T14:00:00Z", "vos.DateTime")
 
 
-def declare_ranges_judging_by_relationship(model):
-    """A range that counts along a relationship is a Thing that judges a kind, because a kind's own ranges
-    read its properties."""
+def declare_range_things(model):
     range_kind = model.kind("Range", role="range")
     judges = model.predicate("judges", role="judgedThing")
     ranges = {}
@@ -504,7 +495,7 @@ def build(with_an_unreadable_page=False):
     declare_kinds(model)
     declare_property_names(model)
     declare_things(model)
-    ranges = declare_ranges_judging_by_relationship(model)
+    ranges = declare_range_things(model)
     declare_service_calls(model,ranges)
     declare_pages(model,with_an_unreadable_page)
     model.place_under_roots()
