@@ -11,7 +11,7 @@ export type CatalystKind = 'message' | 'state' | 'cadence' | 'relationship';
 export type CatalystGroupName = 'messages' | 'states' | 'clock' | 'relationships';
 
 /** What the model does with a catalyst today: runs a drawing, calls a service, or nothing. A state the orchestrator
- *  receives with nothing drawn from it is refused each time, which comes to nothing. */
+ *  receives with nothing drawn from it is refused each time, so nothing runs. */
 export type CatalystHandling =
   | { by: 'drawing'; name: string }
   | { by: 'service'; name: string }
@@ -73,7 +73,7 @@ function ordered(rows: CatalystRow[]): CatalystRow[] {
     || a.who.localeCompare(b.who) || a.what.localeCompare(b.what));
 }
 
-/** Everything that sets a run off, in four groups: messages from outside, states the model enters, the clock, and
+/** Everything that sets a run off, in groups: messages from outside, states the model enters, the clock, and
  *  relationships written. Every group is returned, empty or not. The orchestrator's own connections and a
  *  connection a system is told through are left out, since no run starts from them. */
 export function catalystRail(model: PipelineModel): CatalystGroup[] {

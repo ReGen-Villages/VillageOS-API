@@ -417,8 +417,8 @@ export class PipelineModel {
     });
   }
 
-  /** Every Thing that is not an archetype and names a connection along `notifies`: a predicate, a relationship along which
-   *  calls that connection. An archetype names the connection its members' call records are answered through instead. */
+  /** Every predicate that names a connection along `notifies`, which a relationship along the predicate calls. An archetype
+   *  naming one is left out: it names where its members' call records are answered, and is no predicate. */
   predicatesNotifying(): { predicate: VosThing; connectionId: string }[] {
     return this.thingsOf(ROLE.Connection).flatMap((connection) =>
       this.reachingAlong(connection.Id, ROLE.NotifiedConnection)
