@@ -34,7 +34,7 @@ export type BindingFieldKey = keyof typeof en.design.bindingField;
 export type Offering = 'kinds' | 'property' | 'state' | 'thing' | 'endpoint' | 'rowKey' | 'predicate';
 
 /** What a slot expects a binding to resolve to, so the fitting kinds are offered first. */
-export type BindingShape = 'number' | 'rows' | 'series' | 'verdicts';
+export type BindingShape = 'number' | 'rows' | 'series' | 'verdicts' | 'shape';
 
 interface FieldBase {
   key: WidgetFieldKey | BindingFieldKey;
@@ -145,7 +145,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   densityGrid: [
     title, hint, binding('cells', 'series'), binding('coverage', 'rows'),
     group('across', [text('label'), unit]), group('up', [text('label'), unit]),
-    list('outlines', [text('label'), text('colour', undefined, true), binding('shape', 'number')]),
+    list('outlines', [text('label'), text('colour', undefined, true), binding('shape', 'shape')]),
   ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
@@ -181,6 +181,7 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   aggregate: [archetype, choice('reduction', REDUCTIONS), property, where, scope],
   property: [thing, property],
   related: [steps, thing, property],
+  value: [steps, thing, property],
   stateOf: [strings('states', 'state'), thing],
   verdict: [list('states', [state, text('reads'), group('levers', [text('raise'), text('lower')])]), thing, steps],
   working: [property, thing, steps],
@@ -207,6 +208,7 @@ const SHAPES: Record<Binding['kind'], BindingShape[]> = {
   aggregate: ['number'],
   property: ['number'],
   related: ['number'],
+  value: ['shape'],
   stateOf: ['number'],
   verdict: ['verdicts'],
   working: ['number'],

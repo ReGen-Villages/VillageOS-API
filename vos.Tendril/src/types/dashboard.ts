@@ -125,6 +125,10 @@ export type Binding =
    *  several matches resolve as their names in alphabetical order, joined with ", "; none
    *  resolves to null. */
   | { kind: 'related'; via: RelationStep[]; thing?: string; property?: string }
+  /** One Thing's property as the model holds it, for a widget that draws a shape or a grid rather than
+   *  a figure: a GeoJson value resolves to its parsed geometry, and an object such as a grid as it is.
+   *  `thing` and `via` reach the Thing as for `related`; nothing is answered unless exactly one is reached. */
+  | { kind: 'value'; thing?: string; via?: RelationStep[]; property: string }
   /** The derived state a Thing currently holds, as a word for a status cell. `states` lists the
    *  candidates in priority order and the first one the Thing holds wins — derived states nest, so
    *  a Thing can hold several at once and a single-valued cell needs the model to say which state
@@ -687,7 +691,7 @@ export interface DensityGridAxis {
 }
 
 /** A shape drawn over a density grid, such as a comfort zone, or a line, such as a humidity curve.
- *  `shape` binds a property holding a GeoJSON Polygon or LineString whose coordinates are in the
+ *  `shape` is a `value` binding onto a property holding a GeoJSON Polygon or LineString whose coordinates are in the
  *  chart's own units, across then up; a polygon is filled faintly and a line is not. */
 export interface DensityGridOutline {
   label: string;

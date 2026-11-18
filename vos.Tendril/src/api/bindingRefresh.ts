@@ -35,6 +35,7 @@ export function statesRead(binding: Binding): string[] {
     case 'verdict':
       return [...binding.states.map((candidate) => candidate.state), ...stepStates(binding.via)];
     case 'related':
+    case 'value':
     case 'working':
       return stepStates(binding.via);
     case 'origin':
@@ -67,6 +68,7 @@ export function askedOfTheBroker(binding: Binding): boolean {
     case 'compareEntities':
       return (binding.computed ?? []).some((column) => askedOfTheBroker(column.value));
     case 'related':
+    case 'value':
     case 'working':
     case 'origin':
       return statesRead(binding).length > 0;

@@ -41,6 +41,7 @@ export const BINDING_FIELDS: BindingFields = {
   aggregate: ['archetype', 'reduction', 'property', 'where', 'scope'],
   property: ['thing', 'property'],
   related: ['via', 'thing', 'property'],
+  value: ['thing', 'via', 'property'],
   stateOf: ['states', 'thing'],
   verdict: ['states', 'thing', 'via'],
   origin: ['property', 'thing', 'via', 'reads', 'source'],
