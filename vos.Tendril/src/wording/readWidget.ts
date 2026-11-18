@@ -4,6 +4,7 @@ import { BASE_LANGUAGE } from '../i18n/languages';
 import type { TableColumn, Widget } from '../types/dashboard';
 import { figureText, originLines, leverSentence, verdictReadings, workingRuns, type OriginLine, type WorkingRun } from './figureReadings';
 import { formatNumberIn } from './formatNumber';
+import { profileFigures, profilePoints, profileSpanOf, profileWords, type ProfileFigures } from './profileReading';
 
 interface Titled {
   title?: string;
@@ -18,6 +19,12 @@ type WidgetReading =
   | (Titled & {
       type: 'working';
       rows: { label: string; value: number | null; worded: string; unit?: string; runs: WorkingRun[] }[];
+    })
+  | (Titled & {
+      type: 'profileLine';
+      span: { from: number; to: number } | null;
+      figures: ProfileFigures | null;
+      worded: Record<keyof ProfileFigures, string> | null;
     })
   | (Titled & { type: Widget['type']; columns?: TableColumn[]; slots: { kind: string; result: BindingResult }[] });
 
@@ -68,6 +75,20 @@ export async function readWidget(widget: Widget, context: ResolveContext): Promi
         });
       }
       return { ...titled, type: 'working', rows };
+    }
+    case 'profileLine': {
+      const points = profilePoints(await resolveBinding(widget.profile, context));
+      const span = widget.span
+        ? profileSpanOf(await resolveBinding(widget.span.from, context), await resolveBinding(widget.span.to, context))
+        : null;
+      const figures = points ? profileFigures(points, span) : null;
+      return {
+        ...titled,
+        type: 'profileLine',
+        span,
+        figures,
+        worded: figures ? profileWords(figures, widget.format, widget.unit, language) : null,
+      };
     }
     default: {
       const slots = [];

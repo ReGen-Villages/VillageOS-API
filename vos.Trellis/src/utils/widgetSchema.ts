@@ -149,6 +149,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     title, hint, binding('grid', 'shape'), binding('outline', 'shape'), list('classes', rangeBand),
     floor, ceiling, choice('scale', GRID_SCALES), format, unit,
   ],
+  profileLine: [title, hint, binding('profile', 'shape'), group('span', [binding('from', 'number'), binding('to', 'number')]), format, unit],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),

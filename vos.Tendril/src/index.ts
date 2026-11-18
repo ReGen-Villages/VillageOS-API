@@ -22,6 +22,7 @@ export * from './utils/rangeHelpers';
 export * from './wording/figureReadings';
 export * from './wording/formatNumber';
 export * from './wording/originSentence';
+export * from './wording/profileReading';
 export * from './wording/readWidget';
 export * from './wording/verdictSentence';
 export * from './widgets/ActionList';

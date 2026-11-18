@@ -109,6 +109,25 @@ describe('a widget read out for a reader with no screen', () => {
     expect(read).toHaveProperty('slots', [{ kind: 'thingList', result: [expect.objectContaining({ id: 'r1', name: 'Spring reservoir', storedLitres: 12500.5 })] }]);
   });
 
+  it('reads a profile line as its lowest, highest and difference within the span, in words', async () => {
+    const heights = { originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003, rows: 1, columns: 4, values: [84, 112, 96, 70] };
+    const alongTheLine: ResolveContext = {
+      ...context('en'),
+      index: buildModelIndex([thing('r1', 'Spring reservoir', { Properties: { heights, spanFrom: 30, spanTo: 60 } })], []),
+    };
+    const widget: Widget = {
+      type: 'profileLine', title: 'West to east', profile: { kind: 'value', property: 'heights' }, unit: 'm', format: 'integer',
+      span: { from: { kind: 'property', thing: '$scope', property: 'spanFrom' }, to: { kind: 'property', thing: '$scope', property: 'spanTo' } },
+    };
+
+    expect(await readWidget(widget, alongTheLine)).toEqual({
+      type: 'profileLine', title: 'West to east',
+      span: { from: 30, to: 60 },
+      figures: { lowest: 96, highest: 112, difference: 16 },
+      worded: { lowest: '96 m', highest: '112 m', difference: '16 m' },
+    });
+  });
+
   it('reads a grid map as the grid and outline the page\'s own Thing holds', async () => {
     const depths = { originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.001, longitudeStepDegrees: 0.001, rows: 1, columns: 2, values: [3.5, null] };
     const boundary = { type: 'Polygon', coordinates: [[[55, 25], [55.001, 25], [55.001, 25.001], [55, 25]]] };

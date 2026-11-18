@@ -12,6 +12,7 @@ import type {
   PolarSharesWidget,
   DensityGridWidget,
   GridMapWidget,
+  ProfileLineWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -205,6 +206,10 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         up: { label: tr(widget.up.label), unit: tr(widget.up.unit) },
         outlines: widget.outlines?.map((outline) => ({ ...outline, label: tr(outline.label) })),
       };
+      return w;
+    }
+    case 'profileLine': {
+      const w: ProfileLineWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
       return w;
     }
     case 'gridMap': {
