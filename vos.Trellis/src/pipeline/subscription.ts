@@ -13,7 +13,8 @@ import { ROLE } from './model';
  *
  * A port offers Things, a node chooses one, a choice compares with some, a boundary node stands for
  * something, a connection is reached by a trigger and a state judges a kind: each is a Thing no role
- * reaches, found one step along the predicate the role binds. The page keeps following all of it, so
+ * reaches, found one step along the predicate the role binds. A predicate names the connection a
+ * relationship along it calls, found one step back from the connection. The page keeps following all of it, so
  * what it saves and what the orchestrator starts appear without reopening it.
  */
 export const KINDS_READ = [
@@ -34,6 +35,9 @@ export const PIPELINE_PAGE: SubscriptionSelector = {
     ...EVERY_ROLE.filter((role) => !(KINDS_READ as readonly string[]).includes(role)),
   ],
   names: [...NAVIGATION_AND_SETTINGS.names!, 'has', 'of'],
-  traverse: FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role })),
+  traverse: [
+    ...FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role })),
+    { predicateRole: ROLE.NotifiedConnection, direction: 'incoming' },
+  ],
   includeLaterMatches: true,
 };
