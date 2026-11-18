@@ -99,6 +99,62 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     }
 
     [Fact]
+    public async Task A_selection_is_read_once_by_posting_the_selector_and_answers_what_the_platform_selected()
+    {
+        string? sent = null;
+        var (_, client, mycelium) = AModelAnswering(request =>
+        {
+            sent = request.Content!.ReadAsStringAsync().Result;
+            return Json("""{"watermark":7,"snapshot":{"things":[],"relationships":[]}}""");
+        });
+        var selector = new System.Text.Json.Nodes.JsonObject
+        {
+            ["ids"] = new System.Text.Json.Nodes.JsonArray(Spring.ToString()),
+            ["includeIsAncestors"] = false,
+        };
+
+        var answer = await client.ReadSelectionAsync(selector);
+
+        answer.GetProperty("watermark").GetInt32().Should().Be(7);
+        var asked = AskedOf(mycelium).Should().ContainSingle().Subject;
+        asked.Method.Should().Be(HttpMethod.Post);
+        asked.RequestUri!.PathAndQuery.Should().Be("/api/snapshots");
+        asked.Headers.Authorization!.Parameter.Should().Be("a-token");
+        System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(sent!), selector).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_name_in_a_selector_holding_a_quote_a_backslash_and_a_brace_is_sent_as_that_one_name()
+    {
+        const string name = """Spring", "all": true} \ {""";
+        string? sent = null;
+        var (_, client, _) = AModelAnswering(request =>
+        {
+            sent = request.Content!.ReadAsStringAsync().Result;
+            return Json("{}");
+        });
+
+        await client.ReadSelectionAsync(new System.Text.Json.Nodes.JsonObject
+        {
+            ["names"] = new System.Text.Json.Nodes.JsonArray(name),
+        });
+
+        var received = System.Text.Json.JsonDocument.Parse(sent!).RootElement;
+        received.EnumerateObject().Select(member => member.Name).Should().Equal("names");
+        received.GetProperty("names").EnumerateArray().Select(one => one.GetString()).Should().Equal(name);
+    }
+
+    [Fact]
+    public async Task A_selection_the_platform_refuses_keeps_its_reason()
+    {
+        var (_, client, _) = AModelAnswering(_ => Json("""{"error":"A selector names nothing to select"}""", HttpStatusCode.BadRequest));
+
+        var asking = () => client.ReadSelectionAsync(new System.Text.Json.Nodes.JsonObject());
+
+        (await asking.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("A selector names nothing to select");
+    }
+
+    [Fact]
     public async Task A_request_by_path_sends_the_method_the_path_and_the_body_and_answers_the_body()
     {
         var (_, client, mycelium) = AModelAnswering(_ => Json("""{"said":"done"}"""));

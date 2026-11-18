@@ -288,6 +288,15 @@ public partial class MyceliumClient
         return new ThingByName(await response.Content.ReadFromJsonAsync<JsonElement>(), []);
     }
 
+    // The selector is taken as a tree and never as text, so a name it holds cannot change what is selected.
+    public virtual async Task<JsonElement> ReadSelectionAsync(System.Text.Json.Nodes.JsonNode selector)
+    {
+        var response = await _httpClient.PostAsync(
+            $"{_myceliumUrl}/api/snapshots", new StringContent(selector.ToJsonString(), Encoding.UTF8, "application/json"));
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<string> RequestAsync(HttpMethod method, string path, string? bodyJson = null)
     {
         if (!path.StartsWith("/api/", StringComparison.Ordinal))
