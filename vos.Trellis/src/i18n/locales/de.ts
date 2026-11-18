@@ -1393,6 +1393,7 @@ export const de: PartialResources = {
       nothingToday: "heute geschieht nichts",
       nothing: "nichts",
       orchestratorRefuses: "der Orchestrator lehnt jeden Eintritt ab: nichts ist gezeichnet",
+      namesNoConnection: "die Plattform ruft dafür nichts auf: sie benennt keine Verbindung über {{predicate}}",
       handOver: "Vom Orchestrator behandeln lassen",
       handOverTitle: "{{what}} vom Orchestrator behandeln lassen",
       handOverFailed: "Der Zustand konnte nicht an den Orchestrator übergeben werden",
