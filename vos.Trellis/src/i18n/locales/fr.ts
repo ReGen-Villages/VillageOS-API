@@ -394,6 +394,7 @@ export const fr: PartialResources = {
     raisedSurface: {
       notASurface: 'Une surface en relief demande une grille d’au moins deux lignes et deux colonnes.',
       range: 'De {{lowest}} à {{highest}}',
+      tableTooLarge: 'Cette grille compte {{cells}} cellules ; son tableau est proposé jusqu’à {{most}}.',
     },
     profileLine: {
       figures: 'Plus bas {{lowest}}, plus haut {{highest}}, différence {{difference}}',

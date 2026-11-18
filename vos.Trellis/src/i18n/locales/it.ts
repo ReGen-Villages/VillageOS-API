@@ -394,6 +394,7 @@ export const it: PartialResources = {
     raisedSurface: {
       notASurface: 'Una superficie in rilievo richiede una griglia di almeno due righe e due colonne.',
       range: 'Da {{lowest}} a {{highest}}',
+      tableTooLarge: 'Questa griglia ha {{cells}} celle; la sua tabella è offerta fino a {{most}}.',
     },
     profileLine: {
       figures: 'Minimo {{lowest}}, massimo {{highest}}, differenza {{difference}}',

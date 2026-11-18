@@ -394,6 +394,7 @@ export const de: PartialResources = {
     raisedSurface: {
       notASurface: 'Eine erhöhte Fläche braucht ein Raster mit mindestens zwei Zeilen und zwei Spalten.',
       range: 'Von {{lowest}} bis {{highest}}',
+      tableTooLarge: 'Dieses Raster hat {{cells}} Zellen; seine Tabelle wird bis {{most}} angeboten.',
     },
     profileLine: {
       figures: 'Tiefster Punkt {{lowest}}, höchster {{highest}}, Unterschied {{difference}}',

@@ -394,6 +394,7 @@ export const nl: PartialResources = {
     raisedSurface: {
       notASurface: 'Een verhoogd vlak heeft een raster van minstens twee rijen en twee kolommen nodig.',
       range: 'Van {{lowest}} tot {{highest}}',
+      tableTooLarge: 'Dit raster heeft {{cells}} cellen; de tabel wordt aangeboden tot {{most}}.',
     },
     profileLine: {
       figures: 'Laagste {{lowest}}, hoogste {{highest}}, verschil {{difference}}',

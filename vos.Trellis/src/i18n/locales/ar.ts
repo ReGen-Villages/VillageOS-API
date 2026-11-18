@@ -436,6 +436,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     raisedSurface: {
       notASurface: "يحتاج السطح البارز إلى شبكة من صفين وعمودين على الأقل.",
       range: "من {{lowest}} إلى {{highest}}",
+      tableTooLarge: "تحتوي هذه الشبكة على {{cells}} خلية؛ يُعرض جدولها حتى {{most}} خلية.",
     },
     profileLine: {
       figures: "الأدنى {{lowest}}، الأعلى {{highest}}، الفرق {{difference}}",

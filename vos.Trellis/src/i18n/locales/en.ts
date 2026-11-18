@@ -393,6 +393,7 @@ export const en = {
     raisedSurface: {
       notASurface: 'A raised surface needs a grid of at least two rows and two columns.',
       range: 'From {{lowest}} to {{highest}}',
+      tableTooLarge: 'This grid holds {{cells}} cells; its table is offered up to {{most}}.',
     },
     profileLine: {
       figures: 'Lowest {{lowest}}, highest {{highest}}, difference {{difference}}',

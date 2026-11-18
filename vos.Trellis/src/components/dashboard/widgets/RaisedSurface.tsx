@@ -53,7 +53,14 @@ export function RaisedSurface({ widget, context }: { widget: RaisedSurfaceWidget
         </span>
         <span>{figure(surface.highest)}</span>
       </div>
-      {cellsIn(grid) <= MOST_CELLS_A_MAP_DRAWS && (
+      {cellsIn(grid) > MOST_CELLS_A_MAP_DRAWS ? (
+        <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+          {t('widgets.raisedSurface.tableTooLarge', {
+            cells: formatNumber(cellsIn(grid), 'integer'),
+            most: formatNumber(MOST_CELLS_A_MAP_DRAWS, 'integer'),
+          })}
+        </p>
+      ) : (
         <SeriesTable
           caption={widget.title ?? ''}
           columns={Array.from({ length: grid.columns }, (_, column) => String(column + 1))}

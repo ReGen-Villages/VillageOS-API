@@ -53,6 +53,20 @@ describe('the raised surface', () => {
     expect(screen.getByText('101.2 m')).toBeTruthy();
   });
 
+  it('offers its table up to as many cells as a grid map draws, and says so for a larger grid', async () => {
+    const atTheLimit = held('atTheLimit', 100, 100, new Array(10_000).fill(1));
+    const { unmount } = render(<RaisedSurface widget={{ ...widget, surface: atTheLimit }} context={{} as ResolveContext} />);
+    await screen.findByTestId('scene');
+    expect(screen.getByRole('button', { name: 'Table' })).toBeTruthy();
+    expect(screen.queryByText(/its table is offered/)).toBeNull();
+    unmount();
+
+    render(<RaisedSurface widget={{ ...widget, surface: held('oneOver', 73, 137, new Array(10_001).fill(1)) }} context={{} as ResolveContext} />);
+    await screen.findByTestId('scene');
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+    expect(screen.getByText('This grid holds 10,001 cells; its table is offered up to 10,000.')).toBeTruthy();
+  });
+
   it('draws nothing and says so for a grid of one row or one column', () => {
     render(<RaisedSurface widget={{ ...widget, surface: held('line', 1, 3, [1, 2, 3]) }} context={{} as ResolveContext} />);
 
