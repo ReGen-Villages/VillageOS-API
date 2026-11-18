@@ -10,6 +10,9 @@ public readonly record struct LogDownload(string FileName, Stream Content);
 
 public sealed class KeyRefusedException(string message) : InvalidOperationException(message);
 
+// The Thing of a name, or none; Matching lists the Things when more than one holds the name.
+public sealed record ThingByName(JsonElement? Thing, IReadOnlyList<Guid> Matching);
+
 public partial class MyceliumClient
 {
     private readonly HttpClient _httpClient;
@@ -279,6 +282,37 @@ public partial class MyceliumClient
             return null;
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // The platform reads a comma in the name as separating several names, so a name holding one cannot be asked for.
+    public virtual async Task<ThingByName> GetThingByNameAsync(string name)
+    {
+        await HoldATokenAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things{Query(("name", name))}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return new ThingByName(null, []);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var refusal = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return new ThingByName(null, [.. refusal.GetProperty("matchingIds").EnumerateArray().Select(id => id.GetGuid())]);
+        }
+
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return new ThingByName(await response.Content.ReadFromJsonAsync<JsonElement>(), []);
+    }
+
+    public virtual async Task<string> RequestAsync(HttpMethod method, string path, string? bodyJson = null)
+    {
+        if (!path.StartsWith("/api/", StringComparison.Ordinal))
+            throw new ArgumentException($"'{path}' is not a path to one of the platform's routes, which begin /api/.", nameof(path));
+
+        await HoldATokenAsync();
+        var request = new HttpRequestMessage(method, _myceliumUrl + path);
+        if (bodyJson is not null)
+            request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
+        var response = await _httpClient.SendAsync(request);
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadAsStringAsync();
     }
 
     // Null where the model binds nothing to the role, or binds something the caller may not read.
