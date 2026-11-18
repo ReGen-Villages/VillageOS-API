@@ -60,7 +60,13 @@ describe('the rail of catalysts', () => {
 
   it('lists a connection used as a predicate as a relationship written along it, offering no start node when it names no connection', () => {
     const row = group('relationships').find((each) => each.standsForId === id.feeds);
-    expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: 'Handler', placeable: false });
+    expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: '', placeable: false });
+  });
+
+  it('says nothing handles a connection used as a predicate that names no connection, since the platform calls nothing for it', () => {
+    const row = group('relationships').find((each) => each.standsForId === id.feeds);
+    expect(row?.handledBy).toEqual({ by: 'nothing', namesNoConnection: true });
+    expect(rowFor(id.balances)?.handledBy).toEqual({ by: 'service', name: 'Balancer' });
   });
 
   it('lists a predicate naming a connection along notifies once, with the service of the connection it names', () => {

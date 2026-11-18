@@ -11,11 +11,12 @@ export type CatalystKind = 'message' | 'state' | 'cadence' | 'relationship';
 export type CatalystGroupName = 'messages' | 'states' | 'clock' | 'relationships';
 
 /** What the model does with a catalyst today: runs a drawing, calls a service, or nothing. A state the orchestrator
- *  receives with nothing drawn from it is refused each time, so nothing runs. */
+ *  receives with nothing drawn from it is refused each time, so nothing runs; a relationship along a connection that
+ *  names no connection along notifies is called for by nothing. */
 export type CatalystHandling =
   | { by: 'drawing'; name: string }
   | { by: 'service'; name: string }
-  | { by: 'nothing'; refusedByTheOrchestrator?: true };
+  | { by: 'nothing'; refusedByTheOrchestrator?: true; namesNoConnection?: true };
 
 export interface CatalystRow {
   id: string;
@@ -40,6 +41,8 @@ export interface CatalystRow {
   everyMinutes?: number;
   /** For a state watched through one connection: what the broker sends its entries to. */
   handling?: StateHandling;
+  /** For a connection used as a predicate that names no connection along notifies, which the platform calls nothing for. */
+  namesNoConnection?: true;
   /** Whether the row may be handed to the orchestrator: a state it does not handle yet, in a model holding
    *  exactly one. Never anything else, which reaches the orchestrator without naming the drawing. */
   offersOrchestrator: boolean;
@@ -63,6 +66,7 @@ type RowWithoutItsHandling = Omit<CatalystRow, 'handledBy' | 'placeable'>;
 // A state drawn from runs its drawing only when the orchestrator receives its entries; sent anywhere else, the
 // drawing never runs, so the service it is sent to is what happens.
 function handledBy(row: RowWithoutItsHandling): CatalystHandling {
+  if (row.namesNoConnection) return { by: 'nothing', namesNoConnection: true };
   if (row.starts && (row.handling === undefined || row.handling.byOrchestrator)) return { by: 'drawing', name: row.starts.name };
   if (row.handling?.byOrchestrator) return { by: 'nothing', refusedByTheOrchestrator: true };
   return row.today ? { by: 'service', name: row.today } : { by: 'nothing' };
@@ -135,7 +139,7 @@ export function catalystRail(model: PipelineModel): CatalystGroup[] {
       const starts = startedBy(connection.connectionId) ?? connection.startsPipeline;
       add('relationships', {
         id: `relationship:${connection.connectionId}`, kind: 'relationship', who: '', what: connection.name,
-        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
+        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: '', namesNoConnection: true, offersOrchestrator: false,
       });
     } else if (connection.watches) {
       // A state several connections watch is one row: drawn if any of them draws.

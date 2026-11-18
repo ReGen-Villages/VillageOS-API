@@ -49,6 +49,11 @@ describe('CatalystRail', () => {
     expect(screen.getByTitle('the orchestrator refuses each entry: nothing is drawn')).toHaveTextContent('nothing');
   });
 
+  it('says nothing handles a connection used as a predicate that names no connection along notifies, and why', () => {
+    rail();
+    expect(screen.getByTitle('the platform calls nothing for it: it names no connection along notifies')).toHaveTextContent('nothing');
+  });
+
   it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {
     const { id, onHandOver } = rail();
     expect(screen.getAllByRole('button', { name: /with the orchestrator$/ })).toHaveLength(3);

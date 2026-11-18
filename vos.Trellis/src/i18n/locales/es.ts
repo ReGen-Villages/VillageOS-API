@@ -1393,6 +1393,7 @@ export const es: PartialResources = {
       nothingToday: "hoy no ocurre nada",
       nothing: "nada",
       orchestratorRefuses: "el orquestador rechaza cada entrada: no hay nada dibujado",
+      namesNoConnection: "la plataforma no llama a nada por ella: no nombra ninguna conexión mediante notifies",
       handOver: "Que lo gestione el orquestador",
       handOverTitle: "Que el orquestador gestione {{what}}",
       handOverFailed: "No se pudo pasar el estado al orquestador",

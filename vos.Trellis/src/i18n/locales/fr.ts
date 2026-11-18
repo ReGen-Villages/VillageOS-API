@@ -1393,6 +1393,7 @@ export const fr: PartialResources = {
       nothingToday: "rien ne se passe aujourd'hui",
       nothing: "rien",
       orchestratorRefuses: "l'orchestrateur refuse chaque entrée : rien n'est dessiné",
+      namesNoConnection: "la plateforme n'appelle rien pour elle : elle ne nomme aucune connexion via notifies",
       handOver: "Confier à l'orchestrateur",
       handOverTitle: "Confier {{what}} à l'orchestrateur",
       handOverFailed: "L'état n'a pas pu être confié à l'orchestrateur",

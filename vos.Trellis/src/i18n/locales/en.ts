@@ -1391,6 +1391,7 @@ export const en = {
       nothingToday: "nothing happens today",
       nothing: "nothing",
       orchestratorRefuses: "the orchestrator refuses each entry: nothing is drawn",
+      namesNoConnection: "the platform calls nothing for it: it names no connection along notifies",
       handOver: "Handle with the orchestrator",
       handOverTitle: "Handle {{what}} with the orchestrator",
       handOverFailed: "The state could not be handed to the orchestrator",
