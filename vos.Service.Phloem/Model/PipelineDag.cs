@@ -79,6 +79,9 @@ public sealed class DagNode
     // continue (collect-partial — failed items become null holes, node is partial).
     public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
 
+    // Null leaves the orchestrator's own limit; a number lowers it for this node's items.
+    public int? ItemsAtOnce { get; init; }
+
     // For an end node standing for an external system: who is sent what reaches it, and through what.
     public Telling? Tells { get; init; }
 

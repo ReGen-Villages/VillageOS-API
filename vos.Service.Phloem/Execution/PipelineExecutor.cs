@@ -1303,7 +1303,7 @@ public sealed class PipelineExecutor
         ChannelReader<NumberedItem> items, IReadOnlyDictionary<int, NodeRecord> itemsMade, Action<NodeRunResult>? answered, bool rehearsal,
         CancellationToken cancellationToken)
     {
-        using var itemGate = new SemaphoreSlim(_maxConcurrency);
+        using var itemGate = new SemaphoreSlim(Math.Min(node.ItemsAtOnce ?? _maxConcurrency, _maxConcurrency));
         var running = new List<Task<NodeRunResult>>();
         await foreach (var item in items.ReadAllAsync(cancellationToken))
             running.Add(itemsMade.TryGetValue(item.Number.Index, out var made) && RunStatus.IsFinished(made.Status)

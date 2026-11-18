@@ -290,6 +290,39 @@ public class ItemsGoOnByThemselvesTests
         (await running).Success.Should().BeTrue();
     }
 
+    // The fault this guards: a fetch box called every slice of a long history at once and the broker fell behind (Bug 8455).
+    [Fact]
+    public async Task A_node_holding_one_item_at_once_calls_the_next_item_only_when_the_one_before_has_answered()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(checkItemsAtOnce: 1);
+        var answers = new Dictionary<string, TaskCompletionSource<NodeCallResult>>
+        {
+            ["North"] = Held(), ["South"] = Held(), ["East"] = Held(),
+        };
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) =>
+            subdomain == "check" ? answers[ReadingOf(envelope)].Task : Task.FromResult(Echo(envelope)));
+
+        var running = executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+        try
+        {
+            foreach (var answered in new[] { 1, 2, 3 })
+            {
+                await Settle.UntilAsync(() => Called(gateway, "check").Count >= answered, $"reading {answered} is being checked");
+                await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+                Called(gateway, "check").Should().HaveCount(answered, "a node holding one item at once calls no second item while one is unanswered");
+                var reading = Called(gateway, "check")[answered - 1];
+                answers[reading].TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = reading } })));
+            }
+        }
+        finally
+        {
+            foreach (var (reading, answer) in answers)
+                answer.TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = reading } })));
+        }
+
+        (await running).Success.Should().BeTrue();
+    }
+
     [Fact]
     public async Task A_node_gathers_what_its_items_answered_in_item_order_whatever_order_they_answered_in()
     {
