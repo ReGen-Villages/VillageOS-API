@@ -428,7 +428,7 @@ public class HandleEndpointTests
                 return new HttpResponseMessage(HttpStatusCode.OK);
             if (req.RequestUri.AbsolutePath.EndsWith("/observations") && req.Method == HttpMethod.Post)
                 return Json("""{"accepted":1}""");
-            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
+            if (req.RequestUri.AbsolutePath == "/api/model/fragment" && req.Method == HttpMethod.Post)
                 return new HttpResponseMessage(HttpStatusCode.OK);
             if (req.RequestUri.Host == "api.test")
                 return Json("{\"raw\":true}");

@@ -41,7 +41,7 @@ public class StepHandleTests
                 recorder.ObservedOn.Add(Guid.Parse(path.Split('/')[3]));
                 return Json("""{"accepted":1}""");
             }
-            if (request.Method == HttpMethod.Post && path == "/api/relationships")
+            if (request.Method == HttpMethod.Post && path == "/api/model/fragment")
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
             return RouteFindThing(request, endpointId, "EP")
                 ?? RouteEffectiveProperties(request, endpointId, ReadingEndpoint)

@@ -29,7 +29,7 @@ public class WrittenValuesTests
     {
         var observedId = ObservedEdges.CreatedPredicateId;
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(true);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
     }
 
@@ -79,7 +79,7 @@ public class WrittenValuesTests
             .Returns(new MyceliumClient.MyceliumThing(entityId, "Willow Bend spring"));
         var observedId = ObservedEdges.CreatedPredicateId;
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
 
         var result = await sut.CreateObservationsAsync(
