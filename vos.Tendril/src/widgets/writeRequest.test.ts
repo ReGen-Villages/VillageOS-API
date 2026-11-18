@@ -160,6 +160,19 @@ describe('the writes a press makes, composed and not sent', () => {
     });
   });
 
+  it('composes a press on a row the binding gave no identifier, naming the row by its name alone', () => {
+    const toAPlatformRoute: OfferedChoice = { key: 'listed:1', choice: { ...DECIDE.writes.choices[1], via: '/api/things/close' } };
+
+    expect(pressOf(DECIDE, { name: 'SPRING-1' }, toAPlatformRoute, {}, predicates)).toEqual({
+      writes: [{ write: 'post', via: '/api/things/close', body: { view: 'close', record: 'SPRING-1' } }],
+    });
+  });
+
+  it('refuses to relate where the widget draws no choices from the model', () => {
+    expect(pressOf({ ...DECIDE, writes: { ...DECIDE.writes, via: undefined as unknown as string } }, row, { key: 'c2', choice: { label: 'Fenced' }, drawnId: 'c2' }, {}, predicates))
+      .toEqual({ refusal: 'This page cannot relate a row along “”.' });
+  });
+
   it('refuses to relate along a predicate the model does not hold, and composes nothing', () => {
     const drawing: ActionWidget = { ...DECIDE, writes: { ...DECIDE.writes, choicesFrom: { from: { kind: 'thingList', archetype: 'Finding' }, predicate: 'judgedAs' } } };
 
@@ -210,6 +223,12 @@ describe('sending the writes a press composed', () => {
 
     expect(await sendPress([relate, stamp], reads)).toEqual({ error: 'The model takes no such relationship' });
     expect(sent).toEqual([]);
+  });
+
+  it('answers a refusal that is not an error object in the words it came in', async () => {
+    const { reads } = recordingReads({ relate: async () => { throw 'refused by the model'; } });
+
+    expect(await sendPress([relate], reads)).toEqual({ error: 'refused by the model' });
   });
 
   it('refuses to relate on a page that cannot write, and sends nothing', async () => {
