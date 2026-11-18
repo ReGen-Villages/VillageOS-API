@@ -15,6 +15,7 @@ export * from './i18n/termWording';
 export * from './i18n/words';
 export * from './types/dashboard';
 export * from './types/vos';
+export * from './utils/gridValue';
 export * from './utils/propertyMapper';
 export * from './utils/propertyOrigin';
 export * from './utils/rangeHelpers';

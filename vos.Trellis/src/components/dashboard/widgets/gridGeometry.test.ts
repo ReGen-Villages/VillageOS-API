@@ -1,27 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { cellBounds, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
+import { gridOf } from '@tendril-ui/tendril';
+import { cellBounds, extentOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 
 const twoByThree = {
   originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.001, longitudeStepDegrees: 0.002,
   rows: 2, columns: 3, values: [1, 2, null, 4, 5, 6],
 };
-
-describe('reading a grid', () => {
-  it('reads a grid as the platform writes it', () => {
-    expect(gridOf(twoByThree)).toEqual(twoByThree);
-  });
-
-  it.each([
-    ['values that do not fill its rows and columns', { ...twoByThree, values: [1, 2, 3] }],
-    ['a value that is neither a number nor unknown', { ...twoByThree, values: [1, 2, 'high', 4, 5, 6] }],
-    ['no rows', { ...twoByThree, rows: 0, values: [] }],
-    ['a step of nought', { ...twoByThree, latitudeStepDegrees: 0 }],
-    ['text', 'a grid'],
-    ['nothing', null],
-  ])('reads nothing from %s', (_, value) => {
-    expect(gridOf(value)).toBeNull();
-  });
-});
 
 describe('placing a cell', () => {
   it('centres each cell on its point, counting rows from the south and columns from the west', () => {

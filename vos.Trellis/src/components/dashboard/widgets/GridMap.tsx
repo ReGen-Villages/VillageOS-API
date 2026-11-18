@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Binding, GridMapWidget, GridValue, ResolveContext } from '@tendril-ui/tendril';
-import { useBindings } from '@tendril-ui/tendril';
+import { cellsIn, gridOf, useBindings } from '@tendril-ui/tendril';
 import { readsOnlyThePage } from '../../../utils/geoJsonDrawing';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
@@ -9,7 +9,7 @@ import { ChartTooltip, SeriesTable } from './chartChrome';
 import { rampColour } from './chartRamp';
 import { classHolding, drawnClassesOf, type DrawnClass } from './chartClasses';
 import { FALLBACK_WIDTH } from './chartFrame';
-import { MOST_CELLS_A_MAP_DRAWS, cellBounds, cellsIn, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
+import { MOST_CELLS_A_MAP_DRAWS, cellBounds, extentOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 import { formatNumber } from './format';
 import { useChartSurface } from './useChartSurface';
 
