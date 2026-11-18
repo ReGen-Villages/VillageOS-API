@@ -31,7 +31,7 @@ ServiceHost.ConfigureLogging("Forage", "forage-.log", launchSettings.Service.Log
 try
 {
     Log.Information(
-        "VillageOS Forage Service - Port: {Port}, Mycelium: {MyceliumUrl}, fetching through {Subdomain}",
+        "VillageOS Forage Service - Port: {Port}, Mycelium: {MyceliumUrl}, looking up through {Subdomain}",
         servicePort, myceliumUrl, launchSettings.FetcherSubdomain);
 
     builder.Host.UseSerilog();
@@ -49,12 +49,15 @@ try
             myceliumUrl,
             launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
-    builder.Services.AddSourceFetching(launchSettings, myceliumUrl, launchToken, apiKey);
-    builder.Services.AddSingleton(sp =>
-        new DiscoveryRunner(
-            sp.GetRequiredService<ISourceFetcher>(),
-            launchSettings.MaxConcurrentSources,
-            sp.GetRequiredService<ILogger<DiscoveryRunner>>()));
+    builder.Services.AddSingleton<IEndpointBodyReader>(sp =>
+        new EndpointBodyReader(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<EndpointBodyReader>>(),
+            myceliumUrl,
+            launchToken,
+            launchSettings.FetcherSubdomain,
+            launchSettings.SourceTimeout,
+            apiKey));
     builder.Services.AddSingleton(sp =>
         new MyceliumRelationshipClient(
             sp.GetRequiredService<IHttpClientFactory>(),
@@ -67,7 +70,6 @@ try
     builder.Services.AddSingleton<CoverageLedger>();
     builder.Services.AddSingleton<DivisionResolver>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
-    builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
     builder.Services.AddSingleton(sp => new ForageSteps(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<ILogger<ForageSteps>>(),
@@ -79,7 +81,6 @@ try
         sp.GetRequiredService<DivisionResolver>(),
         sp.GetRequiredService<VocabularyEdgeWriter>(),
         launchSettings.SourceWindowDays));
-    builder.Services.AddServiceTokenExchange(myceliumUrl);
 
     var app = builder.Build();
 
@@ -93,44 +94,17 @@ try
         app.UseMyceliumModelToken();
     }
 
-    // A run is started by the site entering the state the discovery connection watches, so the body is
-    // whatever the broker posts for a service call and the subject is read through the shared classifier
-    // rather than a shape of this service's own.
-    var handleEndpoint = app.MapPost("/handle", async (
-        CoveringSourceService coveringSources,
-        DiscoveryRunner runner,
-        CoverageLedger ledger,
-        DivisionResolver divisions,
-        VocabularyEdgeWriter vocabularyEdges,
-        IDiscoveryRunStarter starter,
-        ForageSteps steps,
-        IServiceTokenExchange tokenExchange,
-        ILogger<HeldModelToken> tokenLogger,
-        HttpContext httpContext) =>
+    var handleEndpoint = app.MapPost("/handle", async (ForageSteps steps, HttpContext httpContext) =>
     {
         using var reader = new StreamReader(httpContext.Request.Body);
         var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
-        if (request.Kind == HandleRequestKind.NodeEnvelope)
-            return Results.Ok(await steps.HandleNodeAsync(request.Json, httpContext.RequestAborted));
-        if (request.Kind != HandleRequestKind.RelationshipSubject)
-            return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
-
-        var heldToken = await HeldModelToken.SwapFromTheCallAsync(tokenExchange, tokenLogger, httpContext.RequestAborted);
-        if (heldToken is null)
-            return Results.Json(
-                new { success = false, error = "Mycelium would not swap this call's token for one that outlasts the run" },
-                statusCode: StatusCodes.Status503ServiceUnavailable);
-
-        // Named here so the run captures the subject alone; capturing the request would hold the parsed
-        // body for as long as the run takes.
-        var subjectId = request.SubjectId;
-        starter.Start(subjectId, token => heldToken.ActAsync(() =>
-            Discover(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, token), token));
-
-        // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
-        // own contract: a body declaring it false is a failed service call whatever the status said.
-        return Results.Accepted(value: new { success = true, subjectId });
+        return request.Kind switch
+        {
+            HandleRequestKind.NodeEnvelope => Results.Ok(await steps.HandleNodeAsync(request.Json, httpContext.RequestAborted)),
+            HandleRequestKind.RelationshipSubject => Results.BadRequest(new { success = false, error = ForageSteps.RelationshipCallRefusal }),
+            _ => Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") }),
+        };
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
@@ -164,129 +138,6 @@ finally
 }
 
 return 0;
-
-// One run. Nothing returns from here, so what it found is reported to the log. What the service call named
-// decides which run it is: a site is fetched and recorded; a source is offered to the sites it covers.
-static async Task Discover(
-    Guid subjectId,
-    CoveringSourceService coveringSources,
-    DiscoveryRunner runner,
-    CoverageLedger ledger,
-    DivisionResolver divisions,
-    VocabularyEdgeWriter vocabularyEdges,
-    CancellationToken cancellationToken)
-{
-    switch (await coveringSources.KindOfAsync(subjectId, cancellationToken))
-    {
-        case null:
-            Log.Error("Could not read what {SubjectId} is; leaving the run outstanding", subjectId);
-            return;
-        case SubjectKind.Site:
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, cancellationToken);
-            return;
-        case SubjectKind.ModelBindsNoSite:
-            Log.Warning("The model binds no site archetype, so {SubjectId} is taken for a site; such a model " +
-                        "cannot call for a source", subjectId);
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, vocabularyEdges, cancellationToken);
-            return;
-        case SubjectKind.Source:
-            await OfferSource(subjectId, coveringSources, ledger, cancellationToken);
-            return;
-        default:
-            Log.Error("{SubjectId} is neither a site nor a source, so the service call names a Thing this service " +
-                      "has no run for; nothing is written", subjectId);
-            return;
-    }
-}
-
-// A source offered to every site under the Places it covers: a coverage minted per call those sites
-// would make, and nothing fetched. A minted coverage is outstanding, which is what puts each site back in
-// the state that starts its own run — and that run asks only this source. The stamp is what tells a
-// source offered to every site it covers from one never offered.
-static async Task OfferSource(
-    Guid sourceId,
-    CoveringSourceService coveringSources,
-    CoverageLedger ledger,
-    CancellationToken cancellationToken)
-{
-    var coverage = await coveringSources.ForSourceAsync(sourceId, cancellationToken);
-    if (coverage == null)
-    {
-        // Stamped, the source would read as offered to every site it covers while having reached none,
-        // and nothing would offer it again. Written nothing, it stays in the state that started this.
-        Log.Error("Could not read which sites source {SourceId} reaches; leaving the run outstanding rather " +
-                  "than recording the source as offered", sourceId);
-        return;
-    }
-
-    if (coverage.Vocabulary == null)
-    {
-        Log.Error("The model declares no coverage archetype, so source {SourceId} cannot be offered to the " +
-                  "sites it covers; nothing is written", sourceId);
-        return;
-    }
-
-    if (coverage.Covering.Count == 0)
-        Log.Information("Source {SourceId} has no registration to be called through; offered to no site", sourceId);
-
-    var outstanding = await ledger.OutstandingAsync(coverage, cancellationToken);
-    Log.Information("Source {SourceId} offered to the sites it reaches: {Outstanding} calls outstanding",
-        sourceId, outstanding.Count);
-
-    await ledger.StampWorkedOutAsync(sourceId, cancellationToken);
-}
-
-static async Task DiscoverSite(
-    Guid siteId,
-    CoveringSourceService coveringSources,
-    DiscoveryRunner runner,
-    CoverageLedger ledger,
-    DivisionResolver divisions,
-    VocabularyEdgeWriter vocabularyEdges,
-    CancellationToken cancellationToken)
-{
-    var coverage = await coveringSources.ForSiteAsync(siteId, cancellationToken);
-    if (coverage == null)
-    {
-        // Nothing is written and the site is not stamped, so it stays in the state that
-        // started this and the run is driven again. Carrying on would report that no source covers
-        // the site, which is the answer an unreachable gateway must never be mistaken for.
-        Log.Error("Could not read which sources cover site {SiteId}; leaving the run outstanding rather " +
-                  "than reporting that none do", siteId);
-        return;
-    }
-
-    // Before the fetches, because the hazard portal's address is a division code and no route it serves
-    // takes coordinates: a site graded on the run after the one that resolved its division would wait out
-    // a whole service call first.
-    coverage = await divisions.AddressAsync(siteId, coverage, cancellationToken);
-
-    // Not a failure: the source said what it resolves onto, and this site holds nothing of it.
-    foreach (var source in coverage.Covering.Where(source => source.Calls.Count == 0))
-        Log.Information("Source {Source} resolves onto Things site {SiteId} holds none of; nothing to fetch",
-            source.Name, siteId);
-
-    if (coverage.Vocabulary == null)
-        Log.Error("The model declares no coverage archetype, so this run records nothing about what it " +
-                  "found and every call it makes will be made again");
-
-    // Only the calls whose answer is not already in. A source that answered for this subject is not
-    // called a second time, and one that failed is, which is the whole of what the coverage Things buy.
-    var outstanding = await ledger.OutstandingAsync(coverage, cancellationToken);
-    var report = await runner.RunAsync(
-        siteId, CoverageLedger.CallsStillToMake(coverage.Covering, outstanding), cancellationToken);
-    await ledger.RecordAllAsync(outstanding, report, cancellationToken);
-
-    foreach (var outcome in report.Unresolved)
-        Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
-            outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
-
-    // A fetched word becomes the relationship the model declares before the site is stamped, so a reader of the
-    // discovered site finds it resolved.
-    await vocabularyEdges.ResolveAsync(report, cancellationToken);
-
-    await ledger.StampWorkedOutAsync(siteId, cancellationToken);
-}
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }

@@ -215,45 +215,9 @@ public static class CoveringSourceResolver
         Relationships = [new RelationshipRule { Direction = "outgoing" }],
     };
 
-    // What a service call named. The subject's own `is` chain arrives with the ancestors the broker closes
-    // over; the site role is asked for with what it binds so that a model binding no site reads as one,
-    // rather than as a subject that is not a site — and the archetype alone, because with its members every
-    // site in the model would arrive to answer a question about one Thing.
-    public static SubscriptionSelector KindSelectorFor(Guid subjectId) => new()
-    {
-        Ids = [subjectId, SiteRole.Id],
-        Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate, RoleBindings.BindsPredicateName],
-        Traverse = [RoleBindings.FollowBindings],
-        IncludeRelationships = true,
-        Relationships = Outgoing(RoleBindings.BindsPredicateName, IsPredicateName, CoversPredicate, ResolvedByPredicate),
-    };
-
     // Outgoing only: a subject that is a Place would otherwise bring the isIn of every site standing in it.
     private static List<RelationshipRule> Outgoing(params string[] predicates) =>
         [.. predicates.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" })];
-
-    // A site is whatever `is` the archetype the site role binds, directly or through intermediate types. A
-    // source is whatever else covers a Place or is resolved by a registration — the two relationships that make
-    // it one — rather than anything that is not a site, because anything else taken for a source would be
-    // stamped as worked out, and a stamp on the archetype itself is inherited by every site.
-    public static SubjectKind KindOf(SnapshotDocument snapshot, Guid subjectId)
-    {
-        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
-
-        var siteArchetypes = SiteArchetypes(snapshot);
-        if (siteArchetypes.Count == 0) return SubjectKind.ModelBindsNoSite;
-
-        if (MembersReachedFrom(snapshot, thingsById, namesById, siteArchetypes).Contains(subjectId))
-            return SubjectKind.Site;
-
-        var callable = snapshot.Relationships.Any(edge =>
-            edge.SubjectId == subjectId
-            && (IsPredicate(namesById, edge.PredicateId, CoversPredicate)
-                || IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)));
-
-        return callable ? SubjectKind.Source : SubjectKind.NeitherSiteNorSource;
-    }
 
     // Everything in one read, from the other end: the Places the source covers, everything nested in
     // them to the depth a site's own walk climbs, what each site there has of what the source resolves

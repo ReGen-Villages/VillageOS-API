@@ -13,6 +13,9 @@ public sealed class ForageSteps : DagNodeService
 {
     public const string StepSetting = "step";
 
+    public const string RelationshipCallRefusal =
+        "Forage no longer runs a discovery on a relationship: discovery is the drawn pipeline, whose boxes call Forage's steps.";
+
     public const string ResolveRegion = "resolveRegion";
     public const string PlanCalls = "planCalls";
     public const string RecordResults = "recordResults";
