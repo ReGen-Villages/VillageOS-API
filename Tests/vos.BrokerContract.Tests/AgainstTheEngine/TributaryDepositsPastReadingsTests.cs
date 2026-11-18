@@ -55,10 +55,10 @@ public class TributaryDepositsPastReadingsTests : IClassFixture<TheEngine>
         (await Tributary().DepositReadingsAsync(site, slice)).Accepted.Should().BeTrue();
 
         (await HistoryAsync(site, "temperatureCelsius")).GetProperty("samples").EnumerateArray()
-            .Count(sample => sample.GetProperty("observedAt").GetDateTime() < FirstHour.AddYears(10))
+            .Count(sample => sample.GetProperty("source").GetString() != "fact")
             .Should().Be(TributaryClient.ReadingsPerDeposit / 2 + 1);
         (await HistoryAsync(site, "rainMillimetres")).GetProperty("samples").EnumerateArray()
-            .Count(sample => sample.GetProperty("observedAt").GetDateTime() < FirstHour.AddYears(10))
+            .Count(sample => sample.GetProperty("source").GetString() != "fact")
             .Should().Be(TributaryClient.ReadingsPerDeposit / 2);
     }
 
