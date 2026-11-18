@@ -177,8 +177,7 @@ public static class ServiceCalls
     private static JsonObject AlongTheRole(Guid role, string direction) =>
         new() { ["predicateRole"] = role.ToString(), ["direction"] = direction, ["depth"] = 1 };
 
-    // A selection carries a relationship's identifiers but not its predicate or far end, and those say whether
-    // a relationship of the Thing is a call and which service a connection has.
+    // The far ends of the Thing's own relationships are left out, because a Thing may have thousands.
     public static IReadOnlyList<Guid> NamedButNotCarried(Guid thing, JsonElement selection)
     {
         var carried = selection.GetProperty("things").EnumerateArray()
@@ -188,7 +187,7 @@ public static class ServiceCalls
         {
             var subject = each.GetProperty("SubjectId").GetGuid();
             if (subject == thing) named.Add(each.GetProperty("PredicateId").GetGuid());
-            if (carried.Contains(subject)) named.Add(each.GetProperty("TargetId").GetGuid());
+            else if (carried.Contains(subject)) named.Add(each.GetProperty("TargetId").GetGuid());
         }
         return [.. named.Where(id => !carried.Contains(id))];
     }

@@ -132,6 +132,8 @@ public class ServiceCallsInWordsTests
         missing.Should().Contain([model.IdOf("has"), model.IdOf("Echo service")],
             "the predicate of each of the Thing's relationships says whether it is a connection, and a connection's far end may be its service");
         missing.Should().NotContain([catchment, model.IdOf("surveysCatchment"), model.IdOf("handledBy")]);
+        missing.Should().NotContain(model.IdOf("South pond"),
+            "the far ends of the Thing's own relationships are not needed, and a Thing with many would make the read large");
         record.Should().NotBeEmpty();
     }
 
