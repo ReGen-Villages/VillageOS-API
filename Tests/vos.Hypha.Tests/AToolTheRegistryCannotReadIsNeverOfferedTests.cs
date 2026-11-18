@@ -30,7 +30,7 @@ public class AToolTheRegistryCannotReadIsNeverOfferedTests
     {
         await using var server = await StartAsync(MyceliumFor(() => "admin"), configure: AToolServedByAHandler);
 
-        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models"]);
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models", "describe_model", "find_things"]);
     }
 
     [Fact]

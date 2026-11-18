@@ -19,7 +19,7 @@ public class TheServerListsWhatAKeyMayUseTests
     {
         await using var server = await StartAsync(MyceliumFor(() => "viewer", AnsweringModels));
 
-        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models"]);
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models", "describe_model", "find_things"]);
 
         var answer = await server.Client.CallToolAsync("list_models");
         answer.IsError.Should().NotBe(true);
