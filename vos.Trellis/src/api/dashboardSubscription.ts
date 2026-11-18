@@ -105,6 +105,7 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     ];
     case 'depthProfile': return [widget.rows];
     case 'polarShares': return [widget.counts, widget.cells];
+    case 'densityGrid': return [widget.cells, widget.coverage, ...(widget.outlines ?? []).map((outline) => outline.shape)];
     case 'lineSeries': return widget.series.map((entry) => entry.value);
     case 'heatmap': return [
       widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds,

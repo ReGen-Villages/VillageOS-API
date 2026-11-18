@@ -120,10 +120,11 @@ function namedPropertiesOf(binding: Binding): string[] {
   switch (binding.kind) {
     case 'aggregate':
       return binding.property ? [binding.property] : [];
+    case 'history':
+      return [binding.property, binding.pairedWith?.property].filter((name): name is string => !!name);
     case 'property':
     case 'working':
     case 'origin':
-    case 'history':
       return binding.property ? [binding.property] : [];
     case 'timeseries':
       return [binding.happenedAt, ...(binding.property ? [binding.property] : [])];

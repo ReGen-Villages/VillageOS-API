@@ -18,6 +18,7 @@ import type {
   BulletWidget,
   DepthProfileWidget,
   PolarSharesWidget,
+  DensityGridWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -204,6 +205,17 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
     }
     case 'polarShares': {
       const w: PolarSharesWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint) };
+      return w;
+    }
+    case 'densityGrid': {
+      const w: DensityGridWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        across: { label: tr(widget.across.label), unit: tr(widget.across.unit) },
+        up: { label: tr(widget.up.label), unit: tr(widget.up.unit) },
+        outlines: widget.outlines?.map((outline) => ({ ...outline, label: tr(outline.label) })),
+      };
       return w;
     }
     case 'rangeBar':

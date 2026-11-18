@@ -131,7 +131,8 @@ export type HistoryFold =
   | 'hourOfDay' | 'dayOfYear' | 'monthOfYear'
   | 'hourOfDay,dayOfYear' | 'monthOfYear,hourOfDay'
   | 'all'
-  | 'value' | 'monthOfYear,value';
+  | 'value' | 'monthOfYear,value'
+  | 'cell' | 'monthOfYear,cell';
 
 export type HistoryFunction =
   | 'Min' | 'Max' | 'Average' | 'Sum' | 'Count' | 'Percentile' | 'ShareWithin'
@@ -149,14 +150,30 @@ export interface HistoryStep {
   threshold?: number;
 }
 
+/** Bins of one property's readings, counted from nought in steps of `width`; a reading at or above `upTo`
+ *  falls in the bin below it. */
+export interface HistoryBins {
+  width: number;
+  upTo?: number;
+}
+
+/** A second property of the same Thing, read at the same instants as the first, with its own bins. */
+export interface HistoryPairing {
+  property: string;
+  bins: HistoryBins;
+}
+
 /** POST /api/temporal/reduce: one property's observation history on one Thing, reduced by the steps
- *  in order. Calendar folds are taken in `utcOffsetSeconds`, zero when omitted. */
+ *  in order. Calendar folds are taken in `utcOffsetSeconds`, zero when omitted. A `cell` fold reads
+ *  `bins` and `pairedWith`, and keys each instant by the lower bounds of its two readings' bins. */
 export interface TemporalReduceQuery {
   thingId: string;
   property: string;
   windowSeconds: number;
   utcOffsetSeconds?: number;
   steps: HistoryStep[];
+  bins?: HistoryBins;
+  pairedWith?: HistoryPairing;
 }
 
 export interface TemporalReduceGroup {
@@ -173,6 +190,8 @@ export interface TemporalReduceResponse {
   /** Readings carrying nothing the reduction could read — so an answer with no groups says whether
    *  the window was empty or unreadable. */
   UnusableSamples: number;
+  /** A paired read's readings with no reading of the other property at the same instant. */
+  UnpairedSamples?: number;
 }
 
 export interface PropertyVersionsResponse {
