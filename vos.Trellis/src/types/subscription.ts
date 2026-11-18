@@ -8,7 +8,7 @@
  */
 import type { SubscriptionSelector, VosThing, VosRelationship } from '@tendril-ui/tendril';
 
-export type { SubscriptionSelector, TraverseDirection, TraverseRule } from '@tendril-ui/tendril';
+export type { SubscriptionSelector } from '@tendril-ui/tendril';
 
 /** What a page that reads across the whole model asks for — the graph, the explorer, the searches.
  *  Alone among the selectors it also covers objects created later, because the platform resolves
