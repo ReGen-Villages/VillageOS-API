@@ -1,4 +1,5 @@
 import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
+import { GEOJSON_DRAWN_IN, readsOnlyThePage } from './geoJsonDrawing';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
@@ -27,6 +28,7 @@ export const DESIGN_FINDING_CODES = [
   'columnOnAnUnboundedValue',
   'stateBindingWithoutScope',
   'widgetBoundToNothing',
+  'mapReadsAcrossARelationship',
 ] as const;
 
 export type DesignFindingCode = (typeof DESIGN_FINDING_CODES)[number];
@@ -162,6 +164,8 @@ export function checkDesign(specification: DashboardSpecification, name: string,
         checkTheKindsAndPredicatesNamed(held.binding, context, where, report);
         checkTheStatesAndPropertiesNamed(held, context, where, report);
       }
+      if (GEOJSON_DRAWN_IN[widget.type] === 'map' && bindings.some((held) => !readsOnlyThePage(held.binding)))
+        refuse('mapReadsAcrossARelationship', where);
     });
   });
   return findings;

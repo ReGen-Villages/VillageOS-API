@@ -43,6 +43,36 @@ export function mercator(latitude: number, longitude: number): { x: number; y: n
   };
 }
 
+/** Walked rather than spread into `Math.min`, which overflows the call stack on a large grid's corners. */
+export function extentOf(numbers: number[]): { lowest: number; highest: number } | null {
+  if (numbers.length === 0) return null;
+  let lowest = Infinity;
+  let highest = -Infinity;
+  for (const number of numbers) {
+    if (number < lowest) lowest = number;
+    if (number > highest) highest = number;
+  }
+  return { lowest, highest };
+}
+
+type Ring = [number, number][];
+
+function isRing(value: unknown): value is Ring {
+  return Array.isArray(value) && value.length >= 3
+    && value.every((point) => Array.isArray(point) && typeof point[0] === 'number' && typeof point[1] === 'number');
+}
+
+/** The outer ring of each area a GeoJSON Polygon, MultiPolygon or Feature holding one describes; holes are left out. */
+export function outerRingsOf(value: unknown): Ring[] {
+  if (value === null || typeof value !== 'object') return [];
+  const { type, coordinates, geometry } = value as { type?: unknown; coordinates?: unknown; geometry?: unknown };
+  if (type === 'Feature') return outerRingsOf(geometry);
+  if (type === 'Polygon' && Array.isArray(coordinates) && isRing(coordinates[0])) return [coordinates[0]];
+  if (type === 'MultiPolygon' && Array.isArray(coordinates))
+    return coordinates.flatMap((polygon) => (Array.isArray(polygon) && isRing(polygon[0]) ? [polygon[0]] : []));
+  return [];
+}
+
 /** A logarithmic scale has no place for nought or below, so those sit at its floor; its floor must be above nought. */
 export function shareOnScale(value: number, floor: number, ceiling: number, scale: 'linear' | 'logarithmic'): number {
   if (scale === 'logarithmic' && (value <= 0 || floor <= 0)) return 0;

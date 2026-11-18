@@ -96,6 +96,7 @@ const rangeSeries = [
   binding('averageLow', 'number'), binding('designLow', 'number'), binding('recordedLow', 'number'),
 ];
 const rangeBand = [text('label'), binding('from', 'number'), binding('to', 'number'), text('colour', undefined, true)];
+const GRID_SCALES = ['linear', 'logarithmic'] as const;
 const boxSeries = [
   binding('whiskerLow', 'number'), binding('boxLow', 'number'), binding('median', 'number'), binding('boxHigh', 'number'),
   binding('whiskerHigh', 'number'),
@@ -146,6 +147,10 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     title, hint, binding('cells', 'series'), binding('coverage', 'rows'),
     group('across', [text('label'), unit]), group('up', [text('label'), unit]),
     list('outlines', [text('label'), text('colour', undefined, true), binding('shape', 'shape')]),
+  ],
+  gridMap: [
+    title, hint, binding('grid', 'shape'), binding('outline', 'shape'), list('classes', rangeBand),
+    floor, ceiling, choice('scale', GRID_SCALES), format, unit,
   ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [

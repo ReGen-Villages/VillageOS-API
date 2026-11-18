@@ -715,6 +715,26 @@ export interface DensityGridWidget {
   outlines?: DensityGridOutline[];
 }
 
+/** A grid of numbers over the ground, each cell drawn where its point lies on a Web Mercator map with
+ *  no imagery under it, and the page Thing's own outline dashed over the cells. `grid` and `outline` are
+ *  `value` bindings on the page's own Thing, never through a relationship, since a related Thing's shapes
+ *  may be in a chart's units rather than on the ground. Present, `classes` colour each cell by the first class
+ *  holding its value; absent, one hue runs from `floor` to `ceiling` (the grid's own range when left
+ *  out), `logarithmic` placing each value by its order of magnitude. An unknown value is left blank. */
+export interface GridMapWidget {
+  type: 'gridMap';
+  title?: string;
+  hint?: string;
+  grid: Binding;
+  outline?: Binding;
+  classes?: RangeBand[];
+  floor?: number;
+  ceiling?: number;
+  scale?: 'linear' | 'logarithmic';
+  format?: NumberFormat;
+  unit?: string;
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 export interface DepthProfilePart {
   label: string;
@@ -1037,6 +1057,7 @@ export type Widget = Placed & (
   | DepthProfileWidget
   | PolarSharesWidget
   | DensityGridWidget
+  | GridMapWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

@@ -79,6 +79,16 @@ describe('a widget', () => {
     expect(found).not.toContain('warning:namesAnUnknownProperty:capacity');
   });
 
+  it('refuses a map that reads its grid or outline from anything but the page\'s own Thing', () => {
+    const map = (grid: Binding, outline?: Binding): Widget => ({ type: 'gridMap', title: 'm', grid, outline });
+    const onTheScope: Binding = { kind: 'value', property: 'heights' };
+
+    expect(codes(page(map(onTheScope, { kind: 'value', thing: '$scope', property: 'boundary' })))).not.toContain('refusal:mapReadsAcrossARelationship');
+    expect(codes(page(map(onTheScope, { kind: 'value', via: [{ predicate: 'feeds', direction: 'in' }], property: 'zone' }))))
+      .toContain('refusal:mapReadsAcrossARelationship');
+    expect(codes(page(map({ kind: 'value', thing: 'Spring A', property: 'heights' })))).toContain('refusal:mapReadsAcrossARelationship');
+  });
+
   it('holds a table to a row cap, to a sort key a column carries, and to search keys a row carries', () => {
     const rows = { kind: 'thingList' as const, archetype: 'Spring' };
     each('tableWithoutARowCap', page({ type: 'table', title: 't', columns: [], rows }));

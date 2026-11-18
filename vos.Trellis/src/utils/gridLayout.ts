@@ -37,6 +37,7 @@ export const DEFAULT_SIZE: Record<Widget['type'], { width: number; height: numbe
   depthProfile: { width: 6, height: 5 },
   polarShares: { width: 6, height: 8 },
   densityGrid: { width: 6, height: 8 },
+  gridMap: { width: 6, height: 8 },
   lineSeries: { width: 6, height: 7 },
   heatmap: { width: 6, height: 7 },
   stackedShares: { width: 6, height: 4 },

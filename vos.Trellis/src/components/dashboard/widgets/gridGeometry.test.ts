@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cellBounds, gridOf, mercator, shareOnScale } from './gridGeometry';
+import { cellBounds, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 
 const twoByThree = {
   originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.001, longitudeStepDegrees: 0.002,
@@ -61,5 +61,40 @@ describe('a value\'s place on the scale', () => {
 
   it('places nought and below at the floor of a logarithmic scale', () => {
     expect(shareOnScale(0, 1, 10_000, 'logarithmic')).toBe(0);
+  });
+});
+
+describe('the extent of many numbers', () => {
+  it('finds the lowest and highest of more numbers than a call can take as arguments', () => {
+    const many = Array.from({ length: 200_000 }, (_, at) => at % 1000);
+
+    expect(extentOf(many)).toEqual({ lowest: 0, highest: 999 });
+  });
+
+  it('has no extent for no numbers', () => {
+    expect(extentOf([])).toBeNull();
+  });
+});
+
+describe('the rings of an outline', () => {
+  const square = [[55, 25], [56, 25], [56, 26], [55, 26], [55, 25]];
+  const triangle = [[57, 25], [58, 25], [57, 26], [57, 25]];
+  const hole = [[55.2, 25.2], [55.4, 25.2], [55.4, 25.4], [55.2, 25.2]];
+
+  it('reads a Polygon\'s outer ring and leaves its holes', () => {
+    expect(outerRingsOf({ type: 'Polygon', coordinates: [square, hole] })).toEqual([square]);
+  });
+
+  it('reads each part of a MultiPolygon', () => {
+    expect(outerRingsOf({ type: 'MultiPolygon', coordinates: [[square], [triangle]] })).toEqual([square, triangle]);
+  });
+
+  it('reads the geometry of a Feature', () => {
+    expect(outerRingsOf({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [square] } })).toEqual([square]);
+  });
+
+  it('reads nothing from a shape that is not an area', () => {
+    expect(outerRingsOf({ type: 'LineString', coordinates: square })).toEqual([]);
+    expect(outerRingsOf('a polygon')).toEqual([]);
   });
 });
