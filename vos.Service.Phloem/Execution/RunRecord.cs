@@ -23,7 +23,8 @@ public sealed record StopRequested(Guid RequestId, string Reason, IReadOnlyList<
 
 // The two relationships a waiting node run holds, to the Thing it waits for and to the range that Thing must enter.
 // The platform answers a node run holding both when the Thing enters the range. Either may be missing from the model.
-public sealed record Watch(Guid? AwaitedId, Guid? RangeId)
+// Until is the model instant the wait fails at, for a box that waits at most a while.
+public sealed record Watch(Guid? AwaitedId, Guid? RangeId, DateTimeOffset? Until = null)
 {
     public bool IsWhole => AwaitedId is not null && RangeId is not null;
 }

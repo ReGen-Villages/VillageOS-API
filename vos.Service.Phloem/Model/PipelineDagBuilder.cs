@@ -177,6 +177,7 @@ public static class PipelineDagBuilder
             DecisionPaths = Judged(problems, () => DecisionPathsOf(graph, nodeThing), []),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
+            ItemsAtOnce = Judged(problems, () => ItemsAtOnceOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
             MayBeCalledAgain = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.MayBeCalledAgain)),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
@@ -242,7 +243,7 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through its port '{portName}' but names no state for it to enter.");
         if (port is not { IsInput: true })
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through '{portName}', which is not an in port of it.");
-        return new DagWait(states[0].Id, states[0].Name, port.PortName);
+        return new DagWait(states[0].Id, states[0].Name, port.PortName, LimitOf(nodeThing));
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
@@ -349,7 +350,17 @@ public static class PipelineDagBuilder
                 + "so the run could not tell when the work is done.");
         if (states.Count > 1)
             throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names two states its work is proven by.");
-        return (new Relating(connection.Id, connection.Name, service.Id), new DagWait(states[0].Id, states[0].Name, ModelNames.Thing));
+        return (new Relating(connection.Id, connection.Name, service.Id),
+            new DagWait(states[0].Id, states[0].Name, ModelNames.Thing, LimitOf(nodeThing)));
+    }
+
+    private static TimeSpan? LimitOf(GraphThing nodeThing)
+    {
+        if (nodeThing.PropertyString(ModelNames.WaitsAtMostMinutes) is not { } written) return null;
+        return long.TryParse(written, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) && minutes > 0
+            ? TimeSpan.FromMinutes(minutes)
+            : throw new PipelineModelException(
+                $"Node '{nodeThing.Name}' waits at most '{written}' minutes, which is not a whole number of minutes above zero.");
     }
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.
@@ -381,6 +392,14 @@ public static class PipelineDagBuilder
         if (policy.PauseMinutes < 0 || policy.PauseGrowth < 1 || policy.PauseSpread < 0 || policy.TryingMinutes <= 0)
             throw new PipelineModelException($"Node '{nodeThing.Name}' has a retry policy with a number out of range: the pause and the spread are at least 0, the growth at least 1, and the trying time above 0.");
         return policy;
+    }
+
+    private static int? ItemsAtOnceOf(GraphThing nodeThing)
+    {
+        if (!int.TryParse(nodeThing.PropertyString(ModelNames.ItemsAtOnce), out var itemsAtOnce)) return null;
+        if (itemsAtOnce < 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' holds {itemsAtOnce} items at once; a node that runs holds at least one.");
+        return itemsAtOnce;
     }
 
     // Refused at build rather than at the tell node, so a run that could never send its message does nothing first.

@@ -22,48 +22,18 @@ public class ForageLaunchSettingsTests
 
         settings.Should().NotBeNull();
         settings!.FetcherSubdomain.Should().Be(ForageLaunchSettings.DefaultFetcherSubdomain);
-        settings.MaxConcurrentSources.Should().Be(ForageLaunchSettings.DefaultMaxConcurrentSources);
         settings.SourceTimeout.Should().Be(ForageLaunchSettings.DefaultSourceTimeout);
-        settings.AttemptsPerSlice.Should().Be(ForageLaunchSettings.DefaultAttemptsPerSlice);
+        settings.SourceWindowDays.Should().Be(ForageLaunchSettings.DefaultSourceWindowDays);
     }
 
     [Fact]
     public void Parse_ReadsEverySettingOfItsOwn()
     {
-        var settings = ForageLaunchSettings.Parse(Required(
-            "--fetcherSubdomain=fetcher", "--maxConcurrentSources=9", "--sourceTimeoutSeconds=5",
-            "--attemptsPerSlice=5"));
+        var settings = ForageLaunchSettings.Parse(Required("--fetcherSubdomain=fetcher", "--sourceTimeoutSeconds=5", "--sourceWindowDays=30"));
 
         settings!.FetcherSubdomain.Should().Be("fetcher");
-        settings.MaxConcurrentSources.Should().Be(9);
         settings.SourceTimeout.Should().Be(TimeSpan.FromSeconds(5));
-        settings.AttemptsPerSlice.Should().Be(5);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-2")]
-    [InlineData("twice")]
-    [InlineData("")]
-    public void Parse_UnusableAttemptsPerSlice_FallsBackToTheDefault(string raw)
-    {
-        var settings = ForageLaunchSettings.Parse(Required($"--attemptsPerSlice={raw}"));
-
-        settings!.AttemptsPerSlice.Should().Be(ForageLaunchSettings.DefaultAttemptsPerSlice);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-1")]
-    [InlineData("many")]
-    [InlineData("")]
-    public void Parse_UnusableConcurrency_FallsBackToTheDefault(string raw)
-    {
-        // A bound of zero would stall the run outright and a negative one is meaningless; neither
-        // should start a service that then does nothing.
-        var settings = ForageLaunchSettings.Parse(Required($"--maxConcurrentSources={raw}"));
-
-        settings!.MaxConcurrentSources.Should().Be(ForageLaunchSettings.DefaultMaxConcurrentSources);
+        settings.SourceWindowDays.Should().Be(30);
     }
 
     [Theory]
@@ -75,6 +45,17 @@ public class ForageLaunchSettingsTests
         var settings = ForageLaunchSettings.Parse(Required($"--sourceTimeoutSeconds={raw}"));
 
         settings!.SourceTimeout.Should().Be(ForageLaunchSettings.DefaultSourceTimeout);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-2")]
+    [InlineData("a year")]
+    [InlineData("")]
+    public void Parse_UnusableSourceWindow_FallsBackToTheDefault(string raw)
+    {
+        ForageLaunchSettings.Parse(Required($"--sourceWindowDays={raw}"))!
+            .SourceWindowDays.Should().Be(ForageLaunchSettings.DefaultSourceWindowDays);
     }
 
     [Theory]
@@ -95,12 +76,13 @@ public class ForageLaunchSettingsTests
     }
 
     [Fact]
-    public void UsageMessage_NamesEverySettingOfItsOwn()
+    public void UsageMessage_NamesEverySettingOfItsOwnAndNoneOfTheRemovedRun()
     {
         ForageLaunchSettings.UsageMessage.Should()
             .Contain("--fetcherSubdomain")
-            .And.Contain("--maxConcurrentSources")
             .And.Contain("--sourceTimeoutSeconds")
-            .And.Contain("--attemptsPerSlice");
+            .And.Contain("--sourceWindowDays")
+            .And.NotContain("--maxConcurrentSources")
+            .And.NotContain("--attemptsPerSlice");
     }
 }

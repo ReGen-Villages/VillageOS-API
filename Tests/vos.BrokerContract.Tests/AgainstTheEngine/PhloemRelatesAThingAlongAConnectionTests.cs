@@ -196,6 +196,13 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         await _engine.RelateAsync(connection, @is, connectionKind);
         await _engine.RelateAsync(connection, has, service);
         await _engine.RelateAsync(connection, provenBy, stateWorkedOut);
+        // A platform that calls the connection a predicate names along `notifies` calls this one, and one that calls the
+        // predicate itself calls the box's connection, so both are bound to the same service and proven by the same state.
+        var called = await _engine.DeclareAsync($"worksOut called {Guid.NewGuid():N}");
+        await _engine.RelateAsync(called, @is, connectionKind);
+        await _engine.RelateAsync(called, has, service);
+        await _engine.RelateAsync(called, provenBy, stateWorkedOut);
+        await _engine.RelateAsync(connection, notifies, called);
 
         var pipeline = await _engine.DeclareAsync($"Work a study out {Guid.NewGuid():N}",
             properties: new Dictionary<string, object?> { [ModelNames.Published] = true });

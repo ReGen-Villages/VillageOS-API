@@ -60,6 +60,7 @@ public enum AwaitedStep
 {
     EndpointSettings,
     DataSource,
+    Reshaping,
     ReadingsWrite,
     ResponseKept,
 }
@@ -108,6 +109,7 @@ public sealed class PassedOnRequestDeadline : IDisposable
         {
             AwaitedStep.EndpointSettings => $"The broker had not answered with the settings of endpoint {endpointName}",
             AwaitedStep.DataSource => "The data source had not answered",
+            AwaitedStep.Reshaping => "Tributary had not finished reshaping the answer",
             AwaitedStep.ReadingsWrite => "The broker had not accepted the readings",
             _ => "The broker had not kept the response",
         };

@@ -149,7 +149,7 @@ internal sealed class FakeGateway : IMyceliumGateway
                 if (status == RunStatus.Waiting)
                 {
                     var held = Watches.GetValueOrDefault((runId, nodeId));
-                    Watches[(runId, nodeId)] = new Watch(watch.AwaitedId ?? held?.AwaitedId, watch.RangeId ?? held?.RangeId);
+                    Watches[(runId, nodeId)] = new Watch(watch.AwaitedId ?? held?.AwaitedId, watch.RangeId ?? held?.RangeId, watch.Until ?? held?.Until);
                 }
                 else
                 {

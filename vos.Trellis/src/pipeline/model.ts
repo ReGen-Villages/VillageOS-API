@@ -1,5 +1,5 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
-import { statedProperties } from '@tendril-ui/tendril';
+import { NOTIFIED_CONNECTION_ROLE_ID, statedProperties } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -68,15 +68,19 @@ export const ROLE = {
   PipelineTell: '7fed4d74-0cb1-547d-85d8-bbcfc5992667',
   PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
   PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
+  PipelineWait: 'b5023bc8-1030-596b-8aa1-0b2f876a786a',
+  PipelineRelate: 'a1066623-6cef-5404-80fc-cc222fceee59',
   ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
   // When a connection's call counts as finished: the choices, and the predicate a connection or its service names one along.
   CallCompletion: 'cbb25882-3197-56fd-9bab-2ebcc1a000bf',
   CompletesWhen: 'd508b5e4-6534-5e41-afbb-2eaa8ab08b29',
+  // A predicate names the connection a relationship along it calls.
+  NotifiedConnection: NOTIFIED_CONNECTION_ROLE_ID,
 } as const;
 
 /** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
- *  itself to tell a system, start another pipeline, or stop runs. */
-export type NodeKind = 'input' | 'output' | 'tell' | 'followOn' | 'stop';
+ *  itself to tell a system, start another pipeline, stop runs, wait for a state, or relate a Thing along a connection. */
+export type NodeKind = 'input' | 'output' | 'tell' | 'followOn' | 'stop' | 'wait' | 'relate';
 
 export const NODE_KIND_ROLE: Record<NodeKind, string> = {
   input: ROLE.PipelineInput,
@@ -84,9 +88,17 @@ export const NODE_KIND_ROLE: Record<NodeKind, string> = {
   tell: ROLE.PipelineTell,
   followOn: ROLE.PipelineFollowOn,
   stop: ROLE.PipelineStop,
+  wait: ROLE.PipelineWait,
+  relate: ROLE.PipelineRelate,
 };
 
+/** The kinds whose ports are declared once on the kind, so a node of one holds none of its own. */
+export function portsAreTheKinds(kind: NodeKind): boolean {
+  return kind === 'stop' || kind === 'wait' || kind === 'relate';
+}
+
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
+const INTERVAL_MINUTES_PROPERTY = 'intervalMinutes';
 
 /** Written by the orchestrator onto a run it starts from a request; the request log is outside the model,
  *  so the run names the entry rather than relating to it. */
@@ -405,6 +417,23 @@ export class PipelineModel {
     });
   }
 
+  /** Every predicate that names a connection along `notifies`, which a relationship along the predicate calls. An archetype
+   *  naming one is left out: it names where its members' call records are answered, and is no predicate. */
+  predicatesNotifying(): { predicate: VosThing; connectionId: string }[] {
+    return this.thingsOf(ROLE.Connection).flatMap((connection) =>
+      this.reachingAlong(connection.Id, ROLE.NotifiedConnection)
+        .filter((predicate) => !predicate.IsArchetype)
+        .map((predicate) => ({ predicate, connectionId: connection.Id })));
+  }
+
+  /** Every cadence, with how many model minutes apart the orchestrator starts its runs. */
+  cadences(): { id: string; name: string; everyMinutes: number }[] {
+    return this.thingsOf(ROLE.Cadence).map((cadence) => {
+      const minutes = Number(this.stated(cadence.Id)[INTERVAL_MINUTES_PROPERTY] ?? 0);
+      return { id: cadence.Id, name: cadence.Name, everyMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 0 };
+    });
+  }
+
   private messageKind(kind: VosThing): MessageKindInformation {
     const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
       .find((c) => this.isOf(c.Id, ROLE.Connection));
@@ -645,9 +674,10 @@ export class PipelineModel {
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
-      if (nodeRun.Properties.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
-      const nodeId = nodeRun.Properties.nodeId;
-      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(nodeRun.Properties.status ?? '');
+      const stated = this.stated(nodeRun.Id);
+      if (stated.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
+      const nodeId = stated.nodeId;
+      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(stated.status ?? '');
     }
     return out;
   }
@@ -658,20 +688,21 @@ export class PipelineModel {
   nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
     const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
-      if (nodeRun.Properties.index === undefined) continue; // aggregate record
-      const nodeId = nodeRun.Properties.nodeId;
+      const stated = this.stated(nodeRun.Id);
+      if (stated.index === undefined) continue; // aggregate record
+      const nodeId = stated.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
       entry.reached += 1;
-      entry.spreadOver = Math.max(entry.spreadOver, Number(nodeRun.Properties.total ?? 0));
-      if (String(nodeRun.Properties.status ?? '') !== 'running') entry.done += 1;
+      entry.spreadOver = Math.max(entry.spreadOver, Number(stated.total ?? 0));
+      if (String(stated.status ?? '') !== 'running') entry.done += 1;
       out[nodeId] = entry;
     }
     return out;
   }
 
   runStatus(runId: string): string | undefined {
-    const s = this.byId.get(runId)?.Properties.status;
+    const s = this.stated(runId).status;
     return typeof s === 'string' ? s : undefined;
   }
 
@@ -681,11 +712,12 @@ export class PipelineModel {
     for (const t of this.things) {
       if (!this.isOf(t.Id, ROLE.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;
-      const requestId = t.Properties[REQUEST_ID_PROPERTY];
+      const stated = this.stated(t.Id);
+      const requestId = stated[REQUEST_ID_PROPERTY];
       runs.push({
         runId: t.Id,
-        status: String(t.Properties.status ?? ''),
-        startedUtc: String(t.Properties.startedUtc ?? ''),
+        status: String(stated.status ?? ''),
+        startedUtc: String(stated.startedUtc ?? ''),
         ...(typeof requestId === 'string' && requestId ? { requestId } : {}),
       });
     }
@@ -697,14 +729,16 @@ export class PipelineModel {
   runsARestartStopped(): RunARestartStopped[] {
     const runs: RunARestartStopped[] = [];
     for (const run of this.things) {
-      if (run.Properties.status !== 'failed' || !this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      if (!this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      const stated = this.stated(run.Id);
+      if (stated.status !== 'failed') continue;
       if (!Object.values(this.nodeRunStatuses(run.Id)).includes('interrupted')) continue;
       if (this.reachingAlong(run.Id, ROLE.RepeatedRun).length > 0) continue;
       runs.push({
         runId: run.Id,
         pipelineName: this.outgoing(run.Id, 'of')[0]?.Name ?? '',
-        startedUtc: String(run.Properties.startedUtc ?? ''),
-        reason: String(run.Properties.error ?? ''),
+        startedUtc: String(stated.startedUtc ?? ''),
+        reason: String(stated.error ?? ''),
       });
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));

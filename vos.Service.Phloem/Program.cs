@@ -50,6 +50,7 @@ try
     builder.Services.AddHostedService<CadenceKeeper>();
     builder.Services.AddHostedService(sp => new RunClearingKeeper(
         sp.GetRequiredService<IMyceliumGateway>(), sp.GetRequiredService<ModelClock>(), sp.GetRequiredService<ILogger<RunClearingKeeper>>()));
+    builder.Services.AddHostedService<WaitTimeKeeper>();
 
     var app = builder.Build();
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { catalystFixture } from '../pipeline/catalysts.test.fixture';
-import type { OutputRow } from '../pipeline/catalysts';
+import { catalystRail, type OutputRow } from '../pipeline/catalysts';
 import type { PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { usePipelineDrawing } from './usePipelineDrawing';
 
@@ -41,6 +41,18 @@ describe('usePipelineDrawing', () => {
     act(() => result.current.onEdgesDelete());
     expect(result.current.canUndo).toBe(true);
     expect(result.current.savedId).toBeNull();
+  });
+
+  it('places a start node standing for a cadence whose one out port is the instant the run was due', () => {
+    const { model, id } = catalystFixture();
+    const { result } = renderHook(() => usePipelineDrawing({ model, connections: model.connections(), setError: vi.fn() }));
+    const cadence = catalystRail(model).flatMap((group) => group.rows).find((row) => row.standsForId === id.everyHour)!;
+
+    act(() => result.current.placeStart(cadence));
+
+    const [start] = result.current.nodes;
+    expect((start.data as PipelineNodeData).ports.map((port) => [port.portName, port.direction])).toEqual([['due', 'out']]);
+    expect((start.data as PipelineNodeData).standsForId).toBe(id.everyHour);
   });
 
   it('draws a wire between compatible ports, refuses one between incompatible ports saying why, and ignores one to nowhere', () => {

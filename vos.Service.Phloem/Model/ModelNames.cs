@@ -29,6 +29,7 @@ public static class ModelNames
     // An out port whose answers are Things: the node run is related to each.
     public const string Produces = "produces";
     public const string OnItemError = "onItemError";
+    public const string ItemsAtOnce = "itemsAtOnce";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
     // The run's record: its parameters as given, and when it and each node run started and finished. A
@@ -44,6 +45,9 @@ public static class ModelNames
     public const string KeepRunsForDays = "keepRunsForDays";
     public const string KeepFailedRunsForDays = "keepFailedRunsForDays";
     public const string ClearsAtMostRunsPerLook = "clearsAtMostRunsPerLook";
+    // On a node that waits, the most model minutes it waits; on its node run, the model instant the wait fails at.
+    public const string WaitsAtMostMinutes = "waitsAtMostMinutes";
+    public const string WaitsUntil = "waitsUntil";
     public const string Outputs = "outputs";
     public const string StartedRun = "startedRun";
     // On a node, how many attempts its policy allows; on a node run, how many were made. An attempt carries its number.

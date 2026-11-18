@@ -22,6 +22,7 @@ import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
 import { BoxPlot } from './BoxPlot';
 import { DepthProfile } from './DepthProfile';
+import { PolarShares } from './PolarShares';
 import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
 import { StackedShares } from './StackedShares';
@@ -76,6 +77,8 @@ export function WidgetRenderer({
       return <BoxPlot widget={widget} context={context} />;
     case 'depthProfile':
       return <DepthProfile widget={widget} context={context} />;
+    case 'polarShares':
+      return <PolarShares widget={widget} context={context} />;
     case 'lineSeries':
       return <LineSeries widget={widget} context={context} />;
     case 'heatmap':

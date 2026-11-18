@@ -144,6 +144,19 @@ public class FormOptionsReaderTests
         options.HazardLevels.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Each_theme_travels_with_its_wording_beside_the_other_terms()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
+            .Stating("Water", (FormOptionsReader.WordingProperty, """{"en": "Precipitation and humidity", "de": "Niederschlag und Feuchte"}"""))
+            .Relate("Water", "is", "Theme");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.Wording["Water"]["de"].Should().Be("Niederschlag und Feuchte");
+    }
+
     // The themes a section of the report may name: found through the role binding their archetype, each with
     // what faces its tile, in the order the model gives them.
     [Fact]

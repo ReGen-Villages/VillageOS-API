@@ -206,7 +206,7 @@ public static class DiscoveredVocabularyResolver
     }
 
     // Every Thing that `is` the vocabulary archetype, directly or through an intermediate type — the
-    // same walk the coverage read makes for the analysis connections, over this read's own snapshot.
+    // same walk the coverage read makes for the sites, over this read's own snapshot.
     private static List<Guid> MembersUnder(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid archetypeId)
     {

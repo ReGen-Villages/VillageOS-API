@@ -871,7 +871,7 @@ function Drawn({
       <ReportMap options={options} state={state} drawnArea={drawnArea} reference={reference}>
         {facts.map((widget, at) => <ModelFact key={at} widget={widget} context={context} />)}
       </ReportMap>
-      <ThemedTiles sections={specification.sections} themes={options?.themes ?? []} context={context} />
+      <ThemedTiles sections={specification.sections} themes={options?.themes ?? []} wording={options?.wording ?? {}} context={context} />
       {(listed.length > 0 || specification.sections.length === 0) && (
         <div className="mt-4">
           <DashboardSections

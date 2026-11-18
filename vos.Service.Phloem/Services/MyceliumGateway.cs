@@ -236,6 +236,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 [ModelNames.Attempts] = null,
                 [ModelNames.Decision] = decision?.ToString(),
             };
+            if (WaitsUntilOf(status, watch) is { } waitsUntil) properties[ModelNames.WaitsUntil] = waitsUntil;
             if (index is int idx)
             {
                 properties[ModelNames.Index] = idx.ToString();
@@ -251,9 +252,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             return;
         }
 
-        await WriteFragmentAsync(NodeRunName(nodeName, index), [(nodeRunId, NodeRunName(nodeName, index), ChangedOnANodeRun(status, error, outputs, decision))],
+        var changed = ChangedOnANodeRun(status, error, outputs, decision);
+        if (WaitsUntilOf(status, watch) is { } until) changed[ModelNames.WaitsUntil] = until;
+        await WriteFragmentAsync(NodeRunName(nodeName, index), [(nodeRunId, NodeRunName(nodeName, index), changed)],
             watched, retracted, cancellationToken);
     }
+
+    private static string? WaitsUntilOf(string status, Watch? watch) =>
+        status == RunStatus.Waiting && watch?.Until is { } until ? until.ToString("o", CultureInfo.InvariantCulture) : null;
 
     // Changed on the same Thing, so the view watching it sees each property change rather than a new node.
     private Dictionary<string, string?> ChangedOnANodeRun(string status, string? error, IReadOnlyDictionary<string, JsonElement>? outputs, Guid? decision)
@@ -524,7 +530,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     private static Watch WatchOf(PipelineGraph graph, GraphThing nodeRun) =>
         new(graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
-            graph.RelationshipsAlong(nodeRun, PipelineRoles.StateWatch).Select(rel => (Guid?)rel.TargetId).FirstOrDefault());
+            graph.RelationshipsAlong(nodeRun, PipelineRoles.StateWatch).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
+            DateTimeOffset.TryParse(nodeRun.PropertyString(ModelNames.WaitsUntil), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var until)
+                ? until : null);
 
     // The platform marks its record of calling the node run's connection Completed once this orchestrator answered the call.
     private static WaitAnswer AnswerOf(PipelineGraph graph, GraphThing nodeRun) =>

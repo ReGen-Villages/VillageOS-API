@@ -27,6 +27,7 @@ public sealed class PipelineExecutor
     // A stop asked for a run whose sweep is under way here, read between its steps and by a pause between attempts.
     // Held only while the sweep or the stop that set it is working, so nothing outlives a run.
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource<StopRequested>> _stops = new();
+    private readonly WaitDeadlines _deadlines = new();
 
     public PipelineExecutor(
         IMyceliumGateway gateway,
@@ -139,12 +140,32 @@ public sealed class PipelineExecutor
 
     // The answer to a node run's wait: it succeeds with the outputs its service answered before the wait, and the run
     // carries on from its record. Nothing is called a second time.
-    public async Task<ResumeOutcome> ResumeAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken)
+    public Task<ResumeOutcome> ResumeAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken) =>
+        EndWaitAsync(runId, nodeId, expired: false, cancellationToken);
+
+    public async Task<int> ExpireDueWaitsAsync(CancellationToken cancellationToken)
+    {
+        var due = _deadlines.TakeDue(_clock.GetUtcNow());
+        foreach (var (runId, nodeId) in due)
+        {
+            try { await EndWaitAsync(runId, nodeId, expired: true, cancellationToken); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Ending the wait of node {NodeId} in run {RunId} once its time passed failed", nodeId, runId);
+            }
+        }
+        return due.Count;
+    }
+
+    public int WaitsHeldWithATimeLimit => _deadlines.Count;
+
+    private async Task<ResumeOutcome> EndWaitAsync(Guid runId, Guid nodeId, bool expired, CancellationToken cancellationToken)
     {
         using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !record.Nodes.TryGetValue(nodeId, out var held) || held.Status != RunStatus.Waiting)
             return ResumeOutcome.NothingWaiting;
+        _deadlines.Release(runId, nodeId);
 
         var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
         if (dag is null)
@@ -161,8 +182,10 @@ public sealed class PipelineExecutor
         }
 
         var watch = progress.Watches.Remove(nodeId, out var watching) ? watching : new Watch(null, null);
-        var resumed = progress.Waiting[nodeId] with { Status = RunStatus.Succeeded, Awaits = null };
-        if (dag.Node(nodeId) is { Follows: { } followed } waitNode)
+        var resumed = expired
+            ? progress.Waiting[nodeId] with { Status = RunStatus.Failed, Awaits = null, Error = WaitedTooLong(dag.Node(nodeId)!, record, watch) }
+            : progress.Waiting[nodeId] with { Status = RunStatus.Succeeded, Awaits = null };
+        if (!expired && dag.Node(nodeId) is { Follows: { } followed } waitNode)
             resumed = await WithWhatItReachesAsync(resumed, followed, watch.AwaitedId ?? AwaitedThroughItsPort(dag, waitNode, record), cancellationToken);
         progress.Waiting.Remove(nodeId);
         var carriedOn = progress.Settle(dag, resumed);
@@ -182,6 +205,15 @@ public sealed class PipelineExecutor
 
         await SweepAsync(record.RunId, dag, record.Parameters, progress, record.Rehearsal, record.CallRecordId, cancellationToken);
         return ResumeOutcome.Resumed;
+    }
+
+    // The run's subject is named when it is the Thing waited for, which a wait for the subject's own state always is.
+    private static string WaitedTooLong(DagNode node, RunRecord record, Watch watch)
+    {
+        var minutes = node.Waits!.Limit!.Value.TotalMinutes;
+        var awaited = watch.AwaitedId is { } id && SubjectCarriedBy(record.Parameters) is { } subject && subject.Id == id ? $"'{subject.Name}'"
+            : watch.AwaitedId is { } other ? $"Thing {other}" : "its Thing";
+        return $"'{node.Name}' waited {minutes:0} model minutes for {awaited} to enter '{node.Waits.RangeName}', and it did not.";
     }
 
     private async Task<NodeRunResult> WithWhatItReachesAsync(NodeRunResult resumed, FollowedPredicate followed, Guid? awaitedId, CancellationToken cancellationToken)
@@ -232,6 +264,7 @@ public sealed class PipelineExecutor
                 if (await ResumeAsync(wait.RunId, wait.NodeId, cancellationToken) == ResumeOutcome.Resumed) resumed++;
                 continue;
             }
+            if (wait.Watching.Until is { } until) _deadlines.Hold(wait.RunId, wait.NodeId, until);
             if (wait.Answer == WaitAnswer.Underway || wait.Watching.IsWhole) continue;
             if (await WatchAgainAsync(wait, cancellationToken)) watchedAgain++;
         }
@@ -259,7 +292,7 @@ public sealed class PipelineExecutor
             try
             {
                 await _gateway.SetNodeRunStatusAsync(record.RunId, node.NodeId, name, RunStatus.Waiting, null, cancellationToken,
-                    watch: new Watch(awaited, waits.RangeId));
+                    watch: new Watch(awaited, waits.RangeId, wait.Watching.Until));
                 return true;
             }
             catch (Exception ex)
@@ -267,6 +300,7 @@ public sealed class PipelineExecutor
                 failure = $"'{name}' cannot wait: {ex.Message}";
             }
         }
+        _deadlines.Release(record.RunId, wait.NodeId);
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, wait.NodeId, name, RunStatus.Failed, failure, cancellationToken,
             watch: wait.Watching), "fail the wait");
         await FailRunAsync(record, failure, cancellationToken);
@@ -609,8 +643,11 @@ public sealed class PipelineExecutor
             ReleaseItems(result, eachItemWentOn: result.Items is not null && SendsEachItemOn(dag.Node(result.NodeId)!));
             if (result.Status == RunStatus.Waiting)
             {
+                var waits = dag.Node(result.NodeId)!.Waits!;
+                var until = waits.Limit is { } limit ? _clock.GetUtcNow() + limit : (DateTimeOffset?)null;
                 progress.Waiting[result.NodeId] = result;
-                progress.Watches[result.NodeId] = new Watch(result.Awaits!.Id, dag.Node(result.NodeId)!.Waits!.RangeId);
+                progress.Watches[result.NodeId] = new Watch(result.Awaits!.Id, waits.RangeId, until);
+                if (until is { } due) _deadlines.Hold(rid, result.NodeId, due);
             }
             else if (!progress.Settle(dag, result) && AnswerReachingNoWire(dag, result) is { } reason)
             {
@@ -859,9 +896,12 @@ public sealed class PipelineExecutor
             || !record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status != node.Status).ToList();
     }
 
-    private Task PersistStatusAsync(Guid runId, NodeRunResult result, CancellationToken cancellationToken, Watch? watch = null) =>
-        BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken, outputs: result.Outputs,
-            decision: result.Decision, watch: watch), "persist node run");
+    private Task PersistStatusAsync(Guid runId, NodeRunResult result, CancellationToken cancellationToken, Watch? watch = null)
+    {
+        if (result.Status != RunStatus.Waiting) _deadlines.Release(runId, result.NodeId);
+        return BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken,
+            outputs: result.Outputs, decision: result.Decision, watch: watch), "persist node run");
+    }
 
     // Each Thing answered under an out port marked as producing one: a value carrying an `id`, an identifier
     // on its own, or a list of either.
@@ -1263,7 +1303,7 @@ public sealed class PipelineExecutor
         ChannelReader<NumberedItem> items, IReadOnlyDictionary<int, NodeRecord> itemsMade, Action<NodeRunResult>? answered, bool rehearsal,
         CancellationToken cancellationToken)
     {
-        using var itemGate = new SemaphoreSlim(_maxConcurrency);
+        using var itemGate = new SemaphoreSlim(Math.Min(node.ItemsAtOnce ?? _maxConcurrency, _maxConcurrency));
         var running = new List<Task<NodeRunResult>>();
         await foreach (var item in items.ReadAllAsync(cancellationToken))
             running.Add(itemsMade.TryGetValue(item.Number.Index, out var made) && RunStatus.IsFinished(made.Status)

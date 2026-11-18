@@ -22,7 +22,7 @@ const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
 const SEVERITIES = ['good', 'warning', 'critical'] as const;
 const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
 const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
-const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all'];
+const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value'];
 const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
 export const STEP_DIRECTIONS = ['out', 'in'] as const;
@@ -137,13 +137,24 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     title, hint, binding('rows', 'rows'), text('labelKey', 'rowKey', true), text('orderKey', 'rowKey', true),
     list('parts', [text('label'), text('key', 'rowKey', true), text('colour', undefined, true)]), format, unit, floor, ceiling,
   ],
+  polarShares: [
+    title, hint, binding('counts', 'series'), binding('cells', 'rows'), text('bearingKey', 'rowKey', true),
+    text('classOrderKey', 'rowKey', true), text('classLabelKey', 'rowKey', true), text('classColourKey', 'rowKey', true),
+    text('classWordingKey', 'rowKey', true),
+  ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
     list('classes', rangeBand), format, unit, floor, ceiling,
   ],
-  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
+  stackedShares: [
+    title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')]),
+    group('counted', [
+      binding('counts', 'series'), binding('annual', 'series'), binding('groups', 'rows'), text('orderKey', 'rowKey', true),
+      text('labelKey', 'rowKey', true), text('colourKey', 'rowKey', true), text('wordingKey', 'rowKey', true),
+    ]),
+  ],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [
