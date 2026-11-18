@@ -47,7 +47,9 @@ public static class ThingLookup
         return candidates.Select(candidate =>
         {
             var kindsOfIt = kinds[candidate].OfType<string>().Order(StringComparer.Ordinal).ToList();
-            return kindsOfIt.Count > 0 ? $"{candidate} (a {string.Join(", ", kindsOfIt)})" : candidate.ToString();
+            return kindsOfIt.Count > 0
+                ? $"{candidate} (of kind {string.Join(", ", kindsOfIt.Select(ServiceCalls.Quoted))})"
+                : candidate.ToString();
         });
     }
 

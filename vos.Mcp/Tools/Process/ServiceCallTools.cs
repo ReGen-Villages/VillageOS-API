@@ -60,7 +60,8 @@ public sealed class ServiceCallTools(ModelClients clients, TimeProvider? clock =
             : new Waited(
                 (int)_clock.GetElapsedTime(started).TotalSeconds,
                 Settled: !read.Calls.Any(call => call.StillGoing),
-                SawLast: string.Join(", ", read.Calls.Select(call => $"{call.Connection.Name}: {call.State ?? "not recorded"}")));
+                SawLast: string.Join(", ", read.Calls.Select(call =>
+                    $"{ServiceCalls.Quoted(call.Connection.Name)}: {ServiceCalls.StateInWords(call.State)}")));
         var shown = new ShownServiceCalls(read.Thing, read.Calls, read.WaitingForThisThing, waited);
 
         var words = ServiceCalls.InWords(read);

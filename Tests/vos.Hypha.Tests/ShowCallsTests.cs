@@ -100,7 +100,7 @@ public class ShowCallsTests
         var answer = await ShowAsync(server, ("thing", "Ålvik south slope"));
 
         answer.IsError.Should().NotBe(true);
-        ServerUnderTest.TextOf(answer).Should().Contain("- surveysCatchment, service Echo service: Pending.");
+        ServerUnderTest.TextOf(answer).Should().Contain("""- "surveysCatchment", service "Echo service": Pending.""");
         var call = answer.StructuredContent!.Value.GetProperty("calls")[0];
         call.GetProperty("state").GetString().Should().Be("Pending");
         call.GetProperty("record").GetGuid().Should().Be(_record);
@@ -120,6 +120,18 @@ public class ShowCallsTests
     }
 
     [Fact]
+    public async Task A_name_holding_a_comma_is_refused_without_asking_the_platform_which_reads_it_as_several_names()
+    {
+        await using var server = await ServerAsync();
+
+        var answer = await ShowAsync(server, ("thing", "North pond, South pond"));
+
+        answer.IsError.Should().BeTrue();
+        ServerUnderTest.TextOf(answer).Should().Contain("A name holding a comma cannot be asked for by name.");
+        server.Mycelium.Requests.Should().NotContain(request => request.RequestUri!.Query.Contains("name="));
+    }
+
+    [Fact]
     public async Task A_name_several_Things_hold_is_refused_naming_each_candidate_with_its_kind()
     {
         await using var server = await ServerAsync();
@@ -128,8 +140,8 @@ public class ShowCallsTests
 
         answer.IsError.Should().BeTrue();
         ServerUnderTest.TextOf(answer).Should().Contain("More than one Thing is named 'North pond'")
-            .And.Contain($"{_model.IdOf("North pond")} (a Reservoir)")
-            .And.Contain($"{_model.IdOf("South pond")} (a Reservoir)");
+            .And.Contain($"{_model.IdOf("North pond")} (of kind \"Reservoir\")")
+            .And.Contain($"{_model.IdOf("South pond")} (of kind \"Reservoir\")");
     }
 
     [Fact]
@@ -162,9 +174,11 @@ public class ShowCallsTests
 
         var waited = answer.StructuredContent!.Value.GetProperty("waited");
         waited.GetProperty("settled").GetBoolean().Should().BeFalse();
-        waited.GetProperty("sawLast").GetString().Should().Be("surveysCatchment: Pending");
+        waited.GetProperty("sawLast").GetString().Should().Be("""
+            "surveysCatchment": Pending
+            """.Trim());
         clock.Waited.Should().Be(TimeSpan.FromSeconds(4), "a third wait of two seconds would pass the limit of five");
-        ServerUnderTest.TextOf(answer).Should().Contain("Still going after 4 seconds; last seen: surveysCatchment: Pending.");
+        ServerUnderTest.TextOf(answer).Should().Contain("""Still going after 4 seconds; last seen: "surveysCatchment": Pending.""");
     }
 
     [Theory]
