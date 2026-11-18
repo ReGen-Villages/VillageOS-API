@@ -33,6 +33,9 @@ public sealed class ForageSteps : DagNodeService
         new(RecordResults, "record results",
         [
             PortDescriptor.Input("resolved", "object"), PortDescriptor.Input("unresolved", "object"),
+            // Never read: wired from the box that has the subjects' histories judged, it keeps the results from being
+            // recorded, and the site from being stamped, before every subject is judged.
+            PortDescriptor.Input("judged", "object"),
             PortDescriptor.Output("resolved", "object"), PortDescriptor.Output("unresolved", "object"),
         ]),
         new(ResolveWords, "resolve words",

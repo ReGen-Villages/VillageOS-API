@@ -91,6 +91,7 @@ try
         launchToken,
         apiKey,
         sp.GetRequiredService<EndpointCallService>(),
+        sp.GetRequiredService<IEndpointMyceliumClient>(),
         sp.GetRequiredService<PassedOnRequestLimit>(),
         sp.GetRequiredService<TimeProvider>()));
 
@@ -130,8 +131,11 @@ try
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    var manifestEndpoint = app.MapGet("/manifest", (TributaryStep step) => Results.Ok(step.Ports));
+    var manifestEndpoint = app.MapGet("/manifest", () => Results.Ok(TributaryStep.FetchPorts));
     if (authEnabled) manifestEndpoint.RequireAuthorization();
+    var stepManifestEndpoint = app.MapGet("/manifest/{step}", (string step) =>
+        TributaryStep.ManifestOf(step) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
+    if (authEnabled) stepManifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
 

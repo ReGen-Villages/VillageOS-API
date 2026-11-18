@@ -14,6 +14,11 @@ public interface IEndpointMyceliumClient
 
     Task<bool> ApplyFragmentAsync(object fragment, CancellationToken cancellationToken = default);
 
+    Task<BrokerAnswer> DepositReadingsAsync(
+        Guid subjectId, IReadOnlyList<ObservationSample> readings, CancellationToken cancellationToken = default);
+
+    Task<BrokerAnswer> ReportHistoryChangedAsync(Guid thingId, CancellationToken cancellationToken = default);
+
     Task<bool> SubmitObservationsAsync(
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default);
 

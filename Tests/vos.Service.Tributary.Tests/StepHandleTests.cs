@@ -59,21 +59,23 @@ public class StepHandleTests
         recordId = "carried through untouched",
     };
 
-    private static object StepRequest(object? call) => new
+    private static object StepRequest(object? call, string? step) => new
     {
         runId = Guid.NewGuid(),
         nodeId = Guid.NewGuid(),
         inputs = call is null ? new Dictionary<string, object?>() : new Dictionary<string, object?> { ["call"] = call },
+        @params = step is null ? new Dictionary<string, object>() : new Dictionary<string, object> { ["step"] = step },
     };
 
-    private static async Task<(JsonElement Answer, Recorder Recorder)> StepAsync(object? call, Func<HttpResponseMessage>? provider = null)
+    private static async Task<(JsonElement Answer, Recorder Recorder)> StepAsync(
+        object? call, Func<HttpResponseMessage>? provider = null, string? step = null)
     {
         var recorder = new Recorder();
         await using var factory = FactoryOver(recorder, provider ?? (() => Json("""{"regime":"steady"}""")));
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", StepRequest(call));
+        var response = await client.PostAsJsonAsync("/handle", StepRequest(call, step));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "a step's failure is said in its answer, never in its status");
         return (await response.Content.ReadFromJsonAsync<JsonElement>(), recorder);
@@ -96,6 +98,17 @@ public class StepHandleTests
         outcome.GetProperty("call").GetProperty("recordId").GetString().Should().Be("carried through untouched");
         outcome.GetProperty("call").GetProperty("subjectId").GetGuid().Should().Be(subject);
         outcome.GetProperty("written").GetProperty("flowRegime").GetString().Should().Be("steady");
+    }
+
+    [Fact]
+    public async Task A_box_naming_the_fetch_step_fetches_its_call()
+    {
+        var subject = Guid.NewGuid();
+
+        var (answer, recorder) = await StepAsync(CallFor(subject), step: "fetch");
+
+        answer.GetProperty("result").GetString().Should().Be("success");
+        recorder.ObservedOn.Should().Equal(subject);
     }
 
     [Fact]
