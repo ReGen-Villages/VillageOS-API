@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using vos.Tests.Shared;
 using Xunit;
@@ -107,9 +108,9 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
             sent = request.Content!.ReadAsStringAsync().Result;
             return Json("""{"watermark":7,"snapshot":{"things":[],"relationships":[]}}""");
         });
-        var selector = new System.Text.Json.Nodes.JsonObject
+        var selector = new JsonObject
         {
-            ["ids"] = new System.Text.Json.Nodes.JsonArray(Spring.ToString()),
+            ["ids"] = new JsonArray(Spring.ToString()),
             ["includeIsAncestors"] = false,
         };
 
@@ -120,7 +121,7 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
         asked.Method.Should().Be(HttpMethod.Post);
         asked.RequestUri!.PathAndQuery.Should().Be("/api/snapshots");
         asked.Headers.Authorization!.Parameter.Should().Be("a-token");
-        System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(sent!), selector).Should().BeTrue();
+        JsonNode.DeepEquals(JsonNode.Parse(sent!), selector).Should().BeTrue();
     }
 
     [Fact]
@@ -134,9 +135,9 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
             return Json("{}");
         });
 
-        await client.ReadSelectionAsync(new System.Text.Json.Nodes.JsonObject
+        await client.ReadSelectionAsync(new JsonObject
         {
-            ["names"] = new System.Text.Json.Nodes.JsonArray(name),
+            ["names"] = new JsonArray(name),
         });
 
         var received = System.Text.Json.JsonDocument.Parse(sent!).RootElement;
@@ -149,7 +150,7 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     {
         var (_, client, _) = AModelAnswering(_ => Json("""{"error":"A selector names nothing to select"}""", HttpStatusCode.BadRequest));
 
-        var asking = () => client.ReadSelectionAsync(new System.Text.Json.Nodes.JsonObject());
+        var asking = () => client.ReadSelectionAsync(new JsonObject());
 
         (await asking.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("A selector names nothing to select");
     }

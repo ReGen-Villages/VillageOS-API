@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace vos.PlatformClient;
 
@@ -289,7 +290,7 @@ public partial class MyceliumClient
     }
 
     // The selector is taken as a tree and never as text, so a name it holds cannot change what is selected.
-    public virtual async Task<JsonElement> ReadSelectionAsync(System.Text.Json.Nodes.JsonNode selector)
+    public virtual async Task<JsonElement> ReadSelectionAsync(JsonNode selector)
     {
         var response = await _httpClient.PostAsync(
             $"{_myceliumUrl}/api/snapshots", new StringContent(selector.ToJsonString(), Encoding.UTF8, "application/json"));
