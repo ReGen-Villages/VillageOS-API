@@ -340,17 +340,23 @@ public static class PipelineDagBuilder
 
     private static (Relating, DagWait)? RelatingOf(PipelineGraph graph, GraphThing nodeThing)
     {
-        var connection = graph.OutgoingAlong(nodeThing, PipelineRoles.StandsFor).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
-            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a relate node but stands for no connection.");
+        var predicate = graph.OutgoingAlong(nodeThing, PipelineRoles.StandsFor).FirstOrDefault()
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a relate node but stands for no predicate.");
+        var notifies = graph.Bound(PipelineRoles.NotifiedConnection)?.Name ?? PipelineRoles.NotifiedConnection.Word;
+        var connection = graph.OutgoingAlong(predicate, PipelineRoles.NotifiedConnection).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection));
+        if (connection is null)
+            throw new PipelineModelException(graph.IsOf(predicate, PipelineRoles.Connection)
+                ? $"Node '{nodeThing.Name}' stands for the connection '{predicate.Name}'; a relate box stands for the predicate that names its connection along '{notifies}'."
+                : $"Node '{nodeThing.Name}' stands for '{predicate.Name}', which names no connection along '{notifies}', so a relationship along it calls nothing.");
+        var whose = $"Node '{nodeThing.Name}' stands for '{predicate.Name}', whose connection '{connection.Name}'";
         var service = graph.OutgoingTargets(connection, ModelNames.Has).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Service))
-            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which binds no service, so nothing would be called.");
+            ?? throw new PipelineModelException($"{whose} binds no service, so nothing would be called.");
         var states = graph.OutgoingAlong(connection, PipelineRoles.CompletionRange).ToList();
         if (states.Count == 0)
-            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names no state its work is proven by, "
-                + "so the run could not tell when the work is done.");
+            throw new PipelineModelException($"{whose} names no state its work is proven by, so the run could not tell when the work is done.");
         if (states.Count > 1)
-            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names two states its work is proven by.");
-        return (new Relating(connection.Id, connection.Name, service.Id),
+            throw new PipelineModelException($"{whose} names two states its work is proven by.");
+        return (new Relating(predicate.Id, predicate.Name, service.Id),
             new DagWait(states[0].Id, states[0].Name, ModelNames.Thing, LimitOf(nodeThing)));
     }
 

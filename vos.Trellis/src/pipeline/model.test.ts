@@ -229,14 +229,13 @@ describe('the vocabulary the editor holds', () => {
    *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
    *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
    *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either, nor which connection a
-   *  relationship along a predicate calls. The orchestrator follows any relationship from a wire to a node, so
-   *  only the page, which writes new wires, needs the wire predicate. */
+   *  platform's to judge, so the orchestrator reads none of its choices either. The orchestrator follows any
+   *  relationship from a wire to a node, so only the page, which writes new wires, needs the wire predicate. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
-    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate, ROLE.NotifiedConnection,
+    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -257,7 +256,6 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.CallCompletion, 'callCompletion'],
     [ROLE.CompletesWhen, 'completesWhen'],
     [ROLE.WirePredicate, 'wirePredicate'],
-    [ROLE.NotifiedConnection, 'notifiedConnection'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });

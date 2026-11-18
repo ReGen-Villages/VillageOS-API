@@ -541,9 +541,13 @@ export class PipelineModel {
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
+    if (!thing.IsArchetype && this.reachedAlong(thingId, ROLE.NotifiedConnection).some((called) => this.isOf(called.Id, ROLE.Connection)))
+      return { ...named, kind: 'relationship', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
-      const kind = END_KIND_OF_TRIGGER[this.triggerOf(thingId)];
-      if (kind) return { ...named, kind, mayStart: true, mayEnd: false };
+      const trigger = this.triggerOf(thingId);
+      const kind = END_KIND_OF_TRIGGER[trigger];
+      // The platform calls a connection for a relationship only when the relationship's predicate names it along notifies.
+      if (kind) return { ...named, kind, mayStart: trigger !== 'graph', mayEnd: false };
     }
     return { ...named, kind: 'other', mayStart: false, mayEnd: false };
   }

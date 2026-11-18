@@ -1207,19 +1207,24 @@ public static class TestGraphs
     }
 
     public sealed record RelateBoxFixture(
-        GraphFixture Fixture, Guid PipelineId, GraphThing Relate, GraphThing Connection, GraphThing Service, GraphThing WorkedOut, GraphThing SubjectWire);
+        GraphFixture Fixture, Guid PipelineId, GraphThing Relate, GraphThing Predicate, GraphThing Connection, GraphThing Service, GraphThing WorkedOut,
+        GraphThing SubjectWire);
 
     public const string RelateBox = "Balance its energy";
 
-    // A start node hands the run's subject to a relate box standing for the connection `balancesEnergy`, which relates
-    // the subject to the connection's service and waits for the state the connection is proven by; Publish then runs on
-    // what the box hands on. provesByAState false leaves the connection naming no such state.
-    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true, object? waitsAtMostMinutes = null)
+    // A start node hands the run's subject to a relate box standing for the predicate `balancesEnergy`, which names the
+    // connection the platform calls along `notifies`; the box relates the subject along the predicate to that connection's
+    // service and waits for the state the connection is proven by, and Publish runs on what the box hands on.
+    // provesByAState false leaves the connection naming no such state; predicateNamesTheConnection false leaves the
+    // predicate naming none; standsForTheConnection has the box stand for the connection itself.
+    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool predicateNamesTheConnection = true,
+        bool standsForTheConnection = false, object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var notifies = fx.Playing("notifies", PipelineRoles.NotifiedConnection);
         fx.Thing("carries");
 
         GraphThing Port(GraphThing holder, string name, string direction)
@@ -1238,15 +1243,17 @@ public static class TestGraphs
 
         var service = fx.Thing("balancesEnergy service");
         fx.Rel(service, vocabulary.Is, vocabulary.Service);
-        var connection = fx.Thing("balancesEnergy");
-        fx.Rel(connection, vocabulary.Is, standsForAConnection ? vocabulary.Connection : vocabulary.Service);
+        var connection = fx.Thing("balancesEnergy connection");
+        fx.Rel(connection, vocabulary.Is, vocabulary.Connection);
         fx.Rel(connection, vocabulary.Has, service);
         var workedOut = fx.Thing("EnergyWorkedOut");
         if (provesByAState) fx.Rel(connection, provenBy, workedOut);
+        var predicate = fx.Thing("balancesEnergy");
+        if (predicateNamesTheConnection) fx.Rel(predicate, notifies, connection);
 
         var relate = waitsAtMostMinutes is null ? fx.Thing(RelateBox) : fx.Thing(RelateBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(relate, vocabulary.Is, relateKind);
-        fx.Rel(relate, standsFor, connection);
+        fx.Rel(relate, standsFor, standsForTheConnection ? connection : predicate);
 
         var publish = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "PublishProto"), "Publish", "publish");
         var start = fx.Thing("Discovery finished");
@@ -1263,7 +1270,7 @@ public static class TestGraphs
         fx.Wire(relate, ModelNames.Thing, publish, "in");
 
         fx.EndEveryPath(pipe);
-        return new RelateBoxFixture(fx, pipe.Id, relate, connection, service, workedOut, subjectWire);
+        return new RelateBoxFixture(fx, pipe.Id, relate, predicate, connection, service, workedOut, subjectWire);
     }
 
 

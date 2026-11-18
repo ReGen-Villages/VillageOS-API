@@ -46,7 +46,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
          PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn,
-         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong, PipelineRoles.PipelineRelate];
+         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong, PipelineRoles.PipelineRelate,
+         PipelineRoles.NotifiedConnection];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -77,6 +78,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicateRole = PipelineRoles.InputConnector.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.OutputConnector.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.NotifiedConnection.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
