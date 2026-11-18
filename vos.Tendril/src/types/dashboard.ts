@@ -699,7 +699,7 @@ export interface DensityGridOutline {
  *  each cell's share of the hours counted. `cells` is a `history` binding whose first step is `cell`,
  *  counted; across is its `property`, up its `pairedWith.property`, each cell as wide as its axis's
  *  bins. `coverage` is the same binding with `answer: 'coverage'`: where some readings had no partner
- *  at their instant, a note says how many of the hours the grid covers. */
+ *  at their instant, a note says how many, since the grid leaves them out. */
 export interface DensityGridWidget {
   type: 'densityGrid';
   title?: string;

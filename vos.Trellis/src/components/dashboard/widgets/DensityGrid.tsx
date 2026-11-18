@@ -40,7 +40,6 @@ function isPoint(value: unknown): value is [number, number] {
   return Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number';
 }
 
-/** A GeoJSON Polygon's outer ring or a LineString, written as an object or as its JSON text. */
 function shapeOf(value: BindingResult): { closed: boolean; points: [number, number][] } | null {
   let geometry: unknown = value;
   if (typeof value === 'string') {
