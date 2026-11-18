@@ -100,7 +100,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -108,7 +108,7 @@ public class ObservationIngestServiceTests
         var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}");
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, entityId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, observedId, entityId);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class ObservationIngestServiceTests
             .Returns(new MyceliumClient.MyceliumThing(binds, RoleBindings.BindsPredicateName));
         object? applied = null;
         client.ApplyFragmentAsync(Arg.Do<object>(fragment => applied = fragment)).Returns(true);
-        client.CreateRelationshipAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -137,7 +137,7 @@ public class ObservationIngestServiceTests
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         JsonSerializer.Serialize(applied).Should().Be(
             JsonSerializer.Serialize(ObservedEdges.CreationFragment(isPredicate, binds, predicateRoot)));
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class ObservationIngestServiceTests
         var seenBy = Guid.NewGuid();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
-        client.CreateRelationshipAsync(endpointThingId, seenBy, entityId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, seenBy, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -157,7 +157,7 @@ public class ObservationIngestServiceTests
             alreadyObserved: new ObservedEdges(seenBy, new HashSet<Guid>(), null));
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, seenBy, entityId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, seenBy, entityId);
         await client.DidNotReceive().ApplyFragmentAsync(Arg.Any<object>());
     }
 
@@ -170,7 +170,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1", call.Token).Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.ApplyFragmentAsync(Arg.Any<object>(), call.Token).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId, call.Token).Returns(true);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, entityId, call.Token).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>(), call.Token).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -191,7 +191,7 @@ public class ObservationIngestServiceTests
         var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -199,7 +199,7 @@ public class ObservationIngestServiceTests
         var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}", subjectId);
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, observedId, subjectId);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class ObservationIngestServiceTests
         var subjectId = Guid.NewGuid();
         var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
-        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -220,7 +220,7 @@ public class ObservationIngestServiceTests
             new ObservedEdges(observedId, new HashSet<Guid>(), null));
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, observedId, subjectId);
         await client.DidNotReceive().FindThingByNameAsync(Arg.Any<string>());
     }
 
@@ -233,7 +233,7 @@ public class ObservationIngestServiceTests
         var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
         var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(
@@ -262,7 +262,7 @@ public class ObservationIngestServiceTests
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         result.ObservationsSubmitted.Should().Be(1);
-        await client.DidNotReceive().CreateRelationshipAsync(
+        await client.DidNotReceive().RelateUnlessHeldAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
@@ -278,7 +278,7 @@ public class ObservationIngestServiceTests
             Guid.NewGuid(), new JsonataTransform("{\"properties\":{}}"), "{\"x\":1}", Guid.NewGuid());
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        await client.DidNotReceive().CreateRelationshipAsync(
+        await client.DidNotReceive().RelateUnlessHeldAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
@@ -318,7 +318,7 @@ public class ObservationIngestServiceTests
         client.CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>())
             .Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
-        client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -332,7 +332,7 @@ public class ObservationIngestServiceTests
         result.ObservationsSubmitted.Should().Be(1);
         await client.Received(1).CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>());
         await client.Received(1).SetPropertyModeAsync(entityId, "temp", "SampledByTime", 60);
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, entityId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, observedId, entityId);
         await client.Received(1).SubmitObservationsAsync(entityId,
             Arg.Is<IReadOnlyList<ObservationSample>>(s => s.Count == 1));
     }
@@ -348,7 +348,7 @@ public class ObservationIngestServiceTests
         client.CreateThingAsync(Arg.Any<string>(), Arg.Any<Dictionary<string, object?>>())
             .Returns(_ => new MyceliumClient.MyceliumThing(Guid.NewGuid(), "e"));
         client.SetPropertyModeAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
         client.SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
 
@@ -361,7 +361,7 @@ public class ObservationIngestServiceTests
         result.EntitiesTouched.Should().Be(2); // A and B, each created once
         await client.Received(1).CreateThingAsync("A", Arg.Any<Dictionary<string, object?>>());
         await client.Received(1).CreateThingAsync("B", Arg.Any<Dictionary<string, object?>>());
-        await client.Received(2).CreateRelationshipAsync(endpointThingId, observedId, Arg.Any<Guid>());
+        await client.Received(2).RelateUnlessHeldAsync(endpointThingId, observedId, Arg.Any<Guid>());
         await client.Received(1).ApplyFragmentAsync(Arg.Any<object>());
     }
 
@@ -512,7 +512,7 @@ public class ObservationIngestServiceTests
         client.CreateThingAsync("E", Arg.Any<Dictionary<string, object?>>())
             .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
         client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(false);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, entityId).Returns(false);
         var sut = new ObservationIngestService(client,new ModelClock());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
@@ -558,7 +558,7 @@ public class ObservationIngestServiceTests
         result.ObservationsSubmitted.Should().Be(0);
         await client.DidNotReceive().SubmitObservationsAsync(
             Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>());
-        await client.DidNotReceive().CreateRelationshipAsync(
+        await client.DidNotReceive().RelateUnlessHeldAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
@@ -571,7 +571,7 @@ public class ObservationIngestServiceTests
         var depicted = new DateTime(1998, 6, 15, 0, 0, 0, DateTimeKind.Utc);
         IReadOnlyList<ObservationSample>? written = null;
         var client = Substitute.For<IEndpointMyceliumClient>();
-        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.RelateUnlessHeldAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => written = s))
             .Returns(true);
         var sut = new ObservationIngestService(client,new ModelClock());
@@ -582,7 +582,7 @@ public class ObservationIngestServiceTests
 
         failure.Should().BeNull();
         written.Should().ContainSingle().Which.Should().Be(new ObservationSample("surfaceMap", "sha256:abc", depicted));
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+        await client.Received(1).RelateUnlessHeldAsync(endpointThingId, observedId, subjectId);
     }
 
     [Fact]
@@ -614,7 +614,7 @@ public class ObservationIngestServiceTests
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
 
         failure.Should().BeNull();
-        await client.DidNotReceive().CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
+        await client.DidNotReceive().RelateUnlessHeldAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
     // The relationship goes in before the value, so a refused relationship leaves nothing that cannot be walked back.
@@ -624,7 +624,7 @@ public class ObservationIngestServiceTests
         var subjectId = Guid.NewGuid();
         var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
-        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
+        client.RelateUnlessHeldAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
         var sut = new ObservationIngestService(client,new ModelClock());
 
         var failure = await sut.ObserveValueAsync(

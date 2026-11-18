@@ -9,7 +9,7 @@ public interface IEndpointMyceliumClient
     Task<MyceliumClient.MyceliumThing?> CreateThingAsync(
         string name, Dictionary<string, object?>? properties, CancellationToken cancellationToken = default);
 
-    Task<bool> CreateRelationshipAsync(
+    Task<bool> RelateUnlessHeldAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default);
 
     Task<bool> ApplyFragmentAsync(object fragment, CancellationToken cancellationToken = default);
