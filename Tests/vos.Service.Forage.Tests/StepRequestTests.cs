@@ -57,6 +57,7 @@ public class StepRequestTests
         public bool ReadsFail { get; init; }
         public bool FactsFail { get; init; }
 
+        public ConcurrentBag<string> Paths { get; } = new();
         public ConcurrentBag<string> Fetched { get; } = new();
         public ConcurrentBag<(Guid Id, string Name)> Records { get; } = new();
         public ConcurrentBag<(Guid Thing, string Property)> Facts { get; } = new();
@@ -65,6 +66,7 @@ public class StepRequestTests
         public HttpResponseMessage Route(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
+            Paths.Add(path);
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
             if (path == FetchRoute)
             {
@@ -322,6 +324,44 @@ public class StepRequestTests
         model.Records.Select(record => record.Id).Should().Equal(expectedRecord);
         model.Facts.Should().Contain((model["NationalFloodPortal"], CoverageLedger.CoverageMatchedAtProperty));
         model.Fetched.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Offer_a_source_with_no_registration_records_no_call_and_still_stamps_it_offered()
+    {
+        var model = new Model { Edges = [.. Edges().Where(edge => edge.Predicate != "resolvedBy" || edge.Subject != "NationalFloodPortal")] };
+
+        var answer = await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "outstanding").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+        model.Facts.Should().Contain((model["NationalFloodPortal"], CoverageLedger.CoverageMatchedAtProperty));
+    }
+
+    [Fact]
+    public async Task Plan_calls_for_a_site_no_source_covers_answers_no_calls_and_records_none()
+    {
+        var model = new Model { Edges = [new Edge("WillowBend", "is", "Site")] };
+
+        var answer = await StepAsync(model, "planCalls", new { site = Site(model) });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "calls").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_steps_read_the_model_without_opening_a_subscription()
+    {
+        var model = new Model();
+        var site = Site(model);
+
+        var address = Output(await StepAsync(model, "resolveRegion", new { site }), "address");
+        await StepAsync(model, "planCalls", new { site, address });
+        await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        model.Paths.Should().Contain("/api/snapshots").And.NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
     }
 
     [Fact]
