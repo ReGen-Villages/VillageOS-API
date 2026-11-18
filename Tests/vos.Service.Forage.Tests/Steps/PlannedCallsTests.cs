@@ -46,6 +46,51 @@ public class PlannedCallsTests
         planned.Should().AllSatisfy(call => call.AddressParameters["lat"].Should().Be("39.4"));
     }
 
+    private static Dictionary<string, string> WindowStating(string daysPerSlice) =>
+        new(Window("1991-01-01", "2025-12-31")) { [PlannedCalls.DaysPerSliceProperty] = daysPerSlice };
+
+    [Fact]
+    public void A_source_stating_a_slice_as_long_as_its_window_is_one_call()
+    {
+        var planned = PlannedCalls.From([Outstanding(WindowStating("13000"))], daysPerSlice: 365);
+
+        var call = planned.Should().ContainSingle().Subject;
+        call.Slice.Should().BeNull();
+        call.AddressParameters[CoveringSourceResolver.WindowStartPlaceholder].Should().Be("1991-01-01");
+        call.AddressParameters[CoveringSourceResolver.WindowEndPlaceholder].Should().Be("2025-12-31");
+    }
+
+    [Fact]
+    public void A_source_stating_its_slice_length_is_cut_into_slices_of_that_many_days()
+    {
+        var planned = PlannedCalls.From([Outstanding(WindowStating("5000"))], daysPerSlice: 365);
+
+        planned.Select(call => call.AddressParameters[CoveringSourceResolver.WindowStartPlaceholder])
+            .Should().Equal("1991-01-01", "2004-09-09", "2018-05-19");
+    }
+
+    [Fact]
+    public void A_source_stating_no_slice_length_takes_the_services_own()
+    {
+        var planned = PlannedCalls.From([Outstanding(Window("1991-01-01", "2025-12-31"))], daysPerSlice: 365);
+
+        planned.Should().HaveCount(36);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-30")]
+    [InlineData("1.5")]
+    [InlineData("a year")]
+    [InlineData("")]
+    public void A_slice_length_that_is_not_a_whole_number_of_days_refuses_the_plan_naming_the_source(string stated)
+    {
+        var plan = () => PlannedCalls.From([Outstanding(WindowStating(stated))], daysPerSlice: 365);
+
+        plan.Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().Contain("'OpenMeteo'").And.Contain(PlannedCalls.DaysPerSliceProperty);
+    }
+
     private static ItemOutcome Slice(PlannedCall call, string? reason, string? word = null) =>
         new(call, word is null ? null : new Dictionary<string, string> { ["level" + call.Slice!.Index] = word }, reason);
 

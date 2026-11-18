@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
@@ -36,6 +37,19 @@ public sealed record ItemOutcome(PlannedCall Call, IReadOnlyDictionary<string, s
 
 public static class PlannedCalls
 {
+    public const string DaysPerSliceProperty = "daysPerSlice";
+
+    // A call's values carry its source's own, so a source answering a long window cheaply can ask for fewer, longer slices.
+    private static int DaysPerSliceOf(OutstandingCall call, int servicesOwn)
+    {
+        if (!call.Call.Values.TryGetValue(DaysPerSliceProperty, out var stated)) return servicesOwn;
+        return int.TryParse(stated, NumberStyles.None, CultureInfo.InvariantCulture, out var days) && days >= 1
+            ? days
+            : throw new InvalidOperationException(
+                $"Source '{call.Source.Name}' states {DaysPerSliceProperty} '{stated}', which is not a whole number of days of at least 1, "
+                + "so its window cannot be cut into slices.");
+    }
+
     // One item per call, or one per slice where the call asks for a long history.
     public static IReadOnlyList<PlannedCall> From(IReadOnlyList<OutstandingCall> outstanding, int daysPerSlice) =>
     [
@@ -43,7 +57,7 @@ public static class PlannedCalls
         {
             var planned = new PlannedCall(call.Source.EndpointName, call.Call.SubjectId, call.Call.Values,
                 call.Source.SourceId, call.Source.Name, call.Call.SubjectName, call.CoverageId, call.Attempts);
-            return WindowSlices.Of(call.Call.Values, daysPerSlice) is not { } slices
+            return WindowSlices.Of(call.Call.Values, DaysPerSliceOf(call, daysPerSlice)) is not { } slices
                 ? [planned]
                 : slices.Select((slice, index) => planned with
                 {
