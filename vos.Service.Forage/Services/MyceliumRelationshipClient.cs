@@ -5,8 +5,7 @@ namespace vos.Service.Forage.Services;
 
 // The writes this service makes to the model: relating a subject to the vocabulary member a fetched word names — with the stale relationship
 // removed — is how a discovered word becomes a relationship; relating a site to the Place its code names; and the
-// coverage Things a run records what each call came to on. Separate from the fetcher, which speaks to endpoint
-// services rather than to the model.
+// coverage Things a run records what each call came to on.
 //
 // Every relationship is written as a fragment because the engine skips a relationship it already holds and passes over a removal
 // already made, so a repeated write succeeds and leaves one copy.
