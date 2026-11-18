@@ -27,6 +27,7 @@ public class HistoryDepositClientTests
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
             Asked.Add((request.Method, request.RequestUri!.AbsolutePath, body));
             return answer(request, body);
@@ -187,6 +188,29 @@ public class HistoryDepositClientTests
         var broker = new Broker((_, _) => Answer(HttpStatusCode.ServiceUnavailable, """{"error":"full"}""", TimeSpan.FromSeconds(1)));
 
         (await ClientOver(broker).ReportHistoryChangedAsync(Guid.NewGuid())).Wait.Should().Be(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task A_refusal_whose_body_is_not_json_is_named_by_its_body()
+    {
+        var broker = new Broker((_, _) => new HttpResponseMessage(HttpStatusCode.BadGateway)
+        {
+            Content = new StringContent("upstream gone", Encoding.UTF8, "text/plain"),
+        });
+
+        (await ClientOver(broker).ReportHistoryChangedAsync(Guid.NewGuid())).Refusal.Should().Be("502: upstream gone");
+    }
+
+    [Fact]
+    public async Task A_call_its_caller_gave_up_is_not_answered_as_a_refusal()
+    {
+        using var givenUp = new CancellationTokenSource();
+        givenUp.Cancel();
+        var broker = new Broker((_, _) => Answer(HttpStatusCode.OK));
+
+        var asking = () => ClientOver(broker).DepositReadingsAsync(Guid.NewGuid(), Hourly("temperatureCelsius", 1), givenUp.Token);
+
+        await asking.Should().ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]
