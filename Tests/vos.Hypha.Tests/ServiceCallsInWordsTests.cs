@@ -99,7 +99,7 @@ public class ServiceCallsInWordsTests
     {
         var thing = Guid.NewGuid();
 
-        using var selector = JsonDocument.Parse(ServiceCalls.FirstSelector(thing));
+        using var selector = JsonDocument.Parse(ServiceCalls.FirstSelector(thing).ToJsonString());
         var root = selector.RootElement;
 
         root.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().BeEquivalentTo(

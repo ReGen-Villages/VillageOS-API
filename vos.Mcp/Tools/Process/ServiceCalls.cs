@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace vos.Mcp.Tools.Process;
 
@@ -156,22 +157,25 @@ public static class ServiceCalls
             waiting);
     }
 
-    public static string FirstSelector(Guid thing) => JsonSerializer.Serialize(new
+    public static JsonObject FirstSelector(Guid thing) => new()
     {
-        ids = new[] { thing, ConnectionRole, ServiceRole, CallRecordRole, NotifiedConnectionRole, AwaitedThingRole },
-        names = new[] { "is", "binds" },
-        includeIsAncestors = true,
-        traverse = new object[]
-        {
-            new { predicateRole = CallRecordRole, direction = "outgoing", depth = 1 },
-            new { predicateRole = AwaitedThingRole, direction = "incoming", depth = 1 },
-            new { predicateRole = NotifiedConnectionRole, direction = "outgoing", depth = 1 },
-            new { predicate = "binds", direction = "outgoing", depth = 1 },
-        },
-    });
+        ["ids"] = Identifiers([thing, ConnectionRole, ServiceRole, CallRecordRole, NotifiedConnectionRole, AwaitedThingRole]),
+        ["names"] = new JsonArray("is", "binds"),
+        ["includeIsAncestors"] = true,
+        ["traverse"] = new JsonArray(
+            AlongTheRole(CallRecordRole, "outgoing"),
+            AlongTheRole(AwaitedThingRole, "incoming"),
+            AlongTheRole(NotifiedConnectionRole, "outgoing"),
+            new JsonObject { ["predicate"] = "binds", ["direction"] = "outgoing", ["depth"] = 1 }),
+    };
 
-    public static string SelectorOf(IEnumerable<Guid> things) =>
-        JsonSerializer.Serialize(new { ids = things, includeIsAncestors = true });
+    public static JsonObject SelectorOf(IEnumerable<Guid> things) =>
+        new() { ["ids"] = Identifiers(things), ["includeIsAncestors"] = true };
+
+    private static JsonArray Identifiers(IEnumerable<Guid> things) => [.. things.Select(id => (JsonNode)id.ToString())];
+
+    private static JsonObject AlongTheRole(Guid role, string direction) =>
+        new() { ["predicateRole"] = role.ToString(), ["direction"] = direction, ["depth"] = 1 };
 
     // A selection carries a relationship's identifiers but not its predicate or far end, and those say whether
     // a relationship of the Thing is a call and which service a connection has.
