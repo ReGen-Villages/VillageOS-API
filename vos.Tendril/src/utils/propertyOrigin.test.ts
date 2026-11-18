@@ -92,6 +92,13 @@ describe('valueOrigin', () => {
       .toBe('Place');
   });
 
+  it('names the sibling archetype whose value the Thing resolves to, in an order no language changes', () => {
+    const zone = thing('z', 'Zone', { Properties: { householdSize: 2 } });
+    const array = thing('a', 'array', { Properties: { householdSize: 3 } });
+    const site = thing('s', 'Lot 4');
+    expect(valueOrigin(site, 'householdSize', chain([zone, array], { s: ['z', 'a'] })).assumedFrom).toBe('array');
+  });
+
   it('lets an assumption the Thing overrode become the Thing\'s own claim', () => {
     const archetype = thing('a', 'Site', {
       Properties: { householdSize: 2.4 },

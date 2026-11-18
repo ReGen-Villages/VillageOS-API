@@ -198,6 +198,25 @@ describe('effectiveProperties', () => {
     expect(effectiveProperties(instance, chain([alpha, beta], { i: ['b', 'a'] })).x).toBe('beta');
   });
 
+  it('picks between sibling archetypes in an order no language changes', () => {
+    // English orders "array" before "Zone" and Swedish orders "Åker" after it; neither decides here.
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    const zone = archetype('z', 'Zone', { x: 'zone' });
+    const array = archetype('a', 'array', { x: 'array' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    expect(effectiveProperties(instance, chain([zone, array], { i: ['z', 'a'] })).x).toBe('array');
+    expect(effectiveProperties(instance, chain([zone, field], { i: ['f', 'z'] })).x).toBe('åker');
+  });
+
+  it('picks between stored override sources in the same order', () => {
+    const instance = {
+      Id: 'i',
+      Properties: {},
+      InheritedOverrides: { z: inheritedSet('Zone', { x: 'zone' }), a: inheritedSet('array', { x: 'array' }) },
+    };
+    expect(effectiveProperties(instance, noAncestors).x).toBe('array');
+  });
+
   it('survives a malformed is-cycle without infinite recursion', () => {
     const a = archetype('a', 'A', { x: 1 });
     const b = archetype('b', 'B', { y: 2 });

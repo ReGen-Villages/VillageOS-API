@@ -1,3 +1,4 @@
+export * from './api/askedOptions';
 export * from './api/bindingRefresh';
 export * from './api/dashboardApi';
 export * from './api/dashboardWrites';
@@ -6,6 +7,7 @@ export * from './api/platformRoles';
 export * from './api/propertyNames';
 export * from './api/stateQuery';
 export * from './hooks/useAskedOptions';
+export * from './hooks/useTermWords';
 export * from './hooks/useBinding';
 export * from './i18n/languages';
 export * from './i18n/termWording';

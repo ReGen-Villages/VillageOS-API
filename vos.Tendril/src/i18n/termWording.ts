@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { BASE_LANGUAGE, primarySubtag } from './languages';
 
 /** What each term a form offers is called in each language, as the model states it: the term's name,
@@ -27,10 +26,4 @@ export function wordingIn(stated: unknown): Record<string, string> | null {
   } catch {
     return null;
   }
-}
-
-/** A term's words in the reader's language, following a change of language. */
-export function useTermWords(wording: TermWording): (term: string) => string {
-  const { i18n } = useTranslation();
-  return (term) => wordsFor(wording, term, i18n.language);
 }
