@@ -300,10 +300,7 @@ public partial class MyceliumClient
 
     public virtual async Task<string> RequestAsync(HttpMethod method, string path, string? bodyJson = null)
     {
-        if (!path.StartsWith("/api/", StringComparison.Ordinal))
-            throw new ArgumentException($"'{path}' is not a path to one of the platform's routes, which begin /api/.", nameof(path));
-
-        var request = new HttpRequestMessage(method, _myceliumUrl + path);
+        var request = new HttpRequestMessage(method, PlatformRoute.AddressOf(_myceliumUrl, path));
         if (bodyJson is not null)
             request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
         var response = await _httpClient.SendAsync(request);

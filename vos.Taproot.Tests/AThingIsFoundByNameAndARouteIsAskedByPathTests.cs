@@ -170,6 +170,19 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
         sent.Headers.Authorization!.Parameter.Should().Be("a-token");
     }
 
+    [Theory]
+    [InlineData("/api/things?name=a..b")]
+    [InlineData("/api/things?name=..%2f..")]
+    [InlineData("/api/things/a..b")]
+    public async Task Two_dots_that_are_not_a_step_up_the_path_are_sent_as_they_are(string path)
+    {
+        var (_, client, mycelium) = AModelAnswering(_ => Json("[]"));
+
+        await client.RequestAsync(HttpMethod.Get, path);
+
+        AskedOf(mycelium).Should().ContainSingle().Which.RequestUri!.PathAndQuery.Should().Be(path);
+    }
+
     [Fact]
     public async Task A_request_by_path_with_no_body_sends_none()
     {
@@ -194,6 +207,15 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     [InlineData("https://elsewhere.example/api/things")]
     [InlineData("api/things")]
     [InlineData("/swagger")]
+    [InlineData("/api/../swagger")]
+    [InlineData("/api/..")]
+    [InlineData("/api/./../swagger")]
+    [InlineData("/api/%2e%2e/x")]
+    [InlineData("/api/%2E%2E/x")]
+    [InlineData("/api/things/..%2f..%2fx")]
+    [InlineData("/api/things/%2e/x")]
+    [InlineData("/api\\..\\x")]
+    [InlineData("/api/things/..?name=a")]
     public async Task A_path_that_is_not_one_of_the_platforms_routes_is_refused_and_nothing_is_sent(string path)
     {
         var (_, client, mycelium) = AModelAnswering(_ => Json("[]"));
