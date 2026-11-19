@@ -215,7 +215,7 @@ function pipelineFragment(
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
-    if (n.kind === 'wait') {
+    if (n.kind === 'wait' || n.kind === 'relate') {
       // A fragment keeps a value it leaves out, so a cleared limit is written empty, and the orchestrator reads empty as none.
       if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
       else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
@@ -436,7 +436,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
       const ports = portsAreTheKinds(kind) ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
       const wait = kind === 'wait' ? model.waitOf(t.Id) : undefined;
-      const limit = kind === 'wait' ? minutesOf(stated.waitsAtMostMinutes) : undefined;
+      const limit = kind === 'wait' || kind === 'relate' ? minutesOf(stated.waitsAtMostMinutes) : undefined;
       return {
         ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),

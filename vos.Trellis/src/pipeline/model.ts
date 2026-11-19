@@ -1,5 +1,5 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
-import { NOTIFIED_CONNECTION_ROLE_ID, PREDICATE_ROLE_ID, statedProperties } from '@tendril-ui/tendril';
+import { NOTIFIED_CONNECTION_ROLE_ID, PREDICATE_ROLE_ID, statedProperties, wordingIn, wordsInLanguage } from '@tendril-ui/tendril';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -111,6 +111,16 @@ const REQUEST_ID_PROPERTY = 'requestId';
 
 /** What a boundary node may stand for, told by what the Thing it points at is. */
 export type EndKind = 'messageKind' | 'externalSystem' | 'httpConnection' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
+
+export const RELATE_REFUSALS = [
+  'standsForAConnection', 'namesNoConnection', 'connectionBindsNoService', 'connectionNamesNoState', 'connectionNamesTwoStates',
+] as const;
+
+export type RelateRefusal = (typeof RELATE_REFUSALS)[number];
+
+export type RelateReading =
+  | { accepted: true; connectionId: string; serviceId: string; stateId: string }
+  | { accepted: false; refusal: RelateRefusal; connectionId?: string };
 
 /** A Thing at one end of a pipeline: what it is, and whether a run may come from it or leave it behind. */
 export interface EndInformation {
@@ -457,6 +467,29 @@ export class PipelineModel {
       this.reachingAlong(connection.Id, ROLE.NotifiedConnection)
         .filter((predicate) => !predicate.IsArchetype)
         .map((predicate) => ({ predicate, connectionId: connection.Id })));
+  }
+
+  /** Mirrors RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs, so the page never offers a box the run refuses. */
+  relatingOf(thingId: string): RelateReading {
+    const connection = this.reachedAlong(thingId, ROLE.NotifiedConnection).find((called) => this.isOf(called.Id, ROLE.Connection));
+    if (!connection)
+      return { accepted: false, refusal: this.isOf(thingId, ROLE.Connection) ? 'standsForAConnection' : 'namesNoConnection' };
+    const service = this.outgoing(connection.Id, 'has').find((held) => this.isOf(held.Id, ROLE.Service));
+    if (!service) return { accepted: false, refusal: 'connectionBindsNoService', connectionId: connection.Id };
+    const states = this.reachedAlong(connection.Id, ROLE.CompletionRange);
+    if (states.length !== 1)
+      return { accepted: false, refusal: states.length === 0 ? 'connectionNamesNoState' : 'connectionNamesTwoStates', connectionId: connection.Id };
+    return { accepted: true, connectionId: connection.Id, serviceId: service.Id, stateId: states[0].Id };
+  }
+
+  relatablePredicates(): VosThing[] {
+    const named = new Map(this.predicatesNotifying().map(({ predicate }) => [predicate.Id, predicate]));
+    return [...named.values()].filter((predicate) => this.relatingOf(predicate.Id).accepted);
+  }
+
+  labelOf(thingId: string, language: string): string {
+    const thing = this.byId.get(thingId);
+    return wordsInLanguage(wordingIn(this.stated(thingId).wording) ?? undefined, language) ?? thing?.Name ?? thingId;
   }
 
   /** Every cadence, with how many model minutes apart the orchestrator starts its runs. */
