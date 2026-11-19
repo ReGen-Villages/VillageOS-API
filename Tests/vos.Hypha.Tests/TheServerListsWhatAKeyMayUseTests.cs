@@ -1,7 +1,7 @@
 using System.Net;
 using FluentAssertions;
 using vos.Hypha.Registry;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 using Xunit;
 using static vos.Hypha.Tests.ServerUnderTest;
 

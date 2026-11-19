@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Protocol;
 using vos.Hypha.Registry;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Hypha.Tests.ServerUnderTest;

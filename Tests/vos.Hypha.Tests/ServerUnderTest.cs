@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 using vos.Tests.Shared;
 
 namespace vos.Hypha.Tests;

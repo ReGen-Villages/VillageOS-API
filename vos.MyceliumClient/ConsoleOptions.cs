@@ -1,4 +1,4 @@
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 public class ConsoleOptions
 {

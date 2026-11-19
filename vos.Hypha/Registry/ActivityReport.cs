@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 
 namespace vos.Hypha.Registry;
 

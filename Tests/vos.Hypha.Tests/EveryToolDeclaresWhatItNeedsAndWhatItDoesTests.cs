@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 using Xunit;
 
 namespace vos.Hypha.Tests;
