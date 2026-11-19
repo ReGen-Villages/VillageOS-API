@@ -52,48 +52,15 @@ public class XylemLaunchSettingsTests
     }
 
     [Fact]
-    public void Parse_WithoutAnUploadLimit_UsesTheDefault()
-    {
-        var result = XylemLaunchSettings.Parse(RequiredFlags);
-
-        result.Should().NotBeNull();
-        result!.MaxUploadBytes.Should().Be(XylemLaunchSettings.DefaultMaxUploadBytes);
-    }
-
-    [Fact]
-    public void Parse_ReadsTheUploadLimitInMegabytes()
-    {
-        var result = XylemLaunchSettings.Parse(FlagsWith("--maxUploadMb=64"));
-
-        result.Should().NotBeNull();
-        result!.MaxUploadBytes.Should().Be(64L * 1024 * 1024);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-5")]
-    [InlineData("enormous")]
-    [InlineData("")]
-    public void Parse_WithAnUnusableUploadLimit_FallsBackToTheDefault(string limit)
-    {
-        var result = XylemLaunchSettings.Parse(FlagsWith($"--maxUploadMb={limit}"));
-
-        result.Should().NotBeNull();
-        result!.MaxUploadBytes.Should().Be(XylemLaunchSettings.DefaultMaxUploadBytes);
-    }
-
-    [Fact]
     public void Parse_ReadsTheServiceSettingsFromConfiguration()
     {
         var configuration = ConfigurationFrom(
-            ("Port", "7100"), ("MyceliumUrl", "http://mycelium"),
-            ("ModelIngestDll", "/configured/ingest.dll"), ("MaxUploadMb", "32"));
+            ("Port", "7100"), ("MyceliumUrl", "http://mycelium"), ("ModelIngestDll", "/configured/ingest.dll"));
 
         var result = XylemLaunchSettings.Parse(Array.Empty<string>(), configuration);
 
         result.Should().NotBeNull();
         result!.ModelIngestDll.Should().Be("/configured/ingest.dll");
-        result.MaxUploadBytes.Should().Be(32L * 1024 * 1024);
     }
 
     [Fact]
@@ -102,7 +69,7 @@ public class XylemLaunchSettingsTests
         var usage = XylemLaunchSettings.UsageMessage;
 
         usage.Should().Contain("--modelIngestDll")
-            .And.Contain("--maxUploadMb")
-            .And.Contain("--myceliumUrl");
+            .And.Contain("--myceliumUrl")
+            .And.NotContain("--maxUploadMb");
     }
 }

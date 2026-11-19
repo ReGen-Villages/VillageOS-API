@@ -141,11 +141,11 @@ try
     builder.Services.AddSingleton(provider => new BasemapTileService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<HeldDeclarations>(),
-        launchSettings.FetcherSubdomain));
+        OutsideCalls.FetcherSubdomain));
     builder.Services.AddSingleton(provider => new PositionLookupService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<HeldDeclarations>(),
-        launchSettings.FetcherSubdomain,
+        OutsideCalls.FetcherSubdomain,
         provider.GetRequiredService<ILogger<PositionLookupService>>(),
         provider.GetRequiredService<ModelClock>()));
 
