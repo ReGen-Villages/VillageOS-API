@@ -184,6 +184,16 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     }
 
     [Fact]
+    public async Task Two_slashes_in_the_query_are_sent_as_they_are()
+    {
+        var (_, client, mycelium) = AModelAnswering(_ => Json("[]"));
+
+        await client.RequestAsync(HttpMethod.Get, "/api/things?name=a//b");
+
+        AskedOf(mycelium).Should().ContainSingle().Which.RequestUri!.PathAndQuery.Should().Be("/api/things?name=a//b");
+    }
+
+    [Fact]
     public async Task The_scope_of_a_properties_read_cannot_add_a_second_narrowing_to_the_request()
     {
         var (_, client, mycelium) = AModelAnswering(_ => Json("{}"));
@@ -226,6 +236,9 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
     [InlineData("/api/things/%2e/x")]
     [InlineData("/api\\..\\x")]
     [InlineData("/api/things/..?name=a")]
+    [InlineData("/api/things//x")]
+    [InlineData("/api/things/")]
+    [InlineData("/api//things")]
     public async Task A_path_that_is_not_one_of_the_platforms_routes_is_refused_and_nothing_is_sent(string path)
     {
         var (_, client, mycelium) = AModelAnswering(_ => Json("[]"));
