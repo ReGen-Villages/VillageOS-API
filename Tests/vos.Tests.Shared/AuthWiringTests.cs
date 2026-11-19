@@ -4,7 +4,6 @@ using Xunit;
 
 namespace vos.Tests.Shared;
 
-// A service launched with a verification key, as it is in production.
 public abstract class AuthWiringTests<TFactory, TProgram>
     where TFactory : ServiceWebApplicationFactory<TProgram>, new()
     where TProgram : class

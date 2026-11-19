@@ -9,8 +9,8 @@ internal static class SnapshotWalk
         namesById.TryGetValue(predicateId, out var predicate)
         && string.Equals(predicate, name, StringComparison.Ordinal);
 
-    // Walked outwards from the roots rather than upwards from each Thing, so the snapshot's relationships are
-    // read once per Thing reached instead of once per Thing in the snapshot.
+    // Walked outwards from the roots rather than upwards from each Thing, so the snapshot's relationships
+    // are read once per level instead of once per Thing.
     public static List<Guid> ThingsUnder(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, IEnumerable<Guid> roots)
     {
