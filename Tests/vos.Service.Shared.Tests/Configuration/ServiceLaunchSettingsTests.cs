@@ -26,6 +26,18 @@ public class ServiceLaunchSettingsTests
     }
 
     [Fact]
+    public void Bug8495_A_launch_line_carrying_logToFile_parses_as_one_without_it()
+    {
+        var with = ServiceLaunchSettings.Parse(
+            ["--port=7111", "--myceliumUrl=https://localhost:7243", "--logDirectory=/srv/logs", "--logToFile=false"]);
+
+        with.Should().NotBeNull("a service from before the setting existed must still start when the broker passes it");
+        with!.Port.Should().Be(7111);
+        with.MyceliumUrl.Should().Be("https://localhost:7243");
+        with.LogDirectory.Should().Be("/srv/logs");
+    }
+
+    [Fact]
     public void Parse_WithoutOptionalFlags_LeavesThemUnset()
     {
         var result = ServiceLaunchSettings.Parse(
