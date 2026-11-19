@@ -82,6 +82,17 @@ internal static class MyceliumStub
         return Json("""{"accepted":1}""");
     }
 
+    internal static HttpResponseMessage? RouteDeposit(HttpRequestMessage request, List<string>? payloads = null)
+    {
+        if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/sediment")
+            return null;
+        payloads?.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+        return new HttpResponseMessage(HttpStatusCode.Accepted)
+        {
+            Content = new StringContent("""{"batchId":1}""", Encoding.UTF8, "application/json")
+        };
+    }
+
     internal static HttpResponseMessage ReadingsQueueFull(string? retryAfter)
     {
         var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
@@ -114,7 +125,7 @@ internal static class MyceliumStub
 
     internal static HttpResponseMessage? RouteKindsFromProperties(
         HttpRequestMessage request, Guid endpointId, string effectiveProperties,
-        IReadOnlyCollection<Guid>? alreadyObserved = null)
+        IReadOnlyCollection<Guid>? alreadyObserved = null, bool historySource = false)
     {
         var kinds = new List<Kind>();
         foreach (var (key, word, role, kind) in DerivedKinds)
@@ -125,16 +136,17 @@ internal static class MyceliumStub
             if (declared.Success && string.Equals(declared.Groups[1].Value.Trim(), word, StringComparison.OrdinalIgnoreCase))
                 kinds.Add(new Kind(role, kind));
         }
-        return RouteKindsAndObserved(request, endpointId, alreadyObserved ?? [], [.. kinds]);
+        return RouteKindsAndObserved(request, endpointId, alreadyObserved ?? [], historySource, [.. kinds]);
     }
 
     internal static HttpResponseMessage? RouteKinds(HttpRequestMessage request, Guid endpointId, params Kind[] kinds) =>
-        RouteKindsAndObserved(request, endpointId, [], kinds);
+        RouteKindsAndObserved(request, endpointId, [], historySource: false, kinds);
 
     // The same snapshot, with the `observed` relationships the endpoint already carries — what a real read
     // returns on every run after the first, and what stops a second one writing a parallel relationship.
     private static HttpResponseMessage? RouteKindsAndObserved(
-        HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, params Kind[] kinds)
+        HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, bool historySource,
+        params Kind[] kinds)
     {
         if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/snapshots")
             return null;
@@ -148,6 +160,14 @@ internal static class MyceliumStub
             Thing(bindsId, RoleBindings.BindsPredicateName),
         };
         var edges = new List<string> { Edge(LandIntakeRoles.Observed.Id, bindsId, ObservedPredicateId) };
+        if (historySource)
+        {
+            var isId = Guid.NewGuid();
+            var historyKind = Guid.NewGuid();
+            things.AddRange([
+                Thing(isId, "is"), Thing(historyKind, "HistoryEndpoint"), Thing(LandIntakeRoles.HistorySource.Id, "HistorySource")]);
+            edges.AddRange([Edge(endpointId, isId, historyKind), Edge(LandIntakeRoles.HistorySource.Id, bindsId, historyKind)]);
+        }
         foreach (var kind in kinds)
         {
             var roleId = Guid.NewGuid();
