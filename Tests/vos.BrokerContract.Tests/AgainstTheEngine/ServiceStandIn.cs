@@ -31,10 +31,13 @@ internal sealed class ServiceStandIn : IAsyncDisposable
         await _app.StartAsync();
     }
 
-    public bool CalledAbout(Guid subjectId)
+    public bool CalledAbout(Guid subjectId) => CallAbout(subjectId) is not null;
+
+    public JsonElement? CallAbout(Guid subjectId)
     {
         lock (_calls)
-            return _calls.Any(call => call.TryGetProperty("subjectId", out var subject) && subject.GetString() == subjectId.ToString());
+            return _calls.Where(call => call.TryGetProperty("subjectId", out var subject) && subject.GetString() == subjectId.ToString())
+                .Select(call => (JsonElement?)call).FirstOrDefault();
     }
 
     public async ValueTask DisposeAsync()

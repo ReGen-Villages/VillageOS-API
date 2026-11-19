@@ -1,11 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -21,7 +17,7 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>, IAsyncLifetime
 {
     private readonly TheEngine _engine;
-    private readonly OrchestratorStandIn _orchestrator = new();
+    private readonly ServiceStandIn _orchestrator = new();
 
     public PhloemReportsAStateEntrysRunTests(TheEngine engine) => _engine = engine;
 
@@ -196,7 +192,7 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
             return new StateEntryModel(engine, catchmentKind);
         }
 
-        public async Task<StateEntryCall> EnterOutOfDateAsync(OrchestratorStandIn orchestrator)
+        public async Task<StateEntryCall> EnterOutOfDateAsync(ServiceStandIn orchestrator)
         {
             var catchment = await _engine.DeclareAsync($"Catchment 3 {Guid.NewGuid():N}");
             await _engine.RelateAsync(catchment, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), _catchmentKind);
@@ -251,50 +247,6 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
             var played = await engine.DeclareOnceAsync($"{name} · {role.Word}", isArchetype, properties);
             await engine.BindOnceAsync(role, played);
             return played;
-        }
-    }
-
-    // Keeps each body the engine sends, so a case starts its run from what was actually sent.
-    private sealed class OrchestratorStandIn : IAsyncDisposable
-    {
-        private readonly List<JsonElement> _calls = new();
-        private WebApplication? _app;
-
-        public int Port { get; } = FreeLoopbackPort();
-
-        public async Task StartAsync()
-        {
-            var builder = WebApplication.CreateSlimBuilder();
-            builder.Logging.ClearProviders();
-            _app = builder.Build();
-            _app.Urls.Add($"http://localhost:{Port}");
-            _app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
-            _app.MapPost("/handle", async (HttpRequest request) =>
-            {
-                var body = await JsonSerializer.DeserializeAsync<JsonElement>(request.Body);
-                lock (_calls) _calls.Add(body);
-                return Results.Ok(new { success = true, accepted = true });
-            });
-            await _app.StartAsync();
-        }
-
-        public JsonElement? CallAbout(Guid subjectId)
-        {
-            lock (_calls)
-                return _calls.Where(call => call.TryGetProperty("subjectId", out var subject) && subject.GetString() == subjectId.ToString())
-                    .Select(call => (JsonElement?)call).FirstOrDefault();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (_app is not null) await _app.DisposeAsync();
-        }
-
-        private static int FreeLoopbackPort()
-        {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
         }
     }
 
