@@ -5,6 +5,7 @@ import type { EditorChoice } from '../../pipeline/serialize';
 import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
 import type { RelateChoices } from '../../pipeline/relate';
 import type { VosThing } from '@tendril-ui/tendril';
+import { dropAt, replaceAt } from '../../utils/listEdits';
 import { ThingPicker } from '../common/ThingPicker';
 import type { PipelineNodeData } from './PipelineNodeView';
 
@@ -78,7 +79,7 @@ export function NodeInspector({
   };
   const choices = data.choices ?? [];
   const setChoice = (index: number, changed: Partial<EditorChoice>) =>
-    onSetChoices(nodeId, choices.map((choice, at) => (at === index ? { ...choice, ...changed } : choice)));
+    onSetChoices(nodeId, replaceAt(choices, index, { ...choices[index], ...changed }));
 
   return (
     <div className="absolute top-2 right-2 w-64 max-h-[calc(100%-1rem)] overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
@@ -204,7 +205,7 @@ export function NodeInspector({
                       className={FIELD}
                     />
                     <button
-                      onClick={() => onSetChoices(nodeId, choices.filter((_, at) => at !== index))}
+                      onClick={() => onSetChoices(nodeId, dropAt(choices, index))}
                       aria-label={t('pipeline.removeChoice', { name: choice.name })}
                       className="text-zinc-400 hover:text-red-400 px-1"
                     >×</button>
