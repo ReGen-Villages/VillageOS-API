@@ -1057,6 +1057,20 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task CreateRunAsync_WhenThePlatformRefusesTheNameLookup_FailsWithTheRefusalsStatus()
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
+                ? Json(HttpStatusCode.ServiceUnavailable, """{ "error": "the platform is starting" }""")
+                : RespondLikeAModelThatBindsItsRoles(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<HttpRequestException>())
+            .Which.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    [Fact]
     public async Task SetNodeRunStatusAsync_FirstTime_CreatesTheNodeRunAndAttachesItToTheRun()
     {
         var (gateway, handler) = NewGateway();
