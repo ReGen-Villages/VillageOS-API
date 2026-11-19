@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { FilterControls } from './FilterControls';
+import { FilterPanel, FilterRow } from './FilterPanel';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
-import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
 import {
   discoverTypes,
   groupTypesByName,
@@ -13,7 +11,6 @@ import {
   type SortOrder,
   type TypeGroupStat,
 } from '../../utils/typeFilter';
-import { numberIn } from '../../i18n/numbers';
 
 /**
  * Shared type-filter panel rendered inside both the Graph
@@ -41,8 +38,6 @@ export function TypeFilterPanel() {
   const sortOrder = useUiStore((s) => s.typeSortOrder);
   const setSortOrder = useUiStore((s) => s.setTypeSortOrder);
 
-  const wide = useIsWide(TABLET_WIDTH);
-  const [collapsed, setCollapsed] = useState(!wide);
   const [search, setSearch] = useState('');
 
   const allGroups = useMemo<TypeGroupStat[]>(
@@ -117,84 +112,49 @@ export function TypeFilterPanel() {
   if (allGroups.length === 0) return null;
 
   return (
-    <div className={`border border-zinc-700/60 rounded-lg bg-zinc-800/60 backdrop-blur text-zinc-200 text-xs overflow-hidden flex flex-col ${collapsed ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-700/40 transition-colors flex-shrink-0"
-        aria-expanded={!collapsed}
-      >
-        <div className="flex items-center gap-2 font-semibold">
-          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          <span>{t('graph.typeFilter.title')}</span>
+    <FilterPanel
+      title={t('graph.typeFilter.title')}
+      shown={totalInstances - hiddenInstances}
+      total={totalInstances}
+      controls={{
+        search, onSearch: setSearch, placeholder: t('graph.typeFilter.search'),
+        onShowAll: showAll, onHideAll: hideAll, hidden: hiddenInstances,
+      }}
+      noMatch={filtered.length === 0 ? t('graph.typeFilter.noMatch') : null}
+      beforeList={
+        <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
+          <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
+            {t('graph.typeFilter.sort')}
+          </label>
+          <select
+            id="type-filter-sort"
+            aria-label={t('graph.typeFilter.sortAria')}
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+            className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="count-desc">{t('graph.typeFilter.sortCountDescending')}</option>
+            <option value="count-asc">{t('graph.typeFilter.sortCountAsc')}</option>
+            <option value="name-asc">{t('graph.typeFilter.sortNameAsc')}</option>
+            <option value="name-desc">{t('graph.typeFilter.sortNameDescending')}</option>
+          </select>
         </div>
-        <span className="text-zinc-400 font-mono">
-          {totalInstances - hiddenInstances}/{totalInstances}
-        </span>
-      </button>
-
-      {!collapsed && (
-        <div className="border-t border-zinc-700/60 flex flex-col min-h-0 flex-1">
-          <FilterControls
-            search={search}
-            onSearch={setSearch}
-            placeholder={t('graph.typeFilter.search')}
-            onShowAll={showAll}
-            onHideAll={hideAll}
-            hidden={hiddenInstances}
+      }
+    >
+      {filtered.map((g) => {
+        const hidden = hiddenCountByGroup.get(g.name) ?? 0;
+        const allHidden = hidden === g.typeIds.length;
+        return (
+          <FilterRow
+            key={g.name}
+            checked={!allHidden}
+            indeterminate={hidden > 0 && !allHidden}
+            onToggle={() => toggleGroup(g)}
+            name={shownName(g)}
+            count={g.instanceCount}
           />
-
-          {/* Sort selector. Persisted per model via uiStore. */}
-          <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
-            <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
-              {t('graph.typeFilter.sort')}
-            </label>
-            <select
-              id="type-filter-sort"
-              aria-label={t('graph.typeFilter.sortAria')}
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-            >
-              <option value="count-desc">{t('graph.typeFilter.sortCountDescending')}</option>
-              <option value="count-asc">{t('graph.typeFilter.sortCountAsc')}</option>
-              <option value="name-asc">{t('graph.typeFilter.sortNameAsc')}</option>
-              <option value="name-desc">{t('graph.typeFilter.sortNameDescending')}</option>
-            </select>
-          </div>
-
-          <ul className="flex-1 min-h-0 overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-zinc-500 italic">{t('graph.typeFilter.noMatch')}</li>
-            ) : (
-              filtered.map((g) => {
-                const hidden = hiddenCountByGroup.get(g.name) ?? 0;
-                const allHidden = hidden === g.typeIds.length;
-                const indeterminate = hidden > 0 && !allHidden;
-                return (
-                  <li key={g.name}>
-                    <label className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-zinc-700/30 cursor-pointer">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={!allHidden}
-                          ref={(el) => { if (el) el.indeterminate = indeterminate; }}
-                          onChange={() => toggleGroup(g)}
-                          className="accent-violet-500"
-                        />
-                        <span className="truncate text-zinc-200">
-                          {shownName(g)}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-zinc-400">{numberIn(g.instanceCount)}</span>
-                    </label>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
+        );
+      })}
+    </FilterPanel>
   );
 }
