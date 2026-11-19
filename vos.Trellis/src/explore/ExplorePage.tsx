@@ -145,12 +145,10 @@ export function ExplorePage() {
     );
   }, [pick, t]);
 
-  async function askForCode(): Promise<void> {
+  async function whileBusy(action: () => Promise<void>): Promise<void> {
     setBusy(true);
     try {
-      await intakeApi.askForCode(state.emailAddress.trim());
-      setAwaitingCode(true);
-      toast.success(t('explore.codeSent', { address: state.emailAddress.trim() }));
+      await action();
     } catch (error) {
       toast.error(t('explore.refused', { reason: reasonOf(error) }));
     } finally {
@@ -158,9 +156,16 @@ export function ExplorePage() {
     }
   }
 
-  async function submit(): Promise<void> {
-    setBusy(true);
-    try {
+  function askForCode(): Promise<void> {
+    return whileBusy(async () => {
+      await intakeApi.askForCode(state.emailAddress.trim());
+      setAwaitingCode(true);
+      toast.success(t('explore.codeSent', { address: state.emailAddress.trim() }));
+    });
+  }
+
+  function submit(): Promise<void> {
+    return whileBusy(async () => {
       const first = await intakeApi.exchangeTicket(state.emailAddress.trim(), code.trim());
       const posted = await intakeApi.submitWithTicket(documentFrom(state), first);
       ticket.current = posted.ticket;
@@ -168,11 +173,7 @@ export function ExplorePage() {
       setAwaitingCode(false);
       setCode('');
       await readFindings();
-    } catch (error) {
-      toast.error(t('explore.refused', { reason: reasonOf(error) }));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const reduceThroughTheService = useMemo(
@@ -273,18 +274,13 @@ export function ExplorePage() {
     return () => window.clearTimeout(timer);
   }, [session, dialled, readFindings, t]);
 
-  async function resume(): Promise<void> {
-    setBusy(true);
-    try {
+  function resume(): Promise<void> {
+    return whileBusy(async () => {
       ticket.current = await intakeApi.exchangeTicket(state.emailAddress.trim(), code.trim());
       setExpired(false);
       setCode('');
       await readFindings();
-    } catch (error) {
-      toast.error(t('explore.refused', { reason: reasonOf(error) }));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const drawnArea = state.boundary.length >= 3 ? sphericalAreaHectares(state.boundary) : null;
