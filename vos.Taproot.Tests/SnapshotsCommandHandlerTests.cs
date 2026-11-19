@@ -2,6 +2,7 @@ using System.Text.Json;
 using Moq;
 using Xunit;
 using vos.Tests.Shared;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -21,8 +22,6 @@ public class SnapshotsCommandHandlerTests
         var handler = new SnapshotsCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     private void MyceliumReports(long resolutions, long retries, long lockedPasses) =>
         _myceliumMock.Setup(m => m.GetSnapshotResolutionMetricsAsync()).ReturnsAsync(Parse(

@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -57,15 +58,6 @@ public class EventsCommandHandlerTests
         await Execute("watch");
 
         _writer.ToString().Should().Contain("Error:").And.Contain("offline").And.NotContain("Nothing happened");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> Events(params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-        {
-            await Task.Yield();
-            yield return one;
-        }
     }
 
     private static async IAsyncEnumerable<ServerSentEvent> Endless([EnumeratorCancellation] CancellationToken token)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -22,8 +23,6 @@ public class UserCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
-
     // The act the handler posted, as the route would read it.
     private object? _posted;
 
@@ -32,7 +31,7 @@ public class UserCommandHandlerTests
         _myceliumMock
             .Setup(m => m.AdministerAccountsAsync(It.IsAny<object>()))
             .Callback<object>(act => _posted = act)
-            .ReturnsAsync(Json(json));
+            .ReturnsAsync(Parse(json));
     }
 
     private JsonElement Posted() => JsonSerializer.SerializeToElement(_posted!);

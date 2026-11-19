@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -43,8 +44,6 @@ public class SubmissionsCommandHandlerTests
         Edge(SubmissionsCommandHandler.DispositionPredicateRoleId, BindsId, ResolvedAsId);
 
     private static object[] Bindings() => [ProposedSiteBinding(), DispositionArchetypeBinding(), DispositionPredicateBinding()];
-
-    private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 
     private static JsonElement Json(object shape) =>
         JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(shape));

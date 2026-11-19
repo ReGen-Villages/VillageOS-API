@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -20,8 +21,6 @@ public class ModelCommandHandlerTests
         var handler = new ModelCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     [Fact]
     public async Task Execute_NoArgs_ShowsUsage()
