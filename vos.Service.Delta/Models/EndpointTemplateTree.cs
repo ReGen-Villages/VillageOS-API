@@ -1,3 +1,4 @@
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Delta.Models;
@@ -13,19 +14,18 @@ public static class EndpointTemplateTree
     // declares the same role whatever it calls the template the role binds.
     public static readonly Guid EndpointRoleId = new("d5902341-bbcb-5917-9456-7109e76ec2b8");
 
-    private const string Is = "is";
     private const string Binds = "binds";
 
     public static SubscriptionSelector Selector(string? templateName) => new()
     {
         Ids = [EndpointRoleId],
-        Names = templateName is null ? [Is, Binds] : [templateName, Is, Binds],
+        Names = templateName is null ? [PlatformPredicates.Is, Binds] : [templateName, PlatformPredicates.Is, Binds],
         Traverse = [new TraverseRule { Predicate = Binds, Direction = "outgoing", Depth = 1 }],
         IncludeIsAncestors = true,
         IncludeRelationships = true,
         Relationships =
         [
-            new RelationshipRule { Predicate = Is, Direction = "outgoing" },
+            new RelationshipRule { Predicate = PlatformPredicates.Is, Direction = "outgoing" },
             new RelationshipRule { Predicate = Binds, Direction = "outgoing" },
         ],
     };
@@ -35,9 +35,9 @@ public static class EndpointTemplateTree
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
 
-        var isPredicates = Named(snapshot, Is).ToList();
+        var isPredicates = Named(snapshot, PlatformPredicates.Is).ToList();
         if (isPredicates.Count != 1)
-            return Refused(500, $"The model holds {isPredicates.Count} Things named '{Is}'; registering needs exactly one.");
+            return Refused(500, $"The model holds {isPredicates.Count} Things named '{PlatformPredicates.Is}'; registering needs exactly one.");
         var isPredicate = isPredicates[0].Id;
 
         var bindsPredicates = Named(snapshot, Binds).Select(binds => binds.Id).ToHashSet();

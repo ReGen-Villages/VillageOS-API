@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+
 namespace vos.Service.Phloem.Model;
 
 // The fixed model vocabulary the orchestrator reads: the built-in generic predicates (is, has, of, binds),
@@ -6,7 +8,7 @@ namespace vos.Service.Phloem.Model;
 // role Thing that binds it, in PipelineRoles.
 public static class ModelNames
 {
-    public const string Is = "is";
+    public const string Is = PlatformPredicates.Is;
     public const string Has = "has";
     public const string Of = "of";
     // A role Thing reaches the Thing playing it along this.

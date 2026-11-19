@@ -1,3 +1,4 @@
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -39,7 +40,6 @@ public static class DiscoveredVocabularyResolver
     // The property name the platform's templates write and its seed validation holds declarations to.
     public const string ResolvedFromProperty = "resolvedFromProperty";
 
-    private const string IsPredicateName = "is";
 
     // A subject reaches the shape relationship's archetype through `is`, possibly via intermediate types. The
     // same handful-of-levels reasoning as Place nesting: nobody has needed a deeper type chain, and an
@@ -52,9 +52,9 @@ public static class DiscoveredVocabularyResolver
     public static SubscriptionSelector SelectorFor(IReadOnlyCollection<Guid> subjectIds) => new()
     {
         Ids = [.. subjectIds, DiscoveredVocabularyRole.Id],
-        Names = [IsPredicateName, RoleBindings.BindsPredicateName],
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = [DiscoveredVocabularyRole.Id],
-        Traverse = [new TraverseRule { Predicate = IsPredicateName, Depth = TypeChainDepth }],
+        Traverse = [new TraverseRule { Predicate = PlatformPredicates.Is, Depth = TypeChainDepth }],
         IncludeRelationships = true,
     };
 
@@ -126,7 +126,7 @@ public static class DiscoveredVocabularyResolver
         if (snapshot.Bound(DiscoveredVocabularyRole) is not [var kind]) return declarations;
 
         var vocabularyIds = snapshot.Relationships
-            .Where(edge => edge.TargetId == kind.Id && IsPredicate(namesById, edge.PredicateId, IsPredicateName))
+            .Where(edge => edge.TargetId == kind.Id && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is))
             .Select(edge => edge.SubjectId)
             .ToHashSet();
 
@@ -137,7 +137,7 @@ public static class DiscoveredVocabularyResolver
 
             var members = new Dictionary<string, Guid>(StringComparer.Ordinal);
             var contested = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var memberId in MembersUnder(snapshot, namesById, vocabulary.Id))
+            foreach (var memberId in SnapshotWalk.ThingsUnder(snapshot, namesById, [vocabulary.Id]))
             {
                 if (!thingsById.TryGetValue(memberId, out var member) || member.IsArchetype) continue;
                 var name = member.Name ?? string.Empty;
@@ -151,7 +151,7 @@ public static class DiscoveredVocabularyResolver
 
             var shapes = snapshot.Relationships
                 .Where(edge => edge.TargetId == vocabulary.Id
-                               && !IsPredicate(namesById, edge.PredicateId, IsPredicateName))
+                               && !SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is))
                 .Select(edge => new Shape(edge.SubjectId, edge.PredicateId))
                 .ToList();
 
@@ -194,7 +194,7 @@ public static class DiscoveredVocabularyResolver
                 foreach (var edge in snapshot.Relationships)
                 {
                     if (edge.SubjectId != current) continue;
-                    if (!IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
+                    if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is)) continue;
                     if (reached.Add(edge.TargetId)) next.Add(edge.TargetId);
                 }
 
@@ -204,34 +204,4 @@ public static class DiscoveredVocabularyResolver
         return reached;
     }
 
-    // Every Thing that `is` the vocabulary archetype, directly or through an intermediate type — the
-    // same walk the coverage read makes for the sites, over this read's own snapshot.
-    private static List<Guid> MembersUnder(
-        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid archetypeId)
-    {
-        var reached = new HashSet<Guid> { archetypeId };
-        var members = new List<Guid>();
-        var frontier = new Queue<Guid>([archetypeId]);
-
-        while (frontier.Count > 0)
-        {
-            var current = frontier.Dequeue();
-            foreach (var edge in snapshot.Relationships)
-            {
-                if (edge.TargetId != current) continue;
-                if (!IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
-                if (!reached.Add(edge.SubjectId)) continue;
-
-                frontier.Enqueue(edge.SubjectId);
-                members.Add(edge.SubjectId);
-            }
-        }
-
-        return members;
-    }
-
-    private static bool IsPredicate(
-        IReadOnlyDictionary<Guid, string> namesById, Guid predicateId, string name) =>
-        namesById.TryGetValue(predicateId, out var predicate)
-        && string.Equals(predicate, name, StringComparison.Ordinal);
 }
