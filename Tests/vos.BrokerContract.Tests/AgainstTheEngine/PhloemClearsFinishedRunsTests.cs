@@ -21,15 +21,14 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
     {
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
         var kindPeriods = new Dictionary<string, object?>
         {
             [ModelNames.KeepRunsForDays] = 30, [ModelNames.KeepFailedRunsForDays] = 90, [ModelNames.ClearsAtMostRunsPerLook] = 200,
         };
-        await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true, kindPeriods), binds);
-        await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true), binds);
-        await BindOnceAsync(PipelineRoles.Attempt, await _engine.DeclareOnceAsync("Attempt", isArchetype: true), binds);
-        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true), binds);
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true, kindPeriods);
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.Attempt, "Attempt", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
         return new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
     }
 
@@ -92,11 +91,8 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
     public async Task A_stop_request_is_cleared_once_with_the_last_run_it_names_and_not_before()
     {
         var gateway = await AGatewayAsync();
-        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
-        var requestedBy = await _engine.DeclareOnceAsync("requestedBy");
-        var stoppedBy = await _engine.DeclareOnceAsync("stoppedBy");
-        await BindOnceAsync(PipelineRoles.RequestedBy, requestedBy, binds);
-        await BindOnceAsync(PipelineRoles.StoppedBy, stoppedBy, binds);
+        var requestedBy = await _engine.PlayingAsync(PipelineRoles.RequestedBy, "requestedBy");
+        var stoppedBy = await _engine.PlayingAsync(PipelineRoles.StoppedBy, "stoppedBy");
         var pipelineId = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
         var requester = await ARunOfAsync(gateway, pipelineId, RunStatus.Succeeded);
         var first = await ARunOfAsync(gateway, pipelineId, RunStatus.Cancelled);
@@ -118,10 +114,4 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         (await _engine.FindAsync(requestName)).Should().BeNull();
     }
 
-    private async Task BindOnceAsync(Role role, Guid played, Guid binds)
-    {
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, binds, played);
-    }
 }

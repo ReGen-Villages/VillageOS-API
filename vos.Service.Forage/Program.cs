@@ -32,7 +32,7 @@ try
 {
     Log.Information(
         "VillageOS Forage Service - Port: {Port}, Mycelium: {MyceliumUrl}, looking up through {Subdomain}",
-        servicePort, myceliumUrl, launchSettings.FetcherSubdomain);
+        servicePort, myceliumUrl, OutsideCalls.FetcherSubdomain);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
@@ -55,8 +55,8 @@ try
             sp.GetRequiredService<ILogger<EndpointBodyReader>>(),
             myceliumUrl,
             launchToken,
-            launchSettings.FetcherSubdomain,
-            launchSettings.SourceTimeout,
+            OutsideCalls.FetcherSubdomain,
+            ForageLaunchSettings.SourceTimeout,
             apiKey));
     builder.Services.AddSingleton(sp =>
         new MyceliumRelationshipClient(
@@ -80,7 +80,7 @@ try
         sp.GetRequiredService<CoverageLedger>(),
         sp.GetRequiredService<DivisionResolver>(),
         sp.GetRequiredService<VocabularyEdgeWriter>(),
-        launchSettings.SourceWindowDays));
+        ForageLaunchSettings.SourceWindowDays));
 
     var app = builder.Build();
 

@@ -19,13 +19,6 @@ public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
 
     private sealed record Arrivals(Guid Connection, Guid Kind, Guid WaterBoard, Guid Other, Guid Standard, Guid WaterBoardReadings, Guid OfKind, Guid From);
 
-    private async Task BindOnceAsync(Role role, Guid played)
-    {
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
-    }
-
     private async Task<Guid> MemberAsync(string name, Guid archetype)
     {
         var member = await _engine.DeclareAsync(name);
@@ -51,15 +44,15 @@ public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
     {
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        await BindOnceAsync(PipelineRoles.Pipeline, await _engine.DeclareOnceAsync("Pipeline", isArchetype: true));
-        await BindOnceAsync(PipelineRoles.PipelineInput, await _engine.DeclareOnceAsync("PipelineInput", isArchetype: true));
-        await BindOnceAsync(PipelineRoles.StandsFor, await _engine.DeclareOnceAsync("standsFor"));
+        await _engine.BindOnceAsync(PipelineRoles.Pipeline, await _engine.DeclareOnceAsync("Pipeline", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.PipelineInput, await _engine.DeclareOnceAsync("PipelineInput", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.StandsFor, await _engine.DeclareOnceAsync("standsFor"));
         var connectionArchetype = await _engine.DeclareOnceAsync("PlatformServiceConnection", isArchetype: true);
-        await BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
+        await _engine.BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
         var kindArchetype = await _engine.DeclareOnceAsync("MessageKind", isArchetype: true);
-        await BindOnceAsync(PipelineRoles.MessageKind, kindArchetype);
+        await _engine.BindOnceAsync(PipelineRoles.MessageKind, kindArchetype);
         var systemArchetype = await _engine.DeclareOnceAsync("ExternalSystem", isArchetype: true);
-        await BindOnceAsync(PipelineRoles.ExternalSystem, systemArchetype);
+        await _engine.BindOnceAsync(PipelineRoles.ExternalSystem, systemArchetype);
 
         var run = Guid.NewGuid().ToString("N")[..8];
         var connection = await MemberAsync($"documents arrive {run}", connectionArchetype);

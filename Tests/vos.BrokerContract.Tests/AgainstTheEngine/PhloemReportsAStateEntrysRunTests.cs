@@ -14,6 +14,7 @@ using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Tests.Shared;
 using Xunit;
+using static vos.BrokerContract.Tests.AgainstTheEngine.EngineArrangement;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -79,8 +80,6 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
         private const string OutOfDate = "OutOfDate";
         private const string Criteria = $"{RainfallAge} > 30";
 
-        private static readonly Role RangeRole = new("range", RoleIdentity.Of("range"));
-        private static readonly Role JudgedThingRole = new("judgedThing", RoleIdentity.Of("judgedThing"));
         private static readonly Role TriggerRole = new("trigger", RoleIdentity.Of("trigger"));
         private static readonly Role StateTriggerRole = new("stateTrigger", RoleIdentity.Of("stateTrigger"));
         private static readonly Role CompletesWhenRole = new("completesWhen", RoleIdentity.Of("completesWhen"));
@@ -243,19 +242,14 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
                 value = inner;
             return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
         }
-
-        private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
     }
 
     private sealed class Vocabulary(TheEngine engine)
     {
         public async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
         {
-            if (await engine.FindAsync($"{role.Word} role") is not null)
-                return await engine.TheOnlyThingNamedAsync($"{name} · {role.Word}");
-            var played = await engine.DeclareAsync($"{name} · {role.Word}", isArchetype, properties);
-            await engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-            await engine.RelateAsync(role.Id, await engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
+            var played = await engine.DeclareOnceAsync($"{name} · {role.Word}", isArchetype, properties);
+            await engine.BindOnceAsync(role, played);
             return played;
         }
     }
