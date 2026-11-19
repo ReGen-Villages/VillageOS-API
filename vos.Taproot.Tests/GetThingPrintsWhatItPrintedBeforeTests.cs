@@ -90,6 +90,23 @@ public class GetThingPrintsWhatItPrintedBeforeTests
     }
 
     [Fact]
+    public async Task A_relationship_the_platform_answers_is_printed_as_it_answers_it()
+    {
+        var printed = await PrintedByAsync($"relationship {Spring}", request =>
+            request.RequestUri!.PathAndQuery == $"/api/relationships/{Spring}"
+                ? Json($$$"""{"Id":"{{{Spring}}}","Properties":{"since":"2026"}}""")
+                : null);
+
+        printed.Should().Be(
+            "{" + Environment.NewLine
+            + $"  \"Id\": \"{Spring}\"," + Environment.NewLine
+            + "  \"Properties\": {" + Environment.NewLine
+            + "    \"since\": \"2026\"" + Environment.NewLine
+            + "  }" + Environment.NewLine
+            + "}" + Environment.NewLine);
+    }
+
+    [Fact]
     public async Task An_identifier_the_platform_does_not_answer_prints_that_the_Thing_is_not_found()
     {
         var printed = await PrintedByAsync($"thing {Spring}", request =>
