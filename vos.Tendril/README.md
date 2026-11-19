@@ -36,6 +36,20 @@ copy of its own.**
 Nothing reachable from the reader entry imports React or needs a browser's types. `src/reader.test.ts`
 fails if React becomes reachable, and `npm run typecheck` checks the entry with no browser types.
 
+**A change to any file the reader entry reaches needs the page reader's bundle rebuilt.** `vos.Pages`
+runs this entry inside a C# process from one built file, `vos.Pages/reader.bundle.js`, which is
+committed. The files the entry reaches are the ones `src/reader.ts` lists and what they import: the
+`api`, `i18n`, `types`, `utils` and `wording` folders and `widgets/writeRequest.ts`. After changing
+one, from the repository root:
+
+```sh
+node vos.Pages/bundle/build.mjs
+```
+
+and commit the changed bundle with the change. The pipeline builds the bundle again and fails when
+the committed file differs, so a change that leaves it behind cannot merge. A change to a widget, a
+hook or a test does not reach the entry and needs no rebuild.
+
 ## Order and language
 
 - **Names a reader sees listed follow the language of the context**: the pages, the Things a page

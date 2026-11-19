@@ -4,8 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-[assembly: InternalsVisibleTo("vos.Taproot.Tests")]
-
 namespace vos.Taproot;
 
 public readonly record struct LogDownload(string FileName, Stream Content);

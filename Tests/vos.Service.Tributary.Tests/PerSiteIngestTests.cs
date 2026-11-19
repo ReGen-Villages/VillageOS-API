@@ -60,7 +60,7 @@ public class PerSiteIngestTests
                 recorder.ThingsCreated.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\",\"Name\":\"x\",\"Properties\":{}}");
             }
-            if (req.Method == HttpMethod.Post && path == "/api/relationships")
+            if (req.Method == HttpMethod.Post && path == "/api/model/fragment")
             {
                 recorder.RelatedTo.Add(TargetOf(req));
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
@@ -79,7 +79,7 @@ public class PerSiteIngestTests
     private static Guid TargetOf(HttpRequestMessage request)
     {
         using var written = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
-        return written.RootElement.GetProperty("targetId").GetGuid();
+        return written.RootElement.GetProperty("Relationships")[0].GetProperty("Target").GetGuid();
     }
 
     private static object CallFor(Guid subjectId, string lat, string lon) => new

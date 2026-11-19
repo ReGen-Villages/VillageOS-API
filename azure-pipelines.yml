@@ -299,6 +299,11 @@ jobs:
     workingDirectory: tools/pipeline-playground
     condition: always()
 
+  - script: python3 -m unittest discover
+    displayName: 'Test test-seed'
+    workingDirectory: tools/test-seed
+    condition: always()
+
   # The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
   # lint errors accumulated across the pages, panels and hooks with nothing to fail, and the
   # GUI test suite — the guard for the binding resolver, the property panels and the live-update path
@@ -308,6 +313,16 @@ jobs:
   - script: npm ci
     displayName: 'Install Tendril dependencies'
     workingDirectory: vos.Tendril
+    condition: always()
+
+  # vos.Pages embeds the reader as one committed JavaScript file, so the solution builds without
+  # Node. This is what keeps that file from falling behind the reader it was built from.
+  - script: node vos.Pages/bundle/build.mjs --check
+    displayName: 'Check the embedded page reader is what the reader builds to'
+    condition: always()
+
+  - script: node vos.Tendril/node_modules/typescript/bin/tsc -p vos.Pages/bundle/tsconfig.json
+    displayName: 'Type-check the page reader bundle entry'
     condition: always()
 
   - script: npm run lint

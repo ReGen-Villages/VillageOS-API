@@ -120,9 +120,8 @@ public class PhloemReadsBackARunWhoseKindsKeepNoHistoryTests : IClassFixture<The
             new AttemptRecord(2, started.AddSeconds(2), started.AddSeconds(3), RunStatus.Succeeded, null), CancellationToken.None);
 
         var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
-        var attempts = record!.Nodes[nodeId].AttemptsMade;
-        attempts.Select(attempt => (attempt.Number, attempt.Status)).Should().Equal((1, RunStatus.Failed), (2, RunStatus.Succeeded));
-        attempts[0].Error.Should().Be("the service was away");
+        record!.Nodes[nodeId].AttemptsMade.Select(attempt => (attempt.Number, attempt.Status, attempt.Error))
+            .Should().Equal((1, RunStatus.Failed, "the service was away"), (2, RunStatus.Succeeded, null));
         var nodeRun = await _engine.ReadAsync(await _engine.TheOnlyThingNamedAsync($"NodeRun {nodeName}"));
         OwnCopyOf(nodeRun, "NodeRunKind", ModelNames.Attempts).GetProperty("value").GetString().Should().Be("2");
     }

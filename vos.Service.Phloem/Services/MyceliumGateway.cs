@@ -46,13 +46,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
          PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn,
-         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong, PipelineRoles.PipelineRelate];
+         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy, PipelineRoles.PipelineWait, PipelineRoles.ReachedAlong, PipelineRoles.PipelineRelate,
+         PipelineRoles.NotifiedConnection];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
         PipelineRoles.Pipeline, PipelineRoles.PipelineInput, PipelineRoles.Connection,
         PipelineRoles.StateWatch, PipelineRoles.StandsFor, PipelineRoles.PipelineStart,
-        PipelineRoles.MessageKind, PipelineRoles.ExternalSystem,
+        PipelineRoles.MessageKind, PipelineRoles.ExternalSystem, PipelineRoles.NotifiedConnection,
     ];
 
     public async Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken)
@@ -77,6 +78,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicateRole = PipelineRoles.InputConnector.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.OutputConnector.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.NotifiedConnection.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
@@ -94,7 +96,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, IReadOnlyCollection<Guid> arrivingRelatesTo, CancellationToken cancellationToken)
     {
-        // The target and what tells it apart: its `is` chain, the state it watches, the start nodes standing
+        // The target and what tells it apart: its `is` chain, the state it watches, the connection it names along
+        // notifies, the start nodes standing
         // for either and the pipelines holding them, and any pipeline it reaches along the start role. The role
         // Things come with what each binds so the graph can tell what plays each role, and the traversals run in
         // order, so the watched state is reached before the nodes standing for it.
@@ -110,6 +113,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             {
                 new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.NotifiedConnection.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "incoming", depth = 1 },
                 new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
                 new { predicateRole = PipelineRoles.PipelineStart.Id, direction = "outgoing", depth = 1 },
@@ -121,6 +125,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 new { predicate = ModelNames.Is, direction = "outgoing" },
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.NotifiedConnection.Id, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "incoming" },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing" },
                 new { predicate = ModelNames.Has, direction = "incoming" },
