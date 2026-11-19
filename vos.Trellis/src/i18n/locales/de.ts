@@ -1295,6 +1295,7 @@ export const de: PartialResources = {
     relate: {
       standsForAConnection: "'{{name}}' ist eine Verbindung: ein Verknüpfungsknoten steht für das Prädikat, das eine Verbindung über '{{notifies}}' benennt",
       namesNoConnection: "'{{name}}' benennt keine Verbindung über '{{notifies}}', also ruft eine Beziehung darüber nichts auf",
+      modelNamesNoNotifiedConnection: "'{{name}}' benennt keine Verbindung: dieses Modell bindet kein Prädikat an die Rolle, die eine Verbindung benennt, also ruft eine Beziehung darüber nichts auf",
       connectionBindsNoService: "'{{name}}' benennt '{{connection}}', die keinen Dienst bindet, also würde nichts aufgerufen",
       connectionNamesNoState: "'{{name}}' benennt '{{connection}}', die keinen Zustand nennt, durch den ihre Arbeit belegt ist, also könnte der Lauf nicht erkennen, wann die Arbeit erledigt ist",
       connectionNamesTwoStates: "'{{name}}' benennt '{{connection}}', die mehr als einen Zustand nennt, durch den ihre Arbeit belegt ist",

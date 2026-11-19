@@ -1295,6 +1295,7 @@ export const nl: PartialResources = {
     relate: {
       standsForAConnection: "'{{name}}' is een verbinding: een koppelknoop staat voor het predicaat dat een verbinding via '{{notifies}}' noemt",
       namesNoConnection: "'{{name}}' noemt geen verbinding via '{{notifies}}', dus een relatie daarlangs roept niets aan",
+      modelNamesNoNotifiedConnection: "'{{name}}' noemt geen verbinding: dit model bindt geen predicaat aan de rol die een verbinding noemt, dus een relatie daarlangs roept niets aan",
       connectionBindsNoService: "'{{name}}' noemt '{{connection}}', die geen dienst bindt, dus er zou niets worden aangeroepen",
       connectionNamesNoState: "'{{name}}' noemt '{{connection}}', die geen toestand noemt die haar werk bewijst, dus de run zou niet weten wanneer het werk klaar is",
       connectionNamesTwoStates: "'{{name}}' noemt '{{connection}}', die meer dan één toestand noemt die haar werk bewijst",

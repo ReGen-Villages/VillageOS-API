@@ -24,10 +24,12 @@ export function relateChoicesOf(model: PipelineModel, language: string): RelateC
 export function relateRefusalReason(model: PipelineModel, standsForId: string, language: string): string | undefined {
   const reading = model.relatingOf(standsForId);
   if (reading.accepted) return undefined;
+  const name = model.labelOf(standsForId, language);
   const notifiesId = model.boundTo(ROLE.NotifiedConnection);
+  if (!notifiesId) return i18n.t('pipeline.relate.modelNamesNoNotifiedConnection', { name, lng: language });
   const words = {
-    name: model.labelOf(standsForId, language),
-    notifies: notifiesId ? model.labelOf(notifiesId, language) : '',
+    name,
+    notifies: model.labelOf(notifiesId, language),
     connection: reading.connectionId ? model.labelOf(reading.connectionId, language) : '',
     lng: language,
   };

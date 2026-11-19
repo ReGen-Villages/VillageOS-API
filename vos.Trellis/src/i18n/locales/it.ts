@@ -1295,6 +1295,7 @@ export const it: PartialResources = {
     relate: {
       standsForAConnection: "'{{name}}' è una connessione: un nodo di collegamento sta per il predicato che nomina una connessione tramite '{{notifies}}'",
       namesNoConnection: "'{{name}}' non nomina alcuna connessione tramite '{{notifies}}', quindi una relazione lungo di esso non chiama nulla",
+      modelNamesNoNotifiedConnection: "'{{name}}' non nomina alcuna connessione: questo modello non lega alcun predicato al ruolo che nomina una connessione, quindi una relazione lungo di esso non chiama nulla",
       connectionBindsNoService: "'{{name}}' nomina '{{connection}}', che non lega alcun servizio, quindi non verrebbe chiamato nulla",
       connectionNamesNoState: "'{{name}}' nomina '{{connection}}', che non nomina alcuno stato che provi il suo lavoro, quindi l’esecuzione non saprebbe quando il lavoro è fatto",
       connectionNamesTwoStates: "'{{name}}' nomina '{{connection}}', che nomina più di uno stato che provi il suo lavoro",

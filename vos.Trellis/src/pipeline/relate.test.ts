@@ -87,6 +87,13 @@ describe('why a relate box would be refused, in the page language', () => {
     expect(relateRefusalReason(relateModel(), 'worksOut', 'en')).toBeUndefined();
   });
 
+  it('says the model binds nothing to the role, rather than giving an empty name, when no predicate plays it', () => {
+    const model = relateModel((things) => { things.find((thing) => thing.Id === 'notifies')!.Properties = {}; });
+    const because = 'names no connection: this model binds no predicate to the role that names a connection, so a relationship along it calls nothing';
+    expect(relateRefusalReason(model, 'worksOut', 'en')).toBe(`'works out' ${because}`);
+    expect(relateRefusalReason(model, 'worksOutConnection', 'en')).toBe(`'worksOut connection' ${because}`);
+  });
+
   it('names the predicate along the role in the model\'s own word', () => {
     const model = relateModel((things) => { things.find((thing) => thing.Id === 'notifies')!.Name = 'calls on'; });
     expect(relateRefusalReason(model, 'plain', 'en')).toBe("'sits beside' names no connection along 'calls on', so a relationship along it calls nothing");

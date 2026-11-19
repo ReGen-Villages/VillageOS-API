@@ -1293,6 +1293,7 @@ export const en = {
     relate: {
       standsForAConnection: "'{{name}}' is a connection: a relate box stands for the predicate that names a connection along '{{notifies}}'",
       namesNoConnection: "'{{name}}' names no connection along '{{notifies}}', so a relationship along it calls nothing",
+      modelNamesNoNotifiedConnection: "'{{name}}' names no connection: this model binds no predicate to the role that names a connection, so a relationship along it calls nothing",
       connectionBindsNoService: "'{{name}}' names '{{connection}}', which binds no service, so nothing would be called",
       connectionNamesNoState: "'{{name}}' names '{{connection}}', which names no state its work is proven by, so the run could not tell when the work is done",
       connectionNamesTwoStates: "'{{name}}' names '{{connection}}', which names more than one state its work is proven by",

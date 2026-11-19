@@ -1295,6 +1295,7 @@ export const fr: PartialResources = {
     relate: {
       standsForAConnection: "'{{name}}' est une connexion : un nœud de liaison représente le prédicat qui nomme une connexion via '{{notifies}}'",
       namesNoConnection: "'{{name}}' ne nomme aucune connexion via '{{notifies}}', donc une relation le long de celui-ci n’appelle rien",
+      modelNamesNoNotifiedConnection: "'{{name}}' ne nomme aucune connexion : ce modèle ne lie aucun prédicat au rôle qui nomme une connexion, donc une relation le long de celui-ci n’appelle rien",
       connectionBindsNoService: "'{{name}}' nomme '{{connection}}', qui ne lie aucun service, donc rien ne serait appelé",
       connectionNamesNoState: "'{{name}}' nomme '{{connection}}', qui ne nomme aucun état attestant son travail, donc l’exécution ne saurait pas quand le travail est fait",
       connectionNamesTwoStates: "'{{name}}' nomme '{{connection}}', qui nomme plus d’un état attestant son travail",

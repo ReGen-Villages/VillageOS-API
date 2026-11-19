@@ -1388,6 +1388,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     relate: {
       standsForAConnection: "'{{name}}' اتصال: عقدة الربط تمثّل المحمول الذي يسمّي اتصالًا عبر '{{notifies}}'",
       namesNoConnection: "'{{name}}' لا يسمّي أي اتصال عبر '{{notifies}}'، فالعلاقة على طوله لا تستدعي شيئًا",
+      modelNamesNoNotifiedConnection: "'{{name}}' لا يسمّي أي اتصال: هذا النموذج لا يربط أي محمول بالدور الذي يسمّي اتصالًا، فالعلاقة على طوله لا تستدعي شيئًا",
       connectionBindsNoService: "'{{name}}' يسمّي '{{connection}}' الذي لا يربط أي خدمة، فلن يُستدعى شيء",
       connectionNamesNoState: "'{{name}}' يسمّي '{{connection}}' الذي لا يسمّي أي حالة تثبت عمله، فلن يعرف التشغيل متى انتهى العمل",
       connectionNamesTwoStates: "'{{name}}' يسمّي '{{connection}}' الذي يسمّي أكثر من حالة تثبت عمله",
