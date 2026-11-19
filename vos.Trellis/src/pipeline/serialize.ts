@@ -189,8 +189,14 @@ function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles 
   };
 }
 
+interface FragmentThing {
+  Id: string;
+  Name: string;
+  Properties: Record<string, unknown>;
+}
+
 interface PipelineFragment {
-  things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }>;
+  things: FragmentThing[];
   relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }>;
   portsToRetract: string[];
   choicesToRetract: string[];
@@ -198,10 +204,16 @@ interface PipelineFragment {
   standsForToRetract: string[];
 }
 
+function addHeldThing(fragment: PipelineFragment, roles: SavingRoles, ownerId: string, thing: FragmentThing, archetypeId: string) {
+  fragment.things.push(thing);
+  fragment.relationships.push({ Name: 'is', Subject: thing.Id, Predicate: roles.isId, Target: archetypeId });
+  fragment.relationships.push({ Name: 'has', Subject: ownerId, Predicate: roles.hasId, Target: thing.Id });
+}
+
 function pipelineFragment(
   name: string, pipelineId: string, nodes: EditorNode[], nodeThingId: Map<string, string>, roles: SavingRoles, model: PipelineModel,
 ): PipelineFragment {
-  const { isId, hasId, pipelineArchetype, nodeArchetype } = roles;
+  const { isId, pipelineArchetype, nodeArchetype } = roles;
   const fragment: PipelineFragment = {
     // Every pipeline the page saves is live until drafts and Publish reach the page.
     things: [{ Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } }],
@@ -221,11 +233,9 @@ function pipelineFragment(
       if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
       else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
     }
-    fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
-    fragment.relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
-    fragment.relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
+    addHeldThing(fragment, roles, pipelineId, { Id: thingId, Name: n.label, Properties: props }, nodeArchetype);
 
     if (n.kind) addNodeOfAKind(n, n.kind, thingId, roles, model, fragment);
     else addConnectionNode(n, thingId, roles, model, fragment);
@@ -236,15 +246,15 @@ function pipelineFragment(
 function addNodeOfAKind(
   n: EditorNode, kind: NodeKind, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment,
 ) {
-  const { isId, hasId, portArchetype, standsForId, kindArchetype } = roles;
-  const { things, relationships } = fragment;
+  const { isId, portArchetype, standsForId, kindArchetype } = roles;
+  const { relationships } = fragment;
   relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(kind)! });
   // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
   // longer declared is retracted.
   const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
   for (const p of portsAreTheKinds(kind) ? [] : n.ports) {
     stale.delete(p.portId);
-    things.push({
+    addHeldThing(fragment, roles, thingId, {
       Id: p.portId,
       Name: p.portName,
       Properties: {
@@ -253,9 +263,7 @@ function addNodeOfAKind(
         type: env(STRING, p.type || 'any'),
         required: env(STRING, String(p.required)),
       },
-    });
-    relationships.push({ Name: 'is', Subject: p.portId, Predicate: isId, Target: portArchetype! });
-    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: p.portId });
+    }, portArchetype!);
   }
   for (const staleId of stale) fragment.portsToRetract.push(staleId);
 
@@ -266,15 +274,10 @@ function addNodeOfAKind(
 }
 
 function addConnectionNode(n: EditorNode, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment) {
-  const { isId, hasId, choiceArchetype } = roles;
-  const { things, relationships } = fragment;
-  relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
+  fragment.relationships.push({ Name: 'has', Subject: thingId, Predicate: roles.hasId, Target: n.connectionId });
   const held = new Set((n.choices ?? []).map((choice) => choice.id));
-  for (const choice of n.choices ?? []) {
-    things.push({ Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } });
-    relationships.push({ Name: 'is', Subject: choice.id, Predicate: isId, Target: choiceArchetype! });
-    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: choice.id });
-  }
+  for (const choice of n.choices ?? [])
+    addHeldThing(fragment, roles, thingId, { Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } }, roles.choiceArchetype!);
   for (const persisted of model.choicesOf(thingId))
     if (!held.has(persisted.id)) fragment.choicesToRetract.push(persisted.id);
 }
