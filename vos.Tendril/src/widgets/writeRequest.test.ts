@@ -96,6 +96,12 @@ describe('what a form sends', () => {
     });
   });
 
+  it('leaves a blank name out of the names chosen, and counts a field holding only blanks as nothing chosen', () => {
+    expect(formRequest(BOOK, { spring: 'SPRING-1', catchments: ['CATCH-1', '  ', ''], litres: '3' }).catchments).toEqual(['CATCH-1']);
+    expect(formRequest(BOOK, { spring: 'SPRING-1', catchments: [' '], litres: '3' })).not.toHaveProperty('catchments');
+    expect(complete(BOOK.fields, { spring: 'SPRING-1', catchments: [' ', ''], litres: '3' })).toBe(false);
+  });
+
   it('posts the preview under its own act with what is filled so far', () => {
     expect(formRequest(BOOK, { spring: 'SPRING-1' }, 'cover')).toEqual({ view: 'cover', spring: 'SPRING-1' });
   });
