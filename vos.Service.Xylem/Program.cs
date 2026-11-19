@@ -15,7 +15,7 @@ if (launchSettings == null)
     return 1;
 }
 
-ServiceHost.ConfigureLogging("Xylem", "xylem-.log", launchSettings.Service.LogDirectory);
+ServiceHost.ConfigureLogging("Xylem", "xylem-.log", launchSettings.Service.LogDirectory, writeToFile: launchSettings.Service.LogToFile);
 
 try
 {

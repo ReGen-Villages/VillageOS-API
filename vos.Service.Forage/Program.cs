@@ -26,7 +26,7 @@ var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Forage", "forage-.log", launchSettings.Service.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Forage", "forage-.log", launchSettings.Service.LogDirectory, writeToFile: launchSettings.Service.LogToFile && !isTestingEnv);
 
 try
 {
