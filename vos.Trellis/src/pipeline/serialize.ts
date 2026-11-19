@@ -1,7 +1,10 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { NODE_KIND_ROLE, PipelineModel, ROLE, portsAreTheKinds, type ChoiceInformation, type NodeKind, type PortInformation } from './model';
+import {
+  NODE_KIND_ROLE, PipelineModel, ROLE, WIRE_TEXT_FIELDS, portsAreTheKinds, wireTextFrom,
+  type ChoiceInformation, type NodeKind, type PortInformation, type WireTextField,
+} from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -276,15 +279,11 @@ function addConnectionNode(n: EditorNode, thingId: string, roles: SavingRoles, m
     if (!held.has(persisted.id)) fragment.choicesToRetract.push(persisted.id);
 }
 
-interface DesiredWire {
+interface DesiredWire extends Record<WireTextField, string> {
   from: string;
   outPortId: string;
   to: string;
   inPortId: string;
-  fromPath: string;
-  toPath: string;
-  itemTransform: string;
-  listTransform: string;
   takenOn: string[];
 }
 
@@ -297,7 +296,10 @@ async function saveWires(
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', itemTransform: e.itemTransform ?? '', listTransform: e.listTransform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
+    .map((e) => ({
+      from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle,
+      ...wireTextFrom((field) => e[field] ?? ''), takenOn: takenOnOf(e.takenOn, model),
+    }))
     .filter((w): w is DesiredWire => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
@@ -315,13 +317,11 @@ async function saveWires(
 }
 
 async function updateWire(
-  existing: { wireId: string; fromPath: string; toPath: string; itemTransform: string; listTransform: string },
+  existing: { wireId: string } & Record<WireTextField, string>,
   w: DesiredWire, model: PipelineModel,
 ) {
-  if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
-  if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
-  if (w.itemTransform !== existing.itemTransform) await thingApi.setProperty(existing.wireId, 'itemTransform', STRING, w.itemTransform);
-  if (w.listTransform !== existing.listTransform) await thingApi.setProperty(existing.wireId, 'listTransform', STRING, w.listTransform);
+  for (const field of WIRE_TEXT_FIELDS)
+    if (w[field] !== existing[field]) await thingApi.setProperty(existing.wireId, field, STRING, w[field]);
   await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
 }
 
@@ -330,10 +330,7 @@ async function createWire(w: DesiredWire, portNames: Map<string, string>, roles:
   const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
   // Every value is declared at creation, empty where unset, because a Thing's property write updates and
   // does not create — so a path added later is an update rather than a call that answers "no such property".
-  await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
-  await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
-  await thingApi.addProperty(wire.Id, 'itemTransform', STRING, w.itemTransform);
-  await thingApi.addProperty(wire.Id, 'listTransform', STRING, w.listTransform);
+  for (const field of WIRE_TEXT_FIELDS) await thingApi.addProperty(wire.Id, field, STRING, w[field]);
   await relationshipApi.create(wire.Id, isId, wireArchetype);
   await relationshipApi.create(w.from, hasId, wire.Id);
   await relationshipApi.create(wire.Id, wireId, w.to);
@@ -461,10 +458,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
         sourceHandle: wire.outPortId,
         target: wire.targetId,
         targetHandle: wire.inPortId,
-        fromPath: wire.fromPath || undefined,
-        toPath: wire.toPath || undefined,
-        itemTransform: wire.itemTransform || undefined,
-        listTransform: wire.listTransform || undefined,
+        ...wireTextFrom((field) => wire[field] || undefined),
         takenOn: wire.takenOn.map((taken) => taken.thingId),
       });
     }

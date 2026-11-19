@@ -212,15 +212,18 @@ export interface PortInformation {
   required: boolean;
 }
 
-export interface WireRead {
+export const WIRE_TEXT_FIELDS = ['fromPath', 'toPath', 'itemTransform', 'listTransform'] as const;
+export type WireTextField = (typeof WIRE_TEXT_FIELDS)[number];
+
+export function wireTextFrom<Value>(valueOf: (field: WireTextField) => Value): Record<WireTextField, Value> {
+  return Object.fromEntries(WIRE_TEXT_FIELDS.map((field) => [field, valueOf(field)])) as Record<WireTextField, Value>;
+}
+
+export interface WireRead extends Record<WireTextField, string> {
   wireId: string;
   targetId: string;
   outPortId: string;
   inPortId: string;
-  fromPath: string;
-  toPath: string;
-  itemTransform: string;
-  listTransform: string;
   takenOn: RelationshipAndTarget[];
 }
 
@@ -712,8 +715,7 @@ export class PipelineModel {
       const stated = this.stated(held.Id);
       out.push({
         wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
-        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''),
-        itemTransform: String(stated.itemTransform ?? ''), listTransform: String(stated.listTransform ?? ''),
+        ...wireTextFrom((field) => String(stated[field] ?? '')),
         takenOn: this.relationshipsAndTargetsAlong(held.Id, ROLE.TakenOn),
       });
     }
