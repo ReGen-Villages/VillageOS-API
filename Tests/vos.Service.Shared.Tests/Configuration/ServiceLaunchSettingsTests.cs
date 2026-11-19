@@ -37,6 +37,30 @@ public class ServiceLaunchSettingsTests
         with.LogDirectory.Should().Be("/srv/logs");
     }
 
+    [Theory]
+    [InlineData("--logToFile=false", false)]
+    [InlineData("--logToFile=False", true)]
+    [InlineData("--logToFile=0", true)]
+    [InlineData("--logToFile=", true)]
+    [InlineData("--logToFile=true", true)]
+    [InlineData(null, true)]
+    public void Bug8495_Only_exactly_false_turns_the_log_file_off(string? flag, bool writesAFile)
+    {
+        string[] line = flag is null
+            ? ["--port=7111", "--myceliumUrl=https://localhost:7243"]
+            : ["--port=7111", "--myceliumUrl=https://localhost:7243", flag];
+
+        ServiceLaunchSettings.Parse(line)!.LogToFile.Should().Be(writesAFile);
+    }
+
+    [Fact]
+    public void Bug8495_Configuration_saying_false_turns_the_log_file_off_as_the_flag_does()
+    {
+        ServiceLaunchSettings.Parse(
+                ["--port=7111", "--myceliumUrl=https://localhost:7243"], ConfigurationFrom(("LogToFile", "false")))!
+            .LogToFile.Should().BeFalse();
+    }
+
     [Fact]
     public void Parse_WithoutOptionalFlags_LeavesThemUnset()
     {

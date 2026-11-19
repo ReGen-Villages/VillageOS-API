@@ -38,7 +38,7 @@ var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Tributary", "tributary-.log", launchSettings.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Tributary", "tributary-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile && !isTestingEnv);
 
 try
 {
