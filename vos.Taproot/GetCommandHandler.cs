@@ -54,24 +54,22 @@ namespace vos.Taproot
                 return;
             }
 
-            var result = await _resolver.ResolveThingAsync(tok[0]);
-            if (!result.IsSuccess)
+            var read = await ThingReads.OneAsync(_mycelium, tok[0]);
+            if (read.Refusal is { } refusal)
             {
-                _writer.WriteLine($"Error: {result.ErrorMessage}");
+                _writer.WriteLine($"Error: {refusal}");
                 return;
             }
-            var id = result.Id;
 
-            var thing = await _mycelium.GetThingAsync(id);
-            if (thing == null)
+            if (read.Thing is not { } thing)
             {
-                var thingName = await _resolver.ResolveNameAsync(id);
-                var display = _options.FormatIdentifier(thingName, id);
+                var thingName = await _resolver.ResolveNameAsync(read.Id);
+                var display = _options.FormatIdentifier(thingName, read.Id);
                 _writer.WriteLine($"Thing {display} not found");
                 return;
             }
 
-            var json = JsonSerializer.Serialize(thing.Value, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(thing, new JsonSerializerOptions { WriteIndented = true });
             _writer.WriteLine(json);
         }
 

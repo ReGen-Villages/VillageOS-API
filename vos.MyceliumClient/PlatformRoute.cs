@@ -18,6 +18,9 @@ public static class PlatformRoute
         return address.AbsolutePath.StartsWith(Root, StringComparison.Ordinal) ? address : throw NotARoute(path);
     }
 
+    // For a route that takes the rest of the path as one value, so a slash in the text reaches the platform as a slash.
+    public static string CatchAll(string text) => string.Join('/', text.Split('/').Select(Uri.EscapeDataString));
+
     private static bool StepsOutOfItsPlace(string segment) =>
         segment is "" or "." or ".." || segment.Contains('/') || segment.Contains('\\');
 
