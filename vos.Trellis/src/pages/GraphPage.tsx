@@ -21,10 +21,11 @@ import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/toastStore';
 import { relationshipLabel } from '../utils/relationshipLabel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import type { VosThing } from '@tendril-ui/tendril';
 import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 import type { DeletableEntity } from './graphDeletions';
+import { deletePropertyOf } from './propertyDeletion';
+import { useSelectedThing } from '../hooks/useSelectedThing';
 
 // SigmaCanvas is lazy-loaded so the page commits (search bar,
 // type filter, top-right controls) BEFORE Sigma's mount-time work
@@ -66,12 +67,11 @@ export function GraphPage() {
     [things, relationships, hiddenTypeIds],
   );
 
-  const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
+  const detailThing = useSelectedThing(selectedNodeId, thingMap);
 
-  // Both follow the selection, so neither is state: nothing to hold that the selection and the
+  // It follows the selection, so it is not state: nothing to hold that the selection and the
   // loaded model do not already say.
-  const detailThing = selectedNodeId ? fetchedThing : null;
   const detailRelationship = useMemo(
     () => (selectedEdgeId ? relationships.find((r) => r.Id === selectedEdgeId) ?? null : null),
     [selectedEdgeId, relationships],
@@ -91,25 +91,6 @@ export function GraphPage() {
     const id = setTimeout(() => setMountSigma(true), 0);
     return () => clearTimeout(id);
   }, []);
-
-  // Fetch full thing detail (including inherited properties) when a node is selected.
-  // Re-runs when the underlying things array refreshes so live edits surface in the panel.
-  useEffect(() => {
-    if (!selectedNodeId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const thing = await thingApi.get(selectedNodeId);
-        if (cancelled) return;
-        setFetchedThing(thing);
-      } catch {
-        if (!cancelled) {
-          setFetchedThing(thingMap.get(selectedNodeId) ?? null);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [selectedNodeId, thingMap]);
 
   const handleDeleteThing = async () => {
     if (!deleteConfirm || deleteConfirm.type !== 'thing') return;
@@ -140,21 +121,11 @@ export function GraphPage() {
   // Neither delete touches the store: the retraction arrives on the stream, the way it reaches
   // every other client. One path, so the one other people depend on is exercised by ordinary use.
   const handleDeleteProperty = async (thingId: string, propertyName: string) => {
-    try {
-      await thingApi.deleteProperty(thingId, propertyName);
-      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
-    }
+    await deletePropertyOf('thing', thingId, propertyName);
   };
 
   const handleDeleteRelationshipProperty = async (relationshipId: string, propertyName: string) => {
-    try {
-      await relationshipApi.deleteProperty(relationshipId, propertyName);
-      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
-    }
+    await deletePropertyOf('relationship', relationshipId, propertyName);
   };
 
   const handleCreateThing = async () => {
