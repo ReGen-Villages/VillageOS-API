@@ -35,7 +35,7 @@ import { tabSections } from './overviewState';
 import { SurveysStep } from './SurveysStep';
 import type { SharedSurvey } from './sharedSurveys';
 import type { DashboardSection, KpiWidget } from '@tendril-ui/tendril';
-import type { TemporalReduceQuery } from '@tendril-ui/tendril';
+import { reduceUnderTicket } from '../api/reduceUnderTicket';
 import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
@@ -175,17 +175,10 @@ export function ExplorePage() {
     }
   }
 
-  // A chart's history reduction is asked after the findings arrived, through the intake service under
-  // the same ticket, and its renewal is kept like every other act's. The service scopes the question
-  // to the Thing the submission is about, so the one the resolver named is dropped here.
-  const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
-    const held = ticket.current;
-    if (held === null) throw new Error(t('explore.noTicket'));
-    const { thingId: _scopedByTheService, ...question } = query;
-    const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
-    ticket.current = reduced.ticket;
-    return reduced.answer;
-  }, [t]);
+  const reduceThroughTheService = useMemo(
+    () => reduceUnderTicket(() => stateReference.current.submissionId, ticket, t('explore.noTicket')),
+    [t],
+  );
 
   // A survey goes up under the same ticket and the renewal is kept the same way. A ticket that aged out
   // is the one refusal the person mends here rather than reads beside the file.

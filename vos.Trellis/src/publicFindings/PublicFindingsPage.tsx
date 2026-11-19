@@ -11,7 +11,7 @@
  * Nothing here reaches the broker. That is the point of the page rather than an accident of how it was
  * written, and `../publicForm/noSignedInCode.test.ts` fails if an import ever leads back to it.
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Sprout } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
@@ -22,7 +22,7 @@ import { ToastContainer } from '../components/common/Toast';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
-import type { TemporalReduceQuery } from '@tendril-ui/tendril';
+import { reduceUnderTicket } from '../api/reduceUnderTicket';
 import { findingsFrom, type Findings } from './answeredFindings';
 
 /** The width above which a section lays its widgets out in tracks, as the signed-in page uses. */
@@ -82,17 +82,12 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
   const [refusal, setRefusal] = useState<string | null>(null);
 
   // The ticket the read bought outlives the form: a chart on the page reduces a property's history
-  // through the service under it, and keeps the renewal each answer hands back. The service scopes
-  // the question to the Thing the submission is about, so the one the resolver named is dropped here.
+  // through the service under it.
   const ticket = useRef<string | null>(null);
-  const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
-    const held = ticket.current;
-    if (held === null) throw new Error(t('publicFindings.noTicket'));
-    const { thingId: _scopedByTheService, ...question } = query;
-    const reduced = await findingsApi.reduceWithTicket(submissionId.trim(), held, question);
-    ticket.current = reduced.ticket;
-    return reduced.answer;
-  }, [submissionId, t]);
+  const reduceThroughTheService = useMemo(
+    () => reduceUnderTicket(() => submissionId.trim(), ticket, t('publicFindings.noTicket')),
+    [submissionId, t],
+  );
 
   const canAsk = submissionId.trim().length > 0 && emailAddress.trim().length > 0;
 
