@@ -270,6 +270,20 @@ public class DeclaredVocabularyReaderTests
             .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
     }
 
+    [Theory]
+    [InlineData("3")]
+    [InlineData(true)]
+    public void A_demand_stating_its_order_as_something_other_than_a_number_reads_as_served_first(object stated)
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, stated))
+                .Relate(demand, "is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands
+            .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
+    }
+
     // The root Place a site is related to, and the predicate that relationship is written with. Both are
     // found through a role rather than by name for the same reason every other vocabulary is: a producer
     // naming `Earth` relates nothing, and says nothing, in a model that calls its root something else — and
