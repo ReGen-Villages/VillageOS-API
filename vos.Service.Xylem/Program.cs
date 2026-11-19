@@ -23,11 +23,10 @@ try
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{launchSettings.Service.Port}");
-    // Allow large IFC uploads: raise Kestrel's request-body cap and the multipart limit to the configured
-    // maximum (Kestrel defaults to ~30 MB, the form reader to ~128 MB). The endpoint still enforces the cap.
-    builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = launchSettings.MaxUploadBytes);
+    // Kestrel's own request-body cap and the form reader's multipart limit are both below the upload cap.
+    builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = XylemLaunchSettings.MaxUploadBytes);
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
-        o.MultipartBodyLengthLimit = launchSettings.MaxUploadBytes);
+        o.MultipartBodyLengthLimit = XylemLaunchSettings.MaxUploadBytes);
     builder.Services.AddHttpClient();
 
     var authEnabled = builder.AddMyceliumTokenAuthWhenKeyed(
@@ -84,7 +83,7 @@ try
             var temp = Path.Combine(Path.GetTempPath(), $"xylem_{Guid.NewGuid():N}.ifc");
             long written;
             await using (var s = file.OpenReadStream())
-                written = await UploadSpooler.SpoolAsync(s, temp, launchSettings.MaxUploadBytes, ct);
+                written = await UploadSpooler.SpoolAsync(s, temp, XylemLaunchSettings.MaxUploadBytes, ct);
             if (written <= 0)
             {
                 if (File.Exists(temp)) File.Delete(temp);
@@ -105,7 +104,7 @@ try
             CancellationTokenSource.CreateLinkedTokenSource(ct, lifetime.ApplicationStopping);
         await using var stream = file.OpenReadStream();
         var result = await handler.IngestUploadAsync(
-            stream, name, mode, launchSettings.MaxUploadBytes, callerLeftOrServiceStopping.Token);
+            stream, name, mode, XylemLaunchSettings.MaxUploadBytes, callerLeftOrServiceStopping.Token);
         return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     }).DisableAntiforgery();
     if (authEnabled) ingest.RequireAuthorization();

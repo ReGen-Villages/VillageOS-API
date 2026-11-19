@@ -113,8 +113,7 @@ on the site: `index.html` is the form, `findings.html` is the page a submitter r
 on, `explore.html` is the plot-first page, and the three share their assets. The explore page leans on
 two lookups the model registers — the parcel boundary at a position and a place search — and draws
 neither where the model registers none; the calls go out through the broker's fetching service, on the
-routing label the intake service is told with `--fetcherSubdomain` (the shipped template's label by
-default). `VITE_INTAKE_URL` is read at build time, not at run time — a form
+routing label named in `OutsideCalls.FetcherSubdomain`, the shipped template's label. `VITE_INTAKE_URL` is read at build time, not at run time — a form
 built without it collects answers it cannot post, and says so instead of offering the button.
 
 Two things have to agree for the pages to work:

@@ -110,13 +110,33 @@ public sealed class TheEngine : IAsyncLifetime
         string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null) =>
         await FindAsync(name) ?? await DeclareAsync(name, isArchetype, properties);
 
-    // The role Thing under the identifier every model declares it by, binding the Thing along `binds`, as a
-    // template declares a role.
+    // A role Thing is found by its identifier and named apart from its word, because a case may give the Thing it binds that same word.
     public async Task BindAsync(Role role, Guid boundId)
     {
-        var roleId = await FindAsync(role.Word) ?? await DeclareAsync(role.Word, identifier: role.Id);
-        var binds = await DeclareOnceAsync(RoleBindings.BindsPredicateName);
-        await RelateAsync(roleId, binds, boundId);
+        if (!await HoldsAsync(role.Id)) await DeclareAsync($"{role.Word} role", identifier: role.Id);
+        await RelateAsync(role.Id, await DeclareOnceAsync(RoleBindings.BindsPredicateName), boundId);
+    }
+
+    // A host lives for a whole test class, so the first case to bind a role binds it for every case after.
+    public async Task BindOnceAsync(Role role, Guid boundId)
+    {
+        if (!await HoldsAsync(role.Id)) await BindAsync(role, boundId);
+    }
+
+    public async Task<Guid> PlayingAsync(
+        Role role, string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
+    {
+        var played = await DeclareOnceAsync(name, isArchetype, properties);
+        await BindOnceAsync(role, played);
+        return played;
+    }
+
+    private async Task<bool> HoldsAsync(Guid identifier)
+    {
+        var read = await Admin.GetAsync($"/api/things/{identifier}");
+        if (read.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
+        read.EnsureSuccessStatusCode();
+        return true;
     }
 
     // The Thing of that name, or null. Names are not unique in a model, and the route
@@ -138,7 +158,7 @@ public sealed class TheEngine : IAsyncLifetime
         var modelId = await TheModelIdAsync();
         var isPredicate = await DeclareOnceAsync("is");
         var serviceKind = await DeclareOnceAsync("Service", isArchetype: true);
-        if (await FindAsync(ServiceKind.Word) is null) await BindAsync(ServiceKind, serviceKind);
+        await BindOnceAsync(ServiceKind, serviceKind);
         var service = await DeclareAsync($"{serviceName} service {Guid.NewGuid():N}");
         await RelateAsync(service, isPredicate, serviceKind);
 
