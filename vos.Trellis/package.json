@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "rewrite:saved-drawing": "vitest run --config vitest.saved-drawing.config.ts",
     "test:e2e": "node --test test/e2e/model-viewer.e2e.mjs",
     "count-requests": "node test/e2e/count-requests.mjs"
   },

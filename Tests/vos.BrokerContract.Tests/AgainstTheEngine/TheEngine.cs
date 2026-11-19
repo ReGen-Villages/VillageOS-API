@@ -69,6 +69,16 @@ public sealed class TheEngine : IAsyncLifetime
     }
 #endif
 
+    public async Task<HttpClient> EditorAsync()
+    {
+        var token = await TokenOfANewKeyAsync(new { Name = $"editor {Guid.NewGuid():N}", Role = EditorRole, ModelId = await TheModelIdAsync() });
+        var editor = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
+        editor.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return editor;
+    }
+
+    private const string EditorRole = "editor";
+
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.
     public async Task<Guid> DeclareAsync(
@@ -125,18 +135,22 @@ public sealed class TheEngine : IAsyncLifetime
     // administrator's bearer takes a service key's token, which carries the same role and names its service the same way.
     public async Task<string> ServiceTokenAsync(string serviceName)
     {
-        var models = await Admin.GetFromJsonAsync<JsonElement>("/api/models");
-        var modelId = Field(models.EnumerateArray().Single(), "id").GetGuid();
+        var modelId = await TheModelIdAsync();
         var isPredicate = await DeclareOnceAsync("is");
         var serviceKind = await DeclareOnceAsync("Service", isArchetype: true);
         if (await FindAsync(ServiceKind.Word) is null) await BindAsync(ServiceKind, serviceKind);
         var service = await DeclareAsync($"{serviceName} service {Guid.NewGuid():N}");
         await RelateAsync(service, isPredicate, serviceKind);
 
-        var issued = await Admin.PostAsJsonAsync("/api/auth/keys", new
-        {
-            Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service,
-        });
+        return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
+    }
+
+    private async Task<Guid> TheModelIdAsync() =>
+        Field((await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single(), "id").GetGuid();
+
+    private async Task<string> TokenOfANewKeyAsync(object key)
+    {
+        var issued = await Admin.PostAsJsonAsync("/api/auth/keys", key);
         issued.EnsureSuccessStatusCode();
         using var exchange = new HttpRequestMessage(HttpMethod.Post, "/api/auth/token");
         exchange.Headers.Add("X-API-Key", Field(await issued.Content.ReadFromJsonAsync<JsonElement>(), "rawKey").GetString());
