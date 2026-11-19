@@ -392,6 +392,10 @@ export const fr: PartialResources = {
       warmest: 'Maximum {{value}} le {{when}}',
       coldest: 'Minimum {{value}} le {{when}}',
     },
+    gridMap: {
+      tooManyCells: 'Cette grille compte {{cells}} cellules ; une carte en grille en dessine au plus {{most}}.',
+      cellAt: 'Ligne {{row}}, colonne {{column}}',
+    },
     densityGrid: {
       coverage: '{{pairs}} heures avaient les deux relevés ; {{unpaired}} relevés n’avaient pas de relevé de l’autre au même moment et ne sont pas dessinés.',
       byMonthNotDrawn: 'Ce graphique dessine une seule grille pour toute la période, donc un pliage par mois n’est pas dessiné.',
@@ -674,6 +678,7 @@ export const fr: PartialResources = {
         depthProfile: 'Profil en profondeur',
         polarShares: 'Parts polaires',
         densityGrid: 'Grille de densité',
+        gridMap: 'Carte en grille',
         lineSeries: 'Série de lignes',
         heatmap: 'Carte thermique',
         stackedShares: 'Parts empilées',
@@ -810,6 +815,8 @@ export const fr: PartialResources = {
       columnOnAnUnboundedValue: 'Une colonne sur « {{named}} », une valeur sans borne dans le modèle, décide la largeur de la page.',
       stateBindingWithoutScope: 'Un compte ou une liste d’état sur une page comparative ne nomme aucune portée, le sélecteur ne peut donc pas le restreindre.',
       widgetBoundToNothing: 'Un widget n’est lié à rien et dessine un substitut.',
+      mapReadsAcrossARelationship: 'Une carte lit une forme ou une grille à travers une relation ; elle ne lit que la Chose propre de la page, car les formes d’une Chose liée peuvent être en unités du graphique et non sur le terrain.',
+      gridOverTheMostAMapDraws: 'Une Chose de ce type tient une grille de {{named}} cellules, plus qu’une carte en grille n’en dessine, donc la carte affiche une note au lieu de ses cellules.',
     },
     translations: {
       title: 'Les mots dans chaque langue',
@@ -913,6 +920,9 @@ export const fr: PartialResources = {
       across: 'Horizontal',
       outlines: 'Contours',
       shape: 'Forme',
+      grid: 'Grille',
+      outline: 'Contour',
+      scale: 'Échelle',
       counted: 'Comptées depuis le modèle',
       groups: 'Groupes',
       colourKey: 'Couleur depuis',

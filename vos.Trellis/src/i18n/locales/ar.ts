@@ -433,6 +433,10 @@ export const ar: WithArabicPluralForms<Resources> = {
       warmest: "الأعلى {{value}} في {{when}}",
       coldest: "الأدنى {{value}} في {{when}}",
     },
+    gridMap: {
+      tooManyCells: "تحتوي هذه الشبكة على {{cells}} خلية؛ ترسم الخريطة الشبكية {{most}} خلية على الأكثر.",
+      cellAt: "الصف {{row}}، العمود {{column}}",
+    },
     densityGrid: {
       coverage: "{{pairs}} ساعة كانت فيها القراءتان؛ {{unpaired}} قراءة لم تكن لها قراءة من الأخرى في الوقت نفسه ولم تُرسم.",
       byMonthNotDrawn: "يرسم هذا المخطط شبكة واحدة للفترة كلها، لذلك لا يُرسم الطيّ حسب الشهر.",
@@ -747,6 +751,7 @@ export const ar: WithArabicPluralForms<Resources> = {
         depthProfile: 'مقطع العمق',
         polarShares: 'الحصص القطبية',
         densityGrid: 'شبكة الكثافة',
+        gridMap: 'خريطة شبكية',
         lineSeries: 'سلسلة خطية',
         heatmap: 'خريطة حرارية',
         stackedShares: 'حصص مكدسة',
@@ -887,6 +892,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       columnOnAnUnboundedValue: 'عمود على «{{named}}»، وهي قيمة لا يحدّها النموذج، يقرر عرض الصفحة.',
       stateBindingWithoutScope: 'عدّ حالة أو قائمة حالة في صفحة مقارنة لا تسمّي نطاقًا، فلا يمكن للمبدّل تضييقها.',
       widgetBoundToNothing: 'عنصر غير مرتبط بشيء ويرسم عنصرًا نائبًا.',
+      mapReadsAcrossARelationship: 'خريطة تقرأ شكلًا أو شبكة عبر علاقة؛ إنها تقرأ فقط الشيء الخاص بالصفحة، لأن أشكال الشيء المرتبط قد تكون بوحدات المخطط لا على الأرض.',
+      gridOverTheMostAMapDraws: 'شيء من هذا النوع يحمل شبكة من {{named}} خلية، أكثر مما ترسمه الخريطة الشبكية، لذلك تعرض الخريطة ملاحظة بدلًا من خلاياها.',
     },
     translations: {
       title: 'الكلمات بكل لغة',
@@ -990,6 +997,9 @@ export const ar: WithArabicPluralForms<Resources> = {
       across: 'أفقيًا',
       outlines: 'الحدود',
       shape: 'الشكل',
+      grid: 'الشبكة',
+      outline: 'الحد',
+      scale: 'المقياس',
       counted: 'محسوبة من النموذج',
       groups: 'المجموعات',
       colourKey: 'اللون من',
