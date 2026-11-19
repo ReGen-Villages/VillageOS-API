@@ -233,7 +233,7 @@ declares no request shape of its own. The subject is a site or a source, and the
 
 **The answer says accepted, not done.** A run fetches every covering source before it could say what
 it found, and the platform gives a service call **15 seconds**; with tens of shared sources, fetched
-`--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
+`--maxConcurrentSources` at a time and each allowed the source timeout, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
 the call is the model: the connection relates to `SiteDiscovered` as what proves the call done, the
 Forage prototype finishes its calls when the Thing reaches the done state, and the record stays sent
@@ -313,21 +313,21 @@ than per source, so a site covered by many sources — or a source called once p
 open a burst of connections that reads as abuse. A provider that accepts the connection and then goes
 quiet is more common than one that refuses outright, and it must not hold up the run: Mycelium's limit
 on the request it passes on ends it, answering `504`, and the slice is asked again. Any one call is
-also bounded by `--sourceTimeoutSeconds` — a sliced source, and a slice asked again, can take longer in
+also bounded by Forage's source timeout, `ForageLaunchSettings.SourceTimeout` — a sliced source, and a slice asked again, can take longer in
 total — as the backstop for a broker that does not answer at all, so it must be longer than
 `--passedOnRequestLimitSeconds`. When it is not, Forage logs one warning at start-up naming both
 numbers and the setting to change, and starts as usual. `--attemptsPerSlice=<n>` is the most times one slice is
 asked for when it times out or is refused for too many requests, a positive whole number, with
 anything else falling back to 3. A source that times out on every slice therefore holds its place
-for up to `--attemptsPerSlice` × `--sourceTimeoutSeconds` before it is reported unresolved. A run
+for up to `--attemptsPerSlice` × the source timeout before it is reported unresolved. A run
 cancelled by its caller is never reported as a timeout — that would put a fabricated outage in front
 of a planner.
 
-**A source reaching back years is asked for a slice of that reach at a time**, `--sourceWindowDays`
-of it per call, and the outcome is reported when every slice has answered. A slice refused with 429
+**A source reaching back years is asked for a slice of that reach at a time**,
+`ForageLaunchSettings.SourceWindowDays` of it per call, and the outcome is reported when every slice has answered. A slice refused with 429
 is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, and a
 wait over five minutes is left to the next pass. A slice that timed out — no answer within
-`--sourceTimeoutSeconds`, or a 504 from Mycelium when it cut off the forwarded call — is asked again
+the source timeout, or a 504 from Mycelium when it cut off the forwarded call — is asked again
 at once, and each such retry logs one Information line starting "Asking again for a slice that timed
 out". Both kinds of retry share one limit, `--attemptsPerSlice` (3 by default). Any other refusal
 ends the fetch at once. The reach is the model's
@@ -338,7 +338,7 @@ which exhausts the fetching service while it reshapes and is refused as a single
 per-source bound then applies to a slice rather than to the decade.
 
 **Fetching is not done here.** Forage asks Mycelium to forward each call to the endpoint service
-named by `--fetcherSubdomain`, which resolves the registration, fills the address placeholders,
+named by `OutsideCalls.FetcherSubdomain`, which resolves the registration, fills the address placeholders,
 reshapes the response and writes the observation onto the Site. **Each call names the site as its
 subject**, so the reading lands on the site the run is for rather than on whatever entity the shared
 registration's expression names — see

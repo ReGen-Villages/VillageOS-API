@@ -23,8 +23,7 @@ try
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{launchSettings.Service.Port}");
-    // Allow large IFC uploads: raise Kestrel's request-body cap and the multipart limit to the configured
-    // maximum (Kestrel defaults to ~30 MB, the form reader to ~128 MB). The endpoint still enforces the cap.
+    // Kestrel's own request-body cap and the form reader's multipart limit are both below the upload cap.
     builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = XylemLaunchSettings.MaxUploadBytes);
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
         o.MultipartBodyLengthLimit = XylemLaunchSettings.MaxUploadBytes);
