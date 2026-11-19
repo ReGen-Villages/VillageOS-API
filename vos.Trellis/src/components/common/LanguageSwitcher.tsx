@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
@@ -23,21 +24,8 @@ export function LanguageSwitcher({
   const active =
     SUPPORTED_LANGUAGES.find((language) => language.code === i18n.language) ?? SUPPORTED_LANGUAGES[0];
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootReference.current?.contains(event.target as Node)) setIsOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen]);
+  const close = useCallback(() => setIsOpen(false), []);
+  useClosesOnEscapeOrPressOutside(isOpen, rootReference, close);
 
   const select = (code: (typeof SUPPORTED_LANGUAGES)[number]['code']) => {
     changeLanguage(code);

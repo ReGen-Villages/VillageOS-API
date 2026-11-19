@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import { Info, Expand, Unplug, Box, Copy, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { toast } from '../common/toastStore';
@@ -31,31 +32,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const toggleNodeExpanded = useUiStore((s) => s.toggleNodeExpanded);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
   const menuReference = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, closeMenu]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
-        closeMenu();
-      }
-    };
-    const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick);
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [open, closeMenu]);
+  useClosesOnEscapeOrPressOutside(open, menuReference, closeMenu);
 
   const handleViewDetails = useCallback(() => {
     if (nodeId) selectNode(nodeId);
