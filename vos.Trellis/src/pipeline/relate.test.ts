@@ -98,6 +98,17 @@ describe('what the inspector offers a relate box', () => {
     expect(relateChoicesOf(relateModel(), 'de').predicates).toEqual([{ id: 'worksOut', name: 'rechnet aus' }]);
   });
 
+  it('lists the accepted predicates in the order of their names in the page language, not the model\'s order', () => {
+    const model = relateModel((things, relationships) => {
+      things.unshift({ Id: 'appraises', Name: 'yields', Properties: {} });
+      relationships.unshift({ Id: 'yields', Name: '', SubjectId: 'appraises', PredicateId: 'notifies', TargetId: 'worksOutConnection', Properties: {} });
+    });
+    expect(relateChoicesOf(model, 'en').predicates).toEqual([
+      { id: 'worksOut', name: 'works out' },
+      { id: 'appraises', name: 'yields' },
+    ]);
+  });
+
   it('reads an accepted predicate\'s state and service, and a refused Thing\'s reason', () => {
     const choices = relateChoicesOf(relateModel(), 'en');
     expect(choices.readingOf('worksOut')).toEqual({ name: 'works out', state: 'Worked out', service: 'works out service' });
