@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 public sealed record ThingRead(Guid Id, JsonElement? Thing, string? Refusal);
 
