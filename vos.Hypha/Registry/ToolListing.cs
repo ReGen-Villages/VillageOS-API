@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha.Registry;
 

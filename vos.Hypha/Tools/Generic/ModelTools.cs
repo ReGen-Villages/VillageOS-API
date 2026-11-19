@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha.Tools.Generic;
 

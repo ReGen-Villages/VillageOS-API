@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha.Registry;
 

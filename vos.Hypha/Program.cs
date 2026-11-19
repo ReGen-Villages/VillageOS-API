@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using vos.Hypha;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 var options = ConsoleOptions.Parse(args);
 var builder = Host.CreateApplicationBuilder(args);

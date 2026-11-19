@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha.Registry;
 

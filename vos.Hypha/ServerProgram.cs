@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using vos.Hypha.Registry;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha;
 

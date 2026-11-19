@@ -3,7 +3,7 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
-using vos.Taproot;
+using vos.MyceliumClient;
 
 namespace vos.Hypha.Tests;
 

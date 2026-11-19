@@ -1,4 +1,4 @@
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 public class ConsoleOptions
 {

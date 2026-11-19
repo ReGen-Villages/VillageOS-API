@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using vos.Hypha;
-using vos.Taproot;
+using vos.MyceliumClient;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
