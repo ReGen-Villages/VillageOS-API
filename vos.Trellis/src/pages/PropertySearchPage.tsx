@@ -7,6 +7,7 @@ import { WHOLE_MODEL } from '../types/subscription';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
 import { toast } from '../components/common/toastStore';
+import { MarkdownExportButtons } from '../components/common/MarkdownExportButtons';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
@@ -143,25 +144,6 @@ export function PropertySearchPage() {
     return lines.join('\n');
   }, [results, debouncedQuery, searchMode, numbers, t]);
 
-  const copyAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    navigator.clipboard.writeText(buildMarkdown()).then(
-      () => toast.success(t('common.copiedToClipboard')),
-      () => toast.error(t('common.copyFailed')),
-    );
-  }, [results, buildMarkdown, t]);
-
-  const downloadAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    const blob = new Blob([buildMarkdown()], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `property-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [results, debouncedQuery, buildMarkdown]);
-
   const goToGraph = useCallback((match: PropertyMatch) => {
     if (match.ownerType === 'thing') {
       selectNode(match.ownerId);
@@ -224,20 +206,10 @@ export function PropertySearchPage() {
               {hasMore && ` (${t('common.showingFirst', { count: shownTotal })})`}
             </p>
             {results.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={copyAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.copyAsMarkdown')}
-                </button>
-                <button
-                  onClick={downloadAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.downloadAsMarkdown')}
-                </button>
-              </div>
+              <MarkdownExportButtons
+                markdown={buildMarkdown}
+                fileName={`property-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`}
+              />
             )}
           </div>
         )}
