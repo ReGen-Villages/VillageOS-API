@@ -1,6 +1,6 @@
 {
   "name": "@tendril-ui/tendril",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "The console's binding reader and the widgets that write, for any application that draws a model's pages",
   "license": "(AGPL-3.0-only OR LicenseRef-Commercial)",
   "type": "module",
