@@ -72,7 +72,7 @@ public class StateCommandHandler
         }
 
         var result = await _client.GetStatesAsync(resolveResult.Id);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private async Task HandleRelationshipAsync(string[] args)
@@ -83,7 +83,7 @@ public class StateCommandHandler
             return;
         }
 
-        WriteFormattedJson(await _client.GetRelationshipStatesAsync(relationshipId));
+        CommandParser.WriteFormattedJson(_writer, await _client.GetRelationshipStatesAsync(relationshipId));
     }
 
     private async Task HandleHistoryAsync(string[] args)
@@ -246,11 +246,8 @@ public class StateCommandHandler
         if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty("Count", out var count) && count.ValueKind == JsonValueKind.Number)
             _writer.WriteLine($"{count.GetInt32()} thing(s) in state '{args[0]}'.");
         else
-            WriteFormattedJson(result);
+            CommandParser.WriteFormattedJson(_writer, result);
     }
-
-    private void WriteFormattedJson(JsonElement element) =>
-        CommandParser.WriteFormattedJson(_writer, element);
 
     private void ShowHelp()
     {

@@ -70,7 +70,7 @@ public class PlantCommandHandler
                 continue;
 
             var thingId = Guid.Parse(idProp.GetString()!);
-            var thingName = GetStringProperty(thing, "Name");
+            var thingName = thing.GetStringOrDefault("Name", "");
             var thingPropertyCount = 0;
 
             if (thing.TryGetProperty("Properties", out var props) && props.ValueKind == JsonValueKind.Object)
@@ -116,15 +116,15 @@ public class PlantCommandHandler
 
         foreach (var token in tokens)
         {
-            if (TryParseNamedArg(token, "--ringbuffer=", out var rbSize))
+            if (CommandOptions.TryNumber(token, "--ringbuffer", out var rbSize))
             {
                 ringBufferSize = rbSize;
             }
-            else if (TryParseNamedArg(token, "--samplerate=", out var sr))
+            else if (CommandOptions.TryNumber(token, "--samplerate", out var sr))
             {
                 sampleRate = sr;
             }
-            else if (TryParseNamedArg(token, "--sampleseconds=", out var seconds))
+            else if (CommandOptions.TryNumber(token, "--sampleseconds", out var seconds))
             {
                 sampleSeconds = seconds;
             }
@@ -140,20 +140,6 @@ public class PlantCommandHandler
         }
 
         return (filePath, mode, ringBufferSize, sampleRate, sampleSeconds);
-    }
-
-    private static bool TryParseNamedArg(string arg, string prefix, out int value)
-    {
-        value = 0;
-        return arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-               int.TryParse(arg.Substring(prefix.Length), out value);
-    }
-
-    private static string GetStringProperty(JsonElement element, string name)
-    {
-        if (element.TryGetProperty(name, out var prop))
-            return prop.GetString() ?? "";
-        return "";
     }
 
     private void ShowHelp()

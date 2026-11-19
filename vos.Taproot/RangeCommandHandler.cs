@@ -75,7 +75,7 @@ public class RangeCommandHandler
         var options = ParseCreateOptions(args);
         var result = await _client.CreateRangeAsync(
             resolveResult.Id, options.Name, options.Criteria, options.Property, options.Bounds);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private static CreateRangeOptions ParseCreateOptions(string[] args)
@@ -142,7 +142,7 @@ public class RangeCommandHandler
                 return;
             }
 
-            WriteFormattedJson(await _client.GetRelationshipRangesAsync(relationshipId));
+            CommandParser.WriteFormattedJson(_writer, await _client.GetRelationshipRangesAsync(relationshipId));
             return;
         }
 
@@ -154,7 +154,7 @@ public class RangeCommandHandler
         }
 
         var result = await _client.GetRangesAsync(resolveResult.Id);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private async Task HandleGetAsync(string[] args)
@@ -176,7 +176,7 @@ public class RangeCommandHandler
         if (result == null)
             _writer.WriteLine($"Range not found: {args[1]}");
         else
-            WriteFormattedJson(result.Value);
+            CommandParser.WriteFormattedJson(_writer, result.Value);
     }
 
     private async Task HandleDeleteAsync(string[] args)
@@ -218,9 +218,6 @@ public class RangeCommandHandler
         else if (result.TryGetProperty("error", out var error))
             _writer.WriteLine($"Invalid criteria: {error.GetString()}");
     }
-
-    private void WriteFormattedJson(JsonElement element) =>
-        CommandParser.WriteFormattedJson(_writer, element);
 
     private void ShowCreateUsage()
     {

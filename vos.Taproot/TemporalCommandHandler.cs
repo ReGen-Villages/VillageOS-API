@@ -63,7 +63,7 @@ public class TemporalCommandHandler
         }
 
         var result = await _client.GetModelAtTimeAsync(timestamp.Value);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private async Task HandleHistoryAsync(string[] args)
@@ -83,7 +83,7 @@ public class TemporalCommandHandler
 
         var timeRange = ParseTimeRange(args, 2);
         var result = await _client.GetPropertyVersionsAsync(resolveResult.Id, args[1], timeRange.Start, timeRange.End);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private async Task HandleAtAsync(string[] args)
@@ -112,7 +112,7 @@ public class TemporalCommandHandler
         if (result == null)
             _writer.WriteLine($"Thing not found: {resolveResult.Id}");
         else
-            WriteFormattedJson(result.Value);
+            CommandParser.WriteFormattedJson(_writer, result.Value);
     }
 
     private async Task HandleMutationsAsync(string[] args)
@@ -146,7 +146,7 @@ public class TemporalCommandHandler
     {
         var timeRange = ParseTimeRange(args, 0);
         var result = await _client.GetModelMutationsAsync(timeRange.Start, timeRange.End);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
         return true;
     }
 
@@ -167,7 +167,7 @@ public class TemporalCommandHandler
 
         var timeRange = ParseTimeRange(args, 1);
         var result = await _client.GetThingMutationsAsync(resolveResult.Id, timeRange.Start, timeRange.End);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
         return true;
     }
 
@@ -187,7 +187,7 @@ public class TemporalCommandHandler
 
         var timeRange = ParseTimeRange(args, 1);
         var result = await _client.GetRelationshipMutationsAsync(relationshipId, timeRange.Start, timeRange.End);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
         return true;
     }
 
@@ -198,7 +198,7 @@ public class TemporalCommandHandler
         {
             var timeRange = ParseTimeRange(args, 1);
             var result = await _client.GetThingMutationsAsync(resolveResult.Id, timeRange.Start, timeRange.End);
-            WriteFormattedJson(result);
+            CommandParser.WriteFormattedJson(_writer, result);
         }
         else
         {
@@ -247,9 +247,6 @@ public class TemporalCommandHandler
         _writer.WriteLine($"Invalid timestamp: {input}");
         _writer.WriteLine(Timestamps.ExpectedForm);
     }
-
-    private void WriteFormattedJson(JsonElement element) =>
-        CommandParser.WriteFormattedJson(_writer, element);
 
     private void ShowHelp()
     {
