@@ -10,12 +10,12 @@ namespace vos.Pages;
 /// </summary>
 public interface IPageWrites
 {
-    Task<string> PressAsync(string path, string bodyJson, CancellationToken cancellation);
+    Task<string> PressAsync(string path, string bodyJson);
 
-    Task RelateAsync(string subjectId, string predicateId, string targetId, CancellationToken cancellation);
+    Task RelateAsync(string subjectId, string predicateId, string targetId);
 
     /// <summary>Sets a time property on a Thing; <paramref name="at"/> is an ISO 8601 time in UTC.</summary>
-    Task StampAsync(string thingId, string property, string at, CancellationToken cancellation);
+    Task StampAsync(string thingId, string property, string at);
 
     /// <summary>Told of each post a press made, in the console's own words, and whether it was taken.</summary>
     void RecordAction(string description, bool succeeded);

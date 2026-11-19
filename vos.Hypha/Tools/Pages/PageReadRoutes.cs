@@ -34,7 +34,6 @@ public static partial class PageReadRoutes
             : $"A press is not posted to {JsonSerializer.Serialize(path)}. It is posted to a service under /api/endpoints/, "
               + $"or to one of these platform routes: {string.Join(", ", PressablePlatformRoutes)}.";
 
-    // Each route is added by a reviewed change, with a test that a press is posted to it.
     private static readonly IReadOnlyList<string> PressablePlatformRoutes = ["/api/model/promote"];
 
     private static string Refusal(string verb, string path) =>

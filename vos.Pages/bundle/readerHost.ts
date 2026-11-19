@@ -394,10 +394,13 @@ const pageReader = {
   async offeredChoices(key: string, pageId: string, widgetTitle: string, scopeId: string | null, row: string, language: string, host: Host): Promise<string> {
     const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
     const choices = [];
+    let widgetRosters: Promise<Row[][]> | undefined;
     for (const offered of inHand.offered) {
       const fields = asksOf(inHand.widget, offered.choice);
       const secret = asksASecret(fields);
-      const rosters = secret ? fields.map(() => []) : await rostersOf(inHand, offered);
+      const rosters = secret
+        ? fields.map(() => [])
+        : await (offered.choice.asks ? rostersOf(inHand, offered) : (widgetRosters ??= rostersOf(inHand, offered)));
       choices.push({
         key: offered.key,
         label: offered.choice.label,

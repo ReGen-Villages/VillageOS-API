@@ -51,12 +51,12 @@ public sealed class MyceliumPageWrites(MyceliumClient mycelium, ActivityReport r
     private static string NotAnIdentifier(string what, string? asked) =>
         $"The {what} of this press is not an identifier, so nothing is sent: {JsonSerializer.Serialize(asked)}";
 
-    public Task<string> PressAsync(string path, string bodyJson, CancellationToken cancellation) =>
+    public Task<string> PressAsync(string path, string bodyJson) =>
         PageReadRoutes.RefusalToPress(path) is { } refusal
             ? Task.FromException<string>(new InvalidOperationException(refusal))
             : mycelium.RequestAsync(HttpMethod.Post, path, bodyJson);
 
-    public async Task RelateAsync(string subjectId, string predicateId, string targetId, CancellationToken cancellation)
+    public async Task RelateAsync(string subjectId, string predicateId, string targetId)
     {
         var subject = Identifier(subjectId, "row");
         var target = Identifier(targetId, "Thing the row is related to");
@@ -64,7 +64,7 @@ public sealed class MyceliumPageWrites(MyceliumClient mycelium, ActivityReport r
         await ReportedAsync($"relate Thing {subject} to Thing {target}", () => mycelium.CreateRelationshipAsync(subject, predicate, target));
     }
 
-    public async Task StampAsync(string thingId, string property, string at, CancellationToken cancellation)
+    public async Task StampAsync(string thingId, string property, string at)
     {
         var thing = Identifier(thingId, "row");
         await ReportedAsync(

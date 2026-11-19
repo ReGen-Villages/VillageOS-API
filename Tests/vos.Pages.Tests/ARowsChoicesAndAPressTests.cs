@@ -220,7 +220,7 @@ public class ARowsChoicesAndAPressTests
         var writes = new WritesKeptInMemory { PressAnswer = """{"said": "A flow test is booked"}""" };
         var composed = await ComposedOnColdSpringAsync(reader, FlowTest, """{"days": "3", "reservoir": "North pond"}""");
 
-        var answer = JsonDocument.Parse(await reader.SendPressAsync(composed.GetProperty("writes").GetRawText(), writes, s_none)).RootElement;
+        var answer = JsonDocument.Parse(await reader.SendPressAsync(composed.GetProperty("writes").GetRawText(), writes)).RootElement;
 
         Assert.Equal("A flow test is booked", answer.GetProperty("said").GetString());
         Assert.Equal(["press /api/endpoints/echo", $"stamp {ColdSpring} decidedAt"], writes.Made);
@@ -235,7 +235,7 @@ public class ARowsChoicesAndAPressTests
         var writes = new WritesKeptInMemory { RelateRefusal = "The relationship already exists" };
         var composed = await ComposedOnColdSpringAsync(reader, Capped, "{}");
 
-        var answer = JsonDocument.Parse(await reader.SendPressAsync(composed.GetProperty("writes").GetRawText(), writes, s_none)).RootElement;
+        var answer = JsonDocument.Parse(await reader.SendPressAsync(composed.GetProperty("writes").GetRawText(), writes)).RootElement;
 
         Assert.Contains("The relationship already exists", answer.GetProperty("error").GetString());
         Assert.Equal([$"relate {ColdSpring} {DecidedAs} {Capped}"], writes.Made);

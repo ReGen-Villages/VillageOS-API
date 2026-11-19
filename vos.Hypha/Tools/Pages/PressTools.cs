@@ -100,7 +100,7 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
             }
 
             var writes = new MyceliumPageWrites(mycelium, new ActivityReport(mycelium, reportLogger), because);
-            var answer = JsonNode.Parse(await reader.SendPressAsync(composed["writes"]!.ToJsonString(), writes, cancellation))!.AsObject();
+            var answer = JsonNode.Parse(await reader.SendPressAsync(composed["writes"]!.ToJsonString(), writes))!.AsObject();
             var reported = await writes.EveryReportTakenAsync();
             if (answer["error"] is { } error)
                 throw new McpException($"The press was refused, and nothing after the refused write was sent: {JsonSerializer.Serialize(error.ToString())}");
@@ -109,9 +109,9 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
         });
 
     private static string ReasonGiven(string? reason) =>
-        string.IsNullOrWhiteSpace(reason) || reason.Length > LongestReason
-            ? throw new McpException($"A press needs a reason, in the person's words, of at most {LongestReason} characters.")
-            : reason.Trim();
+        reason?.Trim() is { Length: > 0 and <= LongestReason } trimmed
+            ? trimmed
+            : throw new McpException($"A press needs a reason, in the person's words, of at most {LongestReason} characters.");
 
     private static JsonObject Unsent(JsonObject composed, string digest) =>
         new() { ["sent"] = false, ["composed"] = composed.DeepClone(), ["digest"] = digest };

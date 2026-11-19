@@ -9,19 +9,19 @@ internal sealed class WritesKeptInMemory : IPageWrites
     public string PressAnswer { get; init; } = "{}";
     public string? RelateRefusal { get; init; }
 
-    public Task<string> PressAsync(string path, string bodyJson, CancellationToken cancellation)
+    public Task<string> PressAsync(string path, string bodyJson)
     {
         Made.Add($"press {path}");
         return Task.FromResult(PressAnswer);
     }
 
-    public Task RelateAsync(string subjectId, string predicateId, string targetId, CancellationToken cancellation)
+    public Task RelateAsync(string subjectId, string predicateId, string targetId)
     {
         Made.Add($"relate {subjectId} {predicateId} {targetId}");
         return RelateRefusal is null ? Task.CompletedTask : Task.FromException(new HttpRequestException(RelateRefusal));
     }
 
-    public Task StampAsync(string thingId, string property, string at, CancellationToken cancellation)
+    public Task StampAsync(string thingId, string property, string at)
     {
         Made.Add($"stamp {thingId} {property}");
         StampedAt.Add(at);

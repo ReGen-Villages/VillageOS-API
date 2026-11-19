@@ -149,9 +149,9 @@ public sealed class PageReader : IDisposable
     /// Sends the writes a press composed, in order, as the console sends them, and stops at the first one
     /// refused. Answers what the endpoint said on taking a post, or the refusal, as JSON.
     /// </summary>
-    public Task<string> SendPressAsync(string writesJson, IPageWrites writes, CancellationToken cancellation) =>
+    public Task<string> SendPressAsync(string writesJson, IPageWrites writes) =>
         InTheReadersWordsAsync(async () =>
-            (string)await (Task<object>)_engine.Script.pageReader.sendPress(writesJson, new WritesForTheEngine(writes, cancellation)));
+            (string)await (Task<object>)_engine.Script.pageReader.sendPress(writesJson, new WritesForTheEngine(writes)));
 
     public void Dispose() => _engine.Dispose();
 

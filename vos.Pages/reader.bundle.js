@@ -4115,10 +4115,11 @@
     async offeredChoices(key, pageId, widgetTitle, scopeId, row, language, host) {
       const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
       const choices = [];
+      let widgetRosters;
       for (const offered of inHand.offered) {
         const fields = asksOf(inHand.widget, offered.choice);
         const secret = asksASecret(fields);
-        const rosters = secret ? fields.map(() => []) : await rostersOf(inHand, offered);
+        const rosters = secret ? fields.map(() => []) : await (offered.choice.asks ? rostersOf(inHand, offered) : widgetRosters ??= rostersOf(inHand, offered));
         choices.push({
           key: offered.key,
           label: offered.choice.label,
