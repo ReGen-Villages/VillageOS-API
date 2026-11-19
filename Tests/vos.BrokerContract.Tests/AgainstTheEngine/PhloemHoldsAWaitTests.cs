@@ -9,6 +9,7 @@ using vos.Service.Shared.Roles;
 using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
+using static vos.BrokerContract.Tests.AgainstTheEngine.EngineArrangement;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -37,27 +38,27 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         var isPredicate = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
         var nodeRun = await _engine.DeclareOnceAsync("NodeRun", isArchetype: true);
-        await BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
-        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
-        await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
+        await _engine.BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
+        await _engine.BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
         var notifies = await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
-        await BindOnceAsync(PipelineRoles.NotifiedConnection, notifies);
-        await BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
-        await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
+        await _engine.BindOnceAsync(PipelineRoles.NotifiedConnection, notifies);
+        await _engine.BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
+        await _engine.BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
-        await BindOnceAsync(JudgedThingRole, judges);
+        await _engine.BindOnceAsync(JudgedThingRole, judges);
         var range = await _engine.DeclareOnceAsync("Range", isArchetype: true, Marked("__IsRangeArchetype"));
-        await BindOnceAsync(RangeRole, range);
+        await _engine.BindOnceAsync(RangeRole, range);
         var plotArchetype = await _engine.DeclareOnceAsync("Plot", isArchetype: true);
 
         if (await _engine.FindAsync("resumesRun") is null)
         {
             var connectionArchetype = await _engine.DeclareAsync("PlatformServiceConnection", isArchetype: true, Marked("__IsConnectionArchetype"));
             var serviceArchetype = await _engine.DeclareAsync("Service", isArchetype: true, Marked("__IsServiceArchetype"));
-            await BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
-            await BindOnceAsync(PipelineRoles.Service, serviceArchetype);
+            await _engine.BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
+            await _engine.BindOnceAsync(PipelineRoles.Service, serviceArchetype);
             var resumes = await _engine.DeclareAsync("resumesRun");
             var service = await _engine.DeclareAsync("orchestrator service");
             await _engine.RelateAsync(resumes, isPredicate, connectionArchetype);
@@ -82,18 +83,6 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     private async Task EnterTheRangeAsync(Guid plot) =>
         (await _engine.Admin.PutAsJsonAsync($"/api/things/{plot}/properties", new { Name = Moisture, Type = "vos.LongInteger", Value = 10L }))
             .EnsureSuccessStatusCode();
-
-    private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
-
-    private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
-    private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-
-    private async Task BindOnceAsync(Role role, Guid played)
-    {
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
-    }
 
     private static readonly IReadOnlyDictionary<string, JsonElement> Noticed =
         new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent for review") };

@@ -38,19 +38,10 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, "PipelineRun");
-        await BindOnceAsync(PipelineRoles.NodeRun, "NodeRun");
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
 
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
-    }
-
-    private async Task BindOnceAsync(Role role, string archetypeName)
-    {
-        var archetype = await _engine.DeclareOnceAsync(archetypeName, isArchetype: true);
-        var roleName = $"{role.Word} role";
-        if (await _engine.FindAsync(roleName) is not null) return;
-        await _engine.DeclareAsync(roleName, identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), archetype);
     }
 
     [FactAgainstTheEngine]

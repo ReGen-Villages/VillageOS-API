@@ -57,8 +57,7 @@ public class PhloemReadsBackARunWhoseKindsKeepNoHistoryTests : IClassFixture<The
             })).EnsureSuccessStatusCode();
             await _engine.BindAsync(role, kindId);
         }
-        if (await _engine.FindAsync(PipelineRoles.Orchestrator.Word) is null)
-            await _engine.BindAsync(PipelineRoles.Orchestrator, await _engine.DeclareAsync("Phloem prototype", isArchetype: true));
+        await _engine.PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
 
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
     }
