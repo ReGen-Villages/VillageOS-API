@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +81,32 @@ public class PassedOnRequestLimitHandleTests
             (await response.Content.ReadAsStringAsync()).Should()
                 .Contain("Tributary had not finished reshaping the answer within 28 of the 30 seconds");
         }
+    }
+
+    [Fact]
+    public async Task A_history_changed_step_the_broker_has_not_answered_by_the_deadline_fails_so_it_may_be_tried_again()
+    {
+        var site = Guid.NewGuid();
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: request => request.RequestUri!.AbsolutePath == $"/api/things/{site}/history/changed",
+            answers: _ => null);
+
+        var answer = host.Client.PostAsJsonAsync("/handle", new
+        {
+            runId = Guid.NewGuid(),
+            nodeId = Guid.NewGuid(),
+            inputs = new Dictionary<string, object?> { ["subject"] = site.ToString() },
+            @params = new Dictionary<string, object> { ["step"] = "historyChanged" },
+        });
+        await Settle.ForAsync(host.Stalled, "the step reaches the broker's history route");
+        host.Clock.Advance(Deadline);
+        await Settle.ForAsync(answer, "Tributary answers at its deadline");
+
+        var step = await (await answer).Content.ReadFromJsonAsync<JsonElement>();
+        step.GetProperty("result").GetString().Should().Be("fail");
+        step.GetProperty("error").GetString().Should().Contain($"had not judged the history of {site}");
+        step.TryGetProperty("retry", out _).Should().BeTrue();
     }
 
     [Fact]
