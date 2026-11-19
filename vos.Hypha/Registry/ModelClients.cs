@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 
 namespace vos.Hypha.Registry;
 

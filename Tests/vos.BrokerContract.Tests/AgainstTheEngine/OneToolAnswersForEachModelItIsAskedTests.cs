@@ -3,7 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
