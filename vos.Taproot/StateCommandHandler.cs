@@ -6,16 +6,16 @@ public class StateCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly MyceliumClient? _client;
-    private readonly NameResolver? _resolver;
+    private readonly MyceliumClient _client;
+    private readonly NameResolver _resolver;
     private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-    public StateCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
+    public StateCommandHandler(string arg, TextWriter writer, MyceliumClient client)
     {
         _writer = writer;
         _arg = arg;
         _client = client;
-        _resolver = client != null ? new NameResolver(client) : null;
+        _resolver = new NameResolver(client);
         _commandHandlers = BuildCommandHandlers();
     }
 
@@ -31,7 +31,7 @@ public class StateCommandHandler
 
     public async Task ExecuteAsync()
     {
-        if (_client == null || !CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
+        if (!CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
         {
             ShowHelp();
             return;
@@ -64,14 +64,14 @@ public class StateCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var result = await _client!.GetStatesAsync(resolveResult.Id);
+        var result = await _client.GetStatesAsync(resolveResult.Id);
         WriteFormattedJson(result);
     }
 
@@ -83,7 +83,7 @@ public class StateCommandHandler
             return;
         }
 
-        WriteFormattedJson(await _client!.GetRelationshipStatesAsync(relationshipId));
+        WriteFormattedJson(await _client.GetRelationshipStatesAsync(relationshipId));
     }
 
     private async Task HandleHistoryAsync(string[] args)
@@ -95,7 +95,7 @@ public class StateCommandHandler
             return;
         }
 
-        var resolved = await _resolver!.ResolveThingAsync(args[0]);
+        var resolved = await _resolver.ResolveThingAsync(args[0]);
         if (!resolved.IsSuccess)
         {
             _writer.WriteLine(resolved.ErrorMessage);
@@ -104,7 +104,7 @@ public class StateCommandHandler
         if (!TryParseWindow(args, 1, out var from, out var to))
             return;
 
-        var answer = await _client!.GetStateTransitionsAsync(resolved.Id, from, to);
+        var answer = await _client.GetStateTransitionsAsync(resolved.Id, from, to);
         var thingName = answer.GetStringOrDefault("ThingName");
         var coverage = answer.GetProperty("Coverage");
         WriteWindow(coverage, $"{thingName}: state history");
@@ -139,7 +139,7 @@ public class StateCommandHandler
             return;
         }
 
-        var resolved = await _resolver!.ResolveThingAsync(args[0]);
+        var resolved = await _resolver.ResolveThingAsync(args[0]);
         if (!resolved.IsSuccess)
         {
             _writer.WriteLine(resolved.ErrorMessage);
@@ -149,7 +149,7 @@ public class StateCommandHandler
             return;
 
         var stateName = args[1];
-        var answer = await _client!.GetStateOccurrencesAsync(resolved.Id, stateName, from, to);
+        var answer = await _client.GetStateOccurrencesAsync(resolved.Id, stateName, from, to);
         var thingName = answer.GetStringOrDefault("ThingName");
         var coverage = answer.GetProperty("Coverage");
         WriteWindow(coverage, $"{thingName} in '{stateName}'");
@@ -222,7 +222,7 @@ public class StateCommandHandler
             Guid? within = null;
             if (CommandOptions.Value(options, "--within") is { } container)
             {
-                var resolved = await _resolver!.ResolveThingAsync(container);
+                var resolved = await _resolver.ResolveThingAsync(container);
                 if (!resolved.IsSuccess)
                 {
                     _writer.WriteLine($"Error: {resolved.ErrorMessage}");
@@ -242,7 +242,7 @@ public class StateCommandHandler
                 CountOnly: CommandOptions.Has(options, "--count"));
         }
 
-        var result = await _client!.GetThingsInStateAsync(args[0], narrowing);
+        var result = await _client.GetThingsInStateAsync(args[0], narrowing);
         if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty("Count", out var count) && count.ValueKind == JsonValueKind.Number)
             _writer.WriteLine($"{count.GetInt32()} thing(s) in state '{args[0]}'.");
         else

@@ -114,14 +114,6 @@ public class SubmissionsCommandHandlerTests
         await new SubmissionsCommandHandler(arg, _writer, _mycelium.Object).ExecuteAsync();
 
     [Fact]
-    public async Task With_no_mycelium_it_shows_what_it_can_do()
-    {
-        await new SubmissionsCommandHandler("list", _writer, client: null).ExecuteAsync();
-
-        Assert.Contains("Submission review commands:", _writer.ToString());
-    }
-
-    [Fact]
     public async Task A_submission_nobody_has_decided_about_is_listed_as_waiting()
     {
         AModelWithOneSubmission();

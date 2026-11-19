@@ -7,16 +7,16 @@ public class RangeCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly MyceliumClient? _client;
-    private readonly NameResolver? _resolver;
+    private readonly MyceliumClient _client;
+    private readonly NameResolver _resolver;
     private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-    public RangeCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
+    public RangeCommandHandler(string arg, TextWriter writer, MyceliumClient client)
     {
         _writer = writer;
         _arg = arg;
         _client = client;
-        _resolver = client != null ? new NameResolver(client) : null;
+        _resolver = new NameResolver(client);
         _commandHandlers = BuildCommandHandlers();
     }
 
@@ -33,7 +33,7 @@ public class RangeCommandHandler
 
     public async Task ExecuteAsync()
     {
-        if (_client == null || !CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
+        if (!CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
         {
             ShowHelp();
             return;
@@ -65,7 +65,7 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
@@ -73,7 +73,7 @@ public class RangeCommandHandler
         }
 
         var options = ParseCreateOptions(args);
-        var result = await _client!.CreateRangeAsync(
+        var result = await _client.CreateRangeAsync(
             resolveResult.Id, options.Name, options.Criteria, options.Property, options.Bounds);
         WriteFormattedJson(result);
     }
@@ -142,18 +142,18 @@ public class RangeCommandHandler
                 return;
             }
 
-            WriteFormattedJson(await _client!.GetRelationshipRangesAsync(relationshipId));
+            WriteFormattedJson(await _client.GetRelationshipRangesAsync(relationshipId));
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var result = await _client!.GetRangesAsync(resolveResult.Id);
+        var result = await _client.GetRangesAsync(resolveResult.Id);
         WriteFormattedJson(result);
     }
 
@@ -165,14 +165,14 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var result = await _client!.GetRangeAsync(resolveResult.Id, args[1]);
+        var result = await _client.GetRangeAsync(resolveResult.Id, args[1]);
         if (result == null)
             _writer.WriteLine($"Range not found: {args[1]}");
         else
@@ -187,14 +187,14 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var success = await _client!.DeleteRangeAsync(resolveResult.Id, args[1]);
+        var success = await _client.DeleteRangeAsync(resolveResult.Id, args[1]);
         _writer.WriteLine(success ? $"Deleted range '{args[1]}'" : $"Range not found: {args[1]}");
     }
 
@@ -207,7 +207,7 @@ public class RangeCommandHandler
         }
 
         var criteria = string.Join(" ", args);
-        var result = await _client!.ValidateCriteriaAsync(criteria);
+        var result = await _client.ValidateCriteriaAsync(criteria);
         WriteValidationResult(result);
     }
 

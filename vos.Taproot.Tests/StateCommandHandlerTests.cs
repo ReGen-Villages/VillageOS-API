@@ -24,17 +24,6 @@ public class StateCommandHandlerTests
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     [Fact]
-    public async Task Execute_NoMycelium_ShowsHelp()
-    {
-        var handler = new StateCommandHandler("get foo", _writer, client: null);
-        await handler.ExecuteAsync();
-
-        var output = _writer.ToString();
-        Assert.Contains("State query commands:", output);
-        Assert.Contains("state get", output);
-    }
-
-    [Fact]
     public async Task Execute_NoArgs_ShowsHelp()
     {
         await ExecuteHandler("");
