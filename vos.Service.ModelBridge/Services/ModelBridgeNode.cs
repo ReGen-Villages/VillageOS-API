@@ -91,13 +91,6 @@ public sealed class ModelBridgeNode : DagNodeService
         return Unwrap(propertyEnvelope);
     }
 
-    private static object? Unwrap(JsonElement value) => value.ValueKind switch
-    {
-        JsonValueKind.Number => value.TryGetInt64(out var l) ? l : value.GetDouble(),
-        JsonValueKind.String => value.GetString(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Null => null,
-        _ => value.Clone(),
-    };
+    private static object? Unwrap(JsonElement value) =>
+        JsonScalar.TryRead(value, out var scalar) ? scalar : value.Clone();
 }

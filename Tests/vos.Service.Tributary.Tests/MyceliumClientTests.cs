@@ -742,7 +742,7 @@ public class MyceliumClientTests
     {
         // Fresh HttpClient per CreateClient call so MyceliumClientBase.CreateAuthenticatedClientAsync
         // can set client.Timeout without tripping the "already started" guard on a reused client.
-        var factory = new PerCallFactory(handler);
+        var factory = new PerCallHttpClientFactory(handler);
         return new MyceliumClient(
             factory, logger ?? Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
             clock ?? new ClockThatWaitsNoTime(), new LaunchToken("test-token"));
@@ -750,13 +750,6 @@ public class MyceliumClientTests
 
     private static ObservationSample[] OneReading() =>
         [new ObservationSample("temp", 21.0, new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc))];
-
-    private sealed class PerCallFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallFactory(HttpMessageHandler handler) { _handler = handler; }
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
 
     private static HttpResponseMessage JsonResponse(string json) =>
         new(HttpStatusCode.OK)

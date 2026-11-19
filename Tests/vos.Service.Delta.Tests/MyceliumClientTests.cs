@@ -351,18 +351,9 @@ public class MyceliumClientTests
 
     private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {
-        // PerCallFactory because MyceliumClientBase.CreateAuthenticatedClientAsync mutates
-        // client.Timeout on every call; reusing one HttpClient throws after the first request.
-        var factory = new PerCallFactory(handler);
+        var factory = new PerCallHttpClientFactory(handler);
         var logger = Substitute.For<ILogger<MyceliumClient>>();
         return new MyceliumClient(factory, logger, "http://localhost", new LaunchToken("test-token"));
-    }
-
-    private sealed class PerCallFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallFactory(HttpMessageHandler handler) { _handler = handler; }
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
     }
 
     private static HttpResponseMessage JsonResponse(string json) =>

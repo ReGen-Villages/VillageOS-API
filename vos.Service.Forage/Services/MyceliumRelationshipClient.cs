@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using vos.Service.Shared;
 
 namespace vos.Service.Forage.Services;
@@ -68,14 +67,12 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/model/fragment", fragment, cancellationToken);
-            if (response.IsSuccessStatusCode) return new WriteOutcome(WriteAnswer.Written);
+            var answer = await AskToApplyFragmentAsync(JsonContent.Create(fragment), TimeSpan.FromSeconds(30), cancellationToken);
+            if (answer.IsDone) return new WriteOutcome(WriteAnswer.Written);
 
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, response.StatusCode, body);
-            var reason = ErrorIn(body) ?? $"{(int)response.StatusCode}: {body}";
-            return response.StatusCode switch
+            Logger.LogWarning("Refused writing {Name}: {Status} {Reason}", name, answer.Status, answer.Body);
+            var reason = answer.ErrorWords() ?? $"{(int)answer.Status}: {answer.Body}";
+            return answer.Status switch
             {
                 HttpStatusCode.Forbidden => new WriteOutcome(WriteAnswer.Refused, reason),
                 HttpStatusCode.BadRequest => new WriteOutcome(WriteAnswer.Rejected, reason),
@@ -86,22 +83,6 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
         {
             Logger.LogError(exception, "Error writing {Name}", name);
             return new WriteOutcome(WriteAnswer.Unanswered, exception.Message);
-        }
-    }
-
-    private static string? ErrorIn(string body)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            return document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String
-                ? error.GetString()
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
         }
     }
 }

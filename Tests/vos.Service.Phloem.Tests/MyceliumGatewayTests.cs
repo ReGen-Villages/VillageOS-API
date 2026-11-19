@@ -1066,7 +1066,8 @@ public class MyceliumGatewayTests
 
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        (await creating.Should().ThrowAsync<HttpRequestException>())
+        (await creating.Should().ThrowAsync<HttpRequestException>()
+                .WithMessage("Looking up 'is' failed (503 ServiceUnavailable)."))
             .Which.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     }
 

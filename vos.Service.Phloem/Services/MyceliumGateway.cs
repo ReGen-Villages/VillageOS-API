@@ -503,20 +503,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         catch (JsonException) { return default; }
     }
 
-    private static async Task<string> ErrorOfAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            if (TryGetPropertyCaseInsensitive(document.RootElement, "error", out var error) && error.ValueKind == JsonValueKind.String)
-                return error.GetString()!;
-        }
-        catch (JsonException)
-        {
-        }
-        return $"HTTP {(int)response.StatusCode}";
-    }
+    private static async Task<string> ErrorOfAsync(HttpResponseMessage response, CancellationToken cancellationToken) =>
+        ReasonFor(response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+
+    private static string ReasonFor(HttpStatusCode status, string body) =>
+        PlatformAnswer.ErrorWordsIn(body) ?? $"HTTP {(int)status}";
 
     public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)
     {
@@ -926,13 +917,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         var requests = RunRetention.StopRequestsGoingWith(runId, RunsNamedByStopRequestsOf(graph, run));
         var order = held.SelectMany(child => graph.OutgoingTargets(child, ModelNames.Has)).Concat(held).Select(thing => thing.Id)
             .Concat(requests).Append(runId).Distinct().ToList();
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         foreach (var thingId in order)
         {
-            var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}", cancellationToken);
-            if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
-                throw new HttpRequestException($"The platform refused to retract {thingId}: {await ErrorOfAsync(response, cancellationToken)}",
-                    null, response.StatusCode);
+            var answer = await AskToDeleteThingAsync(thingId, TimeSpan.FromSeconds(15), cancellationToken);
+            if (answer.Outcome == PlatformOutcome.Refused)
+                throw new HttpRequestException($"The platform refused to retract {thingId}: {ReasonFor(answer.Status, answer.Body)}",
+                    null, answer.Status);
         }
         return order.Count;
     }
@@ -989,8 +979,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships,
         IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> retractions, CancellationToken cancellationToken)
     {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment", JsonContent.Create(new
+        var answer = await AskToApplyFragmentAsync(JsonContent.Create(new
         {
             name,
             things = things.Select(thing => new { id = thing.Id, name = thing.Name, properties = Envelopes(thing.Properties) }),
@@ -1002,9 +991,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
                 target = edge.Target,
             }),
             retractions = retractions.Count == 0 ? null : retractions.Select(edge => new { subject = edge.Subject, predicate = edge.Predicate, target = edge.Target }),
-        }), cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"The platform refused '{name}': {await ErrorOfAsync(response, cancellationToken)}");
+        }), TimeSpan.FromSeconds(15), cancellationToken);
+        if (!answer.IsDone)
+            throw new InvalidOperationException($"The platform refused '{name}': {ReasonFor(answer.Status, answer.Body)}");
     }
 
     // The broker refuses a property written as a bare value, with a 400 carrying no body to say why.
@@ -1059,17 +1048,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     {
         if (_thingIdByName.TryGetValue(name, out var cached)) return cached;
 
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={Uri.EscapeDataString(name)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var thing = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        var answer = await AskForThingNamedAsync(name, TimeSpan.FromSeconds(15), cancellationToken);
+        if (!answer.IsDone)
+            throw new HttpRequestException(
+                $"Looking up '{name}' failed ({(int)answer.Status} {answer.Status}).", null, answer.Status);
 
-        if (TryGetPropertyCaseInsensitive(thing, "Id", out var idEl)
-            && idEl.ValueKind == JsonValueKind.String && Guid.TryParse(idEl.GetString(), out var id))
-        {
-            _thingIdByName[name] = id;
-            return id;
-        }
-        throw new InvalidOperationException($"Could not resolve a Thing named '{name}'.");
+        if (IdentifierOf(answer.Json()) is not { } id)
+            throw new InvalidOperationException($"Could not resolve a Thing named '{name}'.");
+        _thingIdByName[name] = id;
+        return id;
     }
 }

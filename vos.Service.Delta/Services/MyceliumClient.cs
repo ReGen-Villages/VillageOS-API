@@ -45,21 +45,19 @@ public class MyceliumClient : MyceliumClientBase
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
             // Not the request as it arrived: a caller states a template's keys as bare values, and the
             // broker takes each one with its type on it. The rest of the request is what the create
             // route reads — it works relationships out from the relationships Delta writes afterwards.
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things",
-                new { dto.Name, Properties = TypedProperties.Typed(dto.Properties) });
-            if (!response.IsSuccessStatusCode)
+            var answer = await AskToCreateThingAsync(
+                JsonContent.Create(new { dto.Name, Properties = TypedProperties.Typed(dto.Properties) }),
+                TimeSpan.FromSeconds(10), CancellationToken.None);
+            if (!answer.IsDone)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", dto.Name, response.StatusCode, error);
+                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", dto.Name, answer.Status, answer.Body);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
-            return TryParseThing(root, out var thing) ? thing : null;
+            return TryParseThing(answer.Json(), out var thing) ? thing : null;
         }
         catch (Exception ex)
         {
@@ -72,14 +70,12 @@ public class MyceliumClient : MyceliumClientBase
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}");
-            if (response.IsSuccessStatusCode)
+            var answer = await AskToDeleteThingAsync(thingId, TimeSpan.FromSeconds(10), CancellationToken.None);
+            if (answer.IsDone)
                 return true;
 
-            var error = await response.Content.ReadAsStringAsync();
             Logger.LogWarning("Failed to delete thing {ThingId}. Status: {StatusCode}. Error: {Error}",
-                thingId, response.StatusCode, error);
+                thingId, answer.Status, answer.Body);
             return false;
         }
         catch (Exception ex)
@@ -126,56 +122,25 @@ public class MyceliumClient : MyceliumClientBase
     private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
     {
         thing = null;
-
-        if (element.ValueKind != JsonValueKind.Object)
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Id", out var idProp) || idProp.ValueKind != JsonValueKind.String)
-            return false;
-
-        if (!Guid.TryParse(idProp.GetString(), out var id))
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
+        if (!TryReadThing(element, out var id, out var name))
             return false;
 
         var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (TryGetPropertyCaseInsensitive(element, "Properties", out var propertiesProp) && propertiesProp.ValueKind == JsonValueKind.Object)
-        {
             foreach (var property in propertiesProp.EnumerateObject())
-            {
-                properties[property.Name] = property.Value.ValueKind switch
-                {
-                    JsonValueKind.String => property.Value.GetString(),
-                    JsonValueKind.Number => property.Value.TryGetInt64(out var l) ? l : property.Value.GetDouble(),
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.Null => null,
-                    _ => property.Value.GetRawText()
-                };
-            }
-        }
+                properties[property.Name] = PlainValueOf(property.Value);
 
-        thing = new MyceliumThing(id, nameProp.GetString() ?? string.Empty, properties);
+        thing = new MyceliumThing(id, name, properties);
         return true;
     }
 
     // A request's values arrive as JsonElement; one with structure is written as its JSON text.
     private static (object? Value, string Type) ResolveMyceliumValue(object? value)
     {
-        var unwrapped = value is JsonElement element
-            ? element.ValueKind switch
-            {
-                JsonValueKind.String => element.GetString(),
-                JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
-                JsonValueKind.Number => element.GetDouble(),
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.Null => null,
-                _ => element.GetRawText(),
-            }
-            : value;
-
+        var unwrapped = value is JsonElement element ? PlainValueOf(element) : value;
         return (unwrapped, TypedProperties.TypeNameFor(unwrapped));
     }
+
+    private static object? PlainValueOf(JsonElement element) =>
+        JsonScalar.TryRead(element, out var scalar) ? scalar : element.GetRawText();
 }
