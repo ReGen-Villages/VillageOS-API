@@ -4,8 +4,6 @@ public class OutputOptions
 {
     public bool ShowGuids { get; set; }
 
-    public static OutputOptions Default => new();
-
     public string FormatIdentifier(string name, string guid)
     {
         if (string.IsNullOrEmpty(name) || name == "N/A")

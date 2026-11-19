@@ -5,13 +5,6 @@ namespace vos.Taproot.Tests;
 public class OutputOptionsTests
 {
     [Fact]
-    public void Default_ShowGuids_IsFalse()
-    {
-        var options = OutputOptions.Default;
-        Assert.False(options.ShowGuids);
-    }
-
-    [Fact]
     public void FormatIdentifier_WithShowGuidsFalse_ReturnsNameOnly()
     {
         var options = new OutputOptions { ShowGuids = false };
