@@ -4,8 +4,8 @@ namespace vos.Taproot;
 // Mycelium to an endpoint service or to a handler's daemon, and print what came back.
 public class CallCommandHandler : CommandHandlerWithOutputOptions
 {
-    public CallCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-        : base(arg, writer, mycelium, options)
+    public CallCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+        : base(arg, writer, mycelium)
     {
     }
 

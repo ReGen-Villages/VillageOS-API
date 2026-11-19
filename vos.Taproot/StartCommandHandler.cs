@@ -4,8 +4,8 @@ namespace vos.Taproot
     {
         private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
             _commandHandlers = new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {

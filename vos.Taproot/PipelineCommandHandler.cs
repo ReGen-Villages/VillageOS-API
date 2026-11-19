@@ -23,8 +23,8 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     public static readonly Guid StopRequestRoleId = new("159ef90f-8089-5055-b5a9-8839d5e28e7a");
     public static readonly Guid RunStoppingRoleId = new("7acbab6c-58f3-5145-a9c0-18a907197131");
 
-    public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-        : base(arg, writer, mycelium, options)
+    public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+        : base(arg, writer, mycelium)
     {
     }
 

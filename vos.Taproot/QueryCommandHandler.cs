@@ -4,8 +4,8 @@ namespace vos.Taproot
 {
     public class QueryCommandHandler : CommandHandlerWithOutputOptions
     {
-        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
         }
 
