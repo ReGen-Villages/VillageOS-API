@@ -200,6 +200,20 @@ public class ARowsChoicesAndAPressTests
     }
 
     [Fact]
+    public async Task The_Things_a_widgets_own_field_is_chosen_from_are_read_once_however_many_choices_ask_it()
+    {
+        using var reader = new PageReader();
+        var model = new ReadsAnsweredFromMemory();
+
+        var offered = JsonDocument.Parse(await reader.OfferedChoicesAsync(
+            HandBuiltModel.ReservoirsToDrainPageId, HandBuiltModel.DrainWidget, null, HandBuiltModel.AsenReservoirId, English, model, s_none)).RootElement;
+
+        Assert.Equal(3, offered.GetProperty("choices").GetArrayLength());
+        Assert.All(offered.GetProperty("choices").EnumerateArray(), choice => Assert.Equal("into", Assert.Single(choice.GetProperty("asks").EnumerateArray()).GetProperty("key").GetString()));
+        Assert.Single(model.Got, path => path.StartsWith($"/api/states/{HandBuiltModel.RunningLow}/things", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task The_sent_writes_go_out_in_order_the_post_is_reported_and_what_the_endpoint_said_is_answered()
     {
         using var reader = new PageReader();

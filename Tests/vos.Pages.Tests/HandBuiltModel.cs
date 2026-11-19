@@ -19,6 +19,9 @@ internal static class HandBuiltModel
 
     public const string GateWidget = "Gates to the reservoirs";
 
+    public const string ReservoirsToDrainPageId = "00000000-0000-4000-8000-000000000103";
+    public const string DrainWidget = "Reservoirs to drain";
+
     public const string RunningLow = "RunningLow";
     public const string Capacity = "capacityCubicMetres";
 
@@ -90,6 +93,36 @@ internal static class HandBuiltModel
         },
     };
 
+    private static readonly object s_reservoirsToDrain = new
+    {
+        title = DrainWidget,
+        sections = new object[]
+        {
+            new
+            {
+                title = "Draining",
+                widgets = new object[]
+                {
+                    new
+                    {
+                        type = "action",
+                        title = DrainWidget,
+                        rows = new { kind = "thingList", archetype = "Reservoir" },
+                        asks = new object[]
+                        {
+                            new { key = "into", label = "Into", kind = "choice", options = new { kind = "stateList", state = RunningLow, archetype = "Reservoir" } },
+                        },
+                        writes = new
+                        {
+                            via = "draining",
+                            choices = new object[] { new { label = "Drain now" }, new { label = "Drain tomorrow" }, new { label = "Leave full" } },
+                        },
+                    },
+                },
+            },
+        },
+    };
+
     public static SelectedThings Selected()
     {
         var things = new JsonArray
@@ -106,6 +139,7 @@ internal static class HandBuiltModel
             Thing(SettingsId, "Display settings"),
             Thing(ReservoirLevelsPageId, "Reservoir levels", ("specification", "vos.String", JsonSerializer.Serialize(s_reservoirLevels))),
             Thing(UnreadablePageId, "Catchment inflow", ("specification", "vos.String", "{ this is not a page description")),
+            Thing(ReservoirsToDrainPageId, DrainWidget, ("specification", "vos.String", JsonSerializer.Serialize(s_reservoirsToDrain))),
             Thing(AsenReservoirId, "Åsen reservoir", (Capacity, "vos.Double", 100.0)),
             Thing(OstraReservoirId, "Östra reservoir", (Capacity, "vos.Double", 300.0)),
             Thing(SpringReservoirId, "Spring reservoir", (Capacity, "vos.Double", 200.0)),
@@ -131,6 +165,7 @@ internal static class HandBuiltModel
         Relate(BindsId, IsId, PredicateKindId);
         Relate(ReservoirLevelsPageId, IsId, PageKindId);
         Relate(UnreadablePageId, IsId, PageKindId);
+        Relate(ReservoirsToDrainPageId, IsId, PageKindId);
         foreach (var reservoir in new[] { AsenReservoirId, OstraReservoirId, SpringReservoirId }) Relate(reservoir, IsId, ReservoirKindId);
 
         return new SelectedThings(things.ToJsonString(), relationships.ToJsonString());

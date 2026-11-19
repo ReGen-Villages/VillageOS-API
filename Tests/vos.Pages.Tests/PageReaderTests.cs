@@ -21,6 +21,7 @@ public class PageReaderTests
             [
                 new PageListing(HandBuiltModel.UnreadablePageId, "Catchment inflow", "catchment-inflow", Readable: false),
                 new PageListing(HandBuiltModel.ReservoirLevelsPageId, "Reservoir levels", "reservoir-levels", Readable: true),
+                new PageListing(HandBuiltModel.ReservoirsToDrainPageId, HandBuiltModel.DrainWidget, "reservoirs-to-drain", Readable: true),
             ],
             pages);
     }

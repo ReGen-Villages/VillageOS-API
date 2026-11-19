@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using FluentAssertions;
 using ModelContextProtocol.Protocol;
 using vos.Hypha.Registry;
+using vos.Hypha.Tools.Pages;
 using vos.Pages;
 using Xunit;
 using static vos.Hypha.Tests.ServerUnderTest;
@@ -192,6 +193,17 @@ public class ThePressToolsTests
         arguments["reason"] = new string('a', 501);
 
         (await server.Client.CallToolAsync("press", arguments)).IsError.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_reason_at_the_limit_with_spaces_around_it_is_taken()
+    {
+        await using var server = await StartAsync(MyceliumFor(() => "editor", ModelTakingPresses().Answer));
+        var arguments = Pressing(Capped);
+        arguments["reason"] = "  " + new string('a', PressTools.LongestReason) + "  ";
+
+        var answer = await server.Client.CallToolAsync("press", arguments);
+        answer.IsError.Should().NotBe(true, TextOf(answer));
     }
 
     [Fact]
