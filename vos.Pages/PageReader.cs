@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
 
 [assembly: InternalsVisibleTo("vos.Pages.Tests")]
@@ -31,7 +32,10 @@ public sealed class PageReader : IDisposable
         if (options.Warned is { } warned) _engine.Script.pageReader.tellWarningsTo(warned);
     }
 
-    public async Task<IReadOnlyList<PageListing>> ListPagesAsync(string language, IPageReads reads, CancellationToken cancellation)
+    public Task<IReadOnlyList<PageListing>> ListPagesAsync(string language, IPageReads reads, CancellationToken cancellation) =>
+        InTheReadersWordsAsync(() => ListedAsync(language, reads, cancellation));
+
+    private async Task<IReadOnlyList<PageListing>> ListedAsync(string language, IPageReads reads, CancellationToken cancellation)
     {
         var navigation = await HoldAsync(NavigationSelector(), reads, cancellation);
         try
@@ -46,7 +50,10 @@ public sealed class PageReader : IDisposable
     }
 
     // The Things a page compares, each of which it can be read for, in the language's name order.
-    public async Task<IReadOnlyList<PageScope>> ScopesOfAsync(string pageId, string language, IPageReads reads, CancellationToken cancellation)
+    public Task<IReadOnlyList<PageScope>> ScopesOfAsync(string pageId, string language, IPageReads reads, CancellationToken cancellation) =>
+        InTheReadersWordsAsync(() => ComparedAsync(pageId, language, reads, cancellation));
+
+    private async Task<IReadOnlyList<PageScope>> ComparedAsync(string pageId, string language, IPageReads reads, CancellationToken cancellation)
     {
         var page = await HoldAsync(await PageSelectorAsync(pageId, [], reads, cancellation), reads, cancellation);
         try
@@ -60,10 +67,12 @@ public sealed class PageReader : IDisposable
         }
     }
 
-    // One page read for each of the given scopes, in the order given, each as JSON. A null scope reads the
-    // page across every Thing it compares. The page's Things are fetched and indexed once for all of them.
-    // Names the page lists are ordered as the language orders them.
-    public async Task<IReadOnlyList<string>> ReadPageAsync(
+    // A null scope reads the page across every Thing it compares, and the page's Things are fetched once for all the scopes.
+    public Task<IReadOnlyList<string>> ReadPageAsync(
+        string pageId, IReadOnlyList<string?> scopeIds, string language, IPageReads reads, CancellationToken cancellation) =>
+        InTheReadersWordsAsync(() => ReadAsync(pageId, scopeIds, language, reads, cancellation));
+
+    private async Task<IReadOnlyList<string>> ReadAsync(
         string pageId, IReadOnlyList<string?> scopeIds, string language, IPageReads reads, CancellationToken cancellation)
     {
         var page = await HoldAsync(await PageSelectorAsync(pageId, scopeIds, reads, cancellation), reads, cancellation);
@@ -85,6 +94,34 @@ public sealed class PageReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// The inputs at the bottom of a Thing's derived figures, of the one figure named or of all of them,
+    /// as JSON: each with where its value is held, which way the figure moves with it, and the way out of
+    /// each state the Thing holds that judges the figure; and the inputs left out, with the reason.
+    /// </summary>
+    public Task<string> InputsOfAsync(string thingId, string? figure, string language, IPageReads reads, CancellationToken cancellation) =>
+        WithTheThingHeldAsync(thingId, reads, cancellation, async held =>
+        {
+            var host = new ReadsForTheEngine(reads, cancellation);
+            return (string)await (Task<object>)_engine.Script.pageReader.inputsOfThing(held, thingId, figure, language, host);
+        });
+
+    /// <summary>Where a Thing's value for one property came from, as JSON.</summary>
+    public Task<string> OriginOfAsync(string thingId, string property, IPageReads reads, CancellationToken cancellation) =>
+        WithTheThingHeldAsync(thingId, reads, cancellation, held =>
+            Task.FromResult((string)_engine.Script.pageReader.originOf(held, thingId, property)));
+
+    /// <summary>
+    /// One figure of a Thing from the model alone, as JSON: its value, the ranges that judge it, what it
+    /// was worked out from, and its inputs. The model's own sentence for a figure is in a page.
+    /// </summary>
+    public Task<string> ExplainAsync(string thingId, string figure, string language, IPageReads reads, CancellationToken cancellation) =>
+        WithTheThingHeldAsync(thingId, reads, cancellation, async held =>
+        {
+            var host = new ReadsForTheEngine(reads, cancellation);
+            return (string)await (Task<object>)_engine.Script.pageReader.explain(held, thingId, figure, language, host);
+        });
+
     public void Dispose() => _engine.Dispose();
 
     internal double EngineMemoryInUseMebibytes()
@@ -105,6 +142,46 @@ public sealed class PageReader : IDisposable
         finally
         {
             Release(navigation);
+        }
+    }
+
+    private Task<string> WithTheThingHeldAsync(
+        string thingId, IPageReads reads, CancellationToken cancellation, Func<string, Task<string>> read) =>
+        InTheReadersWordsAsync(() => HeldAndReadAsync(thingId, reads, cancellation, read));
+
+    private async Task<string> HeldAndReadAsync(
+        string thingId, IPageReads reads, CancellationToken cancellation, Func<string, Task<string>> read)
+    {
+        var held = await HoldAsync((string)_engine.Script.pageReader.selectorForThing(thingId, "[]"), reads, cancellation);
+        try
+        {
+            // An input a total reads is named from the kind of its members, so where a figure of the Thing has one that kind is loaded as well.
+            var memberKinds = (string)_engine.Script.pageReader.memberKindsOf(held, thingId);
+            if (memberKinds != "[]")
+            {
+                Release(held);
+                held = await HoldAsync((string)_engine.Script.pageReader.selectorForThing(thingId, memberKinds), reads, cancellation);
+            }
+            return await read(held);
+        }
+        finally
+        {
+            Release(held);
+        }
+    }
+
+    /// <summary>The reader refuses by throwing inside the engine; its words are what a caller is given.</summary>
+    private static async Task<T> InTheReadersWordsAsync<T>(Func<Task<T>> read)
+    {
+        try
+        {
+            return await read();
+        }
+        catch (ScriptEngineException refused)
+        {
+            const string errorPrefix = "Error: ";
+            var words = refused.Message.StartsWith(errorPrefix, StringComparison.Ordinal) ? refused.Message[errorPrefix.Length..] : refused.Message;
+            throw new PageNotReadException(words);
         }
     }
 

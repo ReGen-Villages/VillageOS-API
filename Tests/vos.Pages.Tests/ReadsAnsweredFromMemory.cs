@@ -9,7 +9,8 @@ internal sealed class ReadsAnsweredFromMemory : IPageReads
     private readonly SelectedThings _selected = HandBuiltModel.Selected();
 
     public ConcurrentQueue<string> Selectors { get; } = new();
-    public ConcurrentQueue<(string State, string? NarrowingJson)> StatesAsked { get; } = new();
+    public ConcurrentQueue<string> Got { get; } = new();
+    public ConcurrentQueue<(string Path, string BodyJson)> Posted { get; } = new();
     public int ReservoirsRunningLow { get; init; } = 2;
     public Task EachReadWaitsFor { get; init; } = Task.CompletedTask;
 
@@ -19,21 +20,18 @@ internal sealed class ReadsAnsweredFromMemory : IPageReads
         return Task.FromResult(_selected);
     }
 
-    public async Task<string> ThingsInStateAsync(string state, string? narrowingJson, CancellationToken cancellation)
+    public async Task<string> GetAsync(string path, CancellationToken cancellation)
     {
-        StatesAsked.Enqueue((state, narrowingJson));
+        Got.Enqueue(path);
         await EachReadWaitsFor;
-        return JsonSerializer.Serialize(new { StateName = state, Count = ReservoirsRunningLow });
+        if (path.StartsWith($"/api/states/{HandBuiltModel.RunningLow}/things", StringComparison.Ordinal))
+            return JsonSerializer.Serialize(new { StateName = HandBuiltModel.RunningLow, Count = ReservoirsRunningLow });
+        throw new HttpRequestException($"The hand-built model answers nothing at {path}");
     }
 
-    public Task<string?> ThingRangesAsync(string thingId, CancellationToken cancellation) => Task.FromResult<string?>(null);
-
-    public Task<string> AggregateAsync(string queryJson, CancellationToken cancellation) =>
-        Task.FromResult($$"""{"asked":"aggregate","query":{{queryJson}}}""");
-
-    public Task<string> ReduceAsync(string queryJson, CancellationToken cancellation) =>
-        Task.FromResult($$"""{"asked":"reduce","query":{{queryJson}}}""");
-
-    public Task<string> FromServiceAsync(string endpoint, string? bodyJson, CancellationToken cancellation) =>
-        Task.FromResult($$"""{"asked":"{{endpoint}}","body":{{bodyJson ?? "null"}}}""");
+    public Task<string> PostAsync(string path, string bodyJson, CancellationToken cancellation)
+    {
+        Posted.Enqueue((path, bodyJson));
+        throw new HttpRequestException($"The hand-built model answers nothing at {path}");
+    }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using vos.Hypha.Registry;
+using vos.Pages;
 using vos.PlatformClient;
 
 namespace vos.Hypha;
@@ -25,6 +26,7 @@ public static class ServerProgram
             .AddSingleton<ModelClients>()
             .AddSingleton<ActivityReport>()
             .AddSingleton<PromptRegistry>()
+            .AddSingleton<PageReader>(_ => new PageReader())
             .AddMcpServer(server => server.ServerInstructions = Instructions)
             .WithToolsFromAssembly(typeof(ServerProgram).Assembly)
             .ListingOnlyWhatTheCallerMayUse()

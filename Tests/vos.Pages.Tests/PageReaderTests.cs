@@ -70,9 +70,7 @@ public class PageReaderTests
         var read = await ReadOneAsync(reader, reads, scopeId: null);
 
         Assert.Equal(2, ResultOf(read, "Reservoirs running low").GetInt32());
-        var asked = Assert.Single(reads.StatesAsked);
-        Assert.Equal(HandBuiltModel.RunningLow, asked.State);
-        Assert.True(JsonDocument.Parse(asked.NarrowingJson!).RootElement.GetProperty("countOnly").GetBoolean());
+        Assert.Equal($"/api/states/{HandBuiltModel.RunningLow}/things?countOnly=true", Assert.Single(reads.Got));
     }
 
     [Fact]
@@ -133,7 +131,7 @@ public class PageReaderTests
         var together = scopes
             .Select(scope => Task.Run(() => reader.ReadPageAsync(HandBuiltModel.ReservoirLevelsPageId, [scope], English, heldReads, s_none)))
             .ToList();
-        await Settle.UntilAsync(() => heldReads.StatesAsked.Count == scopes.Length, "every page read is waiting on its read of the state");
+        await Settle.UntilAsync(() => heldReads.Got.Count == scopes.Length, "every page read is waiting on its read of the state");
         everyReadIsWaiting.SetResult();
 
         Assert.Equal(oneAfterAnother, (await Task.WhenAll(together)).Select(answers => answers[0]));
@@ -163,7 +161,7 @@ public class PageReaderTests
 
         var read = await ReadOneAsync(reader, new ReadsAnsweredFromMemory(), scopeId: null);
 
-        var kinds = WidgetTitled(read, "Reservoirs to inspect").GetProperty("bindings").EnumerateArray().Select(binding => binding.GetProperty("kind").GetString());
+        var kinds = WidgetTitled(read, "Reservoirs to inspect").GetProperty("slots").EnumerateArray().Select(binding => binding.GetProperty("kind").GetString());
         Assert.Equal(["thingList"], kinds);
     }
 
@@ -207,8 +205,11 @@ public class PageReaderTests
         return JsonDocument.Parse(Assert.Single(answers)).RootElement;
     }
 
-    private static JsonElement ResultOf(JsonElement page, string widgetTitle) =>
-        WidgetTitled(page, widgetTitle).GetProperty("bindings")[0].GetProperty("result");
+    private static JsonElement ResultOf(JsonElement page, string widgetTitle)
+    {
+        var widget = WidgetTitled(page, widgetTitle);
+        return widget.TryGetProperty("value", out var figure) ? figure : widget.GetProperty("slots")[0].GetProperty("result");
+    }
 
     private static JsonElement WidgetTitled(JsonElement page, string title) =>
         page.GetProperty("sections").EnumerateArray()

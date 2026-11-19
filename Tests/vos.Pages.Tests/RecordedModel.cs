@@ -2,9 +2,7 @@ using System.Text.Json;
 
 namespace vos.Pages.Tests;
 
-// What a running Mycelium answered for the shared test seed, read back from the recording: the Things
-// each selector reached, the answer of each read a page made, and each page as the reader resolved it
-// in Node. A question the recording holds no answer for fails the test that asked it.
+// A question the recording holds no answer for fails the test that asked it.
 internal sealed class RecordedModel : IPageReads
 {
     private readonly JsonElement _recording;
@@ -19,6 +17,8 @@ internal sealed class RecordedModel : IPageReads
 
     public IEnumerable<RecordedPage> Pages => _recording.GetProperty("pages").EnumerateArray().Select(page => new RecordedPage(page));
 
+    public IEnumerable<RecordedThing> Things => _recording.GetProperty("things").EnumerateArray().Select(thing => new RecordedThing(thing));
+
     public IEnumerable<PageListing> Listed => _recording.GetProperty("listed").EnumerateArray().Select(listed => new PageListing(
         listed.GetProperty("id").GetString()!,
         listed.GetProperty("name").GetString()!,
@@ -32,25 +32,12 @@ internal sealed class RecordedModel : IPageReads
         return Task.FromResult(new SelectedThings(selected.GetProperty("things").GetRawText(), selected.GetProperty("relationships").GetRawText()));
     }
 
-    public Task<string> ThingsInStateAsync(string state, string? narrowingJson, CancellationToken cancellation) =>
-        Task.FromResult(Answered("thingsInState", JsonSerializer.Serialize(state), narrowingJson ?? "null"));
+    public Task<string> GetAsync(string path, CancellationToken cancellation) => Task.FromResult(Answered($"GET {path}"));
 
-    public Task<string?> ThingRangesAsync(string thingId, CancellationToken cancellation)
+    public Task<string> PostAsync(string path, string bodyJson, CancellationToken cancellation) => Task.FromResult(Answered($"POST {path} {bodyJson}"));
+
+    private string Answered(string asked)
     {
-        var answer = Answered("thingRanges", JsonSerializer.Serialize(thingId));
-        return Task.FromResult(answer == "null" ? null : answer);
-    }
-
-    public Task<string> AggregateAsync(string queryJson, CancellationToken cancellation) => Task.FromResult(Answered("aggregate", queryJson));
-
-    public Task<string> ReduceAsync(string queryJson, CancellationToken cancellation) => Task.FromResult(Answered("reduce", queryJson));
-
-    public Task<string> FromServiceAsync(string endpoint, string? bodyJson, CancellationToken cancellation) =>
-        Task.FromResult(Answered("fromService", JsonSerializer.Serialize(endpoint), bodyJson ?? "null"));
-
-    private string Answered(string read, params string[] argumentsJson)
-    {
-        var asked = $"{read} [{string.Join(",", argumentsJson)}]";
         if (_recording.GetProperty("reads").TryGetProperty(asked, out var answer)) return answer.GetString()!;
         if (_recording.GetProperty("refusedReads").TryGetProperty(asked, out var refusal)) throw new HttpRequestException(refusal.GetString());
         throw new InvalidOperationException($"The recording holds no answer for {asked}");
@@ -67,4 +54,18 @@ internal sealed class RecordedPage(JsonElement page)
 
     // The page as Node resolved it for one scope, or for none.
     public JsonElement AnswerFor(string? scopeId) => page.GetProperty("answers").GetProperty(scopeId ?? "");
+}
+
+/// <summary>One Thing with derived figures, as the reader in Node answered each question about it.</summary>
+internal sealed class RecordedThing(JsonElement thing)
+{
+    public string Id => thing.GetProperty("thingId").GetString()!;
+
+    public JsonElement Inputs => thing.GetProperty("inputs");
+
+    public IEnumerable<(string Figure, JsonElement Explained)> Explained =>
+        thing.GetProperty("explained").EnumerateObject().Select(figure => (figure.Name, figure.Value));
+
+    public IEnumerable<(string Property, JsonElement Origin)> Origins =>
+        thing.GetProperty("origins").EnumerateObject().Select(property => (property.Name, property.Value));
 }

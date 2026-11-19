@@ -89,7 +89,7 @@ internal static class HandBuiltModel
             Thing(RoleKindId, "Role", isKind: true),
             Thing(PredicateKindId, "Predicate", isKind: true),
             Thing(PageKindId, "Page", isKind: true),
-            Thing(ReservoirKindId, "Reservoir", isKind: true),
+            WithFigures(Thing(ReservoirKindId, "Reservoir", isKind: true, ("lossFraction", "vos.Double", 0.1))),
             Thing(SettingsId, "Display settings"),
             Thing(ReservoirLevelsPageId, "Reservoir levels", ("specification", "vos.String", JsonSerializer.Serialize(s_reservoirLevels))),
             Thing(UnreadablePageId, "Catchment inflow", ("specification", "vos.String", "{ this is not a page description")),
@@ -121,6 +121,32 @@ internal static class HandBuiltModel
         foreach (var reservoir in new[] { AsenReservoirId, OstraReservoirId, SpringReservoirId }) Relate(reservoir, IsId, ReservoirKindId);
 
         return new SelectedThings(things.ToJsonString(), relationships.ToJsonString());
+    }
+
+    public const string UsableCapacity = "usableCubicMetres";
+    public const string Inflow = "inflowLitresPerDay";
+
+    /// <summary>A figure worked out from the Thing's own values, and one totalled over the springs that feed it.</summary>
+    private static JsonObject WithFigures(JsonObject kind)
+    {
+        kind["DerivedProperties"] = new JsonObject
+        {
+            [UsableCapacity] = new JsonObject
+            {
+                ["Expression"] = $"{Capacity} * (1 - lossFraction)",
+                ["Reads"] = new JsonArray(Capacity, "lossFraction"),
+                ["RisesWith"] = new JsonArray(Capacity),
+                ["FallsWith"] = new JsonArray("lossFraction"),
+            },
+            [Inflow] = new JsonObject
+            {
+                ["Function"] = "Sum",
+                ["RelatedType"] = "Spring",
+                ["Reads"] = new JsonArray("flowLitresPerDay"),
+                ["RisesWith"] = new JsonArray("flowLitresPerDay"),
+            },
+        };
+        return kind;
     }
 
     private static JsonObject Thing(string id, string name, params (string Property, string Type, object Value)[] properties) =>
