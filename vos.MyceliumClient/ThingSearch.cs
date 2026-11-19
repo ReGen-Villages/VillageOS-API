@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 public sealed record FoundThing(string Id, string Name);
 
