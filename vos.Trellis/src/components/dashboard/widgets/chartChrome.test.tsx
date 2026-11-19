@@ -1,6 +1,42 @@
 import { describe, it, expect } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { SeriesTable } from './chartChrome';
+import { AxisUnit, SeriesTable, ValueGridlines } from './chartChrome';
+import { formatNumber } from './format';
+
+describe('ValueGridlines', () => {
+  const drawn = (format?: 'percent') => render(
+    <svg><ValueGridlines ticks={[0, 0.5, 1]} y={(value) => 100 - value * 100} left={40} right={300} format={format} /></svg>,
+  ).container;
+
+  it('draws a line across the plot at each tick, labelled on the axis', () => {
+    const lines = [...drawn().querySelectorAll('line')];
+
+    expect(lines.map((line) => line.getAttribute('y1'))).toEqual(['100', '50', '0']);
+    expect(lines.every((line) => line.getAttribute('x1') === '40' && line.getAttribute('x2') === '300')).toBe(true);
+  });
+
+  it('labels each tick in the format it is given, whole numbers when none is', () => {
+    expect([...drawn().querySelectorAll('text')].map((text) => text.textContent))
+      .toEqual([0, 0.5, 1].map((tick) => formatNumber(tick, 'integer')));
+    expect([...drawn('percent').querySelectorAll('text')].map((text) => text.textContent))
+      .toEqual([0, 0.5, 1].map((tick) => formatNumber(tick, 'percent')));
+  });
+});
+
+describe('AxisUnit', () => {
+  it('writes the unit under the value axis', () => {
+    const { container } = render(<svg><AxisUnit unit="°C" left={40} plotBottom={228} /></svg>);
+
+    expect(container.querySelector('text')).toHaveTextContent('°C');
+    expect(container.querySelector('text')!.getAttribute('y')).toBe('243');
+  });
+
+  it('writes nothing for a chart with no unit', () => {
+    const { container } = render(<svg><AxisUnit unit={undefined} left={40} plotBottom={228} /></svg>);
+
+    expect(container.querySelector('text')).toBeNull();
+  });
+});
 
 describe('SeriesTable', () => {
   it('is hidden by a block that clips it, so its width cannot widen the page', () => {

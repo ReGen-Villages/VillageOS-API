@@ -5,7 +5,9 @@
  */
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { NumberFormat } from '@tendril-ui/tendril';
 import type { windowOf } from './historySeries';
+import { formatNumber } from './format';
 
 const TOOLTIP_OFFSET = 10;
 /** Past this share of the chart's width the tooltip opens to the left of the mark, so it never leaves
@@ -108,6 +110,38 @@ export function SeriesTable({
         </div>
       )}
     </>
+  );
+}
+
+export function ValueGridlines({
+  ticks,
+  y,
+  left,
+  right,
+  format = 'integer',
+}: {
+  ticks: number[];
+  y: (value: number) => number;
+  left: number;
+  right: number;
+  format?: NumberFormat;
+}) {
+  return ticks.map((tick) => (
+    <g key={tick}>
+      <line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
+      <text x={left - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
+        {formatNumber(tick, format)}
+      </text>
+    </g>
+  ));
+}
+
+export function AxisUnit({ unit, left, plotBottom }: { unit: string | undefined; left: number; plotBottom: number }) {
+  if (!unit) return null;
+  return (
+    <text x={left - 6} y={plotBottom + 15} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)">
+      {unit}
+    </text>
   );
 }
 

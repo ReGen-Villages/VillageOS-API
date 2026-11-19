@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RangeBarWidget, RangeSeries } from '@tendril-ui/tendril';
 import type { ResolveContext } from '@tendril-ui/tendril';
-import { asNumber } from '@tendril-ui/tendril';
-import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartBands, ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { ANNUAL, linearScale, monthSlots, niceTicks, paddedDomain } from './chartScale';
-import { groupsByKey, monthNames, windowOf } from './historySeries';
+import { AxisUnit, ChartBands, ChartTooltip, HistoryWindow, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf, PLOT_HEIGHT } from './chartFrame';
+import { monthSlots } from './chartScale';
+import { windowOf } from './historySeries';
 import { formatNumber } from './format';
+import { useMonthlyFigures, type Period } from './useMonthlyFigures';
 
 /** The seven statistics in the order the legend, the tooltip and the table read them: top down. */
 export const STATISTICS = [
@@ -26,79 +26,26 @@ const SEGMENTS = [
   { name: 'designLow', top: 'averageLow', bottom: 'designLow', fill: 'var(--chart-cool-far)' },
 ] as const;
 
-const PLOT_HEIGHT = 220;
-const TOP_GUTTER = 8;
-const AXIS_BAND = 22;
-const LEFT_GUTTER = 40;
-const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 24;
-const TICK_COUNT = 5;
 /** A thin ring in the surface colour is the gap between stacked segments and around the circles. */
 const SURFACE_GAP = 2;
 const MARKER_RADIUS = 4;
 
-type Statistics = Partial<Record<Statistic, number>>;
-
-/** One period's seven statistics, or whichever of them the platform answered. */
-function statisticsOf(series: Map<string, number>[], key: string | null): Statistics {
-  const period: Statistics = {};
-  STATISTICS.forEach((statistic, at) => {
-    const groups = series[at];
-    const value = key === null ? groups.values().next().value : groups.get(key);
-    if (value !== undefined) period[statistic] = value;
-  });
-  return period;
-}
-
 export function RangeBar({ widget, context }: { widget: RangeBarWidget; context: ResolveContext }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
-  const monthBindings = STATISTICS.map((statistic) => widget.months[statistic]);
-  const annualBindings = widget.annual ? STATISTICS.map((statistic) => widget.annual![statistic]) : [];
-  const bandBindings = (widget.bands ?? []).flatMap((band) => [band.from, band.to]);
-  const resolved = useBindings([...monthBindings, ...annualBindings, ...bandBindings], context);
-  const monthSeries = resolved.slice(0, STATISTICS.length).map((state) => groupsByKey(state.value));
-  const annualSeries = resolved.slice(STATISTICS.length, STATISTICS.length + annualBindings.length)
-    .map((state) => groupsByKey(state.value));
-  const bandBounds = resolved.slice(STATISTICS.length + annualBindings.length).map((state) => asNumber(state.value));
-
-  const names = monthNames(i18n.language);
-  const periods = [
-    ...names.map((name, month) => ({ name, statistics: statisticsOf(monthSeries, String(month + 1)) })),
-    ...(widget.annual ? [{ name: t('widgets.history.annual'), statistics: statisticsOf(annualSeries, null) }] : []),
-  ]
-    .map((period, at) => ({ ...period, at, annual: at === ANNUAL }))
-    .filter((period) => Object.keys(period.statistics).length > 0);
-
-  const bands = (widget.bands ?? []).map((band, at) => ({
-    label: band.label,
-    colour: band.colour,
-    from: bandBounds[at * 2],
-    to: bandBounds[at * 2 + 1],
-  }));
-
-  const drawn = [
-    ...periods.flatMap((period) => Object.values(period.statistics)),
-    ...bands.flatMap((band) => [band.from, band.to]).filter((bound): bound is number => bound !== null),
-  ];
-  const domain = paddedDomain(
-    drawn.length ? [Math.min(...drawn), Math.max(...drawn)] : [0, 1], widget.floor, widget.ceiling);
-  const width = measuredWidth || FALLBACK_WIDTH;
-  const plotTop = TOP_GUTTER;
-  const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
-  const y = linearScale(domain, [plotBottom, plotTop]);
-  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, !!widget.annual);
+  const { periods, bands, domain } = useMonthlyFigures(STATISTICS, widget, context);
+  const { width, height, plotTop, plotBottom, plotLeft, plotRight, y, ticks } = frameOf(measuredWidth, domain);
+  const { slotWidth, centreOf } = monthSlots(plotLeft, plotRight, !!widget.annual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const ticks = niceTicks(domain[0], domain[1], TICK_COUNT).filter((tick) => tick >= domain[0] && tick <= domain[1]);
   const figure = (value: number | undefined) =>
     value === undefined ? '—' : `${formatNumber(value, widget.format)}${widget.unit ? ` ${widget.unit}` : ''}`;
   const label = (statistic: Statistic) => t(`widgets.rangeBar.${statistic}`);
-  const readOut = (period: (typeof periods)[number]) =>
-    `${period.name}: ${STATISTICS.filter((statistic) => period.statistics[statistic] !== undefined)
-      .map((statistic) => `${label(statistic)} ${figure(period.statistics[statistic])}`).join(', ')}`;
+  const readOut = (period: Period<Statistic>) =>
+    `${period.name}: ${STATISTICS.filter((statistic) => period.figures[statistic] !== undefined)
+      .map((statistic) => `${label(statistic)} ${figure(period.figures[statistic])}`).join(', ')}`;
   const shown = active === null ? undefined : periods.find((period) => period.at === active);
 
   return (
@@ -106,40 +53,29 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
       <div ref={measure} className="relative mt-2">
         <svg
           width={width}
-          height={plotBottom + AXIS_BAND}
-          viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={widget.title ?? t('widgets.history.annual')}
           className="block max-w-full"
         >
-          <ChartBands bands={bands} domain={domain} y={y} left={LEFT_GUTTER} right={width - RIGHT_GUTTER} />
-          {ticks.map((tick) => (
-            <g key={tick}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'integer')}
-              </text>
-            </g>
-          ))}
-          {widget.unit && (
-            <text x={LEFT_GUTTER - 6} y={plotBottom + 15} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)">
-              {widget.unit}
-            </text>
-          )}
+          <ChartBands bands={bands} domain={domain} y={y} left={plotLeft} right={plotRight} />
+          <ValueGridlines ticks={ticks} y={y} left={plotLeft} right={plotRight} />
+          <AxisUnit unit={widget.unit} left={plotLeft} plotBottom={plotBottom} />
           {widget.annual && (
             <line
-              x1={LEFT_GUTTER + slotWidth * 12} x2={LEFT_GUTTER + slotWidth * 12}
+              x1={plotLeft + slotWidth * 12} x2={plotLeft + slotWidth * 12}
               y1={plotTop} y2={plotBottom} stroke="var(--chart-axis)" strokeWidth={1}
             />
           )}
           {periods.map((period) => {
             const centre = centreOf(period.at);
             const left = centre - barWidth / 2;
-            const { statistics } = period;
+            const statistics = period.figures;
             return (
               <g
-                key={period.at}
-                data-month={period.annual ? 'annual' : String(period.at + 1)}
+                key={period.key}
+                data-month={period.key}
                 role="img"
                 tabIndex={0}
                 aria-label={readOut(period)}
@@ -200,10 +136,10 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
         </svg>
         {shown && (
           <ChartTooltip left={centreOf(shown.at)} top={plotTop} width={width} title={shown.name}>
-            {STATISTICS.filter((statistic) => shown.statistics[statistic] !== undefined).map((statistic) => (
+            {STATISTICS.filter((statistic) => shown.figures[statistic] !== undefined).map((statistic) => (
               <div key={statistic} className="flex items-baseline gap-2">
                 <StatisticKey statistic={statistic} />
-                <span className="font-semibold tabular-nums">{figure(shown.statistics[statistic])}</span>
+                <span className="font-semibold tabular-nums">{figure(shown.figures[statistic])}</span>
                 <span className="text-zinc-500 dark:text-zinc-400">{label(statistic)}</span>
               </div>
             ))}
@@ -223,7 +159,7 @@ export function RangeBar({ widget, context }: { widget: RangeBarWidget; context:
         columns={STATISTICS.map(label)}
         rows={periods.map((period) => ({
           name: period.name,
-          cells: STATISTICS.map((statistic) => figure(period.statistics[statistic])),
+          cells: STATISTICS.map((statistic) => figure(period.figures[statistic])),
         }))}
       />
     </WidgetCard>
