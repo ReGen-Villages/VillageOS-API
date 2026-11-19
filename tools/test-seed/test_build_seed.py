@@ -169,7 +169,7 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
         held = {binding["kind"] for binding in bindings_in(self.description)}
         self.assertEqual(BINDING_KINDS_THE_READER_RESOLVES, held)
 
-    def test_the_action_list_draws_its_choices_from_the_model_stamps_and_lists_three_of_its_own(self):
+    def test_the_action_list_draws_its_choices_from_the_model_stamps_and_offers_a_value_an_endpoint_and_a_platform_route_a_press_tool_refuses(self):
         (action,) = [widget for widget in widgets_in(self.description) if widget["type"] == "action"]
         writes = action["writes"]
         drawn = {each["Name"] for each in self.seed.members_of(writes["choicesFrom"]["from"]["archetype"])}
