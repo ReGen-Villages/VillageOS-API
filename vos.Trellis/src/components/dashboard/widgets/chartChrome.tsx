@@ -136,6 +136,55 @@ export function ValueGridlines({
   ));
 }
 
+export function MonthColumn({
+  monthKey,
+  centre,
+  markWidth,
+  plotTop,
+  plotBottom,
+  name,
+  readOut,
+  active,
+  onActive,
+  children,
+}: {
+  monthKey: string;
+  centre: number;
+  markWidth: number;
+  plotTop: number;
+  plotBottom: number;
+  name: string;
+  readOut: string;
+  active: boolean;
+  onActive: (active: boolean) => void;
+  children: ReactNode;
+}) {
+  const left = centre - markWidth / 2;
+  const plotHeight = plotBottom - plotTop;
+  return (
+    <g
+      data-month={monthKey}
+      role="img"
+      tabIndex={0}
+      aria-label={readOut}
+      onFocus={() => onActive(true)}
+      onBlur={() => onActive(false)}
+      onMouseEnter={() => onActive(true)}
+      onMouseLeave={() => onActive(false)}
+      className="outline-none"
+    >
+      <rect x={left - 6} y={plotTop} width={markWidth + 12} height={plotHeight} fill="transparent" />
+      {children}
+      <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
+        {name}
+      </text>
+      {active && (
+        <rect x={left - 3} y={plotTop} width={markWidth + 6} height={plotHeight} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
+      )}
+    </g>
+  );
+}
+
 export function AxisUnit({ unit, left, plotBottom }: { unit: string | undefined; left: number; plotBottom: number }) {
   if (!unit) return null;
   return (

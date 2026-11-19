@@ -4,8 +4,8 @@ import type { Binding, BoxPlotWidget, BoxSeries } from '@tendril-ui/tendril';
 import type { ResolveContext } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { AxisUnit, ChartBands, ChartTooltip, HistoryWindow, SeriesTable, ValueGridlines } from './chartChrome';
-import { frameOf, PLOT_HEIGHT } from './chartFrame';
+import { AxisUnit, ChartBands, ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf } from './chartFrame';
 import { monthSlots } from './chartScale';
 import { windowOf } from './historySeries';
 import { formatNumber } from './format';
@@ -72,19 +72,18 @@ export function BoxPlot({ widget, context }: { widget: BoxPlotWidget; context: R
             const { whiskerLow, boxLow, median, boxHigh, whiskerHigh } = period.figures;
             const cap = (boxWidth * CAP_SHARE) / 2;
             return (
-              <g
+              <MonthColumn
                 key={period.key}
-                data-month={period.key}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(period)}
-                onFocus={() => setActive(period.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(period.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={period.key}
+                centre={centre}
+                markWidth={boxWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={period.name}
+                readOut={readOut(period)}
+                active={active === period.at}
+                onActive={(on) => setActive(on ? period.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={boxWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 {whiskerLow !== undefined && whiskerHigh !== undefined && (
                   <>
                     <line data-mark="whisker" x1={centre} x2={centre} y1={y(whiskerHigh)} y2={y(whiskerLow)} stroke="var(--chart-ink-muted)" strokeWidth={1.5} />
@@ -107,13 +106,7 @@ export function BoxPlot({ widget, context }: { widget: BoxPlotWidget; context: R
                 {median !== undefined && (
                   <line data-mark="median" x1={left} x2={left + boxWidth} y1={y(median)} y2={y(median)} stroke="var(--chart-ink)" strokeWidth={2} />
                 )}
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {period.name}
-                </text>
-                {active === period.at && (
-                  <rect x={left - 3} y={plotTop} width={boxWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

@@ -6,7 +6,7 @@ import { asNumber } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable, ValueGridlines } from './chartChrome';
+import { ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
 import { frameOf, PLOT_HEIGHT } from './chartFrame';
 import { linearScale, monthSlots, niceTicks } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
@@ -86,28 +86,21 @@ export function DivergingBar({ widget, context }: { widget: DivergingBarWidget; 
             const up = heightOf(month.up ?? 0);
             const down = heightOf(month.down ?? 0);
             return (
-              <g
+              <MonthColumn
                 key={month.at}
-                data-month={String(month.at + 1)}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(month)}
-                onFocus={() => setActive(month.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(month.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={String(month.at + 1)}
+                centre={centre}
+                markWidth={barWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={month.name}
+                readOut={readOut(month)}
+                active={active === month.at}
+                onActive={(on) => setActive(on ? month.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={barWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 <rect data-direction="up" x={left} y={baseline - up} width={barWidth} height={up} fill={SIDES[0].fill} />
                 <rect data-direction="down" x={left} y={baseline} width={barWidth} height={down} fill={SIDES[1].fill} />
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {month.name}
-                </text>
-                {active === month.at && (
-                  <rect x={left - 3} y={plotTop} width={barWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

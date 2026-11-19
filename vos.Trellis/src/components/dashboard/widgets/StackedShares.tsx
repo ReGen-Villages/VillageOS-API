@@ -5,8 +5,8 @@ import type { BindingResult, ResolveContext, Row } from '@tendril-ui/tendril';
 import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable, ValueGridlines } from './chartChrome';
-import { frameOf, PLOT_HEIGHT } from './chartFrame';
+import { ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf } from './chartFrame';
 import { ANNUAL, monthSlots } from './chartScale';
 import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
@@ -121,19 +121,18 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
             // first class sits at the bottom of every bar and a reader can follow it across months.
             let stacked = 0;
             return (
-              <g
+              <MonthColumn
                 key={month.at}
-                data-month={month.key}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(month)}
-                onFocus={() => setActive(month.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(month.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={month.key}
+                centre={centre}
+                markWidth={barWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={month.name}
+                readOut={readOut(month)}
+                active={active === month.at}
+                onActive={(on) => setActive(on ? month.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={barWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 {month.shares.map((entry) => {
                   const bottom = stacked;
                   stacked += entry.share;
@@ -151,13 +150,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
                     />
                   );
                 })}
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {month.name}
-                </text>
-                {active === month.at && (
-                  <rect x={left - 3} y={plotTop} width={barWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

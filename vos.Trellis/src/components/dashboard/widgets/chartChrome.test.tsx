@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { AxisUnit, SeriesTable, ValueGridlines } from './chartChrome';
+import { AxisUnit, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
 import { formatNumber } from './format';
 
 describe('ValueGridlines', () => {
@@ -20,6 +20,40 @@ describe('ValueGridlines', () => {
       .toEqual([0, 0.5, 1].map((tick) => formatNumber(tick, 'integer')));
     expect([...drawn('percent').querySelectorAll('text')].map((text) => text.textContent))
       .toEqual([0, 0.5, 1].map((tick) => formatNumber(tick, 'percent')));
+  });
+});
+
+describe('MonthColumn', () => {
+  const column = (active: boolean, onActive = vi.fn()) => render(
+    <svg>
+      <MonthColumn monthKey="7" centre={100} markWidth={20} plotTop={8} plotBottom={228} name="Jul" readOut="Jul: 31 °C"
+                   active={active} onActive={onActive}>
+        <rect data-mark="bar" />
+      </MonthColumn>
+    </svg>,
+  ).container;
+
+  it('reads as one image named by its read-out, with its marks and its name under the axis', () => {
+    const month = column(false).querySelector('[data-month="7"]')!;
+
+    expect(month).toHaveAttribute('role', 'img');
+    expect(month).toHaveAttribute('aria-label', 'Jul: 31 °C');
+    expect(month.querySelector('[data-mark="bar"]')).not.toBeNull();
+    expect(month).toHaveTextContent('Jul');
+  });
+
+  it('is active while focused or under the pointer, and outlined only while active', () => {
+    const onActive = vi.fn();
+    const month = column(false, onActive).querySelector('[data-month="7"]')!;
+
+    fireEvent.focus(month);
+    fireEvent.blur(month);
+    fireEvent.mouseEnter(month);
+    fireEvent.mouseLeave(month);
+
+    expect(onActive.mock.calls).toEqual([[true], [false], [true], [false]]);
+    expect(month.querySelectorAll('rect[fill="none"]')).toHaveLength(0);
+    expect(column(true).querySelectorAll('rect[fill="none"]')).toHaveLength(1);
   });
 });
 
