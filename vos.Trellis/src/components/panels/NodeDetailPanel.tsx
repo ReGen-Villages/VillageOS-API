@@ -20,6 +20,7 @@ const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
 import { storedTextOf } from '../../utils/ifcIdentity';
 import { thingsContainedBy } from '../../utils/containment';
+import { toggled } from '../../utils/toggled';
 
 const TAB_LABEL_KEYS = {
   ranges: 'panels.node.tabRanges',
@@ -368,11 +369,7 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
     bySource.get(sourceId)!.props.push({ name, value: effectiveProperty.Value, type: effectiveProperty.Type });
   }
 
-  const toggleSource = (id: string) => setExpandedSources((previous) => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleSource = (id: string) => setExpandedSources((previous) => toggled(previous, id));
 
   return (
     <div className="space-y-2">
