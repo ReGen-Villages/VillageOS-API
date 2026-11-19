@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
+using vos.MyceliumClient;
 using vos.Pages;
-using vos.Taproot;
 
 namespace vos.Hypha.Tools.Pages;
 

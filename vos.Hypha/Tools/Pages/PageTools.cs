@@ -4,8 +4,8 @@ using System.Text.Json.Nodes;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
+using vos.MyceliumClient;
 using vos.Pages;
-using vos.Taproot;
 
 namespace vos.Hypha.Tools.Pages;
 
