@@ -1,4 +1,3 @@
-using System.Text.Json;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -134,7 +133,7 @@ public static class DiscoveredVocabularyResolver
         foreach (var vocabulary in snapshot.Things)
         {
             if (!vocabularyIds.Contains(vocabulary.Id)) continue;
-            if (OwnString(vocabulary, ResolvedFromProperty) is not { } word) continue;
+            if (vocabulary.StatedText(ResolvedFromProperty) is not { } word) continue;
 
             var members = new Dictionary<string, Guid>(StringComparer.Ordinal);
             var contested = new HashSet<string>(StringComparer.Ordinal);
@@ -230,12 +229,6 @@ public static class DiscoveredVocabularyResolver
 
         return members;
     }
-
-    private static string? OwnString(SnapshotThing thing, string name) =>
-        thing.StatedValue(name) is { } property
-        && property.Value.ValueKind == JsonValueKind.String
-            ? property.Value.GetString()
-            : null;
 
     private static bool IsPredicate(
         IReadOnlyDictionary<Guid, string> namesById, Guid predicateId, string name) =>

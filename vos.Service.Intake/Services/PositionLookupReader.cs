@@ -1,4 +1,3 @@
-using System.Text.Json;
 using vos.Service.Intake.Models;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
@@ -83,7 +82,7 @@ public static class PositionLookupReader
         return [.. snapshot.Things
             .Where(thing => !thing.IsArchetype && members.Contains(thing.Id))
             .Select(thing => Lookup(thing) is { Bounds: not null } usable
-                ? new DeclaredPlotsLookup(usable, (int?)Number(thing, MinimumZoomProperty) ?? 0, (int?)Number(thing, MostPlotsProperty))
+                ? new DeclaredPlotsLookup(usable, (int?)thing.StatedNumber(MinimumZoomProperty) ?? 0, (int?)thing.StatedNumber(MostPlotsProperty))
                 : null)
             .OfType<DeclaredPlotsLookup>()
             .OrderBy(lookup => lookup.Lookup.Name, StringComparer.Ordinal)];
@@ -120,29 +119,19 @@ public static class PositionLookupReader
     private static DeclaredLookup? Lookup(SnapshotThing thing)
     {
         if (string.IsNullOrWhiteSpace(thing.Name)) return null;
-        if (Text(thing, TransformProperty) is not { } transform) return null;
+        if (thing.StatedText(TransformProperty) is not { } transform) return null;
 
-        return new DeclaredLookup(thing.Name, transform, Text(thing, AttributionProperty), Bounds(thing));
+        return new DeclaredLookup(thing.Name, transform, thing.StatedText(AttributionProperty), Bounds(thing));
     }
 
     private static DeclaredBounds? Bounds(SnapshotThing thing)
     {
-        if (Number(thing, SouthLatitudeProperty) is not { } south
-            || Number(thing, NorthLatitudeProperty) is not { } north
-            || Number(thing, WestLongitudeProperty) is not { } west
-            || Number(thing, EastLongitudeProperty) is not { } east)
+        if (thing.StatedNumber(SouthLatitudeProperty) is not { } south
+            || thing.StatedNumber(NorthLatitudeProperty) is not { } north
+            || thing.StatedNumber(WestLongitudeProperty) is not { } west
+            || thing.StatedNumber(EastLongitudeProperty) is not { } east)
             return null;
 
         return south < north && west < east ? new DeclaredBounds(south, north, west, east) : null;
     }
-
-    private static string? Text(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
-            ? stated.Value.GetString()
-            : null;
-
-    private static double? Number(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.Number
-            ? stated.Value.GetDouble()
-            : null;
 }

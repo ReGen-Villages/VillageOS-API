@@ -97,9 +97,7 @@ public static class DeclaredVocabularyReader
 
     // An analysis stating no order anywhere leaves every demand at nought, which serves them in the order
     // it declared them — a poor answer, and better than refusing every submission into that model.
-    private static long ServingOrderOf(SnapshotThing demand) =>
-        demand.StatedValue(ServingOrderProperty) is { } stated
-        && stated.Value.TryGetInt64(out var order) ? order : 0;
+    private static long ServingOrderOf(SnapshotThing demand) => demand.StatedWholeNumber(ServingOrderProperty) ?? 0;
 
     // What a hazard assessment is about, offered by a form so somebody marks what they have
     // seen rather than nominating hazards from memory.

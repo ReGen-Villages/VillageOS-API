@@ -367,9 +367,9 @@ public static class CoveringSourceResolver
         if (areaName?.Name is not { Length: > 0 } areaNameEndpoint) return null;
         if (search?.Name is not { Length: > 0 } searchEndpoint) return null;
 
-        if (StatedText(search, DivisionCodeProperty) is not { } codeProperty) return null;
-        if (StatedText(search, DivisionNameProperty) is not { } nameProperty) return null;
-        if (StatedText(search, AddressProperty) is not { } address) return null;
+        if (NonEmptyText(search, DivisionCodeProperty) is not { } codeProperty) return null;
+        if (NonEmptyText(search, DivisionNameProperty) is not { } nameProperty) return null;
+        if (NonEmptyText(search, AddressProperty) is not { } address) return null;
 
         // Exactly one, because the run has one name to fill and no way to tell which of two a second
         // placeholder wanted — and a call left with an unfilled one is refused before the provider is
@@ -384,7 +384,7 @@ public static class CoveringSourceResolver
 
         return new DivisionLookup(
             areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty,
-            StatedText(areaName, PlaceCodePropertyName),
+            NonEmptyText(areaName, PlaceCodePropertyName),
             localAreaName?.Name is { Length: > 0 } localEndpoint ? localEndpoint : null);
     }
 
@@ -448,19 +448,12 @@ public static class CoveringSourceResolver
         })
     ];
 
-    private static string? StatedText(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
-            ? stated.Value.GetString() is { Length: > 0 } text ? text : null
-            : null;
+    private static string? NonEmptyText(SnapshotThing thing, string property) =>
+        thing.StatedText(property) is { Length: > 0 } text ? text : null;
 
     // Nought where the coverage carries no count, which is a coverage nothing has tried yet — the same
     // answer as a count of nought, and the run's next write makes it one either way.
-    private static long AttemptsOn(SnapshotThing coverage)
-        => coverage.StatedValue(AttemptsProperty) is { } property
-           && property.Value.ValueKind == JsonValueKind.Number
-           && property.Value.TryGetInt64(out var attempts)
-            ? attempts
-            : 0;
+    private static long AttemptsOn(SnapshotThing coverage) => coverage.StatedWholeNumber(AttemptsProperty) ?? 0;
 
     private static bool HasResolvedAt(SnapshotThing coverage)
         => coverage.StatedValue(ResolvedAtProperty) is { } property

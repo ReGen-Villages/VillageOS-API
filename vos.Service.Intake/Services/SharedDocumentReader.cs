@@ -1,4 +1,3 @@
-using System.Text.Json;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -61,11 +60,11 @@ public static class SharedDocumentReader
             .OfType<SnapshotThing>()
             .Select(document => new SharedDocumentListing(
                 document.Id,
-                Text(document, FileNameProperty) ?? document.Name ?? string.Empty,
-                Text(document, DescriptionProperty),
-                Text(document, ContentTypeProperty),
-                Number(document, SizeBytesProperty),
-                Text(document, SharedAtProperty)))
+                document.StatedText(FileNameProperty) ?? document.Name ?? string.Empty,
+                document.StatedText(DescriptionProperty),
+                document.StatedText(ContentTypeProperty),
+                document.StatedWholeNumber(SizeBytesProperty),
+                document.StatedText(SharedAtProperty)))
             .OrderBy(document => document.SharedAt, StringComparer.Ordinal)];
     }
 
@@ -76,15 +75,5 @@ public static class SharedDocumentReader
             ? snapshot.Things.FirstOrDefault(thing => thing.Id == documentId)
             : null;
 
-    public static string? StoredAs(SnapshotThing document) => Text(document, StoredAsProperty);
-
-    private static string? Text(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
-            ? stated.Value.GetString()
-            : null;
-
-    private static long? Number(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.Number && stated.Value.TryGetInt64(out var number)
-            ? number
-            : null;
+    public static string? StoredAs(SnapshotThing document) => document.StatedText(StoredAsProperty);
 }
