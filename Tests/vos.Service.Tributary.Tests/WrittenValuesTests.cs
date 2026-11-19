@@ -112,9 +112,7 @@ public class WrittenValuesTests
                 return Json("""{"accepted":1}""");
             if (req.RequestUri!.Host == "api.test")
                 return Json("""{"regime":"steady"}""");
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? RouteRelationshipWrite(req)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };

@@ -41,9 +41,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request),
             handleRequest: new { endpointName = "EP", subjectId },
             reason: "The broker had not accepted the readings within 28 of the 30 seconds");
@@ -68,9 +66,7 @@ public class PassedOnRequestLimitHandleTests
                     host!.Clock.Advance(Deadline);
                     return Json("""{"regime":"steady"}""");
                 }
-                return RouteFindThing(request, thingId, "EP")
-                    ?? RouteEffectiveProperties(request, thingId, props)
-                    ?? RouteKindsFromProperties(request, thingId, props)
+                return RouteEndpoint(request, thingId, props)
                     ?? RouteRelationshipWrite(request)
                     ?? RouteObservationWrite(request, subjectId);
             }))
@@ -121,9 +117,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: _ => false,
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request)
                   ?? RouteObservationWrite(request, subjectId));
 
@@ -140,9 +134,7 @@ public class PassedOnRequestLimitHandleTests
 
         await AssertAnsweredAtTheDeadlineAsync(
             stalls: request => request.RequestUri!.Host == "api.test",
-            answers: request => RouteFindThing(request, thingId, "EP")
-                ?? RouteEffectiveProperties(request, thingId, props)
-                ?? RouteKindsFromProperties(request, thingId, props),
+            answers: request => RouteEndpoint(request, thingId, props),
             handleRequest: new { endpointName = "EP" },
             reason: "The data source had not answered within 28 of the 30 seconds");
     }
@@ -192,9 +184,7 @@ public class PassedOnRequestLimitHandleTests
 
         await AssertAnsweredAtTheDeadlineAsync(
             stalls: request => request.RequestUri!.Host == "tokens.test",
-            answers: request => RouteFindThing(request, thingId, "EP")
-                ?? RouteEffectiveProperties(request, thingId, props)
-                ?? RouteKindsFromProperties(request, thingId, props),
+            answers: request => RouteEndpoint(request, thingId, props),
             handleRequest: new { endpointName = "EP" },
             reason: "The data source had not answered within 28 of the 30 seconds");
     }
@@ -248,9 +238,7 @@ public class PassedOnRequestLimitHandleTests
                 }
                 return request.RequestUri!.Host == "api.test"
                     ? Json("""{"regime":"steady"}""")
-                    : RouteFindThing(request, thingId, "EP")
-                      ?? RouteEffectiveProperties(request, thingId, props)
-                      ?? RouteKindsFromProperties(request, thingId, props)
+                    : RouteEndpoint(request, thingId, props)
                       ?? RouteRelationshipWrite(request);
             }))
         {
@@ -277,9 +265,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request));
         var warningsAtStartUp = host.LimitLog.Lines.Count;
 
@@ -326,9 +312,7 @@ public class PassedOnRequestLimitHandleTests
                         Content = new StringContent("""{"error":"slow down"}""")
                     };
                 }
-                return RouteFindThing(request, thingId, "EP")
-                    ?? RouteEffectiveProperties(request, thingId, props)
-                    ?? RouteKindsFromProperties(request, thingId, props);
+                return RouteEndpoint(request, thingId, props);
             }))
         {
             var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
@@ -390,9 +374,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request)
                   ?? RouteObservationWrite(request, subjectId),
             released: released.Task);
@@ -450,9 +432,7 @@ public class PassedOnRequestLimitHandleTests
         await factory.InitializeAsync();
         factory.HandlerCallback = request => request.RequestUri!.Host == "api.test"
             ? Json("""{"ok":true}""")
-            : RouteFindThing(request, thingId, "EP")
-              ?? RouteEffectiveProperties(request, thingId, props)
-              ?? RouteKindsFromProperties(request, thingId, props)
+            : RouteEndpoint(request, thingId, props)
               ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         await using var host = factory.WithWebHostBuilder(builder =>
         {

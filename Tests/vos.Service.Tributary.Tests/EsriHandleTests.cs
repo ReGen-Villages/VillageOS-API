@@ -33,8 +33,7 @@ public class EsriHandleTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "sampleserver6.arcgisonline.com") { outbound = req; return Json("{\"features\":[]}"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -73,8 +72,7 @@ public class EsriHandleTests
                 return Json($$"""{"token":"FETCHED","expires":{{DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds()}}}""");
             }
             if (req.RequestUri.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -107,8 +105,7 @@ public class EsriHandleTests
         {
             if (req.RequestUri!.Host == "tokens.test") { tokenCalls++; return Json("{\"token\":\"NOPE\",\"expires\":0}"); }
             if (req.RequestUri.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -142,8 +139,7 @@ public class EsriHandleTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -168,9 +164,7 @@ public class EsriHandleTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -202,8 +196,7 @@ public class EsriHandleTests
                 return Json("""{"error":{"code":400,"message":"Invalid username or password."}}""");
             if (req.RequestUri.Host == "features.test")
                 return Json("{\"ok\":true}");
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -359,9 +352,7 @@ public class EsriHandleTests
                 refused.Headers.RetryAfter = new(TimeSpan.FromSeconds(30));
                 return refused;
             }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -391,9 +382,7 @@ public class EsriHandleTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "features.test") { calledOut = true; return Json("{\"features\":[]}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -430,9 +419,7 @@ public class EsriHandleTests
                 queries.Add(req.RequestUri.Query);
                 return Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}}],\"exceededTransferLimit\":false}");
             }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -466,9 +453,7 @@ public class EsriHandleTests
                 {
                     Content = new ByteArrayContent(Encoding.UTF8.GetBytes("{\"error\":\"no\"}"))
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -499,8 +484,7 @@ public class EsriHandleTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
