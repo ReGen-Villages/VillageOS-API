@@ -68,7 +68,7 @@ class TheSharedClientLibrary(unittest.TestCase):
     tell it from the engine by the whole name."""
 
     def test_its_namespace_is_not_an_engine_one(self):
-        self.assertIsNone(imports_an_engine_namespace('using vos.MyceliumClient;'))
+        self.assertIsNone(imports_an_engine_namespace('using vos.PlatformClient;'))
 
     def test_its_folder_project_and_imports_pass(self):
         with tempfile.TemporaryDirectory() as root:
@@ -76,7 +76,7 @@ class TheSharedClientLibrary(unittest.TestCase):
             with open(os.path.join(root, 'A.csproj'), 'w', encoding='utf-8') as handle:
                 handle.write('<ProjectReference Include="..\\vos.MyceliumClient\\vos.MyceliumClient.csproj" />\n')
             with open(os.path.join(root, 'A.cs'), 'w', encoding='utf-8') as handle:
-                handle.write('using vos.MyceliumClient;\nglobal using vos.MyceliumClient;\n')
+                handle.write('using vos.PlatformClient;\nglobal using vos.PlatformClient;\n')
 
             self.assertEqual([], problems(root))
 
