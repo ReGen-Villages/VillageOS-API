@@ -300,6 +300,10 @@ export class PipelineModel {
       .map((relationship) => ({ relationshipId: relationship.Id, thingId: relationship.TargetId }));
   }
 
+  private firstReachedThatIs(subjectId: string, alongRoleId: string, kindRoleId: string): VosThing | undefined {
+    return this.reachedAlong(subjectId, alongRoleId).find((reached) => this.isOf(reached.Id, kindRoleId));
+  }
+
   private relationshipsAlong(subjectId: string, roleId: string): VosRelationship[] {
     const predicateId = this.boundTo(roleId);
     return (this.bySubject.get(subjectId) ?? []).filter((relationship) =>
@@ -433,10 +437,8 @@ export class PipelineModel {
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
-      const watched = this.reachedAlong(connection.Id, ROLE.StateWatch)
-        .find((range) => this.isOf(range.Id, ROLE.Range));
-      const started = this.reachedAlong(connection.Id, ROLE.PipelineStart)
-        .find((pipeline) => this.isOf(pipeline.Id, ROLE.Pipeline));
+      const watched = this.firstReachedThatIs(connection.Id, ROLE.StateWatch, ROLE.Range);
+      const started = this.firstReachedThatIs(connection.Id, ROLE.PipelineStart, ROLE.Pipeline);
       const subdomain = connection.Properties.Subdomain;
       const interval = watched ? Number(watched.Properties[EVALUATION_INTERVAL_PROPERTY] ?? 0) : 0;
       const binding = this.bindingOf(connection.Id);
@@ -471,7 +473,7 @@ export class PipelineModel {
 
   /** Mirrors RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs, so the page never offers a box the run refuses. */
   relatingOf(thingId: string): RelateReading {
-    const connection = this.reachedAlong(thingId, ROLE.NotifiedConnection).find((called) => this.isOf(called.Id, ROLE.Connection));
+    const connection = this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection);
     if (!connection)
       return { accepted: false, refusal: this.isOf(thingId, ROLE.Connection) ? 'standsForAConnection' : 'namesNoConnection' };
     const service = this.outgoing(connection.Id, 'has').find((held) => this.isOf(held.Id, ROLE.Service));
@@ -501,8 +503,7 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
-      .find((c) => this.isOf(c.Id, ROLE.Connection));
+    const arrivesAt = this.firstReachedThatIs(kind.Id, ROLE.ArrivesAt, ROLE.Connection);
     return { id: kind.Id, name: kind.Name, ...(arrivesAt ? { arrivesAtConnectionId: arrivesAt.Id } : {}) };
   }
 
@@ -515,7 +516,7 @@ export class PipelineModel {
         .sort((a, b) => a.name.localeCompare(b.name));
     return this.thingsOf(ROLE.ExternalSystem)
       .map((system) => {
-        const through = this.reachedAlong(system.Id, ROLE.ToldThrough).find((connection) => this.isOf(connection.Id, ROLE.Connection));
+        const through = this.firstReachedThatIs(system.Id, ROLE.ToldThrough, ROLE.Connection);
         return {
           id: system.Id,
           name: system.Name,
@@ -574,7 +575,7 @@ export class PipelineModel {
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
-    if (!thing.IsArchetype && this.reachedAlong(thingId, ROLE.NotifiedConnection).some((called) => this.isOf(called.Id, ROLE.Connection)))
+    if (!thing.IsArchetype && this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection))
       return { ...named, kind: 'relationship', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
       const trigger = this.triggerOf(thingId);
