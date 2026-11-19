@@ -7,16 +7,14 @@ namespace vos.Tests.Shared;
 // service reads its own credential to learn which project it speaks for and when to replace it.
 public static class TestTokens
 {
-    public static string For(Guid modelId, DateTimeOffset expiresAt, string scope = "endpoint:test:*") =>
+    public static string For(Guid modelId, DateTimeOffset? expiresAt = null, string scope = "endpoint:test:*") =>
         Jwt(new Dictionary<string, object>
         {
             ["vos:model_id"] = modelId.ToString(),
             ["vos:scope"] = scope,
             ["vos:token_type"] = "service",
-            ["exp"] = expiresAt.ToUnixTimeSeconds(),
+            ["exp"] = (expiresAt ?? DateTimeOffset.UtcNow.AddHours(24)).ToUnixTimeSeconds(),
         });
-
-    public static string For(Guid modelId) => For(modelId, DateTimeOffset.UtcNow.AddHours(24));
 
     public static string Jwt(object payload) =>
         $"{Segment("{\"alg\":\"HS256\"}")}.{Segment(JsonSerializer.Serialize(payload))}.signature";
