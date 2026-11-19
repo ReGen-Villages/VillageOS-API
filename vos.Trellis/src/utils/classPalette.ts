@@ -127,13 +127,6 @@ export function getClassBucket(
   return 'other';
 }
 
-// Priority: per-value override (keyed by raw value), then bucket color.
-// `overrides` is part of the API even though the GUI passes {} today.
-export function resolveClassColor(
-  propertyName: string,
-  value: string | null | undefined,
-  overrides: Record<string, string> = {},
-): string {
-  if (value && overrides[value]) return overrides[value];
+export function resolveClassColor(propertyName: string, value: string | null | undefined): string {
   return BUCKET_COLORS[getClassBucket(propertyName, value)];
 }

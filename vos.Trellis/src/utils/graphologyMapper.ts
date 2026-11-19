@@ -96,13 +96,6 @@ export function buildGraph(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
-  /**
-   * Per-value color overrides scoped to the configured classifying property
-   * (LayoutSettings.classifyingProperty). Keys are values of that property
-   * (e.g. "IfcWall" when classifyingProperty='ifcClass'). Empty by default;
-   * future GUI_Settings panel will let users edit this map at runtime.
-   */
-  classColorOverrides: Record<string, string> = {},
   layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
   const classifyingProperty = layoutSettings.classifyingProperty;
@@ -146,13 +139,12 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // A missing classifying value, or one with no curated bucket and no override, falls back to the
-      // hash palette keyed by the `is`-target type name so a model without a class table still renders
-      // distinctly. An imported instance stores its own class as an override because its type declares
-      // the same name, so the own bag alone is empty here.
+      // A missing classifying value falls back to the hash palette keyed by the `is`-target type name,
+      // so a model without a class table still renders distinctly. An imported instance stores its own
+      // class as an override because its type declares the same name, so the own bag alone is empty here.
       const classifyingValue = storedTextOf(t, classifyingProperty);
       if (classifyingValue) {
-        color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
+        color = resolveClassColor(classifyingProperty, classifyingValue);
       } else {
         const typeName = getInstanceTypeName(t, relationshipIndex);
         const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;

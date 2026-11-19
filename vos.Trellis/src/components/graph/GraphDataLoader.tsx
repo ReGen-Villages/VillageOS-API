@@ -27,7 +27,7 @@ export function GraphDataLoader({ things, relationships }: Props) {
     useUiStore.getState().setLayoutSettings(layout);
     useUiStore.getState().setPredicateColors(predicateColors);
 
-    const nextGraph = buildGraph(things, relationships, predicateColors, {}, layout);
+    const nextGraph = buildGraph(things, relationships, predicateColors, layout);
     const liveGraph = sigma.getGraph();
 
     // An empty live graph means first mount or a post-clear repopulate: do a full
