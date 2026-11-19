@@ -17,8 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
-import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
-import { ToastContainer } from '../components/common/Toast';
+import { StandalonePage } from '../components/common/StandalonePage';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
@@ -34,39 +33,22 @@ export function PublicFindingsPage() {
   const [findings, setFindings] = useState<Findings | null>(null);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="max-w-5xl mx-auto flex items-center gap-3 px-6 pt-10 pb-4">
-        <div className="w-9 h-9 rounded-lg grid place-items-center text-white bg-gradient-to-br from-emerald-600 to-teal-500">
-          <Sprout size={18} />
-        </div>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">
-            {t('publicFindings.title')}
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('publicFindings.intro')}</p>
-        </div>
-        <LanguageSwitcher />
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 pb-16">
-        {findings ? (
-          <>
-            <Drawn findings={findings} />
-            <button
-              type="button"
-              onClick={() => setFindings(null)}
-              className="mt-8 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              {t('publicFindings.askAgain')}
-            </button>
-          </>
-        ) : (
-          <AskForFindings onRead={setFindings} />
-        )}
-      </main>
-
-      <ToastContainer />
-    </div>
+    <StandalonePage icon={<Sprout size={18} />} title={t('publicFindings.title')} intro={t('publicFindings.intro')} width="wide">
+      {findings ? (
+        <>
+          <Drawn findings={findings} />
+          <button
+            type="button"
+            onClick={() => setFindings(null)}
+            className="mt-8 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {t('publicFindings.askAgain')}
+          </button>
+        </>
+      ) : (
+        <AskForFindings onRead={setFindings} />
+      )}
+    </StandalonePage>
   );
 }
 

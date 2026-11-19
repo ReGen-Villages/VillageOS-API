@@ -15,8 +15,7 @@ import { findingsApi } from '../api/findingsApi';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { asNumber, asRows, type ResolveContext } from '@tendril-ui/tendril';
 import { intakeApi, type FormOptions, type FoundPlace } from '../api/intakeApi';
-import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
-import { ToastContainer } from '../components/common/Toast';
+import { StandalonePage } from '../components/common/StandalonePage';
 import { toast } from '../components/common/toastStore';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { ThemedTiles } from '../components/dashboard/ThemedTiles';
@@ -269,84 +268,67 @@ export function ExplorePage() {
   const drawnArea = state.boundary.length >= 3 ? sphericalAreaHectares(state.boundary) : null;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="max-w-5xl mx-auto flex items-center gap-3 px-6 pt-10 pb-4">
-        <div className="w-9 h-9 rounded-lg grid place-items-center text-white bg-gradient-to-br from-emerald-600 to-teal-500">
-          <Compass size={18} />
-        </div>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">
-            {t('explore.title')}
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('explore.intro')}</p>
-        </div>
-        <LanguageSwitcher />
-      </header>
+    <StandalonePage icon={<Compass size={18} />} title={t('explore.title')} intro={t('explore.intro')} width="wide">
+      {unreachable && (
+        <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.unreachable')}</p>
+      )}
+      {!intakeApi.configured() && (
+        <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.notConfigured')}</p>
+      )}
 
-      <main className="max-w-5xl mx-auto px-6 pb-16">
-        {unreachable && (
-          <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.unreachable')}</p>
-        )}
-        {!intakeApi.configured() && (
-          <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.notConfigured')}</p>
-        )}
-
-        {session === null ? (
-          <>
-            <PlotStep
-              options={options}
-              state={state}
-              fetchingParcel={fetchingParcel}
-              drawnArea={drawnArea}
-              onPick={pick}
-              onUseMyLocation={useMyLocation}
-              onBoundaryDrawn={(boundary) => setState((s) => withDrawnBoundary(s, boundary))}
-              onBoundaryCleared={() => setState(withBoundaryCleared)}
-            />
-            {landDescribed(state) && (
-              <ClaimStep
-                state={state}
-                busy={busy}
-                awaitingCode={awaitingCode}
-                code={code}
-                onChange={(patch) => {
-                  if (patch.emailAddress !== undefined) {
-                    setAwaitingCode(false);
-                    setCode('');
-                  }
-                  setState((s) => ({ ...s, ...patch }));
-                }}
-                onCodeChange={setCode}
-                onSubmit={() => void (awaitingCode ? submit() : askForCode())}
-              />
-            )}
-            <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">
-              <a className="hover:underline" href="./index.html">{t('explore.tryGuided')}</a>
-            </p>
-          </>
-        ) : (
-          <ReportStep
+      {session === null ? (
+        <>
+          <PlotStep
             options={options}
             state={state}
+            fetchingParcel={fetchingParcel}
             drawnArea={drawnArea}
-            reference={session.reference}
-            findings={findings}
-            expired={expired}
-            busy={busy}
-            code={code}
-            onCodeChange={setCode}
-            onResumeAskForCode={() => void askForCode()}
-            onResume={() => void resume()}
-            onRefresh={() => void readFindings().catch(() => undefined)}
-            onDial={(patch) => setState((s) => ({ ...s, ...patch }))}
-            onShareSurvey={shareSurvey}
-            onListSurveys={listSurveys}
+            onPick={pick}
+            onUseMyLocation={useMyLocation}
+            onBoundaryDrawn={(boundary) => setState((s) => withDrawnBoundary(s, boundary))}
+            onBoundaryCleared={() => setState(withBoundaryCleared)}
           />
-        )}
-      </main>
-
-      <ToastContainer />
-    </div>
+          {landDescribed(state) && (
+            <ClaimStep
+              state={state}
+              busy={busy}
+              awaitingCode={awaitingCode}
+              code={code}
+              onChange={(patch) => {
+                if (patch.emailAddress !== undefined) {
+                  setAwaitingCode(false);
+                  setCode('');
+                }
+                setState((s) => ({ ...s, ...patch }));
+              }}
+              onCodeChange={setCode}
+              onSubmit={() => void (awaitingCode ? submit() : askForCode())}
+            />
+          )}
+          <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">
+            <a className="hover:underline" href="./index.html">{t('explore.tryGuided')}</a>
+          </p>
+        </>
+      ) : (
+        <ReportStep
+          options={options}
+          state={state}
+          drawnArea={drawnArea}
+          reference={session.reference}
+          findings={findings}
+          expired={expired}
+          busy={busy}
+          code={code}
+          onCodeChange={setCode}
+          onResumeAskForCode={() => void askForCode()}
+          onResume={() => void resume()}
+          onRefresh={() => void readFindings().catch(() => undefined)}
+          onDial={(patch) => setState((s) => ({ ...s, ...patch }))}
+          onShareSurvey={shareSurvey}
+          onListSurveys={listSurveys}
+        />
+      )}
+    </StandalonePage>
   );
 }
 
