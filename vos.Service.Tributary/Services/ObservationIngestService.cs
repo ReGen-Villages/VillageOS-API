@@ -17,7 +17,8 @@ public record ObservationIngestResult(
     int ObservationsSubmitted,
     string? Error,
     string? Detail,
-    IReadOnlyDictionary<string, object?>? Written = null);
+    IReadOnlyDictionary<string, object?>? Written = null,
+    bool CanBeTriedAgain = false);
 
 // Ingests fetched-and-reshaped readings as time-series observations.
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
@@ -90,7 +91,8 @@ public class ObservationIngestService
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
-        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default, Action? onReshaped = null)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default, Action? onReshaped = null,
+        bool depositsTimedReadings = false)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
@@ -103,7 +105,7 @@ public class ObservationIngestService
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
 
         if (subjectId != null)
-            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, cancellationToken);
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, depositsTimedReadings, cancellationToken);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -184,7 +186,8 @@ public class ObservationIngestService
     }
 
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
-        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, CancellationToken cancellationToken)
+        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, bool depositsTimedReadings,
+        CancellationToken cancellationToken)
     {
         var samples = SamplesOf(readings);
 
@@ -199,7 +202,15 @@ public class ObservationIngestService
         if (await provenance.EnsureObservedAsync(subjectId, cancellationToken) is { } failure)
             return new ObservationIngestResult(false, 1, 0, failure, null);
 
-        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples, cancellationToken))
+        var deposited = depositsTimedReadings ? samples.Where(sample => sample.ObservedAt is not null).ToList() : [];
+        var current = deposited.Count == 0 ? samples : samples.Where(sample => sample.ObservedAt is null).ToList();
+
+        if (deposited.Count > 0
+            && await _myceliumClient.DepositReadingsAsync(subjectId, deposited, cancellationToken) is { Accepted: false } refused)
+            return new ObservationIngestResult(false, 1, 0, $"The broker did not store the history: {refused.Refusal}", null,
+                CanBeTriedAgain: refused.CanBeTriedAgain);
+
+        if (current.Count > 0 && !await _myceliumClient.SubmitObservationsAsync(subjectId, current, cancellationToken))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null, WrittenOf(samples));

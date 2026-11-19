@@ -31,7 +31,8 @@ public static class EndpointKindResolver
         // The `observed` and `predicate` roles and their bindings are asked for the provenance read, not for any kind.
         // The endpoint's observed relationships are asked for through the role, and without the predicate the role
         // binds none of them can be told from any other relationship; asking here lets one read answer both.
-        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id],
+        // The `historySource` role is asked for so the same read says whether the endpoint's timed readings are deposited.
+        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [
@@ -75,6 +76,15 @@ public static class EndpointKindResolver
         }
 
         return resolved;
+    }
+
+    public static bool IsHistorySource(SnapshotDocument snapshot, Guid endpointId)
+    {
+        var historyKinds = snapshot.Bound(LandIntakeRoles.HistorySource).Select(kind => kind.Id).ToHashSet();
+        if (historyKinds.Count == 0) return false;
+
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        return ChainFrom(snapshot, endpointId, thingsById).Any(historyKinds.Contains);
     }
 
     // The endpoint and then its templates, nearest first, so the closest declaration of a role wins —
