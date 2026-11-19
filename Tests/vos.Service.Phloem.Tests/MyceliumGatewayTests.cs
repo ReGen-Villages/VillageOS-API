@@ -2302,6 +2302,48 @@ public class MyceliumGatewayTests
             .WithMessage($"*role {PipelineRoles.PipelineRun.Word}*");
     }
 
+    private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) AGatewayClearing(Guid runId, HttpStatusCode deleteAnswer, string deleteBody) =>
+        NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, $$"""{ "snapshot": { "things": [ { "id": "{{runId}}", "name": "run", "properties": {} } ], "relationships": [] } }""")
+                : request.Method == HttpMethod.Delete
+                    ? Json(deleteAnswer, deleteBody)
+                    : new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+    [Fact]
+    public async Task ClearRunAsync_ARetractThePlatformRefusesThrowsWithThePlatformsReasonAndStatus()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, _) = AGatewayClearing(runId, HttpStatusCode.Forbidden, """{ "error": "only an admin deletes this" }""");
+
+        var clearing = () => gateway.ClearRunAsync(runId, CancellationToken.None);
+
+        (await clearing.Should().ThrowAsync<HttpRequestException>().WithMessage($"*{runId}*only an admin deletes this*"))
+            .Which.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ClearRunAsync_ARefusalNamingNoReasonIsReportedByItsStatus()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, _) = AGatewayClearing(runId, HttpStatusCode.Forbidden, """{ "title": "Forbidden" }""");
+
+        var clearing = () => gateway.ClearRunAsync(runId, CancellationToken.None);
+
+        await clearing.Should().ThrowAsync<HttpRequestException>().WithMessage("*HTTP 403");
+    }
+
+    [Fact]
+    public async Task ClearRunAsync_ARunThePlatformNoLongerHoldsCountsAsCleared()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = AGatewayClearing(runId, HttpStatusCode.NotFound, """{ "error": "not found" }""");
+
+        (await gateway.ClearRunAsync(runId, CancellationToken.None)).Should().Be(1);
+        handler.Requests.Where(request => request.Method == HttpMethod.Delete).Select(request => request.RequestUri!.AbsolutePath)
+            .Should().Equal($"/api/things/{runId}");
+    }
+
     private static async Task<JsonElement> ReadJson(HttpRequestMessage request) =>
         JsonSerializer.Deserialize<JsonElement>(await request.Content!.ReadAsStringAsync());
 }
