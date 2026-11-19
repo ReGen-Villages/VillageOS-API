@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using vos.Service.Phloem.Execution;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -149,5 +150,40 @@ public class RunClearingTests
 
         cleared.Should().Be((1, 3));
         gateway.Cleared.Should().Equal(old.RunId);
+    }
+
+    [Fact]
+    public async Task The_running_keeper_clears_once_a_real_hour_has_passed_and_looks_again_the_next_hour_after_a_look_fails()
+    {
+        var first = Run(RunStatus.Succeeded, 31);
+        var gateway = new FakeGateway(new GraphFixture().Build())
+        {
+            RunsJudged = new RunsToJudge([first], Template, new Dictionary<Guid, KeepPeriods>(), RunsPerLook: 500),
+        };
+        var real = new FakeTimeProvider(new DateTimeOffset(2026, 11, 17, 23, 0, 0, TimeSpan.Zero));
+        var clock = new ModelClock(real);
+        clock.AnchorTo(Now, 1);
+        using var keeper = new RunClearingKeeper(gateway, clock, NullLogger<RunClearingKeeper>.Instance, real);
+        await keeper.StartAsync(CancellationToken.None);
+
+        // Minute by minute, because the keeper sets its first delay on its own thread, perhaps after the clock has moved.
+        for (var minute = 0; minute < 59; minute++)
+        {
+            real.Advance(TimeSpan.FromMinutes(1));
+            await Task.Delay(TimeSpan.FromMilliseconds(10));
+        }
+        gateway.Cleared.Should().BeEmpty("the keeper waits a whole real hour before its first look");
+
+        await Settle.UntilAsync(() => { real.Advance(TimeSpan.FromMinutes(1)); return gateway.Cleared.Count == 1; },
+            "the keeper clears the due run within its first hour");
+
+        var second = Run(RunStatus.Succeeded, 32);
+        gateway.RunsJudged = gateway.RunsJudged with { Runs = [second] };
+        gateway.JudgingReadsThatFail = 1;
+        await Settle.UntilAsync(() => { real.Advance(TimeSpan.FromMinutes(1)); return gateway.Cleared.Contains(second.RunId); },
+            "a failed look is logged and the next hour's look clears");
+
+        await keeper.StopAsync(CancellationToken.None);
+        gateway.Cleared.Should().Equal(first.RunId, second.RunId);
     }
 }
