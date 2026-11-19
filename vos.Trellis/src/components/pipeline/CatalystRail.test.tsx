@@ -49,6 +49,11 @@ describe('CatalystRail', () => {
     expect(screen.getByTitle('the orchestrator refuses each entry: nothing is drawn')).toHaveTextContent('nothing');
   });
 
+  it('says nothing handles a connection used as a predicate that names no connection along notifies, and why', () => {
+    rail();
+    expect(screen.getByTitle('the platform calls nothing for it: it names no connection along alerts')).toHaveTextContent('nothing');
+  });
+
   it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {
     const { id, onHandOver } = rail();
     expect(screen.getAllByRole('button', { name: /with the orchestrator$/ })).toHaveLength(3);
@@ -72,8 +77,8 @@ describe('CatalystRail', () => {
 
   it('offers no start node for a catalyst no run can start from', () => {
     rail();
-    expect(screen.queryByRole('button', { name: 'Place a start node standing for ripens' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Place a start node standing for feeds' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Place a start node standing for feeds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Place a start node standing for ripens' })).toBeInTheDocument();
   });
 
   it('says a group holds nothing rather than drawing an empty list, and shows every group', () => {

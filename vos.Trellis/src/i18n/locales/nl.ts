@@ -1393,6 +1393,7 @@ export const nl: PartialResources = {
       nothingToday: "vandaag gebeurt er niets",
       nothing: "niets",
       orchestratorRefuses: "de orkestrator weigert elke intrede: er is niets getekend",
+      namesNoConnection: "het platform roept er niets voor aan: het noemt geen verbinding via {{predicate}}",
       handOver: "Laten afhandelen door de orkestrator",
       handOverTitle: "{{what}} laten afhandelen door de orkestrator",
       handOverFailed: "De toestand kon niet aan de orkestrator worden overgedragen",

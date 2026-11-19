@@ -246,37 +246,46 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task CreateRelationshipAsync_HappyPath_ReturnsTrue()
+    public async Task RelateUnlessHeldAsync_PostsTheOneRelationshipToTheFragmentRoute()
     {
+        var (subject, predicate, target) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        JsonElement? posted = null;
         var handler = new MockHttpMessageHandler(req =>
-            req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/relationships"
-                ? new HttpResponseMessage(HttpStatusCode.OK)
-                : new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-
-        (await sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task CreateRelationshipAsync_NonSuccessStatus_ReturnsFalse()
-    {
-        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
         {
-            Content = new StringContent("dup", Encoding.UTF8, "text/plain")
+            if (req.Method != HttpMethod.Post || req.RequestUri!.AbsolutePath != "/api/model/fragment")
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            posted = JsonDocument.Parse(req.Content!.ReadAsStringAsync().Result).RootElement.Clone();
+            return new HttpResponseMessage(HttpStatusCode.OK);
         });
         var sut = CreateClient(handler);
 
-        (await sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
+        (await sut.RelateUnlessHeldAsync(subject, predicate, target)).Should().BeTrue();
+
+        var relationship = posted!.Value.GetProperty("Relationships").EnumerateArray().Should().ContainSingle().Subject;
+        relationship.GetProperty("Subject").GetGuid().Should().Be(subject);
+        relationship.GetProperty("Predicate").GetGuid().Should().Be(predicate);
+        relationship.GetProperty("Target").GetGuid().Should().Be(target);
     }
 
     [Fact]
-    public async Task CreateRelationshipAsync_TransportThrows_ReturnsFalse()
+    public async Task RelateUnlessHeldAsync_Refused_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("{\"error\":\"Relationship target does not resolve\"}", Encoding.UTF8, "application/json")
+        });
+        var sut = CreateClient(handler);
+
+        (await sut.RelateUnlessHeldAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RelateUnlessHeldAsync_TransportThrows_ReturnsFalse()
     {
         var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
         var sut = CreateClient(handler);
 
-        (await sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
+        (await sut.RelateUnlessHeldAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
     }
 
     [Fact]
@@ -697,7 +706,7 @@ public class MyceliumClientTests
     [Theory]
     [InlineData("FindThingByNameAsync")]
     [InlineData("CreateThingAsync")]
-    [InlineData("CreateRelationshipAsync")]
+    [InlineData("RelateUnlessHeldAsync")]
     [InlineData("SetPropertyModeAsync")]
     [InlineData("GetEffectivePropertiesAsync")]
     public async Task Bug7873_every_broker_call_waits_the_thirty_seconds_the_forwarder_gives_the_call_around_it(string call)
@@ -710,7 +719,7 @@ public class MyceliumClientTests
         {
             "FindThingByNameAsync" => sut.FindThingByNameAsync("a-thing"),
             "CreateThingAsync" => sut.CreateThingAsync("a-thing", null),
-            "CreateRelationshipAsync" => sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
+            "RelateUnlessHeldAsync" => sut.RelateUnlessHeldAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             "SetPropertyModeAsync" => sut.SetPropertyModeAsync(Guid.NewGuid(), "level", "Live"),
             "GetEffectivePropertiesAsync" => sut.GetEffectivePropertiesAsync(Guid.NewGuid()),
             _ => throw new ArgumentOutOfRangeException(nameof(call)),

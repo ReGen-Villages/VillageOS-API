@@ -19,7 +19,7 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // The relate box's unit tests answer every read and write themselves, so only these show that the engine brings the
 // connection's service and state back with the drawing, takes the relationship, calls the service and answers the wait.
-public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<TheEngine>, IAsyncLifetime
+public sealed class PhloemRelatesAThingAlongAPredicateTests : IClassFixture<TheEngine>, IAsyncLifetime
 {
     private const string WorkedOutAt = "workedOutAt";
     private const string WorkedOut = "WorkedOut";
@@ -29,14 +29,14 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
     private readonly TheEngine _engine;
     private readonly ServiceStandIn _service = new();
 
-    public PhloemRelatesAThingAlongAConnectionTests(TheEngine engine) => _engine = engine;
+    public PhloemRelatesAThingAlongAPredicateTests(TheEngine engine) => _engine = engine;
 
     public Task InitializeAsync() => _service.StartAsync();
 
     public Task DisposeAsync() => _service.DisposeAsync().AsTask();
 
     [FactAgainstTheEngine]
-    public async Task A_run_reaching_a_relate_box_writes_one_relationship_to_the_connections_service_and_the_platform_calls_the_service()
+    public async Task A_run_reaching_a_relate_box_writes_one_relationship_along_its_predicate_and_the_platform_calls_the_connection_it_names()
     {
         var drawing = await DrawAsync();
         var study = await AStudyAsync(drawing);
@@ -46,7 +46,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         var relate = run.Nodes.Should().ContainSingle(node => node.NodeId == drawing.Relate, run.Error).Subject;
         relate.Status.Should().Be(RunStatus.Waiting, relate.Error);
         relate.Outputs![ModelNames.Written].GetBoolean().Should().BeTrue();
-        (await ReachedAlongTheConnectionAsync(drawing, study)).Should().Equal(drawing.Service);
+        (await ReachedAlongThePredicateAsync(drawing, study)).Should().Equal(drawing.Service);
         await Settle.UntilAsync(() => _service.CalledAbout(study), "the platform calls the connection's service for the study");
     }
 
@@ -56,7 +56,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         var drawing = await DrawAsync();
         var study = await AStudyAsync(drawing);
         await RunAsync(drawing, study);
-        var transport = new RecordingWritesAlong(drawing.Connection, _engine.Transport);
+        var transport = new RecordingWritesAlong(drawing.Predicate, _engine.Transport);
 
         var second = await RunAsync(drawing, study, transport);
 
@@ -64,7 +64,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         relate.Status.Should().Be(RunStatus.Waiting, relate.Error);
         relate.Outputs![ModelNames.Written].GetBoolean().Should().BeFalse();
         transport.Writes.Should().Be(0, "the read before the write finds the relationship, so the engine is asked for nothing it would refuse");
-        (await ReachedAlongTheConnectionAsync(drawing, study)).Should().Equal(drawing.Service);
+        (await ReachedAlongThePredicateAsync(drawing, study)).Should().Equal(drawing.Service);
     }
 
     [FactAgainstTheEngine]
@@ -116,7 +116,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
 
     private const string Problem = "problem";
 
-    private sealed record Drawing(Guid Pipeline, Guid Relate, Guid Connection, Guid Service, Guid WorkedOut, Guid StudyKind);
+    private sealed record Drawing(Guid Pipeline, Guid Relate, Guid Predicate, Guid Service, Guid WorkedOut, Guid StudyKind);
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
         transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
@@ -127,8 +127,8 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
             .RunAsync(drawing.Pipeline, JsonSerializer.SerializeToElement(new { }), CancellationToken.None,
                 subject: new RunSubject(study, "study"));
 
-    private async Task<IReadOnlyList<Guid>> ReachedAlongTheConnectionAsync(Drawing drawing, Guid study) =>
-        (await Gateway().ReachedAlongAsync(study, drawing.Connection, CancellationToken.None)).Select(reached => reached.Id).ToList();
+    private async Task<IReadOnlyList<Guid>> ReachedAlongThePredicateAsync(Drawing drawing, Guid study) =>
+        (await Gateway().ReachedAlongAsync(study, drawing.Predicate, CancellationToken.None)).Select(reached => reached.Id).ToList();
 
     private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
         (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
@@ -146,8 +146,8 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
     // because each case has a service listening on a port of its own.
     private async Task<Drawing> DrawAsync(bool errorPortCarriesOnSuccess = false)
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
-            await _engine.DeclareOnceAsync(predicate);
+        foreach (var builtIn in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+            await _engine.DeclareOnceAsync(builtIn);
         var @is = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var firstCase = await _engine.FindAsync("PipelineRelate") is null;
@@ -158,7 +158,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         var range = await PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
         var judges = await PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
         await PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
-        var notifies = await PlayingAsync(NotifiedConnectionRole, "notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
+        var notifies = await PlayingAsync(PipelineRoles.NotifiedConnection, "notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
         await PlayingAsync(PipelineRoles.CallRecord, "handledBy");
         await PlayingAsync(PipelineRoles.AwaitedThing, "awaits");
         await PlayingAsync(PipelineRoles.RunSubject, "about");
@@ -222,17 +222,12 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
             ["ServicePort"] = _service.Port.ToString(),
         });
         await _engine.RelateAsync(service, @is, serviceKind);
-        var connection = await _engine.DeclareAsync($"worksOut {Guid.NewGuid():N}");
+        var connection = await _engine.DeclareAsync($"worksOut connection {Guid.NewGuid():N}");
         await _engine.RelateAsync(connection, @is, connectionKind);
         await _engine.RelateAsync(connection, has, service);
         await _engine.RelateAsync(connection, provenBy, stateWorkedOut);
-        // A platform that calls the connection a predicate names along `notifies` calls this one, and one that calls the
-        // predicate itself calls the box's connection, so both are bound to the same service and proven by the same state.
-        var called = await _engine.DeclareAsync($"worksOut called {Guid.NewGuid():N}");
-        await _engine.RelateAsync(called, @is, connectionKind);
-        await _engine.RelateAsync(called, has, service);
-        await _engine.RelateAsync(called, provenBy, stateWorkedOut);
-        await _engine.RelateAsync(connection, notifies, called);
+        var predicate = await _engine.DeclareAsync($"worksOut {Guid.NewGuid():N}");
+        await _engine.RelateAsync(predicate, notifies, connection);
 
         var pipeline = await _engine.DeclareAsync($"Work a study out {Guid.NewGuid():N}",
             properties: new Dictionary<string, object?> { [ModelNames.Published] = true });
@@ -243,7 +238,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         var subjectOut = await PortAsync(start, PipelineExecutor.SubjectParam, ModelNames.DirectionOut);
         var relate = await _engine.DeclareAsync($"Work it out {Guid.NewGuid():N}");
         await _engine.RelateAsync(relate, @is, relateKind);
-        await _engine.RelateAsync(relate, standsFor, connection);
+        await _engine.RelateAsync(relate, standsFor, predicate);
         await _engine.RelateAsync(pipeline, has, relate);
         var end = await _engine.DeclareAsync($"Worked out {Guid.NewGuid():N}");
         await _engine.RelateAsync(end, @is, outputKind);
@@ -265,7 +260,7 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
         if (errorPortCarriesOnSuccess)
             await WireAsync(relate, await _engine.TheOnlyThingNamedAsync("error"), end, await PortAsync(end, Problem, ModelNames.DirectionIn));
 
-        return new Drawing(pipeline, relate, connection, service, stateWorkedOut, studyArchetype);
+        return new Drawing(pipeline, relate, predicate, service, stateWorkedOut, studyArchetype);
     }
 
     private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
@@ -286,9 +281,8 @@ public sealed class PhloemRelatesAThingAlongAConnectionTests : IClassFixture<The
 
     private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
     private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-    private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
 
-    // The run writes its own records as relationships too, so only a write along the connection is counted.
+    // The run writes its own records as relationships too, so only a write along the box's predicate is counted.
     private sealed class RecordingWritesAlong(Guid predicate, HttpMessageHandler inner) : DelegatingHandler(inner)
     {
         private int _writes;

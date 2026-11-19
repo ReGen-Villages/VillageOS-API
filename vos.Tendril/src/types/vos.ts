@@ -136,7 +136,7 @@ export type HistoryFold =
 
 export type HistoryFunction =
   | 'Min' | 'Max' | 'Average' | 'Sum' | 'Count' | 'Percentile' | 'ShareWithin'
-  | 'CountAtOrBelow' | 'CountAbove' | 'SumAbove' | 'SumBelow';
+  | 'CountAtOrBelow' | 'CountAbove' | 'SumAbove' | 'SumBelow' | 'CountAtOrAbove';
 
 /** One step of a history reduction: the first reads the samples, each later one the previous step's
  *  groups. `percentile` goes with `Percentile`, `from` and `to` (closed on both ends) with

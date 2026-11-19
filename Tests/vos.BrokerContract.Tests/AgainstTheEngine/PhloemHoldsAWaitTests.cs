@@ -43,7 +43,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
         await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
         var notifies = await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
-        await BindOnceAsync(NotifiedConnectionRole, notifies);
+        await BindOnceAsync(PipelineRoles.NotifiedConnection, notifies);
         await BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
         await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
@@ -87,7 +87,6 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
     private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-    private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
 
     private async Task BindOnceAsync(Role role, Guid played)
     {
