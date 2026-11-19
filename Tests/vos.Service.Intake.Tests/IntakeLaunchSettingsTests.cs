@@ -1,6 +1,6 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using vos.Service.Intake.Configuration;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -13,14 +13,6 @@ public class IntakeLaunchSettingsTests
     private const string FormOrigin = "https://app.example.org";
     private const string SecondFormOrigin = "https://www.example.org";
 
-    private static readonly string[] RequiredFlags = ["--port=7300", "--myceliumUrl=https://localhost:7243"];
-
-    private static string[] FlagsWith(params string[] extra) => [.. RequiredFlags, .. extra];
-
-    private static IConfiguration ConfigurationFrom(params (string Key, string Value)[] pairs) =>
-        new ConfigurationBuilder().AddInMemoryCollection(
-            pairs.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value))).Build();
-
     [Fact]
     public void Parse_WhenACommonSettingIsMissing_ReturnsNull() =>
         IntakeLaunchSettings.Parse([$"--publicFormOrigin={FormOrigin}"]).Should().BeNull();
@@ -28,18 +20,18 @@ public class IntakeLaunchSettingsTests
     [Fact]
     public void Parse_CarriesTheCommonSettingsThrough()
     {
-        var result = IntakeLaunchSettings.Parse(FlagsWith("--issuer=VillageOS"));
+        var result = IntakeLaunchSettings.Parse(LaunchFlags.With("--issuer=VillageOS"));
 
         result.Should().NotBeNull();
-        result!.Service.Port.Should().Be(7300);
-        result.Service.MyceliumUrl.Should().Be("https://localhost:7243");
+        result!.Service.Port.Should().Be(LaunchFlags.Port);
+        result.Service.MyceliumUrl.Should().Be(LaunchFlags.MyceliumUrl);
         result.Service.Issuer.Should().Be("VillageOS");
     }
 
     [Fact]
     public void Parse_WithoutAnOrigin_AllowsNoCrossOriginCaller()
     {
-        var result = IntakeLaunchSettings.Parse(RequiredFlags);
+        var result = IntakeLaunchSettings.Parse(LaunchFlags.Required);
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().BeEmpty();
@@ -48,7 +40,7 @@ public class IntakeLaunchSettingsTests
     [Fact]
     public void Parse_ReadsOneOrigin()
     {
-        var result = IntakeLaunchSettings.Parse(FlagsWith($"--publicFormOrigin={FormOrigin}"));
+        var result = IntakeLaunchSettings.Parse(LaunchFlags.With($"--publicFormOrigin={FormOrigin}"));
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().Equal(FormOrigin);
@@ -58,7 +50,7 @@ public class IntakeLaunchSettingsTests
     public void Parse_SeparatesSeveralOriginsOnCommas()
     {
         var result = IntakeLaunchSettings.Parse(
-            FlagsWith($"--publicFormOrigin={FormOrigin},{SecondFormOrigin}"));
+            LaunchFlags.With($"--publicFormOrigin={FormOrigin},{SecondFormOrigin}"));
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().Equal(FormOrigin, SecondFormOrigin);
@@ -68,7 +60,7 @@ public class IntakeLaunchSettingsTests
     public void Parse_TrimsTheSpaceAroundEachOrigin()
     {
         var result = IntakeLaunchSettings.Parse(
-            FlagsWith($"--publicFormOrigin= {FormOrigin} , {SecondFormOrigin} "));
+            LaunchFlags.With($"--publicFormOrigin= {FormOrigin} , {SecondFormOrigin} "));
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().Equal(FormOrigin, SecondFormOrigin);
@@ -80,7 +72,7 @@ public class IntakeLaunchSettingsTests
     [InlineData(" , ")]
     public void Parse_WithNothingBetweenTheCommas_AllowsNoCrossOriginCaller(string named)
     {
-        var result = IntakeLaunchSettings.Parse(FlagsWith($"--publicFormOrigin={named}"));
+        var result = IntakeLaunchSettings.Parse(LaunchFlags.With($"--publicFormOrigin={named}"));
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().BeEmpty();
@@ -90,7 +82,7 @@ public class IntakeLaunchSettingsTests
     public void Parse_DropsAnEmptyEntryAndKeepsTheRest()
     {
         var result = IntakeLaunchSettings.Parse(
-            FlagsWith($"--publicFormOrigin={FormOrigin},,{SecondFormOrigin},"));
+            LaunchFlags.With($"--publicFormOrigin={FormOrigin},,{SecondFormOrigin},"));
 
         result.Should().NotBeNull();
         result!.PublicFormOrigins.Should().Equal(FormOrigin, SecondFormOrigin);
@@ -99,7 +91,7 @@ public class IntakeLaunchSettingsTests
     [Fact]
     public void Parse_ReadsTheOriginsFromConfiguration()
     {
-        var configuration = ConfigurationFrom(
+        var configuration = LaunchFlags.ConfigurationFrom(
             ("Port", "7300"), ("MyceliumUrl", "http://mycelium"),
             ("PublicFormOrigin", $"{FormOrigin},{SecondFormOrigin}"));
 
