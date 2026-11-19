@@ -23,6 +23,7 @@ import { ThemedTiles } from '../components/dashboard/ThemedTiles';
 import { formatNumber } from '../components/dashboard/widgets/format';
 import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
+import { useFormOptions } from '../hooks/useFormOptions';
 import { useBinding } from '@tendril-ui/tendril';
 import { useResolveContext } from '../hooks/useDashboard';
 import { isTicketRefusal } from '../api/refusals';
@@ -76,9 +77,11 @@ export function ExplorePage() {
   const { t } = useTranslation();
   useStandalonePageDocument('explore.title');
 
-  const [options, setOptions] = useState<FormOptions | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
   const [state, setState] = useState<ExploreState>(() => emptyExplore(crypto.randomUUID()));
+  const seedShares = useCallback((answered: FormOptions) =>
+    setState((current) =>
+      Object.keys(current.shares).length === 0 ? { ...current, shares: seededShares(answered) } : current), []);
+  const { options, unreachable } = useFormOptions(seedShares);
   const [fetchingParcel, setFetchingParcel] = useState(false);
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [code, setCode] = useState('');
@@ -97,26 +100,6 @@ export function ExplorePage() {
   useEffect(() => {
     stateReference.current = state;
   });
-
-  useEffect(() => {
-    let abandoned = false;
-    intakeApi
-      .formOptions()
-      .then((answered) => {
-        if (abandoned) return;
-        setOptions(answered);
-        setState((current) =>
-          Object.keys(current.shares).length === 0
-            ? { ...current, shares: seededShares(answered) }
-            : current);
-      })
-      .catch(() => {
-        if (!abandoned) setUnreachable(true);
-      });
-    return () => {
-      abandoned = true;
-    };
-  }, []);
 
   const pick = useCallback((position: BoundaryPoint, placedBy: PositionSource) => {
     setState((current) => withPosition(current, position, placedBy));

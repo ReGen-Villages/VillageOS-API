@@ -10,10 +10,10 @@
  * Nothing here reaches the broker. That is the point of the page rather than an accident of how it was
  * written, and `noSignedInCode.test.ts` fails if an import ever leads back to it.
  */
-import { useEffect, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { intakeApi, type FormOptions } from '../api/intakeApi';
+import type { FormOptions } from '../api/intakeApi';
+import { useFormOptions } from '../hooks/useFormOptions';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { ToastContainer } from '../components/common/Toast';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
@@ -23,29 +23,16 @@ import { IntakeWizard } from '../intake/IntakeWizard';
  *  it belongs to when a planner fills the same wizard in. */
 const DRAFT_OWNER = 'public-form';
 
+const NO_OPTIONS_YET: FormOptions = {
+  allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
+  defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [], layerKinds: [], wording: {},
+};
+
 export function PublicSubmissionPage() {
   const { t } = useTranslation();
   useStandalonePageDocument('publicForm.title');
-  const [options, setOptions] = useState<FormOptions>({
-    allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
-    defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [], layerKinds: [], wording: {},
-  });
-  const [unreachable, setUnreachable] = useState(false);
-
-  useEffect(() => {
-    let abandoned = false;
-    intakeApi
-      .formOptions()
-      .then((answered) => {
-        if (!abandoned) setOptions(answered);
-      })
-      .catch(() => {
-        if (!abandoned) setUnreachable(true);
-      });
-    return () => {
-      abandoned = true;
-    };
-  }, []);
+  const { options: answered, unreachable } = useFormOptions();
+  const options = answered ?? NO_OPTIONS_YET;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
