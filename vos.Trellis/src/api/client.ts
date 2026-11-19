@@ -340,12 +340,7 @@ class ApiClient {
   /** `signal` lets a caller abandon a superseded round of requests; without it a fan-out
    *  that is already stale keeps competing for connections with the round that replaced it. */
   async get<T>(path: string, signal?: AbortSignal): Promise<T> {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      headers: await this.headers(),
-      credentials: 'include',
-      signal,
-    });
-    await this.assertOk(response);
+    const response = await this.send('GET', path, undefined, signal);
     // Guard against empty response bodies (e.g. 200 with 0 bytes) —
     // response.json() throws SyntaxError on empty input.
     if (response.status === 204) return ([] as unknown) as T;
@@ -357,12 +352,7 @@ class ApiClient {
   }
 
   async getText(path: string): Promise<string> {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      headers: await this.headers(),
-      credentials: 'include',
-    });
-    await this.assertOk(response);
-    return response.text();
+    return (await this.send('GET', path)).text();
   }
 
   /**
@@ -381,35 +371,27 @@ class ApiClient {
   }
 
   async post<T>(path: string, body?: unknown): Promise<T> {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      method: 'POST',
-      headers: await this.headers(),
-      credentials: 'include',
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    await this.assertOk(response);
-    return response.json();
+    return (await this.send('POST', path, body)).json();
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      method: 'PUT',
-      headers: await this.headers(),
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
-    await this.assertOk(response);
-    return response.json();
+    return (await this.send('PUT', path, body)).json();
   }
 
   async del<T>(path: string): Promise<T> {
+    return (await this.send('DELETE', path)).json();
+  }
+
+  private async send(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
     const response = await fetch(`${BASE_URL}${path}`, {
-      method: 'DELETE',
+      method,
       headers: await this.headers(),
       credentials: 'include',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     });
     await this.assertOk(response);
-    return response.json();
+    return response;
   }
 
 }

@@ -6,8 +6,8 @@
  * the same pair the service checks — this mailbox, and the submission that names it — because a
  * reference is known to whoever submitted and to anybody who guessed one.
  */
-import { intakeApi, intakeServiceAddress, TICKET_HEADER } from './intakeApi';
-import { refusalFrom, refusalIn } from './refusals';
+import { intakeApi, intakeRequest, intakeServiceAddress, renewedTicket, TICKET_HEADER } from './intakeApi';
+import { refusalIn } from './refusals';
 import type { SharedSurvey } from '../explore/sharedSurveys';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
 import type { TemporalReduceQuery, TemporalReduceResponse } from '@tendril-ui/tendril';
@@ -37,17 +37,8 @@ export const findingsApi = {
     emailAddress: string,
     ticket: string,
   ): Promise<{ findings: FindingsAnswer; ticket: string }> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/findings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
-      body: JSON.stringify({ submissionId, emailAddress }),
-    });
-
-    if (!response.ok) throw await refusalFrom(response);
-    return {
-      findings: await response.json(),
-      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
-    };
+    const response = await intakeRequest('/submissions/findings', { body: { submissionId, emailAddress }, ticket });
+    return { findings: await response.json(), ticket: renewedTicket(response, ticket) };
   },
 
   /** One property's history on the submission's site, reduced by the platform and proxied by the
@@ -58,17 +49,8 @@ export const findingsApi = {
     ticket: string,
     question: FindingsReduceQuery,
   ): Promise<{ answer: TemporalReduceResponse; ticket: string }> => {
-    const response = await fetch(`${intakeServiceAddress()}/findings/${submissionId}/reduce`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
-      body: JSON.stringify(question),
-    });
-
-    if (!response.ok) throw await refusalFrom(response);
-    return {
-      answer: await response.json(),
-      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
-    };
+    const response = await intakeRequest(`/findings/${submissionId}/reduce`, { body: question, ticket });
+    return { answer: await response.json(), ticket: renewedTicket(response, ticket) };
   },
 
   /** A survey shared about the land: the file and its description go up as a form under the ticket and
@@ -110,17 +92,9 @@ export const findingsApi = {
     submissionId: string,
     ticket: string,
   ): Promise<{ documents: SharedSurvey[]; ticket: string }> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/${submissionId}/documents`, {
-      method: 'GET',
-      headers: { [TICKET_HEADER]: ticket },
-    });
-
-    if (!response.ok) throw await refusalFrom(response);
+    const response = await intakeRequest(`/submissions/${submissionId}/documents`, { ticket });
     const answered = (await response.json()) as { documents?: SharedSurvey[] };
-    return {
-      documents: answered.documents ?? [],
-      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
-    };
+    return { documents: answered.documents ?? [], ticket: renewedTicket(response, ticket) };
   },
 };
 

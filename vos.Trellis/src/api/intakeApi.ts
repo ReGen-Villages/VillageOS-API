@@ -78,9 +78,7 @@ export const intakeApi = {
   configured: () => intakeUrl().length > 0,
 
   formOptions: async (): Promise<FormOptions> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/form`);
-    if (!response.ok) throw await refusalFrom(response);
-
+    const response = await intakeRequest('/submissions/form');
     const answered = (await response.json()) as {
       allocationCategories?: string[];
       basemapSources?: DeclaredBasemapSource[];
@@ -121,28 +119,16 @@ export const intakeApi = {
    *  are all answered the same way, and the page does the same thing in all three: it lets the person
    *  draw. */
   parcelAt: async (latitude: number, longitude: number): Promise<FetchedParcel | null> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/parcel-at-position`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latitude, longitude }),
-    });
+    const response = await intakeRequest('/submissions/parcel-at-position', { body: { latitude, longitude }, passNotFound: true });
     if (response.status === 404) return null;
-    if (!response.ok) throw await refusalFrom(response);
-
     const answered = (await response.json()) as FetchedParcel;
     return { boundary: answered.boundary ?? [], attribution: answered.attribution ?? null };
   },
 
   /** Place names for what somebody typed, or none where the model registers no gazetteer. */
   searchPlaces: async (query: string): Promise<FoundPlace[]> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/place-search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
+    const response = await intakeRequest('/submissions/place-search', { body: { query }, passNotFound: true });
     if (response.status === 404) return [];
-    if (!response.ok) throw await refusalFrom(response);
-
     const answered = (await response.json()) as { places?: FoundPlace[] };
     return answered.places ?? [];
   },
@@ -150,13 +136,7 @@ export const intakeApi = {
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads
    *  what is sent there. Answers nothing: what happens next is the person reading their mail. */
   askForCode: async (emailAddress: string): Promise<void> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions/verification`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailAddress }),
-    });
-
-    if (!response.ok) throw await refusalFrom(response);
+    await intakeRequest('/submissions/verification', { body: { emailAddress } });
   },
 
   /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
@@ -169,12 +149,7 @@ export const intakeApi = {
   /** A code spent on the short-lived ticket the service signs against the address. Held apart from
    *  submitting because a page that keeps re-posting spends one exchange and then rides the renewals. */
   exchangeTicket: async (emailAddress: string, code: string): Promise<string> => {
-    const exchanged = await fetch(`${intakeServiceAddress()}/submissions/ticket`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailAddress, code }),
-    });
-    if (!exchanged.ok) throw await refusalFrom(exchanged);
+    const exchanged = await intakeRequest('/submissions/ticket', { body: { emailAddress, code } });
     return (await exchanged.json()).ticket;
   },
 
@@ -185,17 +160,8 @@ export const intakeApi = {
     submission: SubmissionDocument,
     ticket: string,
   ): Promise<{ accepted: SubmissionAccepted; ticket: string }> => {
-    const response = await fetch(`${intakeServiceAddress()}/submissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
-      body: JSON.stringify(submission),
-    });
-
-    if (!response.ok) throw await refusalFrom(response);
-    return {
-      accepted: await response.json(),
-      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
-    };
+    const response = await intakeRequest('/submissions', { body: submission, ticket });
+    return { accepted: await response.json(), ticket: renewedTicket(response, ticket) };
   },
 };
 
@@ -206,6 +172,28 @@ function servedByTheService(source: BasemapSource): BasemapSource {
   return source.kind === 'raster' && source.tileUrl.startsWith('/')
     ? { ...source, tileUrl: `${intakeServiceAddress()}${source.tileUrl}` }
     : source;
+}
+
+export async function intakeRequest(
+  path: string,
+  { body, ticket, passNotFound = false }: { body?: unknown; ticket?: string; passNotFound?: boolean } = {},
+): Promise<Response> {
+  const response = await fetch(`${intakeServiceAddress()}${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(ticket === undefined ? {} : { [TICKET_HEADER]: ticket }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (passNotFound && response.status === 404) return response;
+  if (!response.ok) throw await refusalFrom(response);
+  return response;
+}
+
+/** The service hands a fresh ticket back on every accepted act; the one held stands where it hands none. */
+export function renewedTicket(response: Response, held: string): string {
+  return response.headers.get(TICKET_HEADER) ?? held;
 }
 
 export function intakeServiceAddress(): string {
