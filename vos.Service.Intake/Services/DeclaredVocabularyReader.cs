@@ -26,7 +26,7 @@ public static class DeclaredVocabularyReader
     private static readonly Role[] TermArchetypeRoles =
     [
         LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-        LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent,
+        LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
     ];
 
     // The predicates a relationship to a term is written with, the archetype a study `is`, and where a site
@@ -60,7 +60,14 @@ public static class DeclaredVocabularyReader
         HazardLevels(snapshot),
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
-        Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")));
+        Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
+        SoilDepths(snapshot));
+
+    // None where the model reads no soil, so a submission into it is still composed, as with water demands.
+    internal static DeclaredTerms? SoilDepths(SnapshotDocument snapshot) =>
+        snapshot.Bound(LandIntakeRoles.SoilDepth).Count == 0
+            ? null
+            : TermsBound(snapshot, LandIntakeRoles.SoilDepth, LandIntakeRoles.Assesses, "the depths a site's soil is read at");
 
     // The demands one harvest is served over, in the order it serves them. Empty where the model
     // declares none: a study then holds no demand and every coverage reads unassessed, which is the honest

@@ -188,12 +188,13 @@ public class DeclaredVocabularyReaderTests
 
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.CategorizedAs,
-            LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses, LandIntakeRoles.ReportedLevel,
-            LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace, LandIntakeRoles.PlaceNesting));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
+            LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
+            LandIntakeRoles.PlaceNesting));
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
             SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
@@ -227,6 +228,27 @@ public class DeclaredVocabularyReaderTests
     // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
     // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
     // word is already written and something has to say it means nothing.
+    [Fact]
+    public void A_model_declaring_soil_depths_reads_them_with_the_predicate_a_horizon_assesses_along()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("SoilDepth").Bound(LandIntakeRoles.SoilDepth, "SoilDepth")
+            .With("0-5cm").Relate("0-5cm", "is", "SoilDepth")
+            .With("5-15cm").Relate("5-15cm", "is", "SoilDepth");
+
+        var soilDepths = DeclaredVocabularyReader.Read(model.Build()).SoilDepths;
+
+        soilDepths.Should().NotBeNull();
+        soilDepths!.Terms.Select(term => term.Name).Should().BeEquivalentTo("0-5cm", "5-15cm");
+        soilDepths.Predicate.Id.Should().Be(model.Id("assesses"));
+    }
+
+    [Fact]
+    public void A_model_declaring_no_soil_depths_reads_none_rather_than_refusing()
+    {
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
+    }
+
     [Fact]
     public void A_model_declaring_no_water_demands_reads_none_rather_than_refusing()
     {

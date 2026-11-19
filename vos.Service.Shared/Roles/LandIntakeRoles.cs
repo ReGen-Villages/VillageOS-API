@@ -57,6 +57,8 @@ public static class LandIntakeRoles
     public static readonly Role SourcedFrom = new("sourcedFrom", new("7b89b20c-9f9c-5d60-9481-56c524dd1370"));
     public static readonly Role ShownUnder = new("shownUnder", new("70b382c6-edfa-5295-9b43-de0471b147a4"));
     public static readonly Role HistorySource = new("historySource", new("db993771-bdc0-513f-a5c2-dab3e999471d"));
+    public static readonly Role SoilDepth = new("soilDepth", new("7adcafde-a041-5e55-bb29-c3a03bd35493"));
+    public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -67,6 +69,6 @@ public static class LandIntakeRoles
         PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
-        SourcedFrom, ShownUnder, HistorySource,
+        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon,
     ];
 }
