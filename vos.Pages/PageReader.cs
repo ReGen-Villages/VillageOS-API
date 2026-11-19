@@ -122,7 +122,55 @@ public sealed class PageReader : IDisposable
             return (string)await (Task<object>)_engine.Script.pageReader.explain(held, thingId, figure, language, host);
         });
 
+    /// <summary>
+    /// The choices an action widget offers on one of its rows, as JSON, each with its key, its label in the
+    /// language, the Thing it stands for where the model offers it, the fields it asks with the Things a field
+    /// is chosen from, and whether it may be pressed here. The widget is given by its title; the row by its
+    /// identifier, or by a name only one row has. A listed choice is keyed by its place in the page
+    /// description, so its key holds only while the description is unchanged.
+    /// </summary>
+    public Task<string> OfferedChoicesAsync(
+        string pageId, string widget, string? scopeId, string row, string language, IPageReads reads, CancellationToken cancellation) =>
+        WithThePageHeldAsync(pageId, scopeId, reads, cancellation, async (held, host) =>
+            (string)await (Task<object>)_engine.Script.pageReader.offeredChoices(held, pageId, widget, scopeId, row, language, host));
+
+    /// <summary>
+    /// The writes a press of one choice on one row would make, in order, as JSON, and nothing sent. Refused
+    /// where the choice asks a secret, before the answers are read; where an answer is missing, is not asked
+    /// for, or names a Thing its field does not offer.
+    /// </summary>
+    public Task<string> ComposePressAsync(
+        string pageId, string widget, string? scopeId, string row, string choice, string answersJson, string language,
+        IPageReads reads, CancellationToken cancellation) =>
+        WithThePageHeldAsync(pageId, scopeId, reads, cancellation, async (held, host) =>
+            (string)await (Task<object>)_engine.Script.pageReader.composePress(held, pageId, widget, scopeId, row, choice, answersJson, language, host));
+
+    /// <summary>
+    /// Sends the writes a press composed, in order, as the console sends them, and stops at the first one
+    /// refused. Answers what the endpoint said on taking a post, or the refusal, as JSON.
+    /// </summary>
+    public Task<string> SendPressAsync(string writesJson, IPageWrites writes, CancellationToken cancellation) =>
+        InTheReadersWordsAsync(async () =>
+            (string)await (Task<object>)_engine.Script.pageReader.sendPress(writesJson, new WritesForTheEngine(writes, cancellation)));
+
     public void Dispose() => _engine.Dispose();
+
+    internal string PageRoleTheReaderUses() => (string)_engine.Script.pageReader.pageRole();
+
+    private Task<string> WithThePageHeldAsync(
+        string pageId, string? scopeId, IPageReads reads, CancellationToken cancellation, Func<string, ReadsForTheEngine, Task<string>> read) =>
+        InTheReadersWordsAsync(async () =>
+        {
+            var held = await HoldAsync(await PageSelectorAsync(pageId, [scopeId], reads, cancellation), reads, cancellation);
+            try
+            {
+                return await read(held, new ReadsForTheEngine(reads, cancellation));
+            }
+            finally
+            {
+                Release(held);
+            }
+        });
 
     internal double EngineMemoryInUseMebibytes()
     {

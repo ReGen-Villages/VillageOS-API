@@ -5,21 +5,31 @@ import {
   IS_PREDICATE,
   NAMES_PROPERTY_OF_PREDICATE,
   NAVIGATION_AND_SETTINGS,
+  PAGE_ROLE_ID,
   PROPERTY_NAME_ROLE,
   TENDRIL_NAMESPACE,
   TENDRIL_WORDS,
   asRows,
+  asksOf,
   buildModelIndex,
+  choiceLabelOf,
+  chooses,
+  complete,
   discoverDashboardsFromIndex,
   effectiveDerivedDefinitions,
   effectiveProperties,
   findRange,
   formatNumberIn,
   inputsOf,
+  nameOf,
   nullableNumber,
+  offeredChoices,
+  pressOf,
   readWidget,
   resolveBinding,
+  rostersForRow,
   scopeEntities,
+  sendPress,
   statedProperties,
   subscriptionForSpecification,
   thingsInStatePath,
@@ -27,11 +37,17 @@ import {
   unwrapThing,
   valueOrigin,
   workingRuns,
+  type ActionWidget,
+  type AskedValue,
   type DashboardDescriptor,
+  type Entered,
   type ModelIndex,
   type ModelReads,
+  type OfferedChoice,
+  type PressWrite,
   type RangeDto,
   type ResolveContext,
+  type Row,
   type SubscriptionSelector,
   type ThingRangesResponse,
   type VosThing,
@@ -42,6 +58,14 @@ import {
 interface Host {
   get(path: string): Promise<string>;
   post(path: string, bodyJson: string): Promise<string>;
+}
+
+/** What the C# side sends a press through, and decides for each write whether to send it. */
+interface Writes {
+  press(path: string, bodyJson: string): Promise<string>;
+  relate(subjectId: string, predicateId: string, targetId: string): Promise<void>;
+  stamp(thingId: string, property: string, at: string): Promise<void>;
+  recordAction(description: string, succeeded: boolean): void;
 }
 
 void i18next.init({
@@ -86,6 +110,112 @@ function readsAnsweredBy(host: Host): ModelReads {
 
 function contextFor(index: ModelIndex, scopeId: string | null, language: string, host: Host, compareArchetype?: string): ResolveContext {
   return { index, scopeId, compareArchetype, reads: readsAnsweredBy(host), language, warn: toldOfAWarning };
+}
+
+/** Sending a press only writes, so a read asked of these is a fault in this file, not in a page. */
+function writesAnsweredBy(writes: Writes): ModelReads {
+  const notARead = (): never => {
+    throw new Error('Sending a press reads nothing.');
+  };
+  return {
+    thingsInState: notARead,
+    thingRanges: notARead,
+    aggregate: notARead,
+    reduce: notARead,
+    fromService: notARead,
+    press: async (path, body) => JSON.parse(await writes.press(path, JSON.stringify(body))),
+    recordAction: (description, succeeded) => writes.recordAction(description, succeeded),
+    relate: (subjectId, predicateId, targetId) => writes.relate(subjectId, predicateId, targetId),
+    stampTime: (thingId, property, at) => writes.stamp(thingId, property, at.toISOString()),
+  };
+}
+
+const quoted = (value: string): string => JSON.stringify(value);
+
+function actionWidgetOf(page: DashboardDescriptor, title: string): ActionWidget {
+  const titled = page.specification!.sections.flatMap((section) => section.widgets).filter((widget) => widget.title === title);
+  const actions = titled.filter((widget): widget is ActionWidget => widget.type === 'action');
+  if (actions.length === 1) return actions[0];
+  if (actions.length > 1) throw new Error(`More than one action widget on the page "${page.name}" has the title ${quoted(title)}`);
+  if (titled.length > 0) throw new Error(`Only an action widget offers choices, and this widget is not one: ${quoted(title)}`);
+  throw new Error(`No widget on the page "${page.name}" has the title ${quoted(title)}`);
+}
+
+function rowOf(widget: ActionWidget, rows: Row[], asked: string): Row {
+  const byId = rows.filter((row) => String(row.id ?? '').toLowerCase() === asked.toLowerCase());
+  if (byId.length === 1) return byId[0];
+  const byName = rows.filter((row) => nameOf(widget, row) === asked);
+  if (byName.length === 1) return byName[0];
+  if (byName.length > 1) {
+    throw new Error(`More than one row of this widget is named so. Ask by identifier, one of ${byName.map((row) => quoted(String(row.id ?? ''))).join(', ')}: ${quoted(asked)}`);
+  }
+  throw new Error(`The widget lists no row with this identifier or name: ${quoted(asked)}`);
+}
+
+const SECRET_REFUSED = 'It asks a secret, which is not sent through this program. Press it on the page.';
+
+const asksASecret = (fields: AskedValue[]): boolean => fields.some((field) => field.kind === 'secret');
+
+interface RowInHand {
+  widget: ActionWidget;
+  row: Row;
+  offered: OfferedChoice[];
+  drawn: Row[];
+  context: ResolveContext;
+}
+
+async function rowInHand(key: string, pageId: string, widgetTitle: string, scopeId: string | null, asked: string, language: string, host: Host): Promise<RowInHand> {
+  const index = indexHeldAs(key);
+  const page = pageOf(index, pageId);
+  if (!page.specification) throw new Error(`The description of the page "${page.name}" could not be read.`);
+  const widget = actionWidgetOf(page, widgetTitle);
+  const context = contextFor(index, scopeId, language, host, page.specification.compare?.archetype);
+  const row = rowOf(widget, asRows(await resolveBinding(widget.rows, context)), asked);
+  const drawn = widget.writes.choicesFrom ? asRows(await resolveBinding(widget.writes.choicesFrom.from, context)) : [];
+  return { widget, row, drawn, context, offered: offeredChoices(widget, drawn, (thing) => choiceLabelOf(thing, language)) };
+}
+
+/** The Things each field of a choice is chosen from: read for the row where the choice asks for itself,
+ *  and once for the widget otherwise, as the console reads them. */
+async function rostersOf(inHand: RowInHand, choice: OfferedChoice): Promise<Row[][]> {
+  const fields = asksOf(inHand.widget, choice.choice);
+  if (choice.choice.asks) return rostersForRow(fields, inHand.context, String(inHand.row.id ?? ''));
+  return Promise.all(fields.map(async (field) => (chooses(field) && field.options ? asRows(await resolveBinding(field.options, inHand.context)) : [])));
+}
+
+function rowNamed(inHand: RowInHand) {
+  return { id: String(inHand.row.id ?? ''), name: nameOf(inHand.widget, inHand.row) };
+}
+
+function choiceKeyed(inHand: RowInHand, choiceKey: string): OfferedChoice {
+  const offered = inHand.offered.find((candidate) => candidate.key === choiceKey);
+  if (!offered) throw new Error(`The row is offered no choice with this key: ${quoted(choiceKey)}`);
+  return offered;
+}
+
+function standsFor(inHand: RowInHand, offered: OfferedChoice) {
+  const drawn = inHand.drawn.find((thing) => String(thing.id ?? '') === offered.drawnId);
+  return drawn ? { standsFor: { id: String(drawn.id), name: String(drawn.name ?? '') } } : {};
+}
+
+/** What was answered, each value as the console holds a typed one: as text, or a list of names. */
+function enteredFrom(answersJson: string, fields: AskedValue[], rosters: Row[][]): Entered {
+  const answers: Record<string, unknown> = JSON.parse(answersJson);
+  const entered: Entered = {};
+  for (const [answeredKey, value] of Object.entries(answers)) {
+    const position = fields.findIndex((field) => field.key === answeredKey);
+    if (position < 0) throw new Error(`The choice does not ask for this: ${quoted(answeredKey)}`);
+    const values = Array.isArray(value) ? value.map(String) : value === null || value === undefined ? [] : [String(value)];
+    if (chooses(fields[position])) {
+      const offeredNames = new Set(rosters[position].map((thing) => String(thing.name ?? '')));
+      const notOffered = values.find((name) => name.trim() !== '' && !offeredNames.has(name));
+      if (notOffered !== undefined) throw new Error(`The field ${quoted(answeredKey)} does not offer this: ${quoted(notOffered)}`);
+    }
+    entered[answeredKey] = Array.isArray(value) ? values : (values[0] ?? '');
+  }
+  const missing = fields.filter((field) => !complete([field], entered)).map((field) => quoted(field.key));
+  if (missing.length > 0) throw new Error(`The choice needs an answer for each of these: ${missing.join(', ')}`);
+  return entered;
 }
 
 function everyRangeOf(ranges: ThingRangesResponse | null): RangeDto[] {
@@ -255,6 +385,55 @@ const pageReader = {
     const index = indexHeldAs(key);
     const thing = thingOf(index, thingId);
     return JSON.stringify({ thing: { id: thing.Id, name: thing.Name }, property, ...holdingOf(thing, property, index), assumedFrom: valueOrigin(thing, property, index).assumedFrom });
+  },
+
+  pageRole(): string {
+    return PAGE_ROLE_ID;
+  },
+
+  async offeredChoices(key: string, pageId: string, widgetTitle: string, scopeId: string | null, row: string, language: string, host: Host): Promise<string> {
+    const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+    const choices = [];
+    for (const offered of inHand.offered) {
+      const fields = asksOf(inHand.widget, offered.choice);
+      const secret = asksASecret(fields);
+      const rosters = secret ? fields.map(() => []) : await rostersOf(inHand, offered);
+      choices.push({
+        key: offered.key,
+        label: offered.choice.label,
+        ...standsFor(inHand, offered),
+        asks: fields.map((field, position) => ({
+          key: field.key,
+          label: field.label,
+          kind: field.kind ?? 'text',
+          optional: field.optional === true,
+          ...(chooses(field) ? { from: rosters[position] } : {}),
+        })),
+        pressable: !secret,
+        ...(secret ? { notPressable: SECRET_REFUSED } : {}),
+      });
+    }
+    return JSON.stringify({ widget: widgetTitle, row: rowNamed(inHand), choices });
+  },
+
+  async composePress(key: string, pageId: string, widgetTitle: string, scopeId: string | null, row: string, choiceKey: string, answersJson: string, language: string, host: Host): Promise<string> {
+    const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+    const offered = choiceKeyed(inHand, choiceKey);
+    const fields = asksOf(inHand.widget, offered.choice);
+    if (asksASecret(fields)) throw new Error(`${SECRET_REFUSED} The choice: ${quoted(offered.choice.label)}`);
+    const entered = enteredFrom(answersJson, fields, await rostersOf(inHand, offered));
+    const composed = pressOf(inHand.widget, inHand.row, offered, entered, (predicate) => inHand.context.index.predicateNameToId.get(predicate));
+    if ('refusal' in composed) throw new Error(composed.refusal);
+    return JSON.stringify({
+      widget: widgetTitle,
+      row: rowNamed(inHand),
+      choice: { key: offered.key, label: offered.choice.label, ...standsFor(inHand, offered) },
+      writes: composed.writes,
+    });
+  },
+
+  async sendPress(writesJson: string, writes: Writes): Promise<string> {
+    return JSON.stringify(await sendPress(JSON.parse(writesJson) as PressWrite[], writesAnsweredBy(writes)));
   },
 
   async explain(key: string, thingId: string, figure: string, language: string, host: Host): Promise<string> {

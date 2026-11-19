@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ActionChoice, ActionWidget, FormWidget } from '../types/dashboard';
 import type { ModelReads } from '../api/modelReads';
-import { complete, formRequest, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice, type PressWrite } from './writeRequest';
+import { choiceLabelOf, complete, formRequest, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice, type PressWrite } from './writeRequest';
 
 const DECIDE: ActionWidget = {
   type: 'action',
@@ -127,6 +127,24 @@ describe('the choices a row is offered', () => {
       ['Fenced', 'c2'],
       ['Close it', 'listed:1'],
     ]);
+  });
+});
+
+describe('the label of a choice the model offers', () => {
+  const worded = { id: 'c1', name: 'Cleared', wording: JSON.stringify({ en: 'Cleared of debris', de: 'Geräumt' }) };
+
+  it('is the drawn Thing’s wording in the language asked', () => {
+    expect(choiceLabelOf(worded, 'de')).toBe('Geräumt');
+  });
+
+  it('falls back to the wording of the language’s primary subtag, then English', () => {
+    expect(choiceLabelOf(worded, 'de-AT')).toBe('Geräumt');
+    expect(choiceLabelOf(worded, 'fr')).toBe('Cleared of debris');
+  });
+
+  it('is the Thing’s name where the model words it in no language', () => {
+    expect(choiceLabelOf({ id: 'c2', name: 'Fenced' }, 'de')).toBe('Fenced');
+    expect(choiceLabelOf({ id: 'c3', name: 'Dug', wording: 'not words by language' }, 'en')).toBe('Dug');
   });
 });
 

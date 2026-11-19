@@ -112,7 +112,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         });
 
     /// <summary>A refusal by the reader reaches the chat application in the reader's words.</summary>
-    private static async Task<JsonElement> InWordsAsync(Func<Task<JsonElement>> read)
+    internal static async Task<JsonElement> InWordsAsync(Func<Task<JsonElement>> read)
     {
         try
         {
@@ -124,7 +124,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         }
     }
 
-    private static T OneNamed<T>(string asked, IReadOnlyList<T> among, Func<T, string> idOf, Func<T, string> nameOf, string what)
+    internal static T OneNamed<T>(string asked, IReadOnlyList<T> among, Func<T, string> idOf, Func<T, string> nameOf, string what)
     {
         var byId = among.Where(one => string.Equals(idOf(one), asked, StringComparison.OrdinalIgnoreCase)).ToList();
         if (byId.Count == 1) return byId[0];
@@ -139,7 +139,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         };
     }
 
-    private static JsonElement Answered(JsonObject answer, MyceliumPageReads reads)
+    internal static JsonElement Answered(JsonObject answer, MyceliumPageReads reads)
     {
         if (!reads.Refused.IsEmpty) answer["notAsked"] = new JsonArray(reads.Refused.Distinct().Select(refusal => (JsonNode)refusal).ToArray());
         return JsonSerializer.SerializeToElement(answer);

@@ -3309,6 +3309,35 @@
     return Array.isArray(r) && (r.length === 0 || typeof r[0] === "object") ? r : [];
   }
 
+  // vos.Tendril/src/api/askedOptions.ts
+  var chooses = (field) => field.kind === "choice" || field.kind === "multichoice";
+  function rostersForRow(fields, context, rowId) {
+    const rowContext = { ...context, scopeId: rowId };
+    return Promise.all(
+      fields.map(async (field) => chooses(field) && field.options ? asRows(await resolveBinding(field.options, rowContext)) : [])
+    );
+  }
+
+  // vos.Tendril/src/api/dashboardWrites.ts
+  async function postToEndpoint(reads, via, body, wordRefusal) {
+    if (!reads.press) return { error: tendrilWord("cannotPress") };
+    let answer;
+    try {
+      answer = await reads.press(routeOf(via), body) ?? {};
+    } catch (refusal) {
+      answer = { error: refusal instanceof Error ? refusal.message : String(refusal) };
+    }
+    reads.recordAction?.(`send a form to ${via}`, answer.error === void 0);
+    if (answer.error === void 0) return answer;
+    return { ...answer, error: wordRefusal?.(answer) ?? String(answer.error) };
+  }
+  function routeOf(via) {
+    return isPlatformRoute(via) ? via : `/api/endpoints/${via}`;
+  }
+  function isPlatformRoute(via) {
+    return via.startsWith("/");
+  }
+
   // vos.Tendril/src/api/pageSelector.ts
   var NAVIGATION_AND_SETTINGS = {
     ids: [PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID, PREDICATE_ROLE_ID],
@@ -3553,6 +3582,96 @@
     return encodeURIComponent(value).replace(/%20/g, "+").replace(/[!'()~]/g, (kept) => `%${kept.charCodeAt(0).toString(16).toUpperCase()}`);
   }
 
+  // vos.Tendril/src/widgets/writeRequest.ts
+  function chosen(entered, key) {
+    const value = entered[key];
+    if (Array.isArray(value)) return value.filter((name) => name.trim() !== "");
+    return (value ?? "").trim() === "" ? [] : [String(value).trim()];
+  }
+  function nameOf(widget, row) {
+    return String(row[widget.label ?? "name"] ?? row.id ?? "");
+  }
+  function complete(fields, entered) {
+    return (fields ?? []).every((field) => field.optional || chosen(entered, field.key).length > 0);
+  }
+  function toSend(field, entered) {
+    const chosenNames = chosen(entered, field.key);
+    if (chosenNames.length === 0) return void 0;
+    if (field.kind === "multichoice") return chosenNames;
+    return field.kind === "number" ? Number(chosenNames[0]) : chosenNames[0];
+  }
+  function withValues(body, fields, entered) {
+    for (const field of fields ?? []) {
+      const value = toSend(field, entered);
+      if (value !== void 0) body[field.key] = value;
+    }
+    return body;
+  }
+  function actionRequest(widget, row, choice, entered, route) {
+    const body = {};
+    if (choice.act) body.view = choice.act;
+    body.record = nameOf(widget, row);
+    if (isPlatformRoute(route) && row.id !== void 0) body.recordId = String(row.id);
+    if (choice.target) body.reason = choice.target;
+    return withValues(body, asksOf(widget, choice), entered);
+  }
+  function asksOf(widget, choice) {
+    return choice.asks ?? widget.asks ?? [];
+  }
+  function offeredChoices(widget, drawn, wordsOf) {
+    const listed = widget.writes.choices;
+    const drawnNames = new Set(drawn.map((row) => String(row.name ?? "")));
+    const asListed = (choice) => ({ key: `listed:${listed.indexOf(choice)}`, choice });
+    const fromTheModel = drawn.map((row) => {
+      const replacing = listed.find((choice) => choice.target !== void 0 && choice.target === row.name);
+      const drawnId = String(row.id ?? "");
+      return replacing ? asListed(replacing) : { key: drawnId, choice: { label: wordsOf(row) }, drawnId };
+    });
+    const listedOnly = listed.filter((choice) => choice.target === void 0 || !drawnNames.has(choice.target)).map(asListed);
+    return [...fromTheModel, ...listedOnly];
+  }
+  function choiceLabelOf(drawn, language) {
+    return wordsInLanguage(wordingIn(drawn[PROPERTY_NAME_WORDING]) ?? void 0, language) ?? String(drawn.name ?? "");
+  }
+  function routeFor(widget, offered) {
+    if (offered.choice.via) return offered.choice.via;
+    return offered.drawnId === void 0 ? widget.writes.via : void 0;
+  }
+  function pressOf(widget, row, offered, entered, predicateIdOf) {
+    const rowId = String(row.id ?? "");
+    const writes = [];
+    const route = routeFor(widget, offered);
+    if (route) {
+      writes.push({ write: "post", via: route, body: actionRequest(widget, row, offered.choice, entered, route) });
+    } else {
+      const predicate = widget.writes.choicesFrom?.predicate ?? "";
+      const predicateId = predicateIdOf(predicate);
+      if (!predicateId) return { refusal: tendrilWord("cannotRelate", { predicate }) };
+      writes.push({ write: "relate", predicate, subjectId: rowId, predicateId, targetId: offered.drawnId });
+    }
+    if (widget.writes.stamps) writes.push({ write: "stamp", thingId: rowId, property: widget.writes.stamps });
+    return { writes };
+  }
+  async function sendPress(writes, reads, wordRefusal) {
+    let answer = {};
+    try {
+      for (const write of writes) {
+        if (write.write === "post") {
+          answer = await postToEndpoint(reads, write.via, write.body, wordRefusal);
+          if (answer.error) return answer;
+        } else if (write.write === "relate") {
+          if (!reads.relate) return { error: tendrilWord("cannotRelate", { predicate: write.predicate }) };
+          await reads.relate(write.subjectId, write.predicateId, write.targetId);
+        } else if (reads.stampTime) {
+          await reads.stampTime(write.thingId, write.property, /* @__PURE__ */ new Date());
+        }
+      }
+    } catch (refused) {
+      return { error: refused instanceof Error ? refused.message : String(refused) };
+    }
+    return answer;
+  }
+
   // vos.Tendril/src/wording/formatNumber.ts
   var formats = /* @__PURE__ */ new Map();
   function numberIn(value, language, options = {}) {
@@ -3769,6 +3888,88 @@
   function contextFor(index, scopeId, language, host, compareArchetype) {
     return { index, scopeId, compareArchetype, reads: readsAnsweredBy(host), language, warn: toldOfAWarning };
   }
+  function writesAnsweredBy(writes) {
+    const notARead = () => {
+      throw new Error("Sending a press reads nothing.");
+    };
+    return {
+      thingsInState: notARead,
+      thingRanges: notARead,
+      aggregate: notARead,
+      reduce: notARead,
+      fromService: notARead,
+      press: async (path, body) => JSON.parse(await writes.press(path, JSON.stringify(body))),
+      recordAction: (description, succeeded) => writes.recordAction(description, succeeded),
+      relate: (subjectId, predicateId, targetId) => writes.relate(subjectId, predicateId, targetId),
+      stampTime: (thingId, property, at) => writes.stamp(thingId, property, at.toISOString())
+    };
+  }
+  var quoted = (value) => JSON.stringify(value);
+  function actionWidgetOf(page, title) {
+    const titled = page.specification.sections.flatMap((section) => section.widgets).filter((widget) => widget.title === title);
+    const actions = titled.filter((widget) => widget.type === "action");
+    if (actions.length === 1) return actions[0];
+    if (actions.length > 1) throw new Error(`More than one action widget on the page "${page.name}" has the title ${quoted(title)}`);
+    if (titled.length > 0) throw new Error(`Only an action widget offers choices, and this widget is not one: ${quoted(title)}`);
+    throw new Error(`No widget on the page "${page.name}" has the title ${quoted(title)}`);
+  }
+  function rowOf(widget, rows, asked) {
+    const byId = rows.filter((row) => String(row.id ?? "").toLowerCase() === asked.toLowerCase());
+    if (byId.length === 1) return byId[0];
+    const byName = rows.filter((row) => nameOf(widget, row) === asked);
+    if (byName.length === 1) return byName[0];
+    if (byName.length > 1) {
+      throw new Error(`More than one row of this widget is named so. Ask by identifier, one of ${byName.map((row) => quoted(String(row.id ?? ""))).join(", ")}: ${quoted(asked)}`);
+    }
+    throw new Error(`The widget lists no row with this identifier or name: ${quoted(asked)}`);
+  }
+  var SECRET_REFUSED = "It asks a secret, which is not sent through this program. Press it on the page.";
+  var asksASecret = (fields) => fields.some((field) => field.kind === "secret");
+  async function rowInHand(key, pageId, widgetTitle, scopeId, asked, language, host) {
+    const index = indexHeldAs(key);
+    const page = pageOf(index, pageId);
+    if (!page.specification) throw new Error(`The description of the page "${page.name}" could not be read.`);
+    const widget = actionWidgetOf(page, widgetTitle);
+    const context = contextFor(index, scopeId, language, host, page.specification.compare?.archetype);
+    const row = rowOf(widget, asRows(await resolveBinding(widget.rows, context)), asked);
+    const drawn = widget.writes.choicesFrom ? asRows(await resolveBinding(widget.writes.choicesFrom.from, context)) : [];
+    return { widget, row, drawn, context, offered: offeredChoices(widget, drawn, (thing) => choiceLabelOf(thing, language)) };
+  }
+  async function rostersOf(inHand, choice) {
+    const fields = asksOf(inHand.widget, choice.choice);
+    if (choice.choice.asks) return rostersForRow(fields, inHand.context, String(inHand.row.id ?? ""));
+    return Promise.all(fields.map(async (field) => chooses(field) && field.options ? asRows(await resolveBinding(field.options, inHand.context)) : []));
+  }
+  function rowNamed(inHand) {
+    return { id: String(inHand.row.id ?? ""), name: nameOf(inHand.widget, inHand.row) };
+  }
+  function choiceKeyed(inHand, choiceKey) {
+    const offered = inHand.offered.find((candidate) => candidate.key === choiceKey);
+    if (!offered) throw new Error(`The row is offered no choice with this key: ${quoted(choiceKey)}`);
+    return offered;
+  }
+  function standsFor(inHand, offered) {
+    const drawn = inHand.drawn.find((thing) => String(thing.id ?? "") === offered.drawnId);
+    return drawn ? { standsFor: { id: String(drawn.id), name: String(drawn.name ?? "") } } : {};
+  }
+  function enteredFrom(answersJson, fields, rosters) {
+    const answers = JSON.parse(answersJson);
+    const entered = {};
+    for (const [answeredKey, value] of Object.entries(answers)) {
+      const position = fields.findIndex((field) => field.key === answeredKey);
+      if (position < 0) throw new Error(`The choice does not ask for this: ${quoted(answeredKey)}`);
+      const values = Array.isArray(value) ? value.map(String) : value === null || value === void 0 ? [] : [String(value)];
+      if (chooses(fields[position])) {
+        const offeredNames = new Set(rosters[position].map((thing) => String(thing.name ?? "")));
+        const notOffered = values.find((name) => name.trim() !== "" && !offeredNames.has(name));
+        if (notOffered !== void 0) throw new Error(`The field ${quoted(answeredKey)} does not offer this: ${quoted(notOffered)}`);
+      }
+      entered[answeredKey] = Array.isArray(value) ? values : values[0] ?? "";
+    }
+    const missing = fields.filter((field) => !complete([field], entered)).map((field) => quoted(field.key));
+    if (missing.length > 0) throw new Error(`The choice needs an answer for each of these: ${missing.join(", ")}`);
+    return entered;
+  }
   function everyRangeOf(ranges) {
     if (!ranges) return [];
     const inherited = (sets) => sets.flatMap((set) => [...set.Ranges, ...inherited(set.Inherited)]);
@@ -3907,6 +4108,51 @@
       const index = indexHeldAs(key);
       const thing = thingOf(index, thingId);
       return JSON.stringify({ thing: { id: thing.Id, name: thing.Name }, property, ...holdingOf(thing, property, index), assumedFrom: valueOrigin(thing, property, index).assumedFrom });
+    },
+    pageRole() {
+      return PAGE_ROLE_ID;
+    },
+    async offeredChoices(key, pageId, widgetTitle, scopeId, row, language, host) {
+      const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+      const choices = [];
+      for (const offered of inHand.offered) {
+        const fields = asksOf(inHand.widget, offered.choice);
+        const secret = asksASecret(fields);
+        const rosters = secret ? fields.map(() => []) : await rostersOf(inHand, offered);
+        choices.push({
+          key: offered.key,
+          label: offered.choice.label,
+          ...standsFor(inHand, offered),
+          asks: fields.map((field, position) => ({
+            key: field.key,
+            label: field.label,
+            kind: field.kind ?? "text",
+            optional: field.optional === true,
+            ...chooses(field) ? { from: rosters[position] } : {}
+          })),
+          pressable: !secret,
+          ...secret ? { notPressable: SECRET_REFUSED } : {}
+        });
+      }
+      return JSON.stringify({ widget: widgetTitle, row: rowNamed(inHand), choices });
+    },
+    async composePress(key, pageId, widgetTitle, scopeId, row, choiceKey, answersJson, language, host) {
+      const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+      const offered = choiceKeyed(inHand, choiceKey);
+      const fields = asksOf(inHand.widget, offered.choice);
+      if (asksASecret(fields)) throw new Error(`${SECRET_REFUSED} The choice: ${quoted(offered.choice.label)}`);
+      const entered = enteredFrom(answersJson, fields, await rostersOf(inHand, offered));
+      const composed = pressOf(inHand.widget, inHand.row, offered, entered, (predicate) => inHand.context.index.predicateNameToId.get(predicate));
+      if ("refusal" in composed) throw new Error(composed.refusal);
+      return JSON.stringify({
+        widget: widgetTitle,
+        row: rowNamed(inHand),
+        choice: { key: offered.key, label: offered.choice.label, ...standsFor(inHand, offered) },
+        writes: composed.writes
+      });
+    },
+    async sendPress(writesJson, writes) {
+      return JSON.stringify(await sendPress(JSON.parse(writesJson), writesAnsweredBy(writes)));
     },
     async explain(key, thingId, figure, language, host) {
       const index = indexHeldAs(key);

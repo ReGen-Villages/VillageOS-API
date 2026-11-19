@@ -17,6 +17,8 @@ internal static class HandBuiltModel
     public const string OstraReservoirId = "00000000-0000-4000-8000-000000000202";
     public const string SpringReservoirId = "00000000-0000-4000-8000-000000000203";
 
+    public const string GateWidget = "Gates to the reservoirs";
+
     public const string RunningLow = "RunningLow";
     public const string Capacity = "capacityCubicMetres";
 
@@ -49,6 +51,17 @@ internal static class HandBuiltModel
                         rows = new { kind = "thingList", archetype = "Reservoir" },
                         asks = new object[] { new { key = "depthMetres", label = "Depth", kind = "number" } },
                         writes = new { via = "inspections", archetype = "Inspection", predicate = "about", choices = new object[] { new { label = "Cleared" } } },
+                    },
+                    new
+                    {
+                        type = "action",
+                        title = GateWidget,
+                        rows = new { kind = "thingList", archetype = "Reservoir" },
+                        writes = new
+                        {
+                            via = "gates",
+                            choices = new object[] { new { label = "Set the code", act = "setCode", asks = new object[] { new { key = "gateCode", label = "Code", kind = "secret" } } } },
+                        },
                     },
                     new
                     {
