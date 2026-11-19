@@ -22,7 +22,7 @@ describe('useDeclaredPropertyTypes', () => {
     mockGetAllProperties.mockResolvedValue(doorNumber);
     const { result } = renderHook(() => useDeclaredPropertyTypes());
     await waitFor(() => expect(result.current).toEqual(doorNumber));
-    expect(mockGetAllProperties).toHaveBeenCalledWith('effective', undefined);
+    expect(mockGetAllProperties).toHaveBeenCalledWith(undefined);
   });
 
   it('holds nothing until the answer arrives, so a caller formats by shape meanwhile', () => {
@@ -76,7 +76,7 @@ describe('useDeclaredPropertyTypes', () => {
       mockGetAllProperties.mockResolvedValue(doorNumber);
       const { result } = renderHook(() => useDeclaredPropertyTypes(true, ['thing-1']));
       await waitFor(() => expect(result.current).toEqual(doorNumber));
-      expect(mockGetAllProperties).toHaveBeenCalledWith('effective', ['thing-1']);
+      expect(mockGetAllProperties).toHaveBeenCalledWith(['thing-1']);
     });
 
     it('does not read an id it already holds', async () => {
@@ -103,7 +103,7 @@ describe('useDeclaredPropertyTypes', () => {
       rerender({ ids: ['thing-1', 'thing-9'] });
 
       await waitFor(() => expect(result.current).toEqual({ ...doorNumber, ...openRatio }));
-      expect(mockGetAllProperties).toHaveBeenLastCalledWith('effective', ['thing-9']);
+      expect(mockGetAllProperties).toHaveBeenLastCalledWith(['thing-9']);
     });
 
     it('reads nothing when the surface is showing nothing', () => {

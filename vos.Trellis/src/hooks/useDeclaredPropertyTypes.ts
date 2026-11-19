@@ -59,7 +59,7 @@ export function useDeclaredPropertyTypes(
     if (missing?.length === 0) return;
 
     let cancelled = false;
-    thingApi.getAllProperties('effective', missing).then(
+    thingApi.getAllProperties(missing).then(
       (data) => {
         if (cancelled) return;
         const alreadyRead = read.current;
