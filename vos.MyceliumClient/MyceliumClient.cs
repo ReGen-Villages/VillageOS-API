@@ -264,6 +264,13 @@ public partial class MyceliumClient
         return present.Count > 0 ? "?" + string.Join("&", present) : "";
     }
 
+    private static string NameInPath(string name) =>
+        name.Length == 0 || PlatformRoute.IsRemovedFromAnAddress(name)
+            ? throw new ArgumentException(
+                $"'{name}' cannot be asked for by name: a name that is empty, '.' or '..' cannot be put into an address.",
+                nameof(name))
+            : Uri.EscapeDataString(name);
+
     private static string BuildTimeRangeQuery(DateTime? startTime, DateTime? endTime)
         => Query(("startTime", startTime?.ToString("O")), ("endTime", endTime?.ToString("O")));
 
@@ -467,7 +474,7 @@ public partial class MyceliumClient
 
     public virtual async Task<bool> DeletePropertyAsync(Guid thingId, string propertyName)
     {
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
@@ -524,7 +531,7 @@ public partial class MyceliumClient
 
     public virtual async Task<bool> DeleteRelationshipPropertyAsync(Guid relId, string propertyName)
     {
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{NameInPath(propertyName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
@@ -695,14 +702,14 @@ public partial class MyceliumClient
 
     public virtual async Task<JsonElement> LoadLibrarySeedAsync(string name)
     {
-        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}/load", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{NameInPath(name)}/load", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     public virtual async Task<JsonElement> SaveLibrarySeedAsync(string name)
     {
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}", null);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{NameInPath(name)}", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -764,7 +771,7 @@ public partial class MyceliumClient
     }
 
     public virtual Task<string> PostToEndpointAsync(string subdomain, string bodyJson)
-        => PostBodyAsync($"{_myceliumUrl}/api/endpoints/{Uri.EscapeDataString(subdomain)}", bodyJson);
+        => PostBodyAsync($"{_myceliumUrl}/api/endpoints/{NameInPath(subdomain)}", bodyJson);
 
     public virtual Task<string> RequestServiceAsync(Guid handlerId, string bodyJson)
         => PostBodyAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/request", bodyJson);
@@ -816,7 +823,7 @@ public partial class MyceliumClient
 
     public virtual async Task<JsonElement> GetPropertyModeAsync(Guid thingId, string propertyName)
     {
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/mode");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -830,7 +837,7 @@ public partial class MyceliumClient
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/mode", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -889,7 +896,7 @@ public partial class MyceliumClient
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -956,7 +963,7 @@ public partial class MyceliumClient
 
     public virtual async Task<JsonElement?> GetRangeAsync(Guid thingId, string rangeName)
     {
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{NameInPath(rangeName)}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -965,7 +972,7 @@ public partial class MyceliumClient
 
     public virtual async Task<bool> DeleteRangeAsync(Guid thingId, string rangeName)
     {
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{NameInPath(rangeName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
@@ -987,7 +994,7 @@ public partial class MyceliumClient
     public virtual async Task<JsonElement> GetStateOccurrencesAsync(Guid thingId, string stateName, DateTime? from, DateTime? to)
     {
         var response = await _httpClient.GetAsync(
-            $"{_myceliumUrl}/api/things/{thingId}/states/{Uri.EscapeDataString(stateName)}/occurrences"
+            $"{_myceliumUrl}/api/things/{thingId}/states/{NameInPath(stateName)}/occurrences"
             + Query(("from", from?.ToString("O")), ("to", to?.ToString("O"))));
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -1013,7 +1020,7 @@ public partial class MyceliumClient
     {
         var asked = narrowing ?? new StateListNarrowing();
         var response = await _httpClient.GetAsync(
-            $"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things" + Query(
+            $"{_myceliumUrl}/api/states/{NameInPath(stateName)}/things" + Query(
                 ("alsoIn", asked.AlsoIn),
                 ("notIn", asked.NotIn),
                 ("type", asked.Type),
