@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addEdge, useEdgesState, useNodesState, type Connection, type Edge, type Node } from '@xyflow/react';
-import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
-import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
+import { PipelineModel, ROLE, judgeConnection, type ChoiceInformation, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { relateRefusalReason, relatingLine } from '../pipeline/relate';
@@ -287,7 +287,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  const setChoices = useCallback((nodeId: string, choices: EditorChoice[]) => {
+  const setChoices = useCallback((nodeId: string, choices: ChoiceInformation[]) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, choices } } : n)));
     const kept = new Set(choices.map((choice) => choice.id));

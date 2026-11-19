@@ -126,12 +126,12 @@ describe('PipelineModel', () => {
 
   it('identifies the wire predicate by the role that binds it, not by name', () => {
     const { model } = demoModel();
-    expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
+    expect(model.boundTo(ROLE.WirePredicate)).toBe(model.predicateIdByName('carries'));
   });
 
   it('does not mistake a wire held as a Thing for the wire predicate, whichever the model lists first', () => {
     const { model, carriesId } = heldWireModel();
-    expect(model.wirePredicateId()).toBe(carriesId);
+    expect(model.boundTo(ROLE.WirePredicate)).toBe(carriesId);
   });
 
   it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {
@@ -642,11 +642,11 @@ describe('the wire predicate before any wire is drawn', () => {
   }
 
   it('finds the predicate the wire predicate role binds', () => {
-    expect(vocabularyAndNoWire(playing(ROLE.WirePredicate)).wirePredicateId()).toBe('carries');
+    expect(vocabularyAndNoWire(playing(ROLE.WirePredicate)).boundTo(ROLE.WirePredicate)).toBe('carries');
   });
 
   it('takes nothing of the wire kind for the predicate where the model binds no wire predicate role', () => {
-    expect(vocabularyAndNoWire({}).wirePredicateId()).toBeUndefined();
+    expect(vocabularyAndNoWire({}).boundTo(ROLE.WirePredicate)).toBeUndefined();
   });
 });
 

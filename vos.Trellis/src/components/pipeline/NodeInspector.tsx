@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DeclaredState, PipelineNamed, PortInformation } from '../../pipeline/model';
-import type { EditorChoice } from '../../pipeline/serialize';
+import type { ChoiceInformation, DeclaredState, PipelineNamed, PortInformation } from '../../pipeline/model';
 import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
 import type { RelateChoices } from '../../pipeline/relate';
 import type { VosThing } from '@tendril-ui/tendril';
@@ -27,7 +26,7 @@ interface Props {
   onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
   onSetBinding: (nodeId: string, port: string, parameterKey: string) => void;
   onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
-  onSetChoices: (nodeId: string, choices: EditorChoice[]) => void;
+  onSetChoices: (nodeId: string, choices: ChoiceInformation[]) => void;
   onSetRule: (nodeId: string, rule: string | undefined) => void;
   waitChoices: WaitChoices;
   onSetWait: (nodeId: string, wait: WaitSetting) => void;
@@ -78,7 +77,7 @@ export function NodeInspector({
     onSetChosen(nodeId, next);
   };
   const choices = data.choices ?? [];
-  const setChoice = (index: number, changed: Partial<EditorChoice>) =>
+  const setChoice = (index: number, changed: Partial<ChoiceInformation>) =>
     onSetChoices(nodeId, replaceAt(choices, index, { ...choices[index], ...changed }));
 
   return (

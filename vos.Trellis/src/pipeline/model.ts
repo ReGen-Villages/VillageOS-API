@@ -724,11 +724,6 @@ export class PipelineModel {
     return this.things.find((t) => t.Name === name)?.Id;
   }
 
-  /** The predicate a wire reaches the node it feeds along. */
-  wirePredicateId(): string | undefined {
-    return this.boundTo(ROLE.WirePredicate);
-  }
-
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
    * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
    * node's aggregate record (no `index`) drives the ring; per-item fan-out records are counted separately. */

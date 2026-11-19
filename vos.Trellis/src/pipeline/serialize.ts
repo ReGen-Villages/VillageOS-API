@@ -33,7 +33,7 @@ export interface EditorNode {
   /** The Thing a node stands for — its catalyst at the start, its outcome at the end, the system a tell node tells, the
    *  pipeline a follow-on node starts — written as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
-  choices?: EditorChoice[];
+  choices?: ChoiceInformation[];
   /** In-port identifier → the Thing the node chose among those that port offers. */
   chosen?: Record<string, string>;
   /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
@@ -43,8 +43,6 @@ export interface EditorNode {
   follows?: string;
   waitsAtMostMinutes?: number;
 }
-
-export type EditorChoice = ChoiceInformation;
 
 export interface EditorEdge {
   id: string;
@@ -141,7 +139,7 @@ interface SavingRoles {
 function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles {
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
-  const wireId = model.wirePredicateId();
+  const wireId = model.boundTo(ROLE.WirePredicate);
   const pipelineArchetype = model.boundTo(ROLE.Pipeline);
   const nodeArchetype = model.boundTo(ROLE.PipelineNode);
   // A wire is written as a Thing of the wire archetype, pointing at its target through the wire predicate,
