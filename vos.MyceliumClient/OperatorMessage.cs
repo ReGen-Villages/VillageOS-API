@@ -1,4 +1,4 @@
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 internal static class OperatorMessage
 {

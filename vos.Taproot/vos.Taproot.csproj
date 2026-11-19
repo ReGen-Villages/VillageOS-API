@@ -14,7 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\vos.Taproot.Client\vos.Taproot.Client.csproj" />
+    <ProjectReference Include="..\vos.MyceliumClient\vos.MyceliumClient.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="vos.MyceliumClient" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 // The platform accepts only its own type names (vos.String, vos.Integer, ...). The console lets an
 // operator type the short or .NET type name instead; anything else is sent as typed, and the platform

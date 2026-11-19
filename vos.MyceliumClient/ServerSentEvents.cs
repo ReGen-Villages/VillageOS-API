@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 public readonly record struct ServerSentEvent(string Name, string Data);
 

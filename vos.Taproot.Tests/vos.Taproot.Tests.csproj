@@ -25,4 +25,7 @@
     <ProjectReference Include="..\vos.Taproot\vos.Taproot.csproj"/>
     <ProjectReference Include="..\Tests\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
+  <ItemGroup>
+    <Using Include="vos.MyceliumClient"/>
+  </ItemGroup>
 </Project>

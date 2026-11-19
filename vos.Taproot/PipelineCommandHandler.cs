@@ -1,4 +1,4 @@
-using static vos.Taproot.ModelReading;
+using static vos.MyceliumClient.ModelReading;
 
 namespace vos.Taproot;
 
