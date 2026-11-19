@@ -1,5 +1,5 @@
 using FluentAssertions;
-using vos.Taproot;
+using vos.MyceliumClient;
 using vos.Tests.Shared;
 using Xunit;
 

@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 // The token goes on each request as it leaves, so calls made at the same time share nothing they write.
 internal sealed class TokenAttachingHandler(Func<Task<string>> token, Uri mycelium, HttpMessageHandler transport)
