@@ -39,7 +39,8 @@ Log lines go to standard error, because standard output carries the protocol.
 | --- | --- | --- | --- | --- |
 | `list_models` | The models the key may reach, each with its identifier and name | ReadModel | — | No |
 
-Whoever adds a tool adds its row here.
+A pull request that adds a tool lists its row on the open documentation collector task, and the
+documentation batch adds it here.
 
 ## Which tools a key is shown
 
