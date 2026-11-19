@@ -89,4 +89,15 @@ public class ModelBridgeNodeTests
         Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("total_pv_area", response.Error);
     }
+
+    [Fact]
+    public async Task Read_the_platform_refuses_fails_the_node_naming_the_property_and_the_status()
+    {
+        var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
+
+        Assert.Equal(NodeResponse.Failed, response.Result);
+        Assert.Contains($"{ThingId}.total_pv_area", response.Error);
+        Assert.Contains("403", response.Error);
+    }
 }

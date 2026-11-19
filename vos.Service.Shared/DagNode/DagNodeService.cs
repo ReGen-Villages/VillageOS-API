@@ -85,7 +85,7 @@ public abstract class DagNodeService : MyceliumClientBase
         var resolved = new Dictionary<string, JsonElement>(inputs.Count, StringComparer.Ordinal);
         foreach (var (port, value) in inputs)
             resolved[port] = TryReadRef(value, out var thingId, out var property)
-                ? await FetchRefAsync(thingId, property, cancellationToken)
+                ? await ReadPropertyAsync(thingId, property, cancellationToken)
                 : value;
         return resolved;
     }
@@ -104,13 +104,13 @@ public abstract class DagNodeService : MyceliumClientBase
         return true;
     }
 
-    private async Task<JsonElement> FetchRefAsync(Guid thingId, string property, CancellationToken cancellationToken)
+    protected async Task<JsonElement> ReadPropertyAsync(Guid thingId, string property, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
         var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
-                $"Failed to resolve input ref {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})",
+                $"Reading {thingId}.{property} failed ({(int)response.StatusCode} {response.StatusCode})",
                 null, response.StatusCode);
 
         var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
