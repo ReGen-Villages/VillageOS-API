@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace vos.Taproot;
+namespace vos.MyceliumClient;
 
 public sealed record FoundThing(string Id, string Name);
 
