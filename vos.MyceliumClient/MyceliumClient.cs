@@ -80,7 +80,7 @@ public partial class MyceliumClient
         HttpMessageHandler? transportWithNoTimeLimit, string programName, Guid? modelId)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
-        _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
+        _apiKey = apiKey;
         _clock = clock ?? (() => DateTime.UtcNow);
         _transport = transport;
         _transportWithNoTimeLimit = transportWithNoTimeLimit ?? transport;
