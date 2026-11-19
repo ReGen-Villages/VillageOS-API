@@ -1,5 +1,6 @@
-import { useRef, useCallback, useEffect, type ReactNode } from 'react';
+import { useRef, useCallback, type ReactNode } from 'react';
 import { useUiStore, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH } from '../../stores/uiStore';
+import { usePreventsSelectionWhileDragging } from '../../hooks/usePreventsSelectionWhileDragging';
 
 interface Props {
   children: ReactNode;
@@ -45,13 +46,7 @@ export function ResizablePanel({ children }: Props) {
     dragging.current = false;
   }, []);
 
-  useEffect(() => {
-    const prevent = (e: Event) => {
-      if (dragging.current) e.preventDefault();
-    };
-    document.addEventListener('selectstart', prevent);
-    return () => document.removeEventListener('selectstart', prevent);
-  }, []);
+  usePreventsSelectionWhileDragging(dragging);
 
   return (
     <div

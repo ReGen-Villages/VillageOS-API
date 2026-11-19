@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Pause, Play, PanelRightClose, Search, X } from 'lucide-react';
 import type { ActivityEvent } from '../../types/mycelium';
 import { formatTimestamp } from '../../utils/formatters';
+import { usePreventsSelectionWhileDragging } from '../../hooks/usePreventsSelectionWhileDragging';
 
 const typeColors: Record<string, string> = {
   ThingCreated: 'text-emerald-400',
@@ -137,13 +138,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
     }
   }, []);
 
-  useEffect(() => {
-    const prevent = (e: Event) => {
-      if (dragging.current) e.preventDefault();
-    };
-    document.addEventListener('selectstart', prevent);
-    return () => document.removeEventListener('selectstart', prevent);
-  }, []);
+  usePreventsSelectionWhileDragging(dragging);
 
   return (
     <div
