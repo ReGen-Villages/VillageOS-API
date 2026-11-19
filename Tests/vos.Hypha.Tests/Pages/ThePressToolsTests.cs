@@ -3,12 +3,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using ModelContextProtocol.Protocol;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Pages;
 using Xunit;
-using static vos.Mcp.Tests.ServerUnderTest;
+using static vos.Hypha.Tests.ServerUnderTest;
 
-namespace vos.Mcp.Tests.Pages;
+namespace vos.Hypha.Tests.Pages;
 
 public class ThePressToolsTests
 {

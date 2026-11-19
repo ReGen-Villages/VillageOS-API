@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Pages;
 using vos.Taproot;
 
-namespace vos.Mcp.Tools.Pages;
+namespace vos.Hypha.Tools.Pages;
 
 /// <summary>
 /// Every path and identifier a press sends comes out of a page description, which is the model's data, so each

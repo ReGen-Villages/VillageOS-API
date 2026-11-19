@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Pages;
 
-namespace vos.Mcp.Tools.Pages;
+namespace vos.Hypha.Tools.Pages;
 
 [McpServerToolType]
 public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<ActivityReport> reportLogger)

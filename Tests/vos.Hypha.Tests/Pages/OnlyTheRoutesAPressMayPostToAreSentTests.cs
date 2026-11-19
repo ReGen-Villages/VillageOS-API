@@ -1,7 +1,7 @@
-using vos.Mcp.Tools.Pages;
+using vos.Hypha.Tools.Pages;
 using Xunit;
 
-namespace vos.Mcp.Tests.Pages;
+namespace vos.Hypha.Tests.Pages;
 
 // The route a press posts to is written in the page description, which any editor of the model can change,
 // and the person confirms a press by what it says, so the routes a press may reach are listed here one by one.
