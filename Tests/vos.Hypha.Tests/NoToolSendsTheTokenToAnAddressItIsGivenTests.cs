@@ -3,7 +3,7 @@ using vos.Taproot;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class NoToolSendsTheTokenToAnAddressItIsGivenTests
 {
@@ -35,7 +35,7 @@ public class NoToolSendsTheTokenToAnAddressItIsGivenTests
         source.Contains(nameof(MyceliumClient.IngestIfcAsync), StringComparison.Ordinal);
 
     private static IEnumerable<string> ServerSources() =>
-        new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), "vos.Mcp"))
+        new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), "vos.Hypha"))
             .EnumerateFiles("*.cs", SearchOption.AllDirectories)
             .Select(file => file.FullName)
             .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"));

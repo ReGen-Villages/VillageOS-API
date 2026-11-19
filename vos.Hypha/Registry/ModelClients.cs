@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using vos.Taproot;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public sealed class ModelNotReachedException(string message) : Exception(message);
 

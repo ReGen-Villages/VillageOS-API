@@ -4,12 +4,12 @@ using System.Security.Claims;
 using System.Text.Json;
 using FluentAssertions;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Tests.Shared;
 using Xunit;
-using static vos.Mcp.Tests.ServerUnderTest;
+using static vos.Hypha.Tests.ServerUnderTest;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class AToolSaysWhichModelItAsksTests
 {
