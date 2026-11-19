@@ -1,4 +1,4 @@
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public static class ListingLimits
 {

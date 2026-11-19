@@ -2,12 +2,12 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using ModelContextProtocol.Protocol;
-using vos.Mcp.Registry;
-using vos.Mcp.Tools.Generic;
+using vos.Hypha.Registry;
+using vos.Hypha.Tools.Generic;
 using Xunit;
-using static vos.Mcp.Tests.ServerUnderTest;
+using static vos.Hypha.Tests.ServerUnderTest;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class AModelIsDescribedAndThingsAreFoundTests
 {
