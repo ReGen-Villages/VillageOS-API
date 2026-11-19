@@ -1,4 +1,4 @@
-import { wordingIn, wordsInLanguage, type EffectiveProperty } from '@tendril-ui/tendril';
+import { type EffectiveProperty } from '@tendril-ui/tendril';
 import { ROLE, type PipelineModel } from './model';
 
 /** The platform keys an inherited property by the path of archetypes it came through, and refuses a name two
@@ -19,7 +19,7 @@ export interface CompletionChoice {
 export function completionChoices(model: PipelineModel, language: string): CompletionChoice[] {
   return model.thingsOf(ROLE.CallCompletion).map((member) => ({
     id: member.Id,
-    label: wordsInLanguage(wordingIn(model.stated(member.Id).wording) ?? undefined, language) ?? member.Name,
+    label: model.labelOf(member.Id, language),
   }));
 }
 

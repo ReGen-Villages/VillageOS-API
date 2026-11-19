@@ -5,6 +5,7 @@ import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type 
 import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
 import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
+import { relateRefusalReason, relatingLine } from '../pipeline/relate';
 import { type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { passedOn } from '../pipeline/passedOn';
 import { handStateToOrchestrator } from '../pipeline/handOver';
@@ -23,7 +24,8 @@ interface PipelineDrawingInputs {
 }
 
 export function usePipelineDrawing({ model, connections, setError }: PipelineDrawingInputs) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [name, setName] = useState(() => t('pipeline.newPipelineName'));
@@ -45,6 +47,13 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
+      if (d.kind === 'relate') {
+        const refusal = d.standsForId ? relateRefusalReason(model, d.standsForId, language) : undefined;
+        return {
+          id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsAtMostMinutes: d.waitsAtMostMinutes,
+          ...(d.standsForId ? { relates: refusal ? { refusal } : {} } : {}),
+        };
+      }
       return {
         id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsFor: d.waitsFor,
         waitsAtMostMinutes: d.waitsAtMostMinutes,
@@ -58,18 +67,19 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       targetHandle: e.targetHandle ?? '',
     }));
     return [...validatePipeline(validationNodes, validationEdges), ...validateEnds(validationNodes, validationEdges)];
-  }, [nodes, edges, model]);
+  }, [nodes, edges, model, language]);
 
   // The drawing as the canvas paints it: a node says what it stands for, read off the model so a rename reaches
   // it, and a start node says that placing it is not what starts a run.
   const canvasNodes = useMemo(() => nodes.map((n) => {
     const d = n.data as unknown as PipelineNodeData;
     if (d.kind === 'wait') return { ...n, data: { ...n.data, waitsForName: d.waitsFor ? model.thing(d.waitsFor)?.Name : undefined } };
+    if (d.kind === 'relate') return { ...n, data: { ...n.data, relating: relatingLine(model, d.standsForId, language) } };
     if (!d.kind || !d.standsForId) return n;
     const standsFor = model.endInformation(d.standsForId);
     const note = d.kind === 'input' ? t('pipeline.note.startNotCalled') : undefined;
     return { ...n, data: { ...n.data, standsFor, note } };
-  }), [nodes, model, t]);
+  }), [nodes, model, t, language]);
 
   const canvasEdges = useMemo(() => {
     const fail = model.boundTo(ROLE.Fail);
@@ -297,6 +307,10 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     place({ label: t('pipeline.outputs.wait'), kind: 'wait', ports: model.resolvePorts(model.boundTo(ROLE.PipelineWait)!) });
   }, [place, model, t]);
 
+  const placeRelate = useCallback(() => {
+    place({ label: t('pipeline.outputs.relate'), kind: 'relate', ports: model.resolvePorts(model.boundTo(ROLE.PipelineRelate)!) });
+  }, [place, model, t]);
+
   const setWait = useCallback((nodeId: string, wait: WaitSetting) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...wait } } : n)));
@@ -315,7 +329,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     nodes, edges, setNodes, onNodesChange, onEdgesChange, canvasNodes, canvasEdges, validationIssues,
     name, setName, savedId, editingPipelineId, busy, thingIdByCanvasId, currentNodes,
     canUndo: history.canUndo, dirty: history.dirty, onUndo: history.onUndo,
-    save, load, startNew, place, addNode, placeStart, placeOutput, placeWait, handOver,
+    save, load, startNew, place, addNode, placeStart, placeOutput, placeWait, placeRelate, handOver,
     setEdgePath, setEdgeTakenOn, setDeclaredPorts, setStandsFor, onConnect, setBinding, setChosen, setChoices, setRule, setWait,
     onNodeDragStart, onNodesDelete, onEdgesDelete,
   };

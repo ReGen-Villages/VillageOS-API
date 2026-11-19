@@ -411,7 +411,7 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     expect(applyFragment).not.toHaveBeenCalled();
   });
 
-  it('keeps a relate box, its ports and what it stands for', async () => {
+  it('keeps a relate box, its ports and what it stands for, even a connection the orchestrator would now refuse', async () => {
     const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
     T('arch-relate', 'Link up', playing(ROLE.PipelineRelate)); R('arch-relate', 'is', 'arch-node');
     port('relate.thing.in', 'thing', 'in', 'arch-relate');
@@ -436,6 +436,22 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     const relate = loaded.nodes.find((n) => n.id === 'RELATE')!;
     expect(relate.standsForId).toBe('works-out');
     expect(relate.ports.map((p) => p.portId)).toEqual(['relate.thing.in', 'relate.thing.out', 'relate.written']);
+  });
+
+  it('reads back the most minutes a relate box waits, and writes it on save', async () => {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('arch-relate', 'Link up', playing(ROLE.PipelineRelate)); R('arch-relate', 'is', 'arch-node');
+    port('relate.thing.in', 'thing', 'in', 'arch-relate');
+    T('DP', 'Discover a site'); R('DP', 'is', 'arch-pipeline');
+    T('RELATE', 'Work the climate out', { waitsAtMostMinutes: 30 }); R('RELATE', 'is', 'arch-relate'); R('DP', 'has', 'RELATE');
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const loaded = loadPipeline('DP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'DP');
+
+    expect(loaded.nodes.find((n) => n.id === 'RELATE')!.waitsAtMostMinutes).toBe(30);
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'RELATE')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: 30 });
   });
 });
 

@@ -22,7 +22,7 @@ var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, mycelium
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-ServiceHost.ConfigureLogging("WaterReserve", "water-reserve-.log", launchSettings.LogDirectory);
+ServiceHost.ConfigureLogging("WaterReserve", "water-reserve-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile);
 
 try
 {

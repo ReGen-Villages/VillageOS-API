@@ -241,6 +241,18 @@ public static class SubmissionFragmentComposer
         }
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
+
+        // Discovery reads a site's soil once per horizon the site has, as it grades a hazard once per assessment.
+        if (archetypes.SoilHorizon is { } horizonArchetype && vocabulary.SoilDepths is { } soilDepths)
+            foreach (var depth in soilDepths.Terms)
+            {
+                var horizon = new NamedThing(
+                    StableIdentity.Derive(submissionId, $"soil:{Key(depth.Name)}"), $"{siteName} {depth.Name}");
+                things.Add(new FragmentThing(horizon.Id, horizon.Name, new Dictionary<string, TypedValue>()));
+                Relate(siteThing, predicates.Has, horizon);
+                BeArchetype(horizon, horizonArchetype);
+                RelateToTerm(horizon, soilDepths, depth);
+            }
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",

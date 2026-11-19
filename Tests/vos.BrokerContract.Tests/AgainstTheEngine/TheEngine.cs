@@ -69,6 +69,16 @@ public sealed class TheEngine : IAsyncLifetime
     }
 #endif
 
+    public async Task<HttpClient> EditorAsync()
+    {
+        var token = await TokenOfANewKeyAsync(new { Name = $"editor {Guid.NewGuid():N}", Role = EditorRole, ModelId = await TheModelIdAsync() });
+        var editor = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
+        editor.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return editor;
+    }
+
+    private const string EditorRole = "editor";
+
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.
     public async Task<Guid> DeclareAsync(
@@ -120,6 +130,40 @@ public sealed class TheEngine : IAsyncLifetime
 
         return (await found.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("Id").GetGuid();
     }
+
+    // A launched service's own token is minted by the broker and no route issues one, so a case that must not hold the
+    // administrator's bearer takes a service key's token, which carries the same role and names its service the same way.
+    public async Task<string> ServiceTokenAsync(string serviceName)
+    {
+        var modelId = await TheModelIdAsync();
+        var isPredicate = await DeclareOnceAsync("is");
+        var serviceKind = await DeclareOnceAsync("Service", isArchetype: true);
+        if (await FindAsync(ServiceKind.Word) is null) await BindAsync(ServiceKind, serviceKind);
+        var service = await DeclareAsync($"{serviceName} service {Guid.NewGuid():N}");
+        await RelateAsync(service, isPredicate, serviceKind);
+
+        return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
+    }
+
+    private async Task<Guid> TheModelIdAsync() =>
+        Field((await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single(), "id").GetGuid();
+
+    private async Task<string> TokenOfANewKeyAsync(object key)
+    {
+        var issued = await Admin.PostAsJsonAsync("/api/auth/keys", key);
+        issued.EnsureSuccessStatusCode();
+        using var exchange = new HttpRequestMessage(HttpMethod.Post, "/api/auth/token");
+        exchange.Headers.Add("X-API-Key", Field(await issued.Content.ReadFromJsonAsync<JsonElement>(), "rawKey").GetString());
+        using var anonymous = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
+        var exchanged = await anonymous.SendAsync(exchange);
+        exchanged.EnsureSuccessStatusCode();
+        return Field(await exchanged.Content.ReadFromJsonAsync<JsonElement>(), "token").GetString()!;
+    }
+
+    private static readonly Role ServiceKind = new("service", RoleIdentity.Of("service"));
+
+    private static JsonElement Field(JsonElement answer, string name) =>
+        answer.EnumerateObject().First(field => string.Equals(field.Name, name, StringComparison.OrdinalIgnoreCase)).Value;
 
     public async Task<Guid> TheOnlyThingNamedAsync(string name) =>
         await FindAsync(name) ?? throw new InvalidOperationException($"The model holds no Thing named '{name}'.");

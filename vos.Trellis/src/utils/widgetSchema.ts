@@ -23,7 +23,7 @@ const SEVERITIES = ['good', 'warning', 'critical'] as const;
 const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
 const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
 const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value', 'cell', 'monthOfYear,cell'];
-const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
+const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow', 'CountAtOrAbove'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
 export const STEP_DIRECTIONS = ['out', 'in'] as const;
 

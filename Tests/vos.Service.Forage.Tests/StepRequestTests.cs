@@ -475,6 +475,21 @@ public class StepRequestTests
         (await client.GetAsync("/manifest/discoverEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Record_results_takes_the_judged_subjects_on_a_port_it_does_not_require()
+    {
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        var manifest = await client.GetFromJsonAsync<JsonElement>("/manifest/recordResults");
+
+        var judged = manifest.GetProperty("ports").EnumerateArray()
+            .Should().ContainSingle(port => port.GetProperty("portName").GetString() == "judged").Subject;
+        judged.GetProperty("direction").GetString().Should().Be("in");
+        judged.GetProperty("required").GetBoolean().Should().BeFalse();
+    }
+
     // Tributary's place is taken by answering every planned call as fetched, which is what a direct run's fetches
     // answer here too.
     [Fact]
