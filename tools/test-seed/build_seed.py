@@ -29,6 +29,8 @@ COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE = SEED_FOLDER / f"{SEED_NAME}WithAnUnread
 
 ECHO_SUBDOMAIN = "echo"
 ECHO_PORT = 5790
+# The platform fills {service} from a service's ServiceAssembly and reads the path from its own working folder.
+WHERE_A_SERVICE_IS_BUILT = "../../VillageOS-API/{service}/bin/Debug/net10.0/{service}.dll"
 TARGET_DAYS_OF_SUPPLY = 14
 
 LANGUAGES_WORDED = ("en", "de", "ar")
@@ -275,6 +277,13 @@ def declare_service_calls(model, ranges):
     and at a subdomain a page's form and action list post to."""
     kit = model.kit
     service_kind = kit.archetype("Service")
+    kit.things[service_kind]["Properties"] = {
+        "ExecutablePath": typed("", "vos.String"),
+        "ExecutablePathTemplate": typed(WHERE_A_SERVICE_IS_BUILT, "vos.String"),
+        "ServicePort": typed(0, "vos.LongInteger"),
+        "ServiceArgs": typed("", "vos.String"),
+        "AutoStart": typed(False, "vos.Boolean"),
+    }
     connection_kind = kit.archetype("Connection", "PlatformServiceConnection")
     model.configured += [service_kind, connection_kind]
     triggered_by = model.predicate("triggeredBy")
@@ -299,10 +308,15 @@ def declare_service_calls(model, ranges):
                         {"ServiceAssembly": typed("vos.Service.CSharp.Echo", "vos.String")}, archetype=True)
     model.relate(prototype, model.is_, service_kind)
     model.relate(prototype, completes_when, when_the_service_answers)
-    service = kit.thing(identifier("service", "Echo service"), "Echo service", {
-        "ServicePort": typed(ECHO_PORT, "vos.LongInteger"),
-        "AutoStart": typed(False, "vos.Boolean"),
-    })
+    service = kit.thing(identifier("service", "Echo service"), "Echo service")
+    # A value stated over a name declared two kinds up is read only where it is nested under each kind on the way.
+    kit.things[service]["InheritedOverrides"] = {prototype: {
+        "SourceId": prototype, "SourceName": "Echo prototype", "Properties": {},
+        "Inherited": {service_kind: {
+            "SourceId": service_kind, "SourceName": "Service", "Inherited": None,
+            "Properties": {"ServicePort": typed(ECHO_PORT, "vos.LongInteger"), "AutoStart": typed(False, "vos.Boolean")},
+        }},
+    }}
     model.relate(service, model.is_, prototype)
 
     surveys = kit.thing(identifier("connection", "surveysCatchment"), "surveysCatchment",
