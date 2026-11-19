@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
-using vos.Taproot;
+using vos.Hypha.Registry;
+using vos.MyceliumClient;
 
-namespace vos.Mcp.Tools.Generic;
+namespace vos.Hypha.Tools.Generic;
 
 [McpServerToolType]
 public sealed class ThingTools(ModelClients clients)
