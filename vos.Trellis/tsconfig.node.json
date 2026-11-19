@@ -34,6 +34,7 @@
     "vite.public.config.ts",
     "vite.feedback.config.ts",
     "vitest.integration.config.ts",
+    "vitest.saved-drawing.config.ts",
     "build/**/*.ts",
     "test/integration/**/*.ts"
   ]

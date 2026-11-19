@@ -1,0 +1,579 @@
+{
+  "references": [
+    "arch-input",
+    "arch-node",
+    "arch-output",
+    "arch-pipeline",
+    "arch-port",
+    "arch-relate",
+    "arch-wait",
+    "arch-wire",
+    "awaits-through",
+    "carries",
+    "has",
+    "input-connector",
+    "is",
+    "output-connector",
+    "proven-by",
+    "recorded",
+    "relate.thing.in",
+    "relate.thing.out",
+    "stands-for",
+    "success",
+    "taken-on",
+    "wait.thing.in",
+    "wait.thing.out",
+    "works-out"
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/model/fragment",
+      "body": {
+        "Name": "Record then work out a study",
+        "Things": [
+          {
+            "Id": "{{new:3}}",
+            "Name": "Record then work out a study",
+            "Properties": {
+              "published": {
+                "typeInfo": "vos.Boolean",
+                "value": true
+              }
+            }
+          },
+          {
+            "Id": "{{new:4}}",
+            "Name": "Input",
+            "Properties": {
+              "x": {
+                "typeInfo": "vos.Double",
+                "value": 80
+              },
+              "y": {
+                "typeInfo": "vos.Double",
+                "value": 80
+              }
+            }
+          },
+          {
+            "Id": "{{new:1}}",
+            "Name": "subject",
+            "Properties": {
+              "portName": {
+                "typeInfo": "vos.String",
+                "value": "subject"
+              },
+              "direction": {
+                "typeInfo": "vos.String",
+                "value": "out"
+              },
+              "type": {
+                "typeInfo": "vos.String",
+                "value": "any"
+              },
+              "required": {
+                "typeInfo": "vos.String",
+                "value": "false"
+              }
+            }
+          },
+          {
+            "Id": "{{new:5}}",
+            "Name": "Wait for a state",
+            "Properties": {
+              "x": {
+                "typeInfo": "vos.Double",
+                "value": 140
+              },
+              "y": {
+                "typeInfo": "vos.Double",
+                "value": 120
+              },
+              "waitsAtMostMinutes": {
+                "typeInfo": "vos.Integer",
+                "value": 90
+              }
+            }
+          },
+          {
+            "Id": "{{new:6}}",
+            "Name": "Relate a Thing",
+            "Properties": {
+              "x": {
+                "typeInfo": "vos.Double",
+                "value": 200
+              },
+              "y": {
+                "typeInfo": "vos.Double",
+                "value": 160
+              }
+            }
+          },
+          {
+            "Id": "{{new:7}}",
+            "Name": "Output",
+            "Properties": {
+              "x": {
+                "typeInfo": "vos.Double",
+                "value": 260
+              },
+              "y": {
+                "typeInfo": "vos.Double",
+                "value": 200
+              },
+              "when": {
+                "typeInfo": "vos.String",
+                "value": ""
+              }
+            }
+          },
+          {
+            "Id": "{{new:2}}",
+            "Name": "value",
+            "Properties": {
+              "portName": {
+                "typeInfo": "vos.String",
+                "value": "value"
+              },
+              "direction": {
+                "typeInfo": "vos.String",
+                "value": "in"
+              },
+              "type": {
+                "typeInfo": "vos.String",
+                "value": "any"
+              },
+              "required": {
+                "typeInfo": "vos.String",
+                "value": "true"
+              }
+            }
+          }
+        ],
+        "Relationships": [
+          {
+            "Name": "is",
+            "Subject": "{{new:3}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-pipeline}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:4}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-node}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:3}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:4}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:4}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-input}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:1}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-port}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:4}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:1}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:5}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-node}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:3}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:5}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:5}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-wait}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:6}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-node}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:3}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:6}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:6}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-relate}}"
+          },
+          {
+            "Name": "standsFor",
+            "Subject": "{{new:6}}",
+            "Predicate": "{{model:stands-for}}",
+            "Target": "{{model:works-out}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:7}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-node}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:3}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:7}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:7}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-output}}"
+          },
+          {
+            "Name": "is",
+            "Subject": "{{new:2}}",
+            "Predicate": "{{model:is}}",
+            "Target": "{{model:arch-port}}"
+          },
+          {
+            "Name": "has",
+            "Subject": "{{new:7}}",
+            "Predicate": "{{model:has}}",
+            "Target": "{{new:2}}"
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things",
+      "body": {
+        "Name": "subject to thing",
+        "IsArchetype": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:1}}/properties",
+      "body": {
+        "Name": "fromPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:1}}/properties",
+      "body": {
+        "Name": "toPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:1}}/properties",
+      "body": {
+        "Name": "itemTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:1}}/properties",
+      "body": {
+        "Name": "listTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:1}}",
+        "PredicateId": "{{model:is}}",
+        "TargetId": "{{model:arch-wire}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{new:4}}",
+        "PredicateId": "{{model:has}}",
+        "TargetId": "{{created:1}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:1}}",
+        "PredicateId": "{{model:carries}}",
+        "TargetId": "{{new:5}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:1}}",
+        "PredicateId": "{{model:input-connector}}",
+        "TargetId": "{{new:1}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:1}}",
+        "PredicateId": "{{model:output-connector}}",
+        "TargetId": "{{model:wait.thing.in}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:1}}",
+        "PredicateId": "{{model:taken-on}}",
+        "TargetId": "{{model:success}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things",
+      "body": {
+        "Name": "thing to thing",
+        "IsArchetype": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:2}}/properties",
+      "body": {
+        "Name": "fromPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:2}}/properties",
+      "body": {
+        "Name": "toPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:2}}/properties",
+      "body": {
+        "Name": "itemTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:2}}/properties",
+      "body": {
+        "Name": "listTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:2}}",
+        "PredicateId": "{{model:is}}",
+        "TargetId": "{{model:arch-wire}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{new:5}}",
+        "PredicateId": "{{model:has}}",
+        "TargetId": "{{created:2}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:2}}",
+        "PredicateId": "{{model:carries}}",
+        "TargetId": "{{new:6}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:2}}",
+        "PredicateId": "{{model:input-connector}}",
+        "TargetId": "{{model:wait.thing.out}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:2}}",
+        "PredicateId": "{{model:output-connector}}",
+        "TargetId": "{{model:relate.thing.in}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:2}}",
+        "PredicateId": "{{model:taken-on}}",
+        "TargetId": "{{model:success}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things",
+      "body": {
+        "Name": "thing to value",
+        "IsArchetype": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:3}}/properties",
+      "body": {
+        "Name": "fromPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:3}}/properties",
+      "body": {
+        "Name": "toPath",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:3}}/properties",
+      "body": {
+        "Name": "itemTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/things/{{created:3}}/properties",
+      "body": {
+        "Name": "listTransform",
+        "Type": "vos.String",
+        "Value": ""
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:3}}",
+        "PredicateId": "{{model:is}}",
+        "TargetId": "{{model:arch-wire}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{new:6}}",
+        "PredicateId": "{{model:has}}",
+        "TargetId": "{{created:3}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:3}}",
+        "PredicateId": "{{model:carries}}",
+        "TargetId": "{{new:7}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:3}}",
+        "PredicateId": "{{model:input-connector}}",
+        "TargetId": "{{model:relate.thing.out}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:3}}",
+        "PredicateId": "{{model:output-connector}}",
+        "TargetId": "{{new:2}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{created:3}}",
+        "PredicateId": "{{model:taken-on}}",
+        "TargetId": "{{model:success}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{new:5}}",
+        "PredicateId": "{{model:proven-by}}",
+        "TargetId": "{{model:recorded}}"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/relationships",
+      "body": {
+        "SubjectId": "{{new:5}}",
+        "PredicateId": "{{model:awaits-through}}",
+        "TargetId": "{{model:wait.thing.in}}"
+      }
+    }
+  ]
+}
