@@ -3,16 +3,16 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using vos.Mcp.Tools.Process;
+using vos.Hypha.Tools.Process;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class ShowCallsAgainstTheRecordingTests
 {
     private static readonly JsonElement Recording = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-        RepositoryRoot.Find(), "Tests", "vos.Mcp.Tests", "Recorded", "show-calls.catchments.recorded.json"))).RootElement;
+        RepositoryRoot.Find(), "Tests", "vos.Hypha.Tests", "Recorded", "show-calls.catchments.recorded.json"))).RootElement;
 
     private static readonly Guid Thing = Recording.GetProperty("thing").GetGuid();
 

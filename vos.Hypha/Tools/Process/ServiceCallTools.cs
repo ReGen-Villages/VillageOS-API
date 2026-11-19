@@ -3,10 +3,10 @@ using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 
-namespace vos.Mcp.Tools.Process;
+namespace vos.Hypha.Tools.Process;
 
 public sealed record Waited(int Seconds, bool Settled, string SawLast);
 

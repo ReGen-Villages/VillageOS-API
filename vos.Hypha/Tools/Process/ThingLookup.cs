@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using ModelContextProtocol;
 using vos.Taproot;
 
-namespace vos.Mcp.Tools.Process;
+namespace vos.Hypha.Tools.Process;
 
 public static class ThingLookup
 {

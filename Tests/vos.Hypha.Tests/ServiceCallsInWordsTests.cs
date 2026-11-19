@@ -1,10 +1,10 @@
 using System.Text.Json;
 using FluentAssertions;
-using vos.Mcp.Tools.Process;
+using vos.Hypha.Tools.Process;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class ServiceCallsInWordsTests
 {

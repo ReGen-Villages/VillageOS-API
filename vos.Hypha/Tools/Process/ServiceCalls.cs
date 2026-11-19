@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace vos.Mcp.Tools.Process;
+namespace vos.Hypha.Tools.Process;
 
 public sealed record NamedThing(Guid Id, string Name);
 
