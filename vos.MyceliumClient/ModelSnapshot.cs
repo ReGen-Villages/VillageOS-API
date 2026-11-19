@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 // Everything a model-walking command reads, taken once. Properties are read effective rather
 // than own: seed normalization moves a Thing's own values into its overrides, and a reader looking only

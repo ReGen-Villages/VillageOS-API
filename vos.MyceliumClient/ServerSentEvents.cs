@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 public readonly record struct ServerSentEvent(string Name, string Data);
 

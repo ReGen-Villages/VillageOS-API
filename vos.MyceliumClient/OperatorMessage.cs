@@ -1,4 +1,4 @@
-namespace vos.MyceliumClient;
+namespace vos.PlatformClient;
 
 internal static class OperatorMessage
 {

@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using static vos.MyceliumClient.ModelReading;
+using static vos.PlatformClient.ModelReading;
 
 namespace vos.Taproot;
 

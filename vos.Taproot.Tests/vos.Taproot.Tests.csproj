@@ -26,6 +26,6 @@
     <ProjectReference Include="..\Tests\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
   <ItemGroup>
-    <Using Include="vos.MyceliumClient"/>
+    <Using Include="vos.PlatformClient"/>
   </ItemGroup>
 </Project>
