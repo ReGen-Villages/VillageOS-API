@@ -9,7 +9,7 @@ using ModelContextProtocol.Protocol;
 using vos.Taproot;
 using vos.Tests.Shared;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public sealed class ServerUnderTest : IAsyncDisposable
 {

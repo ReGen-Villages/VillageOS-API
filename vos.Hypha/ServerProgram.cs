@@ -1,12 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 
-namespace vos.Mcp;
+namespace vos.Hypha;
 
 public static class ServerProgram
 {
-    public const string Name = "vos.Mcp";
+    public const string Name = "Hypha";
 
     public static MyceliumClient ClientFor(
         string myceliumUrl, string? apiKey, HttpClient? transport = null, Func<DateTime>? clock = null) =>

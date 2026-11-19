@@ -1,11 +1,11 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 using Xunit;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class EveryToolDeclaresWhatItNeedsAndWhatItDoesTests
 {

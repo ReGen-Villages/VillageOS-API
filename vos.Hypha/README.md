@@ -1,8 +1,8 @@
-# vos.Mcp
+# Hypha
 
 A server that lets an assistant in a chat application read and change a model. It speaks the Model
-Context Protocol (MCP), the protocol a chat application uses to list and call tools on a server. `vos.Mcp`
-is a working name.
+Context Protocol (MCP), the protocol a chat application uses to list and call tools on a server. Its
+project is `vos.Hypha`.
 
 The server holds no rights of its own. It is given an API key, and the Mycelium decides what that key may
 read and write.
@@ -22,7 +22,7 @@ An entry in a chat application's server list looks like this:
 ```json
 {
   "command": "dotnet",
-  "args": ["run", "--project", "vos.Mcp", "--", "--mycelium-url=https://localhost:7243"],
+  "args": ["run", "--project", "vos.Hypha", "--", "--mycelium-url=https://localhost:7243"],
   "env": { "VOS_API_KEY": "<the key issued for this assistant>" }
 }
 ```

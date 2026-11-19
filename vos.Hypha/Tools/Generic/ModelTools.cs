@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 
-namespace vos.Mcp.Tools.Generic;
+namespace vos.Hypha.Tools.Generic;
 
 [McpServerToolType]
 public sealed class ModelTools(MyceliumClient mycelium)

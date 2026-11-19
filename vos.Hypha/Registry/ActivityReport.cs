@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using vos.Taproot;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public sealed class ActivityReport(MyceliumClient mycelium, ILogger<ActivityReport> logger)
 {

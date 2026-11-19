@@ -2,10 +2,10 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 // The server's first tool needs no editor's policy and no bound role, so these exercise those rules.
 [McpServerToolType]

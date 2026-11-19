@@ -1,6 +1,6 @@
 using ModelContextProtocol.Server;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 // The names to hand this are the whole names of the kinds, predicates, properties and states a model declares
 // for itself. It does not catch a part of such a name, a name the platform binds through a role, or the name

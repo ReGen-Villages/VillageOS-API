@@ -3,7 +3,7 @@ using FluentAssertions;
 using ModelContextProtocol.Server;
 using Xunit;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class NoToolNamesAWordOfOneModelTests
 {

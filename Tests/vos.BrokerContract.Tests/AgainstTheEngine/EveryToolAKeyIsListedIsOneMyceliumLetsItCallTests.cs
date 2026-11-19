@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using vos.Mcp;
+using vos.Hypha;
 using vos.Taproot;
 using Xunit;
 

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public sealed class RecordingStream(Stream inner) : Stream
 {

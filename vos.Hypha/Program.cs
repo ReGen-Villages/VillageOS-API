@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using vos.Mcp;
+using vos.Hypha;
 using vos.Taproot;
 
 var options = ConsoleOptions.Parse(args);

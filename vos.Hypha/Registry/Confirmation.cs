@@ -3,7 +3,7 @@ using System.Text;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public enum ConfirmationAnswer
 {

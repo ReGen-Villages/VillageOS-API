@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="vos.Mcp.Tests" />
+    <InternalsVisibleTo Include="vos.Hypha.Tests" />
   </ItemGroup>
 
 </Project>

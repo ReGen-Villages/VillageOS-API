@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using vos.Taproot;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public sealed class Caller(string role, MyceliumClient mycelium)
 {

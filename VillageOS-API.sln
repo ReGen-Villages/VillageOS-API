@@ -79,9 +79,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Pages", "vos.Pages\vos.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Pages.Tests", "Tests\vos.Pages.Tests\vos.Pages.Tests.csproj", "{07F06E24-06E4-40E0-9280-1D842C24A521}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Mcp", "vos.Mcp\vos.Mcp.csproj", "{494CEE78-4B5E-4216-83C4-924F6304A426}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Hypha", "vos.Hypha\vos.Hypha.csproj", "{494CEE78-4B5E-4216-83C4-924F6304A426}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Mcp.Tests", "Tests\vos.Mcp.Tests\vos.Mcp.Tests.csproj", "{17C7FF52-4C2D-4B55-9777-75C7B3186256}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Hypha.Tests", "Tests\vos.Hypha.Tests\vos.Hypha.Tests.csproj", "{17C7FF52-4C2D-4B55-9777-75C7B3186256}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,4 +1,4 @@
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 public abstract class ListingConditionAttribute : Attribute

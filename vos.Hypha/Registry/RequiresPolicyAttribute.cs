@@ -1,4 +1,4 @@
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public sealed class RequiresPolicyAttribute(MyceliumPolicy policy) : ListingConditionAttribute
 {

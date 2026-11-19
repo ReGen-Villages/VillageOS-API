@@ -1,7 +1,7 @@
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 // A source answers the prompts it has for one caller at the moment it is asked, so a prompt can depend on
 // what the caller's model holds.

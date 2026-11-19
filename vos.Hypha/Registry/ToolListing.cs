@@ -3,7 +3,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using vos.Taproot;
 
-namespace vos.Mcp.Registry;
+namespace vos.Hypha.Registry;
 
 public static class ToolListing
 {

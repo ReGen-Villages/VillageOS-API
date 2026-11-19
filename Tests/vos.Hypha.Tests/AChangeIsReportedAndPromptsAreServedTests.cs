@@ -3,13 +3,13 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Protocol;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 using vos.Taproot;
 using vos.Tests.Shared;
 using Xunit;
-using static vos.Mcp.Tests.ServerUnderTest;
+using static vos.Hypha.Tests.ServerUnderTest;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class AChangeIsReportedAndPromptsAreServedTests
 {

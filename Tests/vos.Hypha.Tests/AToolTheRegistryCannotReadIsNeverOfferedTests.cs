@@ -4,9 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Xunit;
-using static vos.Mcp.Tests.ServerUnderTest;
+using static vos.Hypha.Tests.ServerUnderTest;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public class AToolTheRegistryCannotReadIsNeverOfferedTests
 {

@@ -1,7 +1,7 @@
 using ModelContextProtocol.Server;
-using vos.Mcp.Registry;
+using vos.Hypha.Registry;
 
-namespace vos.Mcp.Tests;
+namespace vos.Hypha.Tests;
 
 public static class ToolRules
 {
