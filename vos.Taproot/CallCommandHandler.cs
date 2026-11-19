@@ -11,7 +11,7 @@ public class CallCommandHandler : CommandHandlerWithOutputOptions
 
     public async Task ExecuteAsync()
     {
-        var parts = (_arg ?? "").Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        var parts = _arg.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             ShowUsage();

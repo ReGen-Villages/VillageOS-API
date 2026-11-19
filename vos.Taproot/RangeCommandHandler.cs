@@ -33,23 +33,9 @@ public class RangeCommandHandler
 
     public async Task ExecuteAsync()
     {
-        if (!CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
-        {
-            ShowHelp();
-            return;
-        }
-
-        await ExecuteSubcommandAsync(subcommand, subArgs);
-    }
-
-    private async Task ExecuteSubcommandAsync(string subcommand, string[] args)
-    {
         try
         {
-            if (_commandHandlers.TryGetValue(subcommand, out var handler))
-                await handler(args);
-            else
-                ShowHelp();
+            await Subcommands.RunAsync(_arg, _commandHandlers, ShowHelp);
         }
         catch (Exception ex)
         {

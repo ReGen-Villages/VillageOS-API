@@ -15,7 +15,7 @@ namespace vos.Taproot
 
         public async Task ExecuteAsync()
         {
-            var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
             if (tok.Length == 0)
             {

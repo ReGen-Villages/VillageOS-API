@@ -30,22 +30,15 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
 
     public async Task ExecuteAsync()
     {
-        if (!CommandParser.TryParseSubcommand(_arg ?? "", out var subcommand, out var args))
-        {
-            ShowUsage();
-            return;
-        }
-
         try
         {
-            switch (subcommand.ToLowerInvariant())
+            await Subcommands.RunAsync(_arg, new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
-                case "list": await ListAsync(); break;
-                case "run": await RunAsync(args); break;
-                case "cancel": await CancelAsync(args); break;
-                case "history": await HistoryAsync(args); break;
-                default: ShowUsage(); break;
-            }
+                ["list"] = _ => ListAsync(),
+                ["run"] = RunAsync,
+                ["cancel"] = CancelAsync,
+                ["history"] = HistoryAsync,
+            }, ShowUsage);
         }
         catch (Exception ex)
         {

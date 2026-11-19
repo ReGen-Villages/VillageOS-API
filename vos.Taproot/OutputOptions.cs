@@ -20,7 +20,7 @@ public class OutputOptions
     public static (OutputOptions Options, string RemainingArgs) ParseFromArgs(string args)
     {
         var options = new OutputOptions();
-        if (string.IsNullOrEmpty(args))
+        if (args.Length == 0)
             return (options, args);
 
         var tokens = args.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();

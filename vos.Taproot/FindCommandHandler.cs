@@ -13,7 +13,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
                 if (tok.Length == 0)
                 {

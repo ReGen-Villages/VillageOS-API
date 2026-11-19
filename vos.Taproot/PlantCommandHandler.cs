@@ -10,7 +10,7 @@ public class PlantCommandHandler
 
     public PlantCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
-        _arg = arg ?? string.Empty;
+        _arg = arg;
         _writer = writer;
         _mycelium = mycelium;
     }

@@ -26,7 +26,7 @@ public class EnginesCommandHandler
     {
         try
         {
-            var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             switch (tok.Length == 0 ? "" : tok[0])
             {
                 case "":

@@ -100,12 +100,4 @@ public class OutputOptionsTests
         Assert.False(options.ShowGuids);
         Assert.Equal("", remaining);
     }
-
-    [Fact]
-    public void ParseFromArgs_WithNullString_ReturnsFalse()
-    {
-        var (options, remaining) = OutputOptions.ParseFromArgs(null!);
-        Assert.False(options.ShowGuids);
-        Assert.Null(remaining);
-    }
 }

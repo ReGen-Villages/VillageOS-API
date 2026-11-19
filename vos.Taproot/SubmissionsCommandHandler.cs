@@ -30,23 +30,16 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     public async Task ExecuteAsync()
     {
-        if (!CommandParser.TryParseSubcommand(arg, out var subcommand, out var args))
-        {
-            ShowHelp();
-            return;
-        }
-
         try
         {
-            switch (subcommand.ToLowerInvariant())
+            await Subcommands.RunAsync(arg, new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
-                case "list": await ListAsync(); break;
-                case "reject": await RejectAsync(args); break;
-                case "decide": await DecideAsync(args); break;
-                case "promote": await PromoteAsync(args); break;
-                case "dispose": await DisposeAsync(args); break;
-                default: ShowHelp(); break;
-            }
+                ["list"] = _ => ListAsync(),
+                ["reject"] = RejectAsync,
+                ["decide"] = DecideAsync,
+                ["promote"] = PromoteAsync,
+                ["dispose"] = DisposeAsync,
+            }, ShowHelp);
         }
         catch (Exception exception)
         {

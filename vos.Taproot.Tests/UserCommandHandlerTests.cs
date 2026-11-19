@@ -253,14 +253,6 @@ public class UserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_NullArg_ShowsUsage()
-    {
-        await ExecuteHandler(null!);
-
-        Assert.Contains("Usage:", _writer.ToString());
-    }
-
-    [Fact]
     public async Task Execute_UnknownSubcommand_ShowsUsage()
     {
         await ExecuteHandler("unknown");
