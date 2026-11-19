@@ -42,6 +42,15 @@ describe('the widget schemas', () => {
   });
 });
 
+describe('a history binding step', () => {
+  it('offers the count at or above a threshold', () => {
+    const steps = BINDING_SCHEMAS.history.find((field) => field.key === 'steps');
+    const fn = steps?.kind === 'list' ? steps.of.find((field) => field.key === 'function') : undefined;
+
+    expect(fn?.kind === 'choice' ? fn.options : []).toEqual(expect.arrayContaining(['CountAbove', 'CountAtOrAbove']));
+  });
+});
+
 describe('the binding schemas', () => {
   it('cover every kind the resolver answers, with words for the kind and what it costs', () => {
     expect(BINDING_KINDS.length).toBeGreaterThan(10);
