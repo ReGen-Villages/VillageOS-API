@@ -781,3 +781,24 @@ class ModelRootsTests(unittest.TestCase):
         [configuration] = bound_in_seed(seed, "configuration")
         [pipeline] = bound_in_seed(seed, "pipeline")
         self.assertIn(configuration, is_ancestors(seed["Things"], seed["Relationships"], pipeline))
+
+
+class SeedWritingTests(unittest.TestCase):
+    def test_a_seed_naming_a_thing_outside_ascii_is_written_back_byte_for_byte(self):
+        import json, os, tempfile
+        held = ('{\n'
+                '  "Name": "Gärten",\n'
+                '  "Things": [\n'
+                '    {"Id": "a", "Name": "Größe"}\n'
+                '  ],\n'
+                '  "Relationships": [\n'
+                '  ]\n'
+                '}\n')
+        with tempfile.TemporaryDirectory() as scratch:
+            path = os.path.join(scratch, "target.seed.json")
+            with open(path, "w", encoding="utf-8") as target:
+                target.write(held)
+            with open(path, encoding="utf-8") as target:
+                G.dump_seed(json.load(target), path)
+            with open(path, encoding="utf-8") as target:
+                self.assertEqual(held, target.read())
