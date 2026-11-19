@@ -170,7 +170,7 @@ public class RunClearingTests
         for (var minute = 0; minute < 59; minute++)
         {
             real.Advance(TimeSpan.FromMinutes(1));
-            await Task.Delay(TimeSpan.FromMilliseconds(10));
+            await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(10));
         }
         gateway.Cleared.Should().BeEmpty("the keeper waits a whole real hour before its first look");
 
