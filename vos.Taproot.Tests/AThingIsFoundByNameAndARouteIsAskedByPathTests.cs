@@ -64,20 +64,34 @@ public class AThingIsFoundByNameAndARouteIsAskedByPathTests
         var found = await lookup.FindThingAsync("North spring");
 
         found.IsSuccess.Should().BeFalse();
-        found.ErrorMessage.Should().Contain("Ambiguous name 'North spring'")
-            .And.Contain(Spring.ToString()).And.Contain(AnotherSpring.ToString());
+        found.ErrorMessage.Should().Be(
+            "Ambiguous name 'North spring': found 2 things with this name. Use the ID instead:\n"
+            + $"  {Spring} - North spring\n  {AnotherSpring} - North spring");
     }
 
     [Fact]
-    public async Task A_name_holding_a_comma_is_answered_without_asking_the_platform()
+    public async Task A_name_holding_a_comma_is_found_by_reading_every_Thing_and_never_asked_for_by_name()
     {
-        var (lookup, _, mycelium) = AModelAnswering(_ => Json("[]"));
+        var (lookup, _, mycelium) = AModelAnswering(_ => Json(
+            $$"""[{"Id":"{{Spring}}","Name":"Spring, north"},{"Id":"{{AnotherSpring}}","Name":"Spring"}]"""));
 
         var found = await lookup.FindThingAsync("Spring, north");
 
-        found.IsSuccess.Should().BeFalse();
-        found.ErrorMessage.Should().Contain("comma").And.Contain("identifier");
-        AskedOf(mycelium).Should().BeEmpty();
+        found.Id.Should().Be(Spring);
+        AskedOf(mycelium).Should().ContainSingle().Which.RequestUri!.PathAndQuery.Should().Be("/api/things");
+    }
+
+    [Fact]
+    public async Task A_name_holding_a_comma_that_more_than_one_Thing_holds_is_answered_as_by_name()
+    {
+        var (lookup, _, _) = AModelAnswering(_ => Json(
+            $$"""[{"Id":"{{Spring}}","Name":"Spring, north"},{"Id":"{{AnotherSpring}}","Name":"Spring, north"}]"""));
+
+        var found = await lookup.FindThingAsync("Spring, north");
+
+        found.ErrorMessage.Should().Be(
+            "Ambiguous name 'Spring, north': found 2 things with this name. Use the ID instead:\n"
+            + $"  {Spring} - Spring, north\n  {AnotherSpring} - Spring, north");
     }
 
     [Fact]
