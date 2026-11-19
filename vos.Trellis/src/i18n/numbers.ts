@@ -17,8 +17,8 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 ];
 
 /** How long ago, or how long until, in the chosen language: "3 hours ago", "vor 3 Stunden". */
-export function relativeTimeIn(at: Date, now: Date = new Date()): string {
-  const seconds = (at.getTime() - now.getTime()) / 1000;
+export function relativeTimeIn(at: Date): string {
+  const seconds = (at.getTime() - Date.now()) / 1000;
   const [unit, size] = RELATIVE_UNITS.find(([, length]) => Math.abs(seconds) >= length) ?? RELATIVE_UNITS[RELATIVE_UNITS.length - 1];
   return new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto', numberingSystem: 'latn' } as Intl.RelativeTimeFormatOptions)
     .format(Math.round(seconds / size), unit);
