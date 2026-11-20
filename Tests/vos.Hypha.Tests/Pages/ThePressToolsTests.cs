@@ -322,8 +322,8 @@ public class ThePressToolsTests
         var answer = await server.Client.CallToolAsync("press", arguments);
 
         answer.IsError.Should().BeTrue();
-        TextOf(answer).Should().Contain("\"../model\"");
         model.Writes.Should().BeEmpty("a press is checked whole before any of its writes is sent");
+        TextOf(answer).Should().Contain("\"../model\"");
     }
 
     [Fact]
