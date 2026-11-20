@@ -365,6 +365,25 @@ describe('the size and programme step', () => {
     expect(screen.getByText(/not an area/)).toBeInTheDocument();
   });
 
+  it.each([
+    ['12.5', 'Must be a whole number.'],
+    ['-3', 'Cannot be negative.'],
+    ['abc', 'Not a number.'],
+  ])('says why a population of %s cannot be sent', (population, reason) => {
+    typeInto('Population', population);
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['-3', 'Cannot be negative.'],
+    ['abc', 'Not a number.'],
+  ])('says why a household size of %s cannot be sent', (householdSize, reason) => {
+    typeInto('People per household', householdSize);
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
   it('offers the categories the model declares, not a list of its own', async () => {
     await waitFor(() => expect(screen.getByLabelText('housing')).toBeInTheDocument());
 
@@ -533,6 +552,20 @@ describe('posting the submission', () => {
 
   it('will not submit a site nobody can be told the decision about', () => {
     saveDraft('model-1', submittable({ emailAddress: '' }));
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
+  });
+
+  it.each([
+    { population: '12.5' },
+    { population: '-3' },
+    { population: 'abc' },
+    { householdSize: '-3' },
+    { householdSize: 'abc' },
+  ])('will not ask for a code while a figure cannot be read: %o', (figure) => {
+    saveDraft('model-1', submittable(figure));
     render(<IntakeWizardPage />);
     goToStep(5);
 

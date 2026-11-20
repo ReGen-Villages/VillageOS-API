@@ -1700,6 +1700,11 @@ export const fr: PartialResources = {
       fromDevice: 'depuis cet appareil',
     },
   },
+  typedFigure: {
+    notANumber: "Ce n'est pas un nombre.",
+    negative: "Ne peut pas être négatif.",
+    notWhole: "Doit être un nombre entier.",
+  },
   publicFindings: {
     noTicket: "Confirmez d’abord votre adresse e-mail.",
     fileNotSent: "Le fichier n’a pas pu être envoyé.",

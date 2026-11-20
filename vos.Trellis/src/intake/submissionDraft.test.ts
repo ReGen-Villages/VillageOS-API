@@ -369,6 +369,18 @@ describe('the document that is posted', () => {
     expect(readyToSubmit(filled({ boundary: CORNERS.slice(0, 2) }))).toBe(false);
     expect(readyToSubmit(filled({ boundary: CORNERS }))).toBe(true);
   });
+
+  it.each(['12.5', '-3', 'abc'])('is held while the population %s cannot be read', (population) => {
+    expect(readyToSubmit(filled({ boundary: CORNERS, population }))).toBe(false);
+  });
+
+  it.each(['-3', 'abc'])('is held while the household size %s cannot be read', (householdSize) => {
+    expect(readyToSubmit(filled({ boundary: CORNERS, householdSize }))).toBe(false);
+  });
+
+  it('goes once an unreadable figure is cleared', () => {
+    expect(readyToSubmit(filled({ boundary: CORNERS, population: '', householdSize: '' }))).toBe(true);
+  });
 });
 
 describe('a draft left and come back to', () => {

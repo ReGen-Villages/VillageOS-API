@@ -1700,6 +1700,11 @@ export const nl: PartialResources = {
       fromDevice: 'van dit apparaat',
     },
   },
+  typedFigure: {
+    notANumber: "Geen getal.",
+    negative: "Kan niet negatief zijn.",
+    notWhole: "Moet een geheel getal zijn.",
+  },
   publicFindings: {
     noTicket: "Bevestig eerst uw e-mailadres.",
     fileNotSent: "Het bestand kon niet worden verzonden.",

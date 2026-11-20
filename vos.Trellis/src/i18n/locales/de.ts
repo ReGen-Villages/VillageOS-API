@@ -1700,6 +1700,11 @@ export const de: PartialResources = {
       fromDevice: 'von diesem Gerät',
     },
   },
+  typedFigure: {
+    notANumber: "Keine Zahl.",
+    negative: "Darf nicht negativ sein.",
+    notWhole: "Muss eine ganze Zahl sein.",
+  },
   publicFindings: {
     noTicket: "Bestätigen Sie zuerst Ihre E-Mail-Adresse.",
     fileNotSent: "Die Datei konnte nicht gesendet werden.",
