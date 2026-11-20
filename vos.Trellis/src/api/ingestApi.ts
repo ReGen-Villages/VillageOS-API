@@ -3,7 +3,7 @@ import i18n from '../i18n';
 
 // A count is null when the ingest succeeded and the service could not read it off what the ingest tool
 // printed. It is not nought: the model was written.
-export interface IngestResult {
+interface IngestResult {
   success: boolean;
   thingsCreated: number | null;
   thingsUpdated: number | null;
@@ -11,7 +11,7 @@ export interface IngestResult {
   error?: string | null;
 }
 
-export type IngestMode = 'merge' | 'new-model';
+type IngestMode = 'merge' | 'new-model';
 
 // Read at call time (not module load) so it is configurable and testable.
 const ingestUrl = () => (import.meta.env.VITE_INGEST_URL as string | undefined) || '';

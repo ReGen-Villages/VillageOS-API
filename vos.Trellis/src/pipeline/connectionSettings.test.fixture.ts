@@ -5,7 +5,7 @@ import { playing, withRoles } from './roles.test.fixture';
 
 /** Estimate-Rainfall states nothing itself: the platform answers each of its settings from rainfall-estimator,
  *  that service's archetype, or its built-in value. */
-export interface ConnectionSettingsFixture {
+interface ConnectionSettingsFixture {
   things: VosThing[];
   relationships: VosRelationship[];
   id: Record<

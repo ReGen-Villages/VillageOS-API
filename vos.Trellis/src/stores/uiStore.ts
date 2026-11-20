@@ -99,7 +99,6 @@ interface UiState {
   currentModelId: string | null;
   hiddenTypeIds: Set<string>;
   setCurrentModelId: (modelId: string | null) => void;
-  toggleHiddenType: (typeId: string) => void;
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
 
@@ -156,7 +155,6 @@ interface UiState {
 
   togglePredicateId: (id: string) => void;
   clearPredicateIds: () => void;
-  setPredicateIds: (ids: Set<string>) => void;
   setClusterMap: (map: ClusterMap | null) => void;
   setPredicateStatistics: (statistics: PredicateStatistics[]) => void;
   toggleClusterCollapsed: (clusterIndex: number) => void;
@@ -201,11 +199,6 @@ export const useUiStore = create<UiState>((set) => ({
   setTypeSortOrder: (order) => set((s) => {
     persistTypeSort(s.currentModelId, order);
     return { typeSortOrder: order };
-  }),
-  toggleHiddenType: (typeId) => set((s) => {
-    const next = toggled(s.hiddenTypeIds, typeId);
-    persistHiddenTypeIds(s.currentModelId, next);
-    return { hiddenTypeIds: next };
   }),
   setHiddenTypeIds: (ids) => set((s) => {
     persistHiddenTypeIds(s.currentModelId, ids);
@@ -312,14 +305,6 @@ export const useUiStore = create<UiState>((set) => ({
   clearPredicateIds: () =>
     set({
       activePredicateIds: new Set<string>(),
-      collapsedClusters: new Set<number>(),
-      expandedNodes: new Set<string>(),
-      clusterMap: null,
-    }),
-
-  setPredicateIds: (ids) =>
-    set({
-      activePredicateIds: ids,
       collapsedClusters: new Set<number>(),
       expandedNodes: new Set<string>(),
       clusterMap: null,

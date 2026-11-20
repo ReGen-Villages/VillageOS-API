@@ -61,7 +61,7 @@ export interface FormOptions {
 
 /** The legal parcel a register holds at a position, as named pairs, with the register's own credit
  *  line — displayed wherever the boundary is drawn, as a basemap's credit is. */
-export interface FetchedParcel {
+interface FetchedParcel {
   boundary: { latitude: number; longitude: number }[];
   attribution: string | null;
 }

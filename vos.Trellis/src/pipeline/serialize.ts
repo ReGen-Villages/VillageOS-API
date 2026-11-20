@@ -70,7 +70,7 @@ export function takenOnOf(takenOn: string[] | undefined, model: PipelineModel): 
   return takenOn?.length ? takenOn : success ? [success] : [];
 }
 
-export interface LoadedPipeline {
+interface LoadedPipeline {
   name: string;
   nodes: EditorNode[];
   edges: EditorEdge[];
@@ -85,7 +85,7 @@ type PipelineDeclaration = (typeof PIPELINE_DECLARATIONS)[number];
 
 /** The result of a save: the new Pipeline id and the canvas-node-id → Thing-id map so the editor can map
  * live NodeRun statuses (keyed by Thing id) back onto its canvas nodes for animation. */
-export interface SavedPipeline {
+interface SavedPipeline {
   pipelineId: string;
   nodeIdMap: Record<string, string>;
 }

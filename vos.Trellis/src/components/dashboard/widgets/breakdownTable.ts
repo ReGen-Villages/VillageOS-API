@@ -6,7 +6,7 @@ import type { Row } from '@tendril-ui/tendril';
  *  holds the rest. */
 const MAXIMUM_PROPERTY_COLUMNS = 6;
 
-export interface BreakdownTable {
+interface BreakdownTable {
   columns: TableColumn[];
   /** Properties the rows carry that no column shows, named so a reader knows the table is not the
    *  whole of what a row holds. */

@@ -27,7 +27,7 @@ const CALL_ERROR = '__CallLastError';
 
 export const CALL_STATES = ['Pending', 'Sent', 'Received', 'Completed', 'Failed', 'Refused', 'Blocked'] as const;
 
-export type CallState = (typeof CALL_STATES)[number];
+type CallState = (typeof CALL_STATES)[number];
 
 export function isCallState(word: string): word is CallState {
   return (CALL_STATES as readonly string[]).includes(word);
@@ -39,7 +39,7 @@ export function mayBeRetried(call: ServiceCall): boolean {
 }
 
 /** A relationship on the Thing that a service is called through, and the service it reaches. */
-export interface ServiceEdge {
+interface ServiceEdge {
   relationshipId: string;
   /** The service Thing, so the card can open it. Absent where the connection binds none. */
   serviceId?: string;

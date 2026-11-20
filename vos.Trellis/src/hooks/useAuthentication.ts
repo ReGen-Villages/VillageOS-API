@@ -5,7 +5,7 @@ import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
-export interface AuthenticationState {
+interface AuthenticationState {
   isAuthenticated: boolean;
   user: AuthenticatedUser | null;
   role: string | null;

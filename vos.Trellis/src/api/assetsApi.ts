@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
-export interface KeptContent {
+interface KeptContent {
   bytes: ArrayBuffer;
   contentType: string;
 }

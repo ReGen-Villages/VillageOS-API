@@ -11,7 +11,7 @@ export function declaredType(resolved: Record<string, EffectiveProperty>, name: 
 
 export const COMPLETES_WHEN = 'completesWhen';
 
-export interface CompletionChoice {
+interface CompletionChoice {
   id: string;
   label: string;
 }

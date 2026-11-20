@@ -3,7 +3,7 @@ import { unwrapProperties } from '@tendril-ui/tendril';
 import type { TemporalSnapshot, VosThing } from '@tendril-ui/tendril';
 
 /** Counts returned by POST /api/model/fragment. */
-export interface FragmentResult {
+interface FragmentResult {
   thingsCreated: number;
   thingsUpdated: number;
   relationshipsCreated: number;

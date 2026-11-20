@@ -1,6 +1,6 @@
 export type FigureRefusal = 'notANumber' | 'negative' | 'notWhole';
 
-export type TypedFigure = { readonly value: number | null } | { readonly refusal: FigureRefusal };
+type TypedFigure = { readonly value: number | null } | { readonly refusal: FigureRefusal };
 
 export const FIGURE_REFUSAL_WORDING = {
   notANumber: 'typedFigure.notANumber',
@@ -18,7 +18,7 @@ export function typedFigure(typed: string, whole: boolean): TypedFigure {
   return { value };
 }
 
-export interface PeopleFigures {
+interface PeopleFigures {
   readonly population: string;
   readonly householdSize: string;
 }

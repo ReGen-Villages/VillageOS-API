@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  extractFlashSettings,
-  extractLayoutSettings,
-  extractPredicateColors,
+  extractAllGuiSettings,
   findGuiSettingsProperties,
   LAYOUT_DEFAULTS,
   FLASH_DEFAULTS,
@@ -61,6 +59,10 @@ function buildGuiFixture(
   };
 }
 
+const flashSettingsOf = (things: VosThing[], relationships: VosRelationship[]) => extractAllGuiSettings(things, relationships).flash;
+const layoutSettingsOf = (things: VosThing[], relationships: VosRelationship[]) => extractAllGuiSettings(things, relationships).layout;
+const predicateColorsOf = (things: VosThing[], relationships: VosRelationship[]) => extractAllGuiSettings(things, relationships).predicateColors;
+
 beforeEach(() => {
   idCounter = 0;
 });
@@ -98,14 +100,14 @@ describe('findGuiSettingsProperties', () => {
   });
 });
 
-describe('extractFlashSettings', () => {
+describe('extractAllGuiSettings: the flash settings', () => {
   it('returns defaults when no GUI_Settings type exists', () => {
     const things = [makeThing('SomeOtherThing')];
-    expect(extractFlashSettings(things, [])).toEqual(FLASH_DEFAULTS);
+    expect(flashSettingsOf(things, [])).toEqual(FLASH_DEFAULTS);
   });
 
   it('returns defaults for empty arrays', () => {
-    expect(extractFlashSettings([], [])).toEqual(FLASH_DEFAULTS);
+    expect(flashSettingsOf([], [])).toEqual(FLASH_DEFAULTS);
   });
 
   it('extracts settings from GUI_Settings type', () => {
@@ -114,7 +116,7 @@ describe('extractFlashSettings', () => {
       FlashNodeSizeFactor: 2.0,
       FlashNodeBrighten: 0.8,
     });
-    expect(extractFlashSettings(things, relationships)).toEqual({
+    expect(flashSettingsOf(things, relationships)).toEqual({
       flashEdgeSize: 3.0,
       flashNodeSizeFactor: 2.0,
       flashNodeBrighten: 0.8,
@@ -123,7 +125,7 @@ describe('extractFlashSettings', () => {
 
   it('falls back to defaults for missing properties', () => {
     const { things, relationships } = buildGuiFixture({ FlashEdgeSize: 2.0 });
-    const result = extractFlashSettings(things, relationships);
+    const result = flashSettingsOf(things, relationships);
     expect(result.flashEdgeSize).toBe(2.0);
     expect(result.flashNodeSizeFactor).toBe(FLASH_DEFAULTS.flashNodeSizeFactor);
     expect(result.flashNodeBrighten).toBe(FLASH_DEFAULTS.flashNodeBrighten);
@@ -134,7 +136,7 @@ describe('extractFlashSettings', () => {
       { FlashEdgeSize: 1.5 },
       { FlashEdgeSize: 5.0 },
     );
-    const result = extractFlashSettings(things, relationships);
+    const result = flashSettingsOf(things, relationships);
     expect(result.flashEdgeSize).toBe(5.0);
   });
 
@@ -144,25 +146,25 @@ describe('extractFlashSettings', () => {
       FlashNodeSizeFactor: null,
       FlashNodeBrighten: undefined,
     });
-    expect(extractFlashSettings(things, relationships)).toEqual(FLASH_DEFAULTS);
+    expect(flashSettingsOf(things, relationships)).toEqual(FLASH_DEFAULTS);
   });
 
   it('ignores NaN values', () => {
     const { things, relationships } = buildGuiFixture({ FlashEdgeSize: NaN });
-    expect(extractFlashSettings(things, relationships).flashEdgeSize).toBe(
+    expect(flashSettingsOf(things, relationships).flashEdgeSize).toBe(
       FLASH_DEFAULTS.flashEdgeSize,
     );
   });
 });
 
-describe('extractLayoutSettings', () => {
+describe('extractAllGuiSettings: the layout settings', () => {
   it('returns defaults when no GUI_Settings type exists', () => {
     const things = [makeThing('SomeOtherThing')];
-    expect(extractLayoutSettings(things, [])).toEqual(LAYOUT_DEFAULTS);
+    expect(layoutSettingsOf(things, [])).toEqual(LAYOUT_DEFAULTS);
   });
 
   it('returns defaults for empty arrays', () => {
-    expect(extractLayoutSettings([], [])).toEqual(LAYOUT_DEFAULTS);
+    expect(layoutSettingsOf([], [])).toEqual(LAYOUT_DEFAULTS);
   });
 
   it('extracts all settings from GUI_Settings type', () => {
@@ -171,7 +173,7 @@ describe('extractLayoutSettings', () => {
       LayoutGravity: 0.01,
       ClusterRepulsion: 1.5,
     });
-    expect(extractLayoutSettings(things, relationships)).toEqual({
+    expect(layoutSettingsOf(things, relationships)).toEqual({
       repulsion: 0.5,
       gravity: 0.01,
       clusterRepulsion: 1.5,
@@ -200,7 +202,7 @@ describe('extractLayoutSettings', () => {
       NodeSizeSlope: 0.6,
       EdgeSize: 0.5,
     });
-    const r = extractLayoutSettings(things, relationships);
+    const r = layoutSettingsOf(things, relationships);
     expect(r.scalingRatioMultiplier).toBe(200);
     expect(r.gravityMultiplier).toBe(5000);
     expect(r.barnesHutTheta).toBe(0.8);
@@ -216,21 +218,21 @@ describe('extractLayoutSettings', () => {
     const { things, relationships } = buildGuiFixture({
       ClassifyingProperty: 'kind',
     });
-    expect(extractLayoutSettings(things, relationships).classifyingProperty).toBe('kind');
+    expect(layoutSettingsOf(things, relationships).classifyingProperty).toBe('kind');
   });
 
   it('falls back to default classifyingProperty on empty/non-string', () => {
     const a = buildGuiFixture({ ClassifyingProperty: '' });
-    expect(extractLayoutSettings(a.things, a.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
+    expect(layoutSettingsOf(a.things, a.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
     const b = buildGuiFixture({ ClassifyingProperty: 42 });
-    expect(extractLayoutSettings(b.things, b.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
+    expect(layoutSettingsOf(b.things, b.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
   });
 
   it('falls back per-property for missing values', () => {
     const { things, relationships } = buildGuiFixture({
       LayoutRepulsion: 0.5,
     });
-    const result = extractLayoutSettings(things, relationships);
+    const result = layoutSettingsOf(things, relationships);
     expect(result.repulsion).toBe(0.5);
     expect(result.gravity).toBe(LAYOUT_DEFAULTS.gravity);
     expect(result.clusterRepulsion).toBe(LAYOUT_DEFAULTS.clusterRepulsion);
@@ -242,34 +244,34 @@ describe('extractLayoutSettings', () => {
       LayoutGravity: undefined,
       ClusterRepulsion: false,
     });
-    expect(extractLayoutSettings(things, relationships)).toEqual(
+    expect(layoutSettingsOf(things, relationships)).toEqual(
       LAYOUT_DEFAULTS,
     );
   });
 
   it('no longer exposes the retired force-engine knobs', () => {
-    const result = extractLayoutSettings([], []) as unknown as Record<string, unknown>;
+    const result = layoutSettingsOf([], []) as unknown as Record<string, unknown>;
     expect('attraction' in result).toBe(false);
     expect('inertia' in result).toBe(false);
     expect('maxMove' in result).toBe(false);
   });
 });
 
-describe('extractPredicateColors', () => {
+describe('extractAllGuiSettings: the predicate colours', () => {
   it('returns empty object when no GUI_Settings type exists', () => {
-    expect(extractPredicateColors([], [])).toEqual({});
+    expect(predicateColorsOf([], [])).toEqual({});
   });
 
   it('returns empty object when PredicateColors property is missing', () => {
     const { things, relationships } = buildGuiFixture({ FlashEdgeSize: 1.5 });
-    expect(extractPredicateColors(things, relationships)).toEqual({});
+    expect(predicateColorsOf(things, relationships)).toEqual({});
   });
 
   it('parses valid JSON color map', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: '{"consumes":"#fb7185","produces":"#22d3ee"}',
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({
+    expect(predicateColorsOf(things, relationships)).toEqual({
       consumes: '#fb7185',
       produces: '#22d3ee',
     });
@@ -279,28 +281,28 @@ describe('extractPredicateColors', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: 'not-json',
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({});
+    expect(predicateColorsOf(things, relationships)).toEqual({});
   });
 
   it('returns empty object for non-string property', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: 42,
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({});
+    expect(predicateColorsOf(things, relationships)).toEqual({});
   });
 
   it('returns empty object for JSON array', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: '["#ff0000"]',
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({});
+    expect(predicateColorsOf(things, relationships)).toEqual({});
   });
 
   it('skips non-hex values in the map', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: '{"consumes":"#fb7185","bad":"not-a-color","num":42}',
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({
+    expect(predicateColorsOf(things, relationships)).toEqual({
       consumes: '#fb7185',
     });
   });
@@ -309,7 +311,7 @@ describe('extractPredicateColors', () => {
     const { things, relationships } = buildGuiFixture({
       PredicateColors: '',
     });
-    expect(extractPredicateColors(things, relationships)).toEqual({});
+    expect(predicateColorsOf(things, relationships)).toEqual({});
   });
 
   it('instance can override type PredicateColors', () => {
@@ -317,7 +319,7 @@ describe('extractPredicateColors', () => {
       { PredicateColors: '{"consumes":"#fb7185"}' },
       { PredicateColors: '{"consumes":"#ff0000","produces":"#00ff00"}' },
     );
-    expect(extractPredicateColors(things, relationships)).toEqual({
+    expect(predicateColorsOf(things, relationships)).toEqual({
       consumes: '#ff0000',
       produces: '#00ff00',
     });

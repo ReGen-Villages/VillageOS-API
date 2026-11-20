@@ -17,7 +17,7 @@ import i18n from '../i18n';
 
 const SPECIFICATION_TYPE = 'vos.String';
 
-export interface DashboardWriteContext {
+interface DashboardWriteContext {
   dashboardArchetypeId: string;
   isPredicateId: string;
   /** The model as it stands, for finding the relationships a removal takes. */

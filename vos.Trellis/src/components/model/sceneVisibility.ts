@@ -45,7 +45,7 @@ export function sceneVisibilityFor(
 }
 
 /** The part of the Fragments model this module needs, so it can be faked in tests. */
-export interface SceneItemSource {
+interface SceneItemSource {
   getItemsByVisibility(visible: boolean): Promise<number[]>;
   getLocalIdsByGuids(guids: string[]): Promise<(number | null | undefined)[]>;
 }

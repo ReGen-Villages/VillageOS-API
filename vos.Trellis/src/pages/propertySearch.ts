@@ -21,7 +21,7 @@ export interface PropertyMatch {
 /** Skip large blob properties that clutter results. */
 const SKIP_KEYS = new Set(['geometry', 'footprint', '__geometry_envelope']);
 
-export interface SearchInputs {
+interface SearchInputs {
   /** Server-resolved effective properties per thing id (own + inherited); null while loading. Own
    *  properties are keyed by plain name, inherited by qualified path ("Home.energy_rating"). */
   effectiveProperties: Record<string, Record<string, EffectiveProperty>> | null;

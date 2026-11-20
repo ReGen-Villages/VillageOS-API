@@ -212,19 +212,10 @@ describe('hiddenTypeIds — type filter', () => {
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
   });
 
-  it('toggleHiddenType adds and removes ids', () => {
-    const { toggleHiddenType } = useUiStore.getState();
-    toggleHiddenType('t-wall');
-    expect(useUiStore.getState().hiddenTypeIds.has('t-wall')).toBe(true);
-    toggleHiddenType('t-wall');
-    expect(useUiStore.getState().hiddenTypeIds.has('t-wall')).toBe(false);
-  });
-
   it('persists hidden ids per modelId', () => {
-    const { setCurrentModelId, toggleHiddenType } = useUiStore.getState();
+    const { setCurrentModelId, setHiddenTypeIds } = useUiStore.getState();
     setCurrentModelId('model-A');
-    toggleHiddenType('t-wall');
-    toggleHiddenType('t-door');
+    setHiddenTypeIds(new Set(['t-wall', 't-door']));
 
     setCurrentModelId('model-B');
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
@@ -236,9 +227,9 @@ describe('hiddenTypeIds — type filter', () => {
   });
 
   it('clearHiddenTypeIds wipes the set and persists empty', () => {
-    const { setCurrentModelId, toggleHiddenType, clearHiddenTypeIds } = useUiStore.getState();
+    const { setCurrentModelId, setHiddenTypeIds, clearHiddenTypeIds } = useUiStore.getState();
     setCurrentModelId('m1');
-    toggleHiddenType('t-x');
+    setHiddenTypeIds(new Set(['t-x']));
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(1);
     clearHiddenTypeIds();
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
@@ -255,10 +246,10 @@ describe('hiddenTypeIds — type filter', () => {
   });
 
   it('does not persist when no model is selected', () => {
-    // Without a modelId, toggles still update in-memory state but skip
-    // localStorage so we don't pollute a global key.
+    // A key with no model in it would be shared by every model.
     useUiStore.setState({ currentModelId: null, hiddenTypeIds: new Set<string>() });
-    useUiStore.getState().toggleHiddenType('t-wall');
+    useUiStore.getState().setHiddenTypeIds(new Set(['t-wall']));
+    expect(useUiStore.getState().hiddenTypeIds.has('t-wall')).toBe(true);
     const allKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);

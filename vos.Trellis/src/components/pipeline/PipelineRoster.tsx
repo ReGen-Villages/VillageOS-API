@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { NewNameField } from '../common/NewNameField';
 import { SidePanel } from '../common/SidePanel';
 
-export interface PipelineListing {
+interface PipelineListing {
   id: string;
   name: string;
   nodeCount: number;

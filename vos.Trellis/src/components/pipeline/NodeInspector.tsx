@@ -36,7 +36,7 @@ interface Props {
 
 export type WaitSetting = Partial<Pick<PipelineNodeData, 'waitsFor' | 'follows' | 'waitsAtMostMinutes'>>;
 
-export interface WaitChoices {
+interface WaitChoices {
   states: DeclaredState[];
   predicatesFrom: (kindId: string | undefined) => VosThing[];
 }

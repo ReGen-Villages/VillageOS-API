@@ -23,7 +23,7 @@ import {
   type InstantReadings,
 } from './decisionExplanation';
 
-export interface DecisionReadings {
+interface DecisionReadings {
   readings: InstantReadings;
   /** Whether every wanted value has been answered. Until it is, a number is missing because the read
    *  is still out, which is not the same as the platform having nothing to say. */

@@ -22,7 +22,7 @@ import { enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
  *  boundary comes to be here reuse the wizard's terms. */
 export const BOUNDARY_FETCHED_FROM_REGISTER = 'fetched-from-register';
 
-export type ExploreBoundarySource = typeof BOUNDARY_FETCHED_FROM_REGISTER | 'drawn-by-hand';
+type ExploreBoundarySource = typeof BOUNDARY_FETCHED_FROM_REGISTER | 'drawn-by-hand';
 
 /** How the pin came to be where it is, which is what the coordinates card names in place of a tick. */
 export type PositionSource = 'map' | 'place-search' | 'device';

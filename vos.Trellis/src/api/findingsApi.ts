@@ -15,7 +15,7 @@ import i18n from '../i18n';
 
 /** The history reduction as the page asks it: the platform's question without the Thing, which the
  *  service supplies as the submission's own site. */
-export type FindingsReduceQuery = Omit<TemporalReduceQuery, 'thingId'>;
+type FindingsReduceQuery = Omit<TemporalReduceQuery, 'thingId'>;
 
 export const findingsApi = {
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads

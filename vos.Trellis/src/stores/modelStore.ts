@@ -8,7 +8,7 @@ import {
 } from '../utils/propertyUpdates';
 
 /** A coalesced batch of live-model changes applied in a single store write. */
-export interface ModelBatch {
+interface ModelBatch {
   thingUpserts?: VosThing[];
   thingRemovals?: string[];
   relationshipUpserts?: VosRelationship[];

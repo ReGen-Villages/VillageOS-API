@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import type { Edge, Node } from '@xyflow/react';
 import { EditorHistory } from '../pipeline/history';
 
-export type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
+type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
 
 interface EditorHistoryInputs {
   nodes: Node[];

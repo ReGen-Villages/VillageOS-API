@@ -7,9 +7,9 @@ export const RIGHT_GUTTER = 8;
 export const AXIS_BAND = 22;
 /** The width drawn at before the card's own width has been measured. */
 export const FALLBACK_WIDTH = 480;
-export const TICK_COUNT = 5;
+const TICK_COUNT = 5;
 
-export type ChartFrame = {
+type ChartFrame = {
   width: number;
   height: number;
   plotTop: number;

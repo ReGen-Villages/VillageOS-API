@@ -1,14 +1,14 @@
 import { apiClient } from './client';
 
 /** Phloem's immediate ACK for an async spawn: the run id to animate over SSE while the DAG runs. */
-export interface PipelineSpawnAccepted {
+interface PipelineSpawnAccepted {
   success: boolean;
   accepted: boolean;
   runId: string;
   pipelineId: string;
 }
 
-export interface NodeRunResult {
+interface NodeRunResult {
   nodeId: string;
   name: string;
   status: string;
@@ -16,7 +16,7 @@ export interface NodeRunResult {
   error: string | null;
 }
 
-export interface PipelineRunResult {
+interface PipelineRunResult {
   runId: string;
   pipelineId: string;
   success: boolean;

@@ -56,7 +56,7 @@ export function draftSquareAround(centre: BoundaryPoint, areaHectares: number): 
   ];
 }
 
-export type AreaComparison =
+type AreaComparison =
   | { readonly kind: 'match' }
   | { readonly kind: 'differs'; readonly relativeDifference: number };
 

@@ -4,14 +4,14 @@ import { isKeptPage, newPage, openedForDesign } from '../utils/designSpec';
 import type { DesignSelection } from '../utils/designEdits';
 
 /** Where the page being designed came from: a Thing the model holds, or nothing yet. */
-export interface DesignSource {
+interface DesignSource {
   id: string | null;
   name: string;
   /** The seed's, which the designer copies and never writes over. */
   seeded: boolean;
 }
 
-export interface Design {
+interface Design {
   specification: DashboardSpecification;
   source: DesignSource;
   /** Whether anything has changed since the page was opened or kept. */

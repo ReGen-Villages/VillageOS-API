@@ -32,7 +32,7 @@ export type StepId = (typeof STEPS)[number];
 export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
 export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';
 
-export type BoundaryObtainedBy =
+type BoundaryObtainedBy =
   | typeof BOUNDARY_DRAWN_BY_HAND
   | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
 

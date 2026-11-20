@@ -11,7 +11,7 @@ import type { StateTransition, VosThing } from '@tendril-ui/tendril';
 /** The one canonical predicate whose name is fixed by the platform (an archetype relationship). */
 const IS_PREDICATE = 'is';
 
-export interface ResolvedEdge {
+interface ResolvedEdge {
   thingId: string;
   /** Subject and target of the underlying relationship, so the card can render "A —predicate→ B". */
   subjectName: string;
