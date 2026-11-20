@@ -1,6 +1,17 @@
 // Related predicates share a family of colours so they read as a group on the graph; a predicate not listed
 // takes a stable colour hashed from its name, so listing one is optional. The names are those
 // vos.Tools.ModelIngest's relationship extractors emit.
+//
+// The families:
+// - containment and hierarchy: green
+// - the material chain: brown and tan
+// - mechanical, electrical and plumbing connectivity: magenta and cyan, in high contrast, because it is
+//   usually what a question about building services is about
+// - openings and boundaries: amber and orange
+// - classification: cyan
+// - metadata and process: muted slate and lavender
+// - coverings: tan
+// - clashes: red, as an alert
 export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   // Containment and hierarchy: the green family.
   is:             '#a78bfa', // violet, because the type relationship is everywhere and has to stand out
@@ -20,8 +31,7 @@ export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   hasProfile:     '#c8a47e',
   hasProfileSet:  '#c8a47e',
 
-  // Building services and connectivity: magenta and cyan, in high contrast because they are often what a
-  // question is about.
+  // Building services and connectivity: magenta and cyan.
   hasPort:         '#f0abfc', // the IfcDistributionPort node's colour
   connectsTo:      '#22d3ee',
   connectsElement: '#22d3ee',
