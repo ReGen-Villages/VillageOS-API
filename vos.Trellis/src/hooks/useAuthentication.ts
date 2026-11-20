@@ -64,7 +64,6 @@ export function useAuthenticationState(): AuthenticationState {
     setUser(signedInUser);
     setModelId(apiClient.getModelId());
     setModelName(apiClient.getModelName());
-    setAvailableModels(null);
     setAuthenticationFailed(false);
   }, []);
 
@@ -109,6 +108,7 @@ export function useAuthenticationState(): AuthenticationState {
           if (credentials) {
             try {
               signedIn(await apiClient.login(credentials.username, credentials.password));
+              setAvailableModels(null);
               setError(null);
               setLoading(false);
             } catch {
@@ -133,6 +133,7 @@ export function useAuthenticationState(): AuthenticationState {
     setStartupProgress(null);
     try {
       signedIn(await apiClient.login(username, password, selectedModelId));
+      setAvailableModels(null);
     } catch (err: unknown) {
       // A multi-model login with no selection returns the available models in the error body.
       if (err instanceof Error && 'body' in err) {
