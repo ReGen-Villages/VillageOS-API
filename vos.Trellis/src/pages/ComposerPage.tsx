@@ -9,7 +9,7 @@ import { edgeKey, edgesFrom, kindsOffered, propertiesOf, type EdgeCandidate, typ
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { useModelIndexAt } from '../hooks/useModelIndexAt';
 import { useSubscription } from '../hooks/useSse';
-import { useStatesOf } from '../hooks/useStatesOf';
+import { useStatesByKind } from '../hooks/useStatesByKind';
 import { toast } from '../components/common/toastStore';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 import { DataTable } from '../components/dashboard/widgets/DataTable';
@@ -40,6 +40,7 @@ const offerClass =
   'w-full text-left rounded px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-700';
 const captionClass = 'ml-2 text-xs text-zinc-500 dark:text-zinc-400';
 const headingClass = 'text-xs font-medium uppercase tracking-wide text-zinc-500';
+const NO_STATES: string[] = [];
 
 /** The instant a moment names, or nothing while the field is empty or half-typed. */
 function instantOf(moment: string): string | undefined {
@@ -75,7 +76,8 @@ export function ComposerPage() {
   const kinds = useMemo(() => kindsOffered(modelIndex), [modelIndex]);
   const properties = useMemo(() => (kind ? propertiesOf(kind, modelIndex) : []), [kind, modelIndex]);
   const edges = useMemo(() => (kind ? edgesFrom(kind, modelIndex) : []), [kind, modelIndex]);
-  const states = useStatesOf(kind, modelIndex);
+  const statesOf = useStatesByKind(modelIndex);
+  const states = statesOf(kind) ?? NO_STATES;
 
   /** A moment carries no state, so choosing one takes the state choices off the composition rather
    *  than leaving columns nothing can answer — the sort with them when it named the column that

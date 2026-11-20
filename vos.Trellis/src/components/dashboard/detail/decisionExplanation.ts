@@ -13,6 +13,7 @@
 import { thingIdBoundBy, type ModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import type { VosThing } from '@tendril-ui/tendril';
+import { textOf } from './propertyText';
 
 /** The role binding each predicate of the vocabulary, whatever this model calls them. */
 const PREDICATE_ROLES = {
@@ -175,11 +176,6 @@ function isOfArchetypeBoundBy(thingId: string, roleId: string, modelIndex: Model
 function numberOf(properties: Record<string, unknown>, name: string): number | undefined {
   const value = properties[name];
   return typeof value === 'number' ? value : undefined;
-}
-
-function textOf(properties: Record<string, unknown>, name: string): string | undefined {
-  const value = properties[name];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function constraintOf(cause: VosThing): Constraint {

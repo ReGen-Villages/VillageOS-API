@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { subscriptionForSpecification } from '../../src/api/dashboardSubscription';
 import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type VosThing } from '@tendril-ui/tendril';
 import type { SubscriptionSelector } from '../../src/types/subscription';
+import { BASE_URL, login } from './signIn';
 
 // A dashboard now says what it is about and the platform answers with that and no more, which is
 // only true if the selector the client writes is one the platform reads. Nothing in the offline
@@ -12,47 +13,9 @@ import type { SubscriptionSelector } from '../../src/types/subscription';
 // reads — and with fewer than the model holds, since a subscription that covers everything has
 // narrowed nothing.
 //
-// Needs a running Mycelium serving a model that publishes at least one dashboard.
-// Run with `npm run test:integration`.
-//   VOS_INTEGRATION_URL       default https://localhost:7243
-//   VOS_INTEGRATION_USERNAME  default admin
-//   VOS_INTEGRATION_PASSWORD  default admin
-//   VOS_INTEGRATION_MODEL     the model to sign in to, when the platform serves several
-
-const BASE_URL = process.env.VOS_INTEGRATION_URL || 'https://localhost:7243';
-const USERNAME = process.env.VOS_INTEGRATION_USERNAME || 'admin';
-const PASSWORD = process.env.VOS_INTEGRATION_PASSWORD || 'admin';
-const MODEL = process.env.VOS_INTEGRATION_MODEL;
-
-interface ModelChoiceResponse {
-  models?: { Id: string; Name: string }[];
-}
-
-async function requestToken(modelId?: string) {
-  const body: Record<string, string> = { Username: USERNAME, Password: PASSWORD };
-  if (modelId) body.ModelId = modelId;
-  return fetch(`${BASE_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-/** A platform serving several models wants one named. Which one matters here — it has to be one
- *  that publishes a dashboard — so the caller may name it, and otherwise the first offered is
- *  tried and the run says what it found if that one publishes none. */
-async function login(): Promise<string> {
-  let response = await requestToken(MODEL);
-  if (response.status === 400 && !MODEL) {
-    const choice = (await response.clone().json()) as ModelChoiceResponse;
-    const offered = choice.models?.[0]?.Id;
-    if (offered) response = await requestToken(offered);
-  }
-  if (!response.ok) {
-    throw new Error(`Could not sign in to ${BASE_URL}: ${response.status} ${await response.text()}`);
-  }
-  return ((await response.json()) as { token: string }).token;
-}
+// Needs a running Mycelium serving a model that publishes at least one dashboard; where the platform
+// serves several, name that model in VOS_INTEGRATION_MODEL (see signIn.ts), or the run says what it
+// found if the first offered publishes none. Run with `npm run test:integration`.
 
 interface OpenedSubscription {
   subscriptionId: string;

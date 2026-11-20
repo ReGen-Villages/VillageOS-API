@@ -1,20 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import type { Binding, StackedSharesWidget } from '@tendril-ui/tendril';
-import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 import i18n from '../../../i18n';
 
-const values = new Map<string, BindingResult>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: (Binding | undefined)[]) =>
-    bindings.map((binding) => ({
-      loading: false,
-      error: false,
-      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
-    })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { StackedShares } = await import('./StackedShares');
 

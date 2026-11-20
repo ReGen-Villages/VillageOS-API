@@ -3,17 +3,10 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { Binding, HeatmapWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
-const values = new Map<string, BindingResult>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: (Binding | undefined)[]) =>
-    bindings.map((binding) => ({
-      loading: false,
-      error: false,
-      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
-    })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { Heatmap } = await import('./Heatmap');
 

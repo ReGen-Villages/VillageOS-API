@@ -34,8 +34,12 @@ export function offeredFor(offers: Offering | undefined, context: BindingContext
   }
 }
 
+export function valueAt(held: object, key: string): unknown {
+  return (held as Record<string, unknown>)[key];
+}
+
 /** The object with one key written, or taken away where the value is nothing. */
-export function withKey<T extends Record<string, unknown>>(held: T, key: string, value: unknown): T {
+export function withKey<T extends object>(held: T, key: string, value: unknown): T {
   const next = { ...held } as Record<string, unknown>;
   if (value === undefined) delete next[key];
   else next[key] = value;

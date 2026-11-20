@@ -2,7 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { useAuthentication } from '../hooks/useAuthentication';
-import { thingApi } from '../api/thingApi';
+import { useSelectedThing } from '../hooks/useSelectedThing';
+import { deletePropertyOf } from './propertyDeletion';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { reloadModelData } from '../hooks/useModelData';
@@ -11,7 +12,6 @@ import { WHOLE_MODEL } from '../types/subscription';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
-import { toast } from '../components/common/toastStore';
 import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
 import type { VosThing } from '@tendril-ui/tendril';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
@@ -60,7 +60,6 @@ export function ModelPage() {
   );
   const bimFragments: BimFragmentsState =
     loadedFragments.modelId === modelId ? loadedFragments.state : { status: 'loading' };
-  const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const selectNode = useUiStore((s) => s.selectNode);
@@ -97,29 +96,10 @@ export function ModelPage() {
     };
   }, [modelId, selectNode, t]);
 
-  // Fetch the full thing (with inherited properties) when selection changes —
-  // matches the GraphPage pattern so NodeDetailPanel sees the same shape from both views.
-  useEffect(() => {
-    if (!selectedNodeId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const thing = await thingApi.get(selectedNodeId);
-        if (!cancelled) setFetchedThing(thing);
-      } catch {
-        if (!cancelled) setFetchedThing(things.find((t) => t.Id === selectedNodeId) ?? null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedNodeId, things]);
-
-  // Follows the selection, so it is not state: nothing to hold that the selection does not say.
-  const detailThing = selectedNodeId ? fetchedThing : null;
+  const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
+  const detailThing = useSelectedThing(selectedNodeId, thingMap);
 
   const mapping = useMemo(() => buildMappingFromThings(things), [things]);
-  const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
   const centre = useMemo(() => modelCentre(things), [things]);
   const basemapSources = useMemo(
     () => discoverBasemapSources(modelIndexFor(things, relationships)),
@@ -128,14 +108,8 @@ export function ModelPage() {
   const handlePick = useCallback((vosGuid: string | null) => selectNode(vosGuid), [selectNode]);
 
   const handleDeleteProperty = useCallback(async (thingId: string, propertyName: string) => {
-    try {
-      await thingApi.deleteProperty(thingId, propertyName);
-      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      await reloadModelData();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
-    }
-  }, [t]);
+    if (await deletePropertyOf('thing', thingId, propertyName)) await reloadModelData();
+  }, []);
 
   return (
     <div className="h-full flex flex-col p-6">

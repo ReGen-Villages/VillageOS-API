@@ -15,14 +15,14 @@ import { findingsApi } from '../api/findingsApi';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { asNumber, asRows, type ResolveContext } from '@tendril-ui/tendril';
 import { intakeApi, type FormOptions, type FoundPlace } from '../api/intakeApi';
-import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
-import { ToastContainer } from '../components/common/Toast';
+import { StandalonePage } from '../components/common/StandalonePage';
 import { toast } from '../components/common/toastStore';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { ThemedTiles } from '../components/dashboard/ThemedTiles';
 import { formatNumber } from '../components/dashboard/widgets/format';
 import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
+import { useFormOptions } from '../hooks/useFormOptions';
 import { useBinding } from '@tendril-ui/tendril';
 import { useResolveContext } from '../hooks/useDashboard';
 import { isTicketRefusal } from '../api/refusals';
@@ -34,8 +34,8 @@ import { OverviewView } from './OverviewView';
 import { tabSections } from './overviewState';
 import { SurveysStep } from './SurveysStep';
 import type { SharedSurvey } from './sharedSurveys';
-import type { DashboardSection, KpiWidget } from '@tendril-ui/tendril';
-import type { TemporalReduceQuery } from '@tendril-ui/tendril';
+import type { DashboardSection, KpiWidget, TemporalReduceQuery } from '@tendril-ui/tendril';
+import { reduceUnderTicket } from '../api/reduceUnderTicket';
 import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
@@ -76,9 +76,11 @@ export function ExplorePage() {
   const { t } = useTranslation();
   useStandalonePageDocument('explore.title');
 
-  const [options, setOptions] = useState<FormOptions | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
   const [state, setState] = useState<ExploreState>(() => emptyExplore(crypto.randomUUID()));
+  const seedShares = useCallback((answered: FormOptions) =>
+    setState((current) =>
+      Object.keys(current.shares).length === 0 ? { ...current, shares: seededShares(answered) } : current), []);
+  const { options, unreachable } = useFormOptions(seedShares);
   const [fetchingParcel, setFetchingParcel] = useState(false);
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [code, setCode] = useState('');
@@ -97,26 +99,6 @@ export function ExplorePage() {
   useEffect(() => {
     stateReference.current = state;
   });
-
-  useEffect(() => {
-    let abandoned = false;
-    intakeApi
-      .formOptions()
-      .then((answered) => {
-        if (abandoned) return;
-        setOptions(answered);
-        setState((current) =>
-          Object.keys(current.shares).length === 0
-            ? { ...current, shares: seededShares(answered) }
-            : current);
-      })
-      .catch(() => {
-        if (!abandoned) setUnreachable(true);
-      });
-    return () => {
-      abandoned = true;
-    };
-  }, []);
 
   const pick = useCallback((position: BoundaryPoint, placedBy: PositionSource) => {
     setState((current) => withPosition(current, position, placedBy));
@@ -145,12 +127,10 @@ export function ExplorePage() {
     );
   }, [pick, t]);
 
-  async function askForCode(): Promise<void> {
+  async function whileBusy(action: () => Promise<void>): Promise<void> {
     setBusy(true);
     try {
-      await intakeApi.askForCode(state.emailAddress.trim());
-      setAwaitingCode(true);
-      toast.success(t('explore.codeSent', { address: state.emailAddress.trim() }));
+      await action();
     } catch (error) {
       toast.error(t('explore.refused', { reason: reasonOf(error) }));
     } finally {
@@ -158,9 +138,16 @@ export function ExplorePage() {
     }
   }
 
-  async function submit(): Promise<void> {
-    setBusy(true);
-    try {
+  function askForCode(): Promise<void> {
+    return whileBusy(async () => {
+      await intakeApi.askForCode(state.emailAddress.trim());
+      setAwaitingCode(true);
+      toast.success(t('explore.codeSent', { address: state.emailAddress.trim() }));
+    });
+  }
+
+  function submit(): Promise<void> {
+    return whileBusy(async () => {
       const first = await intakeApi.exchangeTicket(state.emailAddress.trim(), code.trim());
       const posted = await intakeApi.submitWithTicket(documentFrom(state), first);
       ticket.current = posted.ticket;
@@ -168,24 +155,13 @@ export function ExplorePage() {
       setAwaitingCode(false);
       setCode('');
       await readFindings();
-    } catch (error) {
-      toast.error(t('explore.refused', { reason: reasonOf(error) }));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
-  // A chart's history reduction is asked after the findings arrived, through the intake service under
-  // the same ticket, and its renewal is kept like every other act's. The service scopes the question
-  // to the Thing the submission is about, so the one the resolver named is dropped here.
-  const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
-    const held = ticket.current;
-    if (held === null) throw new Error(t('explore.noTicket'));
-    const { thingId: _scopedByTheService, ...question } = query;
-    const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
-    ticket.current = reduced.ticket;
-    return reduced.answer;
-  }, [t]);
+  const reduceThroughTheService = useCallback(
+    (query: TemporalReduceQuery) => reduceUnderTicket(query, stateReference.current.submissionId, ticket, t('explore.noTicket')),
+    [t],
+  );
 
   // A survey goes up under the same ticket and the renewal is kept the same way. A ticket that aged out
   // is the one refusal the person mends here rather than reads beside the file.
@@ -280,101 +256,79 @@ export function ExplorePage() {
     return () => window.clearTimeout(timer);
   }, [session, dialled, readFindings, t]);
 
-  async function resume(): Promise<void> {
-    setBusy(true);
-    try {
+  function resume(): Promise<void> {
+    return whileBusy(async () => {
       ticket.current = await intakeApi.exchangeTicket(state.emailAddress.trim(), code.trim());
       setExpired(false);
       setCode('');
       await readFindings();
-    } catch (error) {
-      toast.error(t('explore.refused', { reason: reasonOf(error) }));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const drawnArea = state.boundary.length >= 3 ? sphericalAreaHectares(state.boundary) : null;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="max-w-5xl mx-auto flex items-center gap-3 px-6 pt-10 pb-4">
-        <div className="w-9 h-9 rounded-lg grid place-items-center text-white bg-gradient-to-br from-emerald-600 to-teal-500">
-          <Compass size={18} />
-        </div>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">
-            {t('explore.title')}
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('explore.intro')}</p>
-        </div>
-        <LanguageSwitcher />
-      </header>
+    <StandalonePage icon={<Compass size={18} />} title={t('explore.title')} intro={t('explore.intro')} width="wide">
+      {unreachable && (
+        <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.unreachable')}</p>
+      )}
+      {!intakeApi.configured() && (
+        <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.notConfigured')}</p>
+      )}
 
-      <main className="max-w-5xl mx-auto px-6 pb-16">
-        {unreachable && (
-          <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.unreachable')}</p>
-        )}
-        {!intakeApi.configured() && (
-          <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{t('explore.notConfigured')}</p>
-        )}
-
-        {session === null ? (
-          <>
-            <PlotStep
-              options={options}
-              state={state}
-              fetchingParcel={fetchingParcel}
-              drawnArea={drawnArea}
-              onPick={pick}
-              onUseMyLocation={useMyLocation}
-              onBoundaryDrawn={(boundary) => setState((s) => withDrawnBoundary(s, boundary))}
-              onBoundaryCleared={() => setState(withBoundaryCleared)}
-            />
-            {landDescribed(state) && (
-              <ClaimStep
-                state={state}
-                busy={busy}
-                awaitingCode={awaitingCode}
-                code={code}
-                onChange={(patch) => {
-                  if (patch.emailAddress !== undefined) {
-                    setAwaitingCode(false);
-                    setCode('');
-                  }
-                  setState((s) => ({ ...s, ...patch }));
-                }}
-                onCodeChange={setCode}
-                onSubmit={() => void (awaitingCode ? submit() : askForCode())}
-              />
-            )}
-            <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">
-              <a className="hover:underline" href="./index.html">{t('explore.tryGuided')}</a>
-            </p>
-          </>
-        ) : (
-          <ReportStep
+      {session === null ? (
+        <>
+          <PlotStep
             options={options}
             state={state}
+            fetchingParcel={fetchingParcel}
             drawnArea={drawnArea}
-            reference={session.reference}
-            findings={findings}
-            expired={expired}
-            busy={busy}
-            code={code}
-            onCodeChange={setCode}
-            onResumeAskForCode={() => void askForCode()}
-            onResume={() => void resume()}
-            onRefresh={() => void readFindings().catch(() => undefined)}
-            onDial={(patch) => setState((s) => ({ ...s, ...patch }))}
-            onShareSurvey={shareSurvey}
-            onListSurveys={listSurveys}
+            onPick={pick}
+            onUseMyLocation={useMyLocation}
+            onBoundaryDrawn={(boundary) => setState((s) => withDrawnBoundary(s, boundary))}
+            onBoundaryCleared={() => setState(withBoundaryCleared)}
           />
-        )}
-      </main>
-
-      <ToastContainer />
-    </div>
+          {landDescribed(state) && (
+            <ClaimStep
+              state={state}
+              busy={busy}
+              awaitingCode={awaitingCode}
+              code={code}
+              onChange={(patch) => {
+                if (patch.emailAddress !== undefined) {
+                  setAwaitingCode(false);
+                  setCode('');
+                }
+                setState((s) => ({ ...s, ...patch }));
+              }}
+              onCodeChange={setCode}
+              onSubmit={() => void (awaitingCode ? submit() : askForCode())}
+            />
+          )}
+          <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">
+            <a className="hover:underline" href="./index.html">{t('explore.tryGuided')}</a>
+          </p>
+        </>
+      ) : (
+        <ReportStep
+          options={options}
+          state={state}
+          drawnArea={drawnArea}
+          reference={session.reference}
+          findings={findings}
+          expired={expired}
+          busy={busy}
+          code={code}
+          onCodeChange={setCode}
+          onResumeAskForCode={() => void askForCode()}
+          onResume={() => void resume()}
+          onRefresh={() => void readFindings().catch(() => undefined)}
+          onDial={(patch) => setState((s) => ({ ...s, ...patch }))}
+          onShareSurvey={shareSurvey}
+          onListSurveys={listSurveys}
+        />
+      )}
+    </StandalonePage>
   );
 }
 

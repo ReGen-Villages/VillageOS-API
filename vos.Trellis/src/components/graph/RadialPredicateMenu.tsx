@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
@@ -24,34 +25,7 @@ export function RadialPredicateMenu() {
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const closeRadialMenu = useUiStore((s) => s.closeRadialMenu);
   const menuReference = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeRadialMenu();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, closeRadialMenu]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
-        closeRadialMenu();
-      }
-    };
-    // Listening at once would let the click that opened the menu close it.
-    const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick);
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [open, closeRadialMenu]);
+  useClosesOnEscapeOrPressOutside(open, menuReference, closeRadialMenu);
 
   const handleToggle = useCallback(
     (predicateId: string) => {

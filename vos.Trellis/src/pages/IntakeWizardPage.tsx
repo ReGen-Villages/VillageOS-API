@@ -37,7 +37,7 @@ export function IntakeWizardPage() {
 
   useEffect(() => {
     let abandoned = false;
-    Promise.all([thingApi.getAll(), relationshipApi.getAll(), thingApi.getAllProperties('effective')])
+    Promise.all([thingApi.getAll(), relationshipApi.getAll(), thingApi.getAllProperties()])
       .then(([things, relationships, properties]) => {
         if (abandoned) return;
         setCategories(termsBound({ things, relationships, properties }, ALLOCATION_CATEGORY_ROLE));

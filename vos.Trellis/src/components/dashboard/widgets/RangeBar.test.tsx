@@ -2,19 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { Binding, RangeBarWidget, RangeSeries } from '@tendril-ui/tendril';
 import type { HistoryStep } from '@tendril-ui/tendril';
-import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
+import type { ResolveContext } from '@tendril-ui/tendril';
 
-const values = new Map<string, BindingResult>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: (Binding | undefined)[]) =>
-    bindings.map((binding) => ({
-      loading: false,
-      error: false,
-      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
-    })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { RangeBar } = await import('./RangeBar');
 

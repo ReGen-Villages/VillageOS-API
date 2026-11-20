@@ -63,8 +63,10 @@ function answered(over: Partial<FindingsAnswer> = {}): FindingsAnswer {
   };
 }
 
+const reduceNothing = () => Promise.reject(new Error('This test reduces no property series.'));
+
 function contextFor(answer: FindingsAnswer): ResolveContext {
-  const findings = findingsFrom(answer);
+  const findings = findingsFrom(answer, reduceNothing);
   return { index: findings.index, scopeId: findings.scopeId, compareArchetype: 'Site', reads: findings.reads };
 }
 
@@ -136,18 +138,10 @@ describe('the findings a submitter is answered with', () => {
     expect(reduce).toHaveBeenCalledWith(question);
   });
 
-  it('refuses a history reduction where the page handed it nothing to ask with', async () => {
-    const { reads } = findingsFrom(answered());
-
-    await expect(reads.reduce({
-      thingId: 'site-1', property: 'temperature', windowSeconds: 60, steps: [],
-    })).rejects.toThrow();
-  });
-
   // Nothing is how a figure the analysis has not computed reads, and a question this page cannot ask is
   // not that — so the two it never asks refuse rather than resolving to nothing.
   it('refuses the two questions a submitter\'s page cannot ask', async () => {
-    const { reads } = findingsFrom(answered());
+    const { reads } = findingsFrom(answered(), reduceNothing);
 
     await expect(
       reads.aggregate({
@@ -162,11 +156,11 @@ describe('the findings a submitter is answered with', () => {
   });
 
   it('cannot press', () => {
-    expect(findingsFrom(answered()).reads.press).toBeUndefined();
+    expect(findingsFrom(answered(), reduceNothing).reads.press).toBeUndefined();
   });
 
   it('answers with nothing for a Thing whose ranges the service could not read', async () => {
-    const { reads } = findingsFrom(answered({ ranges: {} }));
+    const { reads } = findingsFrom(answered({ ranges: {} }), reduceNothing);
 
     await expect(reads.thingRanges(STUDY)).resolves.toBeNull();
   });

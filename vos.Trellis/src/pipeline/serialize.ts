@@ -1,7 +1,10 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { NODE_KIND_ROLE, PipelineModel, ROLE, portsAreTheKinds, type ChoiceInformation, type NodeKind, type PortInformation } from './model';
+import {
+  NODE_KIND_ROLE, PipelineModel, ROLE, WIRE_TEXT_FIELDS, portsAreTheKinds, wireTextFrom,
+  type ChoiceInformation, type NodeKind, type PortInformation, type WireTextField,
+} from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -33,7 +36,7 @@ export interface EditorNode {
   /** The Thing a node stands for — its catalyst at the start, its outcome at the end, the system a tell node tells, the
    *  pipeline a follow-on node starts — written as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
-  choices?: EditorChoice[];
+  choices?: ChoiceInformation[];
   /** In-port identifier → the Thing the node chose among those that port offers. */
   chosen?: Record<string, string>;
   /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
@@ -43,8 +46,6 @@ export interface EditorNode {
   follows?: string;
   waitsAtMostMinutes?: number;
 }
-
-export type EditorChoice = ChoiceInformation;
 
 export interface EditorEdge {
   id: string;
@@ -141,7 +142,7 @@ interface SavingRoles {
 function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles {
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
-  const wireId = model.wirePredicateId();
+  const wireId = model.boundTo(ROLE.WirePredicate);
   const pipelineArchetype = model.boundTo(ROLE.Pipeline);
   const nodeArchetype = model.boundTo(ROLE.PipelineNode);
   // A wire is written as a Thing of the wire archetype, pointing at its target through the wire predicate,
@@ -188,8 +189,14 @@ function rolesForSaving(nodes: EditorNode[], model: PipelineModel): SavingRoles 
   };
 }
 
+interface FragmentThing {
+  Id: string;
+  Name: string;
+  Properties: Record<string, unknown>;
+}
+
 interface PipelineFragment {
-  things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }>;
+  things: FragmentThing[];
   relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }>;
   portsToRetract: string[];
   choicesToRetract: string[];
@@ -197,10 +204,16 @@ interface PipelineFragment {
   standsForToRetract: string[];
 }
 
+function addHeldThing(fragment: PipelineFragment, roles: SavingRoles, ownerId: string, thing: FragmentThing, archetypeId: string) {
+  fragment.things.push(thing);
+  fragment.relationships.push({ Name: 'is', Subject: thing.Id, Predicate: roles.isId, Target: archetypeId });
+  fragment.relationships.push({ Name: 'has', Subject: ownerId, Predicate: roles.hasId, Target: thing.Id });
+}
+
 function pipelineFragment(
   name: string, pipelineId: string, nodes: EditorNode[], nodeThingId: Map<string, string>, roles: SavingRoles, model: PipelineModel,
 ): PipelineFragment {
-  const { isId, hasId, pipelineArchetype, nodeArchetype } = roles;
+  const { isId, pipelineArchetype, nodeArchetype } = roles;
   const fragment: PipelineFragment = {
     // Every pipeline the page saves is live until drafts and Publish reach the page.
     things: [{ Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } }],
@@ -220,11 +233,9 @@ function pipelineFragment(
       if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
       else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
     }
-    fragment.things.push({ Id: thingId, Name: n.label, Properties: props });
     // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
     // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
-    fragment.relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
-    fragment.relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
+    addHeldThing(fragment, roles, pipelineId, { Id: thingId, Name: n.label, Properties: props }, nodeArchetype);
 
     if (n.kind) addNodeOfAKind(n, n.kind, thingId, roles, model, fragment);
     else addConnectionNode(n, thingId, roles, model, fragment);
@@ -235,15 +246,15 @@ function pipelineFragment(
 function addNodeOfAKind(
   n: EditorNode, kind: NodeKind, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment,
 ) {
-  const { isId, hasId, portArchetype, standsForId, kindArchetype } = roles;
-  const { things, relationships } = fragment;
+  const { isId, portArchetype, standsForId, kindArchetype } = roles;
+  const { relationships } = fragment;
   relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(kind)! });
   // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
   // longer declared is retracted.
   const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
   for (const p of portsAreTheKinds(kind) ? [] : n.ports) {
     stale.delete(p.portId);
-    things.push({
+    addHeldThing(fragment, roles, thingId, {
       Id: p.portId,
       Name: p.portName,
       Properties: {
@@ -252,9 +263,7 @@ function addNodeOfAKind(
         type: env(STRING, p.type || 'any'),
         required: env(STRING, String(p.required)),
       },
-    });
-    relationships.push({ Name: 'is', Subject: p.portId, Predicate: isId, Target: portArchetype! });
-    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: p.portId });
+    }, portArchetype!);
   }
   for (const staleId of stale) fragment.portsToRetract.push(staleId);
 
@@ -265,28 +274,19 @@ function addNodeOfAKind(
 }
 
 function addConnectionNode(n: EditorNode, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment) {
-  const { isId, hasId, choiceArchetype } = roles;
-  const { things, relationships } = fragment;
-  relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
+  fragment.relationships.push({ Name: 'has', Subject: thingId, Predicate: roles.hasId, Target: n.connectionId });
   const held = new Set((n.choices ?? []).map((choice) => choice.id));
-  for (const choice of n.choices ?? []) {
-    things.push({ Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } });
-    relationships.push({ Name: 'is', Subject: choice.id, Predicate: isId, Target: choiceArchetype! });
-    relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: choice.id });
-  }
+  for (const choice of n.choices ?? [])
+    addHeldThing(fragment, roles, thingId, { Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } }, roles.choiceArchetype!);
   for (const persisted of model.choicesOf(thingId))
     if (!held.has(persisted.id)) fragment.choicesToRetract.push(persisted.id);
 }
 
-interface DesiredWire {
+interface DesiredWire extends Record<WireTextField, string> {
   from: string;
   outPortId: string;
   to: string;
   inPortId: string;
-  fromPath: string;
-  toPath: string;
-  itemTransform: string;
-  listTransform: string;
   takenOn: string[];
 }
 
@@ -299,7 +299,10 @@ async function saveWires(
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', itemTransform: e.itemTransform ?? '', listTransform: e.listTransform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
+    .map((e) => ({
+      from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle,
+      ...wireTextFrom((field) => e[field] ?? ''), takenOn: takenOnOf(e.takenOn, model),
+    }))
     .filter((w): w is DesiredWire => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
@@ -317,13 +320,11 @@ async function saveWires(
 }
 
 async function updateWire(
-  existing: { wireId: string; fromPath: string; toPath: string; itemTransform: string; listTransform: string },
+  existing: { wireId: string } & Record<WireTextField, string>,
   w: DesiredWire, model: PipelineModel,
 ) {
-  if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
-  if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
-  if (w.itemTransform !== existing.itemTransform) await thingApi.setProperty(existing.wireId, 'itemTransform', STRING, w.itemTransform);
-  if (w.listTransform !== existing.listTransform) await thingApi.setProperty(existing.wireId, 'listTransform', STRING, w.listTransform);
+  for (const field of WIRE_TEXT_FIELDS)
+    if (w[field] !== existing[field]) await thingApi.setProperty(existing.wireId, field, STRING, w[field]);
   await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
 }
 
@@ -332,10 +333,7 @@ async function createWire(w: DesiredWire, portNames: Map<string, string>, roles:
   const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
   // Every value is declared at creation, empty where unset, because a Thing's property write updates and
   // does not create — so a path added later is an update rather than a call that answers "no such property".
-  await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
-  await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
-  await thingApi.addProperty(wire.Id, 'itemTransform', STRING, w.itemTransform);
-  await thingApi.addProperty(wire.Id, 'listTransform', STRING, w.listTransform);
+  for (const field of WIRE_TEXT_FIELDS) await thingApi.addProperty(wire.Id, field, STRING, w[field]);
   await relationshipApi.create(wire.Id, isId, wireArchetype);
   await relationshipApi.create(w.from, hasId, wire.Id);
   await relationshipApi.create(wire.Id, wireId, w.to);
@@ -463,10 +461,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
         sourceHandle: wire.outPortId,
         target: wire.targetId,
         targetHandle: wire.inPortId,
-        fromPath: wire.fromPath || undefined,
-        toPath: wire.toPath || undefined,
-        itemTransform: wire.itemTransform || undefined,
-        listTransform: wire.listTransform || undefined,
+        ...wireTextFrom((field) => wire[field] || undefined),
         takenOn: wire.takenOn.map((taken) => taken.thingId),
       });
     }

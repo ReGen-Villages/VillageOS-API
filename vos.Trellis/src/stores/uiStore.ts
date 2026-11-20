@@ -3,6 +3,7 @@ import type { PredicateStatistics, ClusterMap } from '../utils/predicateCluster'
 import { FLASH_DEFAULTS, LAYOUT_DEFAULTS } from '../utils/guiSettings';
 import type { FlashSettings, LayoutSettings } from '../utils/guiSettings';
 import type { SortOrder } from '../utils/typeFilter';
+import { toggled } from '../utils/toggled';
 
 const PANEL_WIDTH_KEY = 'vos-panel-width';
 const DEFAULT_PANEL_WIDTH = 320;
@@ -202,9 +203,7 @@ export const useUiStore = create<UiState>((set) => ({
     return { typeSortOrder: order };
   }),
   toggleHiddenType: (typeId) => set((s) => {
-    const next = new Set(s.hiddenTypeIds);
-    if (next.has(typeId)) next.delete(typeId);
-    else next.add(typeId);
+    const next = toggled(s.hiddenTypeIds, typeId);
     persistHiddenTypeIds(s.currentModelId, next);
     return { hiddenTypeIds: next };
   }),
@@ -218,12 +217,7 @@ export const useUiStore = create<UiState>((set) => ({
   }),
 
   hiddenPredicateIds: new Set<string>(),
-  toggleHiddenPredicate: (predicateId) => set((s) => {
-    const next = new Set(s.hiddenPredicateIds);
-    if (next.has(predicateId)) next.delete(predicateId);
-    else next.add(predicateId);
-    return { hiddenPredicateIds: next };
-  }),
+  toggleHiddenPredicate: (predicateId) => set((s) => ({ hiddenPredicateIds: toggled(s.hiddenPredicateIds, predicateId) })),
   setHiddenPredicateIds: (ids) => set(() => ({
     hiddenPredicateIds: new Set(ids),
   })),
@@ -242,12 +236,7 @@ export const useUiStore = create<UiState>((set) => ({
   semanticZoomEnabled: true,
 
   toggleLogicalExpansion: (geoNodeId) =>
-    set((state) => {
-      const next = new Set(state.expandedLogicalParents);
-      if (next.has(geoNodeId)) next.delete(geoNodeId);
-      else next.add(geoNodeId);
-      return { expandedLogicalParents: next };
-    }),
+    set((state) => ({ expandedLogicalParents: toggled(state.expandedLogicalParents, geoNodeId) })),
 
   expandLogicalParent: (id) =>
     set((state) => {
@@ -313,17 +302,12 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   togglePredicateId: (id) =>
-    set((state) => {
-      const next = new Set(state.activePredicateIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return {
-        activePredicateIds: next,
-        collapsedClusters: new Set<number>(),
-        expandedNodes: new Set<string>(),
-        clusterMap: null, // recomputed by ClusterComputer
-      };
-    }),
+    set((state) => ({
+      activePredicateIds: toggled(state.activePredicateIds, id),
+      collapsedClusters: new Set<number>(),
+      expandedNodes: new Set<string>(),
+      clusterMap: null, // recomputed by ClusterComputer
+    })),
 
   clearPredicateIds: () =>
     set({
@@ -345,20 +329,10 @@ export const useUiStore = create<UiState>((set) => ({
   setPredicateStatistics: (statistics) => set({ predicateStatistics: statistics }),
 
   toggleClusterCollapsed: (clusterIndex) =>
-    set((state) => {
-      const next = new Set(state.collapsedClusters);
-      if (next.has(clusterIndex)) next.delete(clusterIndex);
-      else next.add(clusterIndex);
-      return { collapsedClusters: next };
-    }),
+    set((state) => ({ collapsedClusters: toggled(state.collapsedClusters, clusterIndex) })),
 
   toggleNodeExpanded: (nodeId) =>
-    set((state) => {
-      const next = new Set(state.expandedNodes);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return { expandedNodes: next };
-    }),
+    set((state) => ({ expandedNodes: toggled(state.expandedNodes, nodeId) })),
 
   openRadialMenu: (position) => set({ radialMenuOpen: true, radialMenuPosition: position, nodeContextMenuOpen: false, nodeContextMenuPosition: null, nodeContextMenuNodeId: null }),
   closeRadialMenu: () => set({ radialMenuOpen: false, radialMenuPosition: null }),

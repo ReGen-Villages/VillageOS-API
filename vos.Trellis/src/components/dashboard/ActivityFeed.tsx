@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Pause, Play, PanelRightClose, Search, X } from 'lucide-react';
 import type { ActivityEvent } from '../../types/mycelium';
 import { formatTimestamp } from '../../utils/formatters';
+import { usePreventsSelectionWhileDragging } from '../../hooks/usePreventsSelectionWhileDragging';
+import { toggled } from '../../utils/toggled';
 
 const typeColors: Record<string, string> = {
   ThingCreated: 'text-emerald-400',
@@ -83,12 +85,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   }, [events]);
 
   const toggleCategory = useCallback((label: CategoryLabel) => {
-    setEnabledCategories((previous) => {
-      const next = new Set(previous);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
+    setEnabledCategories((previous) => toggled(previous, label));
   }, []);
 
   const displayEvents = frozen ? frozen.events : events;
@@ -137,13 +134,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
     }
   }, []);
 
-  useEffect(() => {
-    const prevent = (e: Event) => {
-      if (dragging.current) e.preventDefault();
-    };
-    document.addEventListener('selectstart', prevent);
-    return () => document.removeEventListener('selectstart', prevent);
-  }, []);
+  usePreventsSelectionWhileDragging(dragging);
 
   return (
     <div

@@ -135,3 +135,28 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
     expect(result.current.user).toBeNull();
   });
 });
+
+describe('useAuthState restoring a session', () => {
+  beforeEach(() => {
+    mockLogin.mockReset();
+    mockInitialUser = null;
+    mockIsAuthenticated = false;
+  });
+
+  it('keeps a model list loaded while the restore was still answering', async () => {
+    let restored: (value: boolean) => void = () => {};
+    mockRestoreSession.mockReset().mockReturnValue(new Promise<boolean>((resolve) => { restored = resolve; }));
+    const models = [{ Id: 'model-1', Name: 'Model one' }];
+    const refusal = new Error('Choose a model') as Error & { body: string };
+    refusal.body = JSON.stringify({ models });
+    mockLogin.mockRejectedValue(refusal);
+
+    const { result } = renderHook(() => useAuthenticationState());
+    await act(async () => { await result.current.login('admin', 'admin'); });
+    expect(result.current.availableModels).toEqual(models);
+
+    await act(async () => { restored(true); });
+
+    expect(result.current.availableModels).toEqual(models);
+  });
+});

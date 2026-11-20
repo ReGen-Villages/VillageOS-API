@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { ArrowDown, ArrowUp, Trash2, X } from 'lucide-react';
-import type { Binding, CompareConfiguration, DashboardSpecification, Widget } from '@tendril-ui/tendril';
+import type { Binding, CompareConfiguration, DashboardSpecification } from '@tendril-ui/tendril';
 import { nextPlacement } from '../../utils/designSpec';
 import { WIDGET_SCHEMAS } from '../../utils/widgetSchema';
 import { rowKindOf, rowsBindingOf } from '../../utils/rowKind';
@@ -9,7 +9,7 @@ import { FieldControl } from './FieldControls';
 import { DetailEditor } from './DetailEditor';
 import { OfferedField } from './OfferedField';
 import { ChoiceField, NumberField, TextField } from './DesignFields';
-import { withKey } from './fieldSupport';
+import { valueAt, withKey } from './fieldSupport';
 import {
   type DesignSelection,
   withPageWritten,
@@ -75,7 +75,7 @@ function PageFields({ specification, context, onEdit }: { specification: Dashboa
       <TextField label={t('design.properties.icon')} value={specification.icon ?? ''} mono onCommit={(icon) => onEdit((held) => withPageWritten(held, { icon }))} />
       <TextField label={t('design.properties.compareLabel')} value={specification.compare?.label ?? ''} onCommit={(label) => compare({ label: label.trim() })} />
       <OfferedField label={t('design.properties.compareArchetype')} value={specification.compare?.archetype ?? ''} mono offered={context.offers.kinds.map((value) => ({ value }))} onCommit={(archetype) => compare({ archetype: archetype.trim() })} />
-      <DetailEditor label={t('design.properties.detail')} value={specification.detail} context={context} kind={specification.compare?.archetype} onChange={(detail) => onEdit((held) => withKey(held as unknown as Record<string, unknown>, 'detail', detail) as unknown as DashboardSpecification)} />
+      <DetailEditor label={t('design.properties.detail')} value={specification.detail} context={context} kind={specification.compare?.archetype} onChange={(detail) => onEdit((held) => withKey(held, 'detail', detail))} />
     </>
   );
 }
@@ -145,10 +145,7 @@ function WidgetFields({
   const rowKind = rowKindOf(rows, context.offers.compareKind);
   const widgetContext: BindingContext = { ...context, rowKind, rowKeys: rowKeysOf(rows, rowKind, context) };
   const write = (key: string, value: unknown) =>
-    onEdit((current) => {
-      const standing = current.sections[section].widgets[widget] as unknown as Record<string, unknown>;
-      return withWidgetReplaced(current, section, widget, withKey(standing, key, value) as unknown as Widget);
-    });
+    onEdit((current) => withWidgetReplaced(current, section, widget, withKey(current.sections[section].widgets[widget], key, value)));
   const moveTo = (target: number) => {
     const size = held.placement ?? { width: 1, height: 1 };
     const placement = nextPlacement(specification.sections[target], size);
@@ -161,7 +158,7 @@ function WidgetFields({
         <FieldControl
           key={field.key}
           field={field}
-          value={(held as unknown as Record<string, unknown>)[field.key]}
+          value={valueAt(held, field.key)}
           family="widgetField"
           context={widgetContext}
           kind={rowKind}

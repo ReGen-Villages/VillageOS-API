@@ -212,15 +212,18 @@ export interface PortInformation {
   required: boolean;
 }
 
-export interface WireRead {
+export const WIRE_TEXT_FIELDS = ['fromPath', 'toPath', 'itemTransform', 'listTransform'] as const;
+export type WireTextField = (typeof WIRE_TEXT_FIELDS)[number];
+
+export function wireTextFrom<Value>(valueOf: (field: WireTextField) => Value): Record<WireTextField, Value> {
+  return Object.fromEntries(WIRE_TEXT_FIELDS.map((field) => [field, valueOf(field)])) as Record<WireTextField, Value>;
+}
+
+export interface WireRead extends Record<WireTextField, string> {
   wireId: string;
   targetId: string;
   outPortId: string;
   inPortId: string;
-  fromPath: string;
-  toPath: string;
-  itemTransform: string;
-  listTransform: string;
   takenOn: RelationshipAndTarget[];
 }
 
@@ -298,6 +301,10 @@ export class PipelineModel {
   relationshipsAndTargetsAlong(subjectId: string, roleId: string): RelationshipAndTarget[] {
     return this.relationshipsAlong(subjectId, roleId)
       .map((relationship) => ({ relationshipId: relationship.Id, thingId: relationship.TargetId }));
+  }
+
+  private firstReachedThatIs(subjectId: string, alongRoleId: string, kindRoleId: string): VosThing | undefined {
+    return this.reachedAlong(subjectId, alongRoleId).find((reached) => this.isOf(reached.Id, kindRoleId));
   }
 
   private relationshipsAlong(subjectId: string, roleId: string): VosRelationship[] {
@@ -433,10 +440,8 @@ export class PipelineModel {
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
-      const watched = this.reachedAlong(connection.Id, ROLE.StateWatch)
-        .find((range) => this.isOf(range.Id, ROLE.Range));
-      const started = this.reachedAlong(connection.Id, ROLE.PipelineStart)
-        .find((pipeline) => this.isOf(pipeline.Id, ROLE.Pipeline));
+      const watched = this.firstReachedThatIs(connection.Id, ROLE.StateWatch, ROLE.Range);
+      const started = this.firstReachedThatIs(connection.Id, ROLE.PipelineStart, ROLE.Pipeline);
       const subdomain = connection.Properties.Subdomain;
       const interval = watched ? Number(watched.Properties[EVALUATION_INTERVAL_PROPERTY] ?? 0) : 0;
       const binding = this.bindingOf(connection.Id);
@@ -471,7 +476,7 @@ export class PipelineModel {
 
   /** Mirrors RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs, so the page never offers a box the run refuses. */
   relatingOf(thingId: string): RelateReading {
-    const connection = this.reachedAlong(thingId, ROLE.NotifiedConnection).find((called) => this.isOf(called.Id, ROLE.Connection));
+    const connection = this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection);
     if (!connection)
       return { accepted: false, refusal: this.isOf(thingId, ROLE.Connection) ? 'standsForAConnection' : 'namesNoConnection' };
     const service = this.outgoing(connection.Id, 'has').find((held) => this.isOf(held.Id, ROLE.Service));
@@ -501,8 +506,7 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
-      .find((c) => this.isOf(c.Id, ROLE.Connection));
+    const arrivesAt = this.firstReachedThatIs(kind.Id, ROLE.ArrivesAt, ROLE.Connection);
     return { id: kind.Id, name: kind.Name, ...(arrivesAt ? { arrivesAtConnectionId: arrivesAt.Id } : {}) };
   }
 
@@ -515,7 +519,7 @@ export class PipelineModel {
         .sort((a, b) => a.name.localeCompare(b.name));
     return this.thingsOf(ROLE.ExternalSystem)
       .map((system) => {
-        const through = this.reachedAlong(system.Id, ROLE.ToldThrough).find((connection) => this.isOf(connection.Id, ROLE.Connection));
+        const through = this.firstReachedThatIs(system.Id, ROLE.ToldThrough, ROLE.Connection);
         return {
           id: system.Id,
           name: system.Name,
@@ -574,7 +578,7 @@ export class PipelineModel {
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
-    if (!thing.IsArchetype && this.reachedAlong(thingId, ROLE.NotifiedConnection).some((called) => this.isOf(called.Id, ROLE.Connection)))
+    if (!thing.IsArchetype && this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection))
       return { ...named, kind: 'relationship', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
       const trigger = this.triggerOf(thingId);
@@ -711,8 +715,7 @@ export class PipelineModel {
       const stated = this.stated(held.Id);
       out.push({
         wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
-        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''),
-        itemTransform: String(stated.itemTransform ?? ''), listTransform: String(stated.listTransform ?? ''),
+        ...wireTextFrom((field) => String(stated[field] ?? '')),
         takenOn: this.relationshipsAndTargetsAlong(held.Id, ROLE.TakenOn),
       });
     }
@@ -722,11 +725,6 @@ export class PipelineModel {
   /** Id of a predicate Thing matched by name (only ever the built-in is/has on the write path). */
   predicateIdByName(name: string): string | undefined {
     return this.things.find((t) => t.Name === name)?.Id;
-  }
-
-  /** The predicate a wire reaches the node it feeds along. */
-  wirePredicateId(): string | undefined {
-    return this.boundTo(ROLE.WirePredicate);
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.

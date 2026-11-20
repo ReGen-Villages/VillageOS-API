@@ -8,7 +8,7 @@ import { formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
 import { useUiStore } from '../stores/uiStore';
-import { toast } from '../components/common/toastStore';
+import { MarkdownExportButtons } from '../components/common/MarkdownExportButtons';
 import {
   buildThingSearchIndex,
   searchThings,
@@ -70,26 +70,6 @@ export function ThingSearchPage() {
     [selectNode, navigate],
   );
 
-  const copyAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    navigator.clipboard.writeText(buildThingSearchMarkdown(debouncedQuery, results)).then(
-      () => toast.success(t('common.copiedToClipboard')),
-      () => toast.error(t('common.copyFailed')),
-    );
-  }, [results, debouncedQuery, t]);
-
-  const downloadAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    const md = buildThingSearchMarkdown(debouncedQuery, results);
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `thing-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [results, debouncedQuery]);
-
   return (
     <div className="h-full overflow-auto p-6">
       <h2 className="text-xl font-bold mb-4">{t('thingSearch.title')}</h2>
@@ -115,20 +95,10 @@ export function ThingSearchPage() {
               {hasMore && ` (${t('common.showingFirst', { count: visibleCount })})`}
             </p>
             {results.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={copyAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.copyAsMarkdown')}
-                </button>
-                <button
-                  onClick={downloadAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.downloadAsMarkdown')}
-                </button>
-              </div>
+              <MarkdownExportButtons
+                markdown={() => buildThingSearchMarkdown(debouncedQuery, results)}
+                fileName={`thing-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`}
+              />
             )}
           </div>
         )}

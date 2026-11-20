@@ -5,7 +5,8 @@ import type { Binding, TableColumn } from '@tendril-ui/tendril';
 import { COLUMN_FIELDS, type FieldSpecification } from '../../utils/widgetSchema';
 import { ChoiceField, Field, NumberField, SwitchField, TextField } from './DesignFields';
 import { OfferedField, type Offered } from './OfferedField';
-import { labelFor, nestedClass, offeredFor, smallButtonClass, withKey, type FieldFamily } from './fieldSupport';
+import { dropAt, replaceAt } from '../../utils/listEdits';
+import { labelFor, nestedClass, offeredFor, smallButtonClass, valueAt, withKey, type FieldFamily } from './fieldSupport';
 import { Removable } from './Removable';
 import { BindingEditor } from './BindingEditor';
 import type { BindingContext } from './bindingContext';
@@ -216,7 +217,7 @@ function ListEditor({
       {() => (
         <div className="mt-1 space-y-2">
           {value.map((item, index) => (
-            <Removable key={index} name={String(item.label ?? item.key ?? item.state ?? t('design.list.item', { position: index + 1 }))} onRemove={() => write(value.filter((_, at) => at !== index))}>
+            <Removable key={index} name={String(item.label ?? item.key ?? item.state ?? t('design.list.item', { position: index + 1 }))} onRemove={() => write(dropAt(value, index))}>
               {fields.map((field) => (
                 <FieldControl
                   key={field.key}
@@ -225,7 +226,7 @@ function ListEditor({
                   family={family}
                   context={context}
                   kind={kind}
-                  onChange={(next) => write(value.map((held, at) => (at === index ? withKey(held, field.key, next) : held)))}
+                  onChange={(next) => write(replaceAt(value, index, withKey(item, field.key, next)))}
                 />
               ))}
             </Removable>
@@ -277,16 +278,16 @@ function ColumnsEditor({ label, value, context, kind, onChange }: { label: strin
       {() => (
         <div className="mt-1 space-y-2">
           {value.map((column, index) => (
-            <Removable key={index} name={column.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(value.filter((_, at) => at !== index))}>
+            <Removable key={index} name={column.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(dropAt(value, index))}>
               {COLUMN_FIELDS.map((field) => (
                 <FieldControl
                   key={field.key}
                   field={field}
-                  value={(column as unknown as Record<string, unknown>)[field.key]}
+                  value={valueAt(column, field.key)}
                   family="widgetField"
                   context={context}
                   kind={kind}
-                  onChange={(next) => write(value.map((held, at) => (at === index ? (withKey(held as unknown as Record<string, unknown>, field.key, next) as unknown as TableColumn) : held)))}
+                  onChange={(next) => write(replaceAt(value, index, withKey(column, field.key, next)))}
                 />
               ))}
             </Removable>

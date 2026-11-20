@@ -15,6 +15,7 @@ import { type ModelIndex, thingIdsOfArchetype } from '@tendril-ui/tendril';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
+import { textOf } from './propertyText';
 
 const BINDS_PREDICATE = 'binds';
 const IS_PREDICATE = 'is';
@@ -180,11 +181,6 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
   return edges;
 }
 
-function stampedString(properties: Record<string, unknown>, name: string): string | undefined {
-  const value = properties[name];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
 /**
  * The service calls these relationships carry, oldest first, with one the platform holds no time for last —
  * an undated row sorted among the dated ones would claim a sequence nothing measured.
@@ -203,9 +199,9 @@ export function serviceCallsFrom(
       const properties = stamped.get(edge.relationshipId)?.Properties ?? {};
       return {
         ...edge,
-        at: stampedString(properties, CALLED_AT),
-        state: stampedString(properties, CALL_STATE),
-        error: stampedString(properties, CALL_ERROR),
+        at: textOf(properties, CALLED_AT),
+        state: textOf(properties, CALL_STATE),
+        error: textOf(properties, CALL_ERROR),
       };
     })
     .sort((a, b) => {
