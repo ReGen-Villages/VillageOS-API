@@ -732,10 +732,9 @@ service by hand; what started a run is a fact in the model afterwards.
   which the service's own last write usually causes; or *when the service reports it has finished*,
   for work that outlives the call, which the service reports as received, completed or failed. With no
   choice, a connection naming a done range finishes on the done state, and any other when the service
-  answers. A connection also says how long a sent call may take, `done_within`. Discovery finishes on
-  the done state: a site entering *awaiting discovery* starts a run that outlasts any single call, and
-  the site reaching *discovered* is what closes it. A pipeline a state starts finishes on the
-  orchestrator's report, when its run ends.
+  answers. A connection also says how long a sent call may take, `done_within`. A pipeline a state
+  starts finishes on the orchestrator's report, when its run ends; discovery is one: a site entering
+  *awaiting discovery* starts the discovery drawing, and the call closes when that run ends.
 - **Calling again is bounded.** When a call is finished and the Thing is still in the range, the
   connection is called again, at least `doesNotCallAgainForSeconds` after the last call finished, until
   a run of calls has lasted `callsAgainForNoLongerThanSeconds` or made `callsAgainAtMost` calls again;
