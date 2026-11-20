@@ -1,11 +1,5 @@
-/**
- * What a subscription covers, in the shape `POST /api/subscriptions` reads.
- *
- * The platform resolves a selector into a set of Things and the relationships between them, hands
- * that back as a snapshot, and streams the later changes to those objects and no others. A page
- * therefore says what it is about once, and both what it starts with and what reaches it afterwards
- * follow from that one statement.
- */
+/** The platform resolves a selector into Things and their relationships, answers with them, and then streams
+ *  changes to those alone, so a page says once what it is about. */
 import type { SubscriptionSelector, VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 export type { SubscriptionSelector } from '@tendril-ui/tendril';
@@ -28,10 +22,7 @@ export interface CoveredObjects {
 export interface SubscriptionOpened {
   subscriptionId: string;
   watermark: number;
-  /**
-   * The objects the selector reached — or null for {@link WHOLE_MODEL}, which asks for no snapshot.
-   * The model read fills the store for it instead, because only that honours the properties the
-   * model says its pages are drawn with.
-   */
+  /** Null for {@link WHOLE_MODEL}, which asks for no snapshot, because the model read fills the store and only
+   *  it honours the properties the model says its pages use. */
   covered: CoveredObjects | null;
 }
