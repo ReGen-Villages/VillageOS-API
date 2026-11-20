@@ -118,7 +118,7 @@ export function useAuthenticationState(): AuthenticationState {
           }
         }
       } catch {
-        // Mycelium might not be reachable yet — keep polling
+        // The broker may not be reachable yet.
       }
     };
 
@@ -147,9 +147,8 @@ export function useAuthenticationState(): AuthenticationState {
         } catch { /* not a models response */ }
       }
       const message = err instanceof Error ? err.message : i18n.t('authentication.loginFailed');
-      // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
-      // vs. an empty library that will never reach Phase=Done (surface
-      // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
+      // "No models loaded" means either a seed still loading, which is waited for, or an empty library that
+      // never finishes loading, which needs an error the person can act on; the startup status tells them apart.
       if (message.includes('No models loaded')) {
         try {
           const status = await myceliumApi.getStartupStatus();
@@ -159,7 +158,7 @@ export function useAuthenticationState(): AuthenticationState {
             startSeedPolling(username, password);
             return;
           }
-        } catch { /* fall through to actionable error */ }
+        } catch { /* the empty-library error below */ }
         setError(i18n.t('authentication.emptyLibrary'));
         throw err;
       }
@@ -171,16 +170,14 @@ export function useAuthenticationState(): AuthenticationState {
   }, [stopPolling, startSeedPolling, signedIn]);
 
   const logout = useCallback(async () => {
-    // setAuthFailed(true) is load-bearing: it forces the next render
-    // to see isAuthenticated as false even though apiClient.isAuthenticated()
-    // (a non-React field) stays true until the awaited round-trip completes.
-    // login() resets authFailed on success.
     useModelStore.getState().clear();
     setUser(null);
     setModelId(null);
     setModelName(null);
     setAvailableModels(null);
     setError(null);
+    // apiClient.isAuthenticated(), which React does not watch, stays true until the call below returns, so
+    // without this the next render still shows the person signed in.
     setAuthenticationFailed(true);
     await apiClient.logout();
   }, []);

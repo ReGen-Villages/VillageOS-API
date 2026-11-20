@@ -114,9 +114,7 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
     mockLogin.mockReset();
     mockGetStartupProgress.mockReset();
     mockRestoreSession.mockReset().mockResolvedValue(false);
-    // Simulate "already logged in" — the hook reads getUser() at mount and
-    // isAuthenticated() at every render. The latter mirrors apiClient.token,
-    // a non-React field whose changes don't trigger re-renders by themselves.
+    // Already signed in. isAuthenticated() reads a field React does not watch, so changing it alone draws nothing.
     mockInitialUser = { Id: 'u1', Username: 'admin', Role: 'admin' };
     mockIsAuthenticated = true;
   });
@@ -130,7 +128,7 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
     });
 
     // The mock still answers authenticated, as the client does until its token clears after the awaited
-    // round-trip; the hook has to flip its own React state or the login form never renders.
+    // round-trip; the hook has to change its own React state or the sign-in form never shows.
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBeNull();
   });
