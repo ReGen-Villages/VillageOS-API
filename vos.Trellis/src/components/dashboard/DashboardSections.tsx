@@ -1,10 +1,5 @@
-/**
- * A dashboard specification's sections, laid out and drawn.
- *
- * Shared by the two pages that draw one: the signed-in operations page, and the findings page a
- * submitter opens holding no credential. One definition, so a section that lays out one way for a
- * planner cannot lay out another way for the person whose land it is about.
- */
+/** Shared by the operations page and the findings page a submitter opens, so a section cannot lay out one way
+ *  for a planner and another for the person whose land it is about. */
 import type { ResolveContext } from '@tendril-ui/tendril';
 import type { DashboardSection } from '@tendril-ui/tendril';
 import { sectionGrid } from '../../utils/gridLayout';
