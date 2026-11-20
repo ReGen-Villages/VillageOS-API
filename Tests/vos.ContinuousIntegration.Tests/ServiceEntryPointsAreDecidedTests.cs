@@ -4,13 +4,12 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-// A service entry point holds nothing but wiring, and the decisions it used to make live in
-// vos.Service.Shared where they are covered. Such a file is excluded from the coverage figure, because
-// counted it reads as a hundred-odd untested lines and pulls its whole service down — which is loud
-// enough to be ignored and drowns the gaps worth looking at.
+// A service entry point holds nothing but wiring, and its decisions live in vos.Service.Shared where
+// they are covered. Such a file is excluded from the coverage figure, because counted it reads as a
+// hundred-odd untested lines and pulls its whole service's figure down, hiding the gaps worth looking at.
 //
-// Nothing but this made a new service's entry point join that list, so some were simply never added
-// and read as the least covered code in the repository while holding no logic at all.
+// Nothing but this makes a new service's entry point join that list, and one left off reads as the
+// least covered code in the repository while holding no logic at all.
 //
 // A service whose entry point is genuinely counted is named below with why. A new one is in neither
 // list and fails here until somebody decides which it is.

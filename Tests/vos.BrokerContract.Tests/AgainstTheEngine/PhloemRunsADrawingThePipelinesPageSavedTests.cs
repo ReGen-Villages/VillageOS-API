@@ -65,7 +65,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
 
         await WriteNowAsync(study, RecordedAt);
         await AnsweredAsync(run.RunId);
-        // The platform's call along resumesRun reaches a stand-in rather than Phloem's /handle (Test Case 8536), so the answer it completes is read back as a starting orchestrator reads it.
+        // The platform's call along resumesRun reaches a stand-in rather than Phloem's /handle, so the answer it completes is read back as a starting orchestrator reads it.
         (await executor.RecoverWaitsAsync(CancellationToken.None)).Resumed.Should().Be(1);
 
         var relating = await Gateway().ReadRunRecordAsync(run.RunId, CancellationToken.None);
