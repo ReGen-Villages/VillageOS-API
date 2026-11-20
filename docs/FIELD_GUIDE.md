@@ -1310,8 +1310,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. Sign in as `admin` with the password the server wrote to
-`bootstrap-credentials.txt` in its data directory on its first start — or the one
-`VOS_ADMIN_PASSWORD` held then. There is no default password. A developer may put a key in
+`bootstrap-credentials.txt` in its data directory on its first start — or the one held in the file
+`VOS_ADMIN_PASSWORD_FILE` named then. There is no default password. A developer may put a key in
 `VITE_API_KEY` in a local settings file for automatic sign-in.
 
 ![The sign-in form: username, password and the ReGen mark above them, with the theme switch and the language in the corner](assets/trellis-sign-in.png)
@@ -1340,7 +1340,7 @@ beside it, and closes again once a page is chosen.
 | **Accounts**, **API keys** | The pages the platform declares for administrators: who may sign in, which models each account may enter and who is active now; and every key, with a form that issues one and the acts that revoke one (chapter 54). Listed only to an administrator, before the model's own pages |
 | **Compose** | A table built from what the model declares for a kind — its properties, its links and its states — kept as a page of the model's own |
 | **Design** | A page laid out on a grid from the palette every seeded page was drawn with, and kept as a page of the model's own (chapter 53) |
-| **Land intake** | The five-step wizard that describes a piece of land, shown where an intake service is configured |
+| **Land intake** | The six-step wizard that describes a piece of land, shown where an intake service is configured |
 | **Graph** | The model as a picture: search, clustering, the 3D view of one building, and every create, edit and delete |
 | **Model** | The whole building model in 3D, with filtering by element type and a map of where the site is |
 | **Pipelines** | The canvas where a pipeline is drawn, wired, run and watched (Part VI) |
@@ -1717,8 +1717,8 @@ Whole-model operations — export, import, clear — are the command line's (cha
 ### 57. Land intake, from either end
 ![The land-intake wizard on its first step, the steps across the top](assets/trellis-land-intake.png)
 
-**From the console**, the Land intake page walks five steps: project, contact, location, size and
-programme, parcel. You can move between any step already visited, and progress is written to browser
+**From the console**, the Land intake page walks six steps: project, contact, location, size and
+programme, parcel, hazards. You can move between any step already visited, and progress is written to browser
 storage on every keystroke, keyed by the model, so closing the tab loses nothing; a posted
 submission clears its draft. The page is offered only where the console was built with an intake
 service's address; otherwise the submit button says so and stays disabled.
@@ -1728,7 +1728,9 @@ service's address; otherwise the submit button says so and stays disabled.
   point on Earth is refused. A shortened link cannot be opened from the page, so it says to open the
   link and copy the numbers. Once both coordinates are given the site appears on the map.
 - **Size.** Type an area in hectares or acres; it is stored in hectares and the other unit is shown
-  beneath. An area that is not a figure is left out rather than sent as zero.
+  beneath. An area that is not a figure is left out rather than sent as zero. A population or a
+  household size typed beside it that cannot be read holds the submission back, and the reason shows
+  under the field.
 - **Programme.** The categories come from the model's own vocabulary, so the page cannot offer a
   term the service would refuse. Choosing one takes an equal share and leaves the rest in proportion;
   dropping one gives its share back; setting one moves the difference across the others. The shares
@@ -1738,6 +1740,9 @@ service's address; otherwise the submit button says so and stays disabled.
   nearly twice its size — and compared with the stated area; within tolerance the two read as a
   match, outside it the page says how far apart they are. The boundary is posted with how it was
   obtained, as a term the model declares, so a generated square never reads as a surveyed boundary.
+- **Hazards.** Every hazard the model names is offered, and every one starts unreported, so a blank
+  row means the person saw nothing of it. A level marked can be cleared again. A model that names no
+  hazards shows the step with nothing to mark rather than hiding it.
 - **Sending.** The submission goes once the contact's address is verified: **Send a code** asks the
   intake service to mail one, and entering it posts the submission.
 
@@ -1746,7 +1751,8 @@ sign-in and talks to the intake service alone; it is the same wizard, so a field
 on the other. A second, plot-first page runs beside it: the map comes first with an address search,
 the land register's boundary is fetched where one covers the clicked point, the report appears as a
 grid of themed tiles before any question is asked, and the programme, population and household size
-are dials on the report. A submitter receives a code at the address they gave, answers it, and
+are dials on the report. A re-post waits while a typed population or household size cannot be read,
+with the reason under the dial, and goes once the field is mended or cleared. A submitter receives a code at the address they gave, answers it, and
 afterwards can open a **findings page** to read what the platform worked out about their land — the
 model's own dashboard, with every personal detail withheld — share survey files, and open the parcel
 on the satellite imagery the model declares with the report's sections as tabs along the bottom.
@@ -2236,7 +2242,8 @@ only the .NET runtime:
 ```bash
 tar -xzf vos.Mycelium-<version>.tar.gz
 cd vos.Mycelium
-Seeds__Directory=/path/to/seeds VOS_ADMIN_PASSWORD=... dotnet vos.Mycelium.dll --urls http://localhost:7343
+Seeds__Directory=/path/to/seeds VOS_ADMIN_PASSWORD_FILE=/path/to/admin-password VOS_MASTER_KEY_FILE=/path/to/master-key \
+  dotnet vos.Mycelium.dll --urls http://localhost:7343
 ```
 
 **From source.** Clone the two repositories side by side; the shipped seeds reach the services by
@@ -2282,15 +2289,23 @@ to the server.
 ### 74. The first start
 ```bash
 cd VillageOS/vos.Mycelium
-VOS_ADMIN_PASSWORD='choose-one-of-fifteen-or-more' VOS_MASTER_KEY="$(openssl rand -base64 32)" dotnet run
+umask 077
+printf '%s' 'choose-one-of-fifteen-or-more' > ~/vos-admin-password
+openssl rand -base64 32 > ~/vos-master-key
+VOS_ADMIN_PASSWORD_FILE=~/vos-admin-password VOS_MASTER_KEY_FILE=~/vos-master-key dotnet run
 ```
+
+Each secret is read from a file its setting names, never from a value in the environment, which
+every child process can read. A named file must be readable by its owner only (`chmod 600`), or the
+start is refused. `VOS_ADMIN_PASSWORD` and `VOS_MASTER_KEY` given as values still work, with a warning
+at startup; setting both a value and its file is refused.
 
 The server listens on `https://localhost:7243`. On a first start with no accounts it:
 
 1. Generates the key pair it signs every pass with, and keeps the private half in its data
    directory.
-2. Creates the `admin` account. Its password is `VOS_ADMIN_PASSWORD` if set, at least 15
-   characters, or the start is refused; otherwise a random one that must be changed on first
+2. Creates the `admin` account. Its password is the one in `VOS_ADMIN_PASSWORD_FILE` if set, at
+   least 15 characters, or the start is refused; otherwise a random one that must be changed on first
    sign-in. There is no weak default.
 3. Creates a first administrator key. If the store holds no accounts but still holds that key in use
    — its accounts were all deleted — the old key is revoked, and the new one is the key the credentials
@@ -2299,8 +2314,9 @@ The server listens on `https://localhost:7243`. On a first start with no account
    owner only. Secure the file and delete it; the first key can be revoked on the API keys page once
    nothing uses it.
 
-`VOS_MASTER_KEY` encrypts the account store and the signing key on disk. Without it they are
-written in plain text and the server warns at startup. Set it in any real deployment and back it
+The master key, named by `VOS_MASTER_KEY_FILE`, encrypts the account store and the signing key on
+disk. Without it they are written in plain text and the server warns at startup, unless
+`Auth:AllowPlainTextSecrets=true` says plain text is meant. Set it in any real deployment and back it
 up in a secret store, because losing it means the encrypted files cannot be read. Either way, both
 files are readable and writable by their owner only, and a signing key file that cannot be read
 stops the start rather than being replaced.
@@ -2447,7 +2463,7 @@ administrator account, and launches nothing.
 
 ### 81. An operating checklist
 - [ ] Both repositories cloned side by side and built, or the release archive unpacked; the console built in
-- [ ] `VOS_ADMIN_PASSWORD` and `VOS_MASTER_KEY` set; the first-start credentials file secured and deleted
+- [ ] `VOS_ADMIN_PASSWORD_FILE` and `VOS_MASTER_KEY_FILE` set, each naming a file only its owner can read; the first-start credentials file secured and deleted
 - [ ] The seeds directory holds the models to serve, and `templates/` the templates to create from
 - [ ] Every seed passed the validator before it was placed there
 - [ ] The service kind's executable-path template matches the deployed layout
