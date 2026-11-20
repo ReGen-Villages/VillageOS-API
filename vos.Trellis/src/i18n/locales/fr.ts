@@ -50,7 +50,6 @@ export const fr: PartialResources = {
     dark: 'sombre',
   },
   language: {
-    label: 'Langue',
     select: 'Sélectionner la langue',
   },
   log: {
@@ -124,8 +123,6 @@ export const fr: PartialResources = {
     notAvailable: 'Non disponible',
     switchModel: 'Changer de modèle',
     logout: 'Se déconnecter',
-    search: 'Rechercher',
-    clear: 'Effacer',
     query: "Interroger",
     copyAsMarkdown: "Copier en Markdown",
     downloadAsMarkdown: "Télécharger en Markdown",
@@ -134,7 +131,6 @@ export const fr: PartialResources = {
     showMore_one: "Afficher plus ({{count}} restant)",
     showMore_other: "Afficher plus ({{count}} restants)",
     showingFirst: "affichage des {{count}} premiers",
-    noProperties: "Aucune propriété",
   },
   dashboard: {
     engines: {
@@ -1164,7 +1160,6 @@ export const fr: PartialResources = {
       subject: "Sujet",
       predicate: "Prédicat",
       target: "Cible",
-      openDetail: "Ouvrir le détail de l'arête",
       rangesTab: "Plages",
       propertiesTab: "Propriétés ({{count}})",
       deleteRelationship: "Supprimer la relation",
@@ -1334,7 +1329,6 @@ export const fr: PartialResources = {
     bindInput: "Lier une entrée à un paramètre d'exécution :",
     wired: "câblé",
     fromParameter: "depuis param…",
-    wire: "Fil",
     mapField: "Mapper un champ (vide = charge utile entière) :",
     fromPath: "chemin-source",
     toPath: "chemin-cible",

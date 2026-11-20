@@ -71,7 +71,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     dark: 'الداكن',
   },
   language: {
-    label: 'اللغة',
     select: 'اختر اللغة',
   },
   log: {
@@ -149,8 +148,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     notAvailable: 'غير متاح',
     switchModel: 'تبديل النموذج',
     logout: 'تسجيل الخروج',
-    search: 'بحث',
-    clear: 'مسح',
     query: "استعلام",
     copyAsMarkdown: "نسخ كـ Markdown",
     downloadAsMarkdown: "تنزيل كـ Markdown",
@@ -163,7 +160,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     showMore_few: 'عرض المزيد (بقي {{count}})',
     showMore_many: 'عرض المزيد (بقي {{count}})',
     showingFirst: "عرض أول {{count}}",
-    noProperties: "لا توجد خصائص",
   },
   dashboard: {
     engines: {
@@ -1249,7 +1245,6 @@ export const ar: WithArabicPluralForms<Resources> = {
       subject: "الفاعل",
       predicate: "المسند",
       target: "الهدف",
-      openDetail: "فتح تفاصيل الحافة",
       rangesTab: "النطاقات",
       propertiesTab: "الخصائص ({{count}})",
       deleteRelationship: "حذف العلاقة",
@@ -1427,7 +1422,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     bindInput: "اربط مدخلًا بمعامل تشغيل:",
     wired: "موصول",
     fromParameter: "من معامل…",
-    wire: "توصيل",
     mapField: "عيّن حقلًا (فارغ = الحمولة كاملة):",
     fromPath: "المسار-المصدر",
     toPath: "المسار-الهدف",

@@ -42,7 +42,6 @@ export const en = {
     dark: 'dark',
   },
   language: {
-    label: 'Language',
     select: 'Select language',
   },
   log: {
@@ -116,8 +115,6 @@ export const en = {
     notAvailable: 'Not available',
     switchModel: 'Switch model',
     logout: 'Log out',
-    search: 'Search',
-    clear: 'Clear',
     query: "Query",
     copyAsMarkdown: "Copy as Markdown",
     downloadAsMarkdown: "Download as Markdown",
@@ -126,7 +123,6 @@ export const en = {
     showMore_one: "Show more ({{count}} remaining)",
     showMore_other: "Show more ({{count}} remaining)",
     showingFirst: "showing first {{count}}",
-    noProperties: "No properties",
   },
   dashboard: {
     engines: {
@@ -1162,7 +1158,6 @@ export const en = {
       subject: "Subject",
       predicate: "Predicate",
       target: "Target",
-      openDetail: "Open edge detail",
       rangesTab: "Ranges",
       propertiesTab: "Properties ({{count}})",
       deleteRelationship: "Delete Relationship",
@@ -1333,7 +1328,6 @@ export const en = {
     bindInput: "Bind an input to a run parameter:",
     wired: "wired",
     fromParameter: "from param…",
-    wire: "Wire",
     mapField: "Map a field (blank = whole payload):",
     fromPath: "from-path",
     toPath: "to-path",

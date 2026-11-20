@@ -50,7 +50,6 @@ export const es: PartialResources = {
     dark: 'oscuro',
   },
   language: {
-    label: 'Idioma',
     select: 'Seleccionar idioma',
   },
   log: {
@@ -124,8 +123,6 @@ export const es: PartialResources = {
     notAvailable: 'No disponible',
     switchModel: 'Cambiar de modelo',
     logout: 'Cerrar sesión',
-    search: 'Buscar',
-    clear: 'Limpiar',
     query: "Consultar",
     copyAsMarkdown: "Copiar como Markdown",
     downloadAsMarkdown: "Descargar como Markdown",
@@ -134,7 +131,6 @@ export const es: PartialResources = {
     showMore_one: "Mostrar más (queda {{count}})",
     showMore_other: "Mostrar más (quedan {{count}})",
     showingFirst: "mostrando los primeros {{count}}",
-    noProperties: "Sin propiedades",
   },
   dashboard: {
     engines: {
@@ -1164,7 +1160,6 @@ export const es: PartialResources = {
       subject: "Sujeto",
       predicate: "Predicado",
       target: "Destino",
-      openDetail: "Abrir detalle de arista",
       rangesTab: "Rangos",
       propertiesTab: "Propiedades ({{count}})",
       deleteRelationship: "Eliminar relación",
@@ -1334,7 +1329,6 @@ export const es: PartialResources = {
     bindInput: "Vincula una entrada a un parámetro de ejecución:",
     wired: "conectado",
     fromParameter: "de param…",
-    wire: "Cable",
     mapField: "Asigna un campo (vacío = toda la carga):",
     fromPath: "ruta-origen",
     toPath: "ruta-destino",
