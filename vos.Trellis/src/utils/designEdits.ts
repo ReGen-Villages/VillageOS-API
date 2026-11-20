@@ -1,13 +1,8 @@
 import type { DashboardSection, DashboardSpecification, Placement, Widget } from '@tendril-ui/tendril';
 import { dropAt, replaceAt } from './listEdits';
 
-/**
- * Every edit the Design page makes, as a function over the specification.
- *
- * The canvas and the panels call these and nothing else, so each decision — where a moved widget
- * lands, what an empty field does to its key, where a new section goes — can be tried without a
- * canvas. Nothing here writes to the model; keeping the page is the writes' job.
- */
+/** The canvas and panels make every edit through these, so each decision can be tried without a canvas.
+ *  Nothing here writes to the model. */
 
 export type DesignSelection =
   | { on: 'page' }

@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { assetTicketOf } from './assetTicket';
 
-// A ticket is the exact shape Tributary writes when an endpoint keeps what it fetched:
-// "sha256:" and the 64 hex digits of the content. Only the whole string counts — a sentence
-// that mentions a ticket is prose, not a reference the store can resolve.
 describe('assetTicketOf', () => {
   const ticket = 'sha256:' + 'ab'.repeat(32);
 
