@@ -1,8 +1,3 @@
-/**
- * The pieces every hand-drawn chart shares beside its marks: the window label a history chart carries,
- * the tooltip a hovered or focused mark opens, and the table twin that makes every value reachable
- * without either.
- */
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NumberFormat } from '@tendril-ui/tendril';

@@ -9,13 +9,8 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
   return formatNumberIn(value, fmt, i18n.language);
 }
 
-/** Tailwind classes colouring a status/state pill by its wording. Shared by the table
- *  `badge` cell and the detail window's derived-state pills so tones stay consistent.
- *
- *  The vocabulary is deliberately domain-neutral status wording only: a model's own terms
- *  must not be listed here, since Trellis renders any model. A term it cannot read
- *  generically falls through to the neutral tone until the model supplies its own
- *  mapping. */
+/** Shared by the table's badge cell and the detail window's state pills, so the tones agree. Only neutral status
+ *  words are listed, because Trellis draws any model; a model's own term takes the neutral tone. */
 export function badgeTone(value: string): string {
   const v = value.toLowerCase();
   if (/crit|overdue|fail|error|out|held|block|below/.test(v))
@@ -63,10 +58,8 @@ export function deltaTone(
   return good ? 'up' : 'down';
 }
 
-/** The largest value in each `agebar` column, which that column's bars are drawn as a fraction of.
- *  A loop rather than `Math.max(...values)`: a roster no longer needs a row cap to keep a page
- *  responsive, so the list reaching here has no bound, and spreading a long one over a call
- *  overflows the stack somewhere past a hundred thousand rows. */
+/** A loop rather than `Math.max(...values)`, because a roster has no row cap, and spreading a very long one over
+ *  a call overflows the stack. */
 export function columnMaxima(rows: Row[], columns: TableColumn[]): Record<string, number> {
   const maxima: Record<string, number> = {};
   for (const column of columns) {

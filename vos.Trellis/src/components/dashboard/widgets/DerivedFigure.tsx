@@ -5,13 +5,8 @@ import type { ResolveContext } from '@tendril-ui/tendril';
 import { hasBreakdown } from '../../../api/figureBreakdown';
 import { FigurePanel } from './FigurePanel';
 
-/**
- * A figure carrying the dashboard's one structural mark: a dotted rule saying the model derived it
- * rather than somebody typing it in, and opening to what it is made of.
- *
- * A figure with nothing behind it is drawn plainly and does not open, which is what keeps the mark
- * information rather than decoration.
- */
+/** The dotted rule says the model derived the figure rather than someone typing it, and opens what it is made
+ *  of. A figure with nothing behind it is drawn plainly, so the rule always means something. */
 export function DerivedFigure({
   binding,
   context,
