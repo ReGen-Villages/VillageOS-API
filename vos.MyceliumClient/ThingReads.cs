@@ -60,7 +60,7 @@ public static class ThingReads
     private static InheritedSource SourceOf(JsonElement source) => new(
         source.GetProperty("SourceId").GetGuid(),
         source.GetStringOrDefault("SourceName", ""),
-        source.TryGetProperty("Inherited", out var nested) ? nested.EnumerateArray().Select(SourceOf).ToList() : []);
+        source.GetProperty("Inherited").EnumerateArray().Select(SourceOf).ToList());
 
     private static void NameEach(IEnumerable<InheritedSource> sources, Dictionary<Guid, string> names)
     {
