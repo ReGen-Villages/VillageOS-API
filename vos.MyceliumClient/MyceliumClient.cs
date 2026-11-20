@@ -362,7 +362,7 @@ public partial class MyceliumClient
         {
             var refusal = await response.Content.ReadFromJsonAsync<JsonElement>();
             return PropertyAtPath.MatchingMoreThanOne(
-                [.. refusal.GetProperty("matchingPaths").EnumerateArray().Select(path => path.GetString() ?? "")]);
+                [.. refusal.GetProperty("matchingPaths").EnumerateArray().Select(path => path.GetString()!)]);
         }
 
         await EnsureSuccessCarryingTheReasonAsync(response);
