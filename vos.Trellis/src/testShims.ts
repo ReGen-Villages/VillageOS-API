@@ -1,4 +1,4 @@
-// jsdom has no ResizeObserver; one that never reports keeps components on their default width.
+// jsdom has no ResizeObserver, and drawing fails without one; one that never reports keeps components on their default width.
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe() {}

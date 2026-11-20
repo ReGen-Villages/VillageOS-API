@@ -4,8 +4,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Value exports only, because a type is often exported to be named in a signature rather than imported.
- *  A file's own test counts as an importer, or every new component would be reported as it is written. */
+/** An export nothing imports makes a reader search the whole source to learn that nobody needs it.
+ *  Value exports only, because a type is often exported to be named in a signature rather than imported.
+ *  A file's own test counts as an importer, or every new component would be reported as it is written.
+ *  A finding is silenced only in ALLOWED, with a reason. */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 

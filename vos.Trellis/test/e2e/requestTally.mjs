@@ -1,5 +1,6 @@
 // Each request to the platform is counted as "METHOD /route/with/{id}?parameterNames", so reads of many
-// Things count as one route read many times; the page's own files are summed as one number.
+// Things count as one route read many times, and a count-only read is told from a full one by its
+// parameter. The page's own files are summed as one number, because they are not the platform's traffic.
 
 const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

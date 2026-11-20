@@ -1,5 +1,6 @@
 // Fails a build whose stylesheet lacks a class Tendril's widgets use: Tailwind writes rules only for the
 // files it scans, Tendril's sit outside this folder, and a dropped class is reported nowhere else.
+// It exists only in built output, so it is checked after the build.
 //
 //   node ci/every-tendril-class-reaches-the-stylesheet.mjs <built directory> [more directories]
 

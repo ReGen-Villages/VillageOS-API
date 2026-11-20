@@ -13,7 +13,8 @@ export function parse(argv) {
 }
 
 // A named stream event never reaches `onmessage`, so each listener is wrapped where it is added. It uses
-// nothing from outside itself, because the browser runs its source text before the page's own scripts.
+// nothing from outside itself, because the browser runs its source text before the page's own scripts,
+// which open the streams on sign-in.
 export function countStreamEvents() {
   window.__streamEvents = {};
   const register = EventSource.prototype.addEventListener;

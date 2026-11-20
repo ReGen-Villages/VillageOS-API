@@ -4,8 +4,11 @@ import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type Vos
 import type { SubscriptionSelector } from '../../src/types/subscription';
 import { BASE_URL, login } from './signIn';
 
-// Only a running platform can say whether it reads the selector the client writes. Needs a broker serving a
-// model that publishes a dashboard; VOS_INTEGRATION_MODEL names that model where there are several.
+// Only a running platform can say whether it reads the selector the client writes. Each dashboard must be
+// sent fewer Things than the model holds, because a subscription that covers everything narrows nothing.
+//
+// Needs a broker serving a model that publishes a dashboard; VOS_INTEGRATION_MODEL names that model where
+// there are several (see signIn.ts). Run with `npm run test:integration`.
 
 interface OpenedSubscription {
   subscriptionId: string;

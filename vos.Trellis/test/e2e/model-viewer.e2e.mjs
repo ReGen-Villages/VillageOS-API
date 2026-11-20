@@ -1,6 +1,6 @@
 // Draws the Fragments model in a real browser and samples its pixels, because jsdom has no WebGL and the
 // unit tests stub the viewer. Needs the broker on https://localhost:7243 with a model holding an ingested
-// .frag file, and the development server on http://localhost:5173.
+// .frag file, and the development server on http://localhost:5173 (npm run dev).
 //
 //   npm run test:e2e
 //
@@ -26,8 +26,9 @@ const CANVAS_SELECTOR = '[data-testid=fragments-canvas] canvas';
 // The seed a run loads when the session has no model yet.
 const SEED_NAME = process.env.VOS_E2E_SEED || 'MarthasVineyard';
 
-/** Read from a screenshot, because three.js clears its drawing buffer between frames. A screenshot of the
- *  element includes the Filter by Type panel, which `skipLeftFraction` keeps the samples off. */
+/** Read from a screenshot, because three.js clears its drawing buffer between frames. A sample is geometry
+ *  when any channel is clearly brighter than the #0f0f10 background. A screenshot of the element includes
+ *  the Filter by Type panel, which `skipLeftFraction` keeps the samples off. */
 async function samplePixelsViaScreenshot(page, sel, samples = 8, skipLeftFraction = 0) {
   const elem = await page.$(sel);
   if (!elem) return { error: 'canvas not found' };
@@ -221,7 +222,7 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
         { sel: canvasSel, x: hitPoint.cssX, y: hitPoint.cssY },
       );
 
-      // The pick, its lookup and a read of the Thing all come before the panel.
+      // The panel sits outside the canvas, and the pick, its lookup and a read of the Thing all come before it.
       await page.waitForSelector('[data-testid=fragments-metadata-panel]', { timeout: 3000 });
       console.log('ok — pick resolved to a VosThing; metadata panel mounted');
     } else {

@@ -1,5 +1,6 @@
-// Fails a build whose worker asks for a file the build did not produce: that worker fails to load with no
-// error, and every map draws only its background colour. Only built output shows it, so no unit test can.
+// Fails a build whose worker asks for a file the build did not produce. A worker named by its address alone
+// is copied without its imports, then fails to load with no error, and every map draws only its background
+// colour. Only built output shows it, because the development server finds the import in the installed package.
 //
 //   node ci/every-worker-carries-its-imports.mjs <built directory> [more directories]
 

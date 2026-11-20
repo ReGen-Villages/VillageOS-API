@@ -3,7 +3,10 @@ import { VOS_TYPES } from '../../src/utils/constants';
 import { BASE_URL, login } from './signIn';
 
 // The client's compiled list of property type names cannot notice the platform's list changing, so this
-// compares the two on a running broker; any model will do.
+// compares the two on a running broker, and a type added on one side only fails a build.
+//
+// Any model will do, because the route describes the build, not a model. Run with
+// `npm run test:integration` (sign-in settings in signIn.ts).
 
 // Widened from the literal tuple so both comparisons below read the same way round.
 const clientNames: readonly string[] = VOS_TYPES;

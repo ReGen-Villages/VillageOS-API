@@ -4,8 +4,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Each refused short form names the word to write instead, and each name kept short says why, so nothing
- *  is refused or allowed without a reason. */
+/** Without a test, clipped names spread by being copied. Each refused short form names the word to write
+ *  instead, and each name kept short says why, so nothing is refused or allowed without a reason. */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
@@ -130,8 +130,8 @@ const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 /** Own keys only: `constructor` is in every object's prototype and is not a clipped word. */
 const isClipped = (word: string): boolean => Object.hasOwn(SPELLED_OUT, word.toLowerCase());
 
-/** Read one character at a time, because to a pattern an apostrophe in a comment opens a string that hides
- *  the code after it. */
+/** Comments and strings are blanked because neither is an identifier. Read one character at a time, because
+ *  to a pattern an apostrophe in a comment opens a string that hides the code after it. */
 function codeOnly(text: string): string {
   const kept: string[] = [];
   let at = 0;

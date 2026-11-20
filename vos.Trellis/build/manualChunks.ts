@@ -28,6 +28,7 @@ export function pickChunk(id: string): string | undefined {
   }
 
   // A model can name any icon, so the whole set ships, and inside `vendor` it would pass the size warning.
+  // The first page loads it either way, so this chunk names those bytes rather than delaying them.
   if (id.includes('node_modules/lucide-react/dist/esm/icons/')) {
     return 'vendor-icons';
   }
