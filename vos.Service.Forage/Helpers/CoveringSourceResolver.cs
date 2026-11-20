@@ -174,7 +174,7 @@ public static class CoveringSourceResolver
         BoundTypes = RoleBindings.Identifiers(PlaceArchetypeRole),
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
-        // members, every coverage in the model arrived on every site's read; the ones about
+        // members, every coverage in the model would arrive on every site's read; the ones about
         // this site come through the `appliesTo` traversal below. The two division lookups are asked for
         // the same way and for the same reason: no relationship reaches either, because neither covers a Place.
         // The predicate a source provides its variables through is asked for here because the traversal

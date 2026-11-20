@@ -32,7 +32,7 @@ public class CoveringSourceResolverTests
         new Dictionary<string, InheritedPropertySet>(),
         Array.Empty<string>());
 
-    // One place to build a model, so a test reads as the shape it is asserting rather than as plumbing.
+    // One place to build a model, so a test reads as the shape it is asserting rather than as setup.
     private sealed class ModelBuilder
     {
         private readonly Dictionary<string, Guid> _ids = new(StringComparer.Ordinal);
@@ -687,8 +687,8 @@ public class CoveringSourceResolverTests
     }
 
     // A run mints against the coverage archetype, so it has to arrive before any coverage exists to
-    // traverse from — but alone. Asked for with its members, every coverage in the model arrived on every
-    // site's read, one Thing per site and source already recorded anywhere; the coverages
+    // traverse from — but alone. Asked for with its members, every coverage in the model would arrive on
+    // every site's read, one Thing per site and source already recorded anywhere; the coverages
     // about this site already come through the `appliesTo` traversal from the site and its assessments.
     [Fact]
     public void SelectorFor_AsksForTheCoverageArchetypeAlone()
@@ -762,7 +762,7 @@ public class CoveringSourceResolverTests
         // The variables are composed from the relationships a source holds through the bound predicate, read out
         // of the snapshot, so both have to arrive: the variables by a traversal over the role rather than
         // a name the model chose, and the predicate through its role, since a traversal never brings the Thing
-        // it was followed through. Without either every live read left the placeholder unfilled.
+        // it was followed through. Without either, every live read would leave the placeholder unfilled.
         var role = CoveringSourceResolver.ProvidedVariableRole;
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
         var roles = selector.Traverse!.Select(rule => rule.PredicateRole).ToList();
