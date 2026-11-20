@@ -72,11 +72,11 @@ The handler validates, then commits, in this order:
 - `name` non-empty and `properties` present (else `400`).
 - At most one `is` relationship for the subject (else `400`).
 - `url` must be a non-empty, **absolute** URI (else `400`). This is checked before the model is read.
+- The model must hold exactly one `is` predicate (else `500`, as is a model whose templates cannot be read).
 - The model must bind exactly one Thing to the `endpoint` role (`409` where it binds none or several).
 - The named template (or the root, if no `is`) must be a type beneath the bound root (else `400`;
   another registration named as a template is not one), and its name must be one no other template
   beneath the root carries (else `409`).
-- The model must hold exactly one `is` predicate (else `500`).
 - Property keys must be a subset of the template chain's **allowed keys**, looked up through
   `EffectivePropertyResolver` as Tributary looks them up (else `400` listing the unsupported keys).
 - **Effective** `httpMethod` — the request value, else the closest-ancestor template value — must be
@@ -132,7 +132,7 @@ template added to a live model is used by the next registration.
 | `POST /shutdown` | Graceful stop after a short delay. |
 
 When a `VerificationKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid
-Mycelium JWT addressed to Delta; `/health` stays open. Delta exposes no `/stats` endpoint.
+Mycelium-signed token (a JWT) addressed to Delta; `/health` stays open. Delta exposes no `/stats` endpoint.
 
 ## CLI & configuration
 

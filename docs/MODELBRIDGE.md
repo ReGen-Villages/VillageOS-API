@@ -6,7 +6,7 @@ across the boundary between the graph and the model: in one direction it **reads
 property into the pipeline, in the other it **writes** a pipeline value back onto a Thing.
 
 It is deliberately generic — there is no per-domain code. The Thing and property it touches
-are supplied as node params at seed-build time, so the same binary serves any read/write the
+are supplied as node params when the seed is built, so the same program serves any read or write the
 pipeline needs. `SERVICES.md` §1 and §16 introduce ModelBridge as one of the .NET
 services and a pipeline node; this page is the canonical reference for how it behaves.
 
@@ -46,7 +46,7 @@ Every invocation is configured by three params carried in the node envelope's `p
 | Param | Required | Meaning |
 |---|---|---|
 | `mode` | yes | `"read"` or `"write"` — chooses the direction. Any other value fails the node. |
-| `thingId` | yes | GUID of the Thing to read from / write to. Baked in at seed-build time (deterministic under `--name`), so no runtime lookup is needed. |
+| `thingId` | yes | GUID of the Thing to read from / write to. Written into the node's params when the seed is built (the same under `--name`), so nothing is looked up at run time. |
 | `property` | yes | Name of the property to read or write. |
 
 A missing or malformed param fails the node cleanly (the throw becomes
@@ -62,8 +62,8 @@ follows the node's fail wires.
 4. Emit it on the `value` **output**.
 
 Because it reads **effective** properties, the value may be an inherited property or a
-**derived property** — a value computed live from a reduction over related Things (e.g. total PV area
-summed across everything that `is SolarArray`). ModelBridge needs no special handling for that;
+**derived property** — a value computed live from a reduction over related Things (such as the total
+panel area summed across everything that `is SolarArray`). ModelBridge needs no special handling for that;
 it resolves as an ordinary effective property.
 
 A reduction can resolve to **null**. When a related Thing cannot contribute a number — its property is
@@ -85,14 +85,14 @@ right kind for a computed result being committed to the model (see
 [`SERVICES.md`](SERVICES.md) §15 for Facts vs Observations vs Sediment). The
 target property's `AllowedWriteKinds` gating still applies: a property that only accepts
 Observations returns 405, and an unknown thing/property returns 404 — both surface as an
-`HttpRequestException` carrying the status code.
+`HttpRequestException` whose message names the status code.
 
 ## Worked example — read a reduction, compute, write back
 
 Three nodes wired in series. The read and write nodes are both ModelBridge; only their params
 differ.
 
-**Read node** — pull the site's total PV area into the pipeline:
+**Read node** — pull the site's total panel area into the pipeline:
 
 ```jsonc
 // node params
@@ -100,7 +100,7 @@ differ.
 // → outputs { "value": 13842.0 }
 ```
 
-**Compute node** — any node that consumes `value` and produces a `value` (e.g. a generation
+**Compute node** — any node that consumes `value` and produces a `value` (such as a generation
 estimate).
 
 **Write node** — persist the computed figure back onto the site as a Fact:
