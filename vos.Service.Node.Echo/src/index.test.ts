@@ -385,7 +385,7 @@ test("unsubscribe issues a DELETE", async () => {
 import { shutdown } from "./index.js";
 import { createServer } from "node:http";
 
-// The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+// The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 test("shutdown does not ask the broker to withdraw", async () => {
   const s = stubFetch(() => ({ status: 200 }));
   const server = createServer();

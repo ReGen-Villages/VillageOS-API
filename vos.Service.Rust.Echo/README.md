@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Rust example
 
-A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (`jsonwebtoken`), and graceful shutdown.
+A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JSON Web Tokens (JWTs, the signed tokens Mycelium issues, with `jsonwebtoken`), and graceful shutdown.
 
 It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `src/main.rs` with your own logic.
 
@@ -46,6 +46,8 @@ All come from the environment and are never flags. A command line is readable by
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/handle` | JWT* | Process a relationship payload from Mycelium |
+| POST | `/demo/write-kinds` | JWT* | Demo: write one of each write kind back to Mycelium |
+| POST | `/demo/subscribe` | JWT* | Demo: subscribe for a slice, report its snapshot, and unsubscribe |
 | GET | `/health` | — | Liveness probe |
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
@@ -55,14 +57,14 @@ All come from the environment and are never flags. A command line is readable by
 ## How it maps to the contract
 
 - **Registration** — `register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token, spawned once the listener is bound.
-- **JWT validation** — `verify_jwt()` uses `jsonwebtoken` with `Validation::new(Algorithm::ES256)` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — `POST /shutdown` stops the service once it has answered, and so does Ctrl-C; Axum's graceful-shutdown hook makes no call to the broker. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration whose service stops answering.
+- **JWT validation** — `verify_jwt()` uses `jsonwebtoken` with `Validation::new(Algorithm::ES256)` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry, allowing 30 seconds of clock difference (matching `ServiceTokenValidator`).
+- **Shutdown** — `POST /shutdown` stops the service once it has answered, and so does Ctrl-C; Axum's graceful-shutdown hook makes no call to the broker. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 ## Verify
 
 ```bash
 cargo build
-cargo test     # unit tests for parse_args + verify_jwt
+cargo test     # the service's tests
 ```
 
 ## Writing data back (Facts / Observations / Sediment)

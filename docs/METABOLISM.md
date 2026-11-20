@@ -2,24 +2,24 @@
 
 ## What It Does
 
-The Metabolism service is a persistent daemon that simulates continuous resource flows in a VillageOS graph. It serves two predicates — `consumes` and `produces` — from a single binary, differentiated by a `--mode` CLI argument.
+The Metabolism service is a persistent daemon that simulates continuous resource flows in a VillageOS graph. It serves two predicates — `consumes` and `produces` — from a single program, told apart by a `--mode` command-line argument.
 
 When a relationship like `Cottage-01 --[consumes]--> VillageElectricityPool` is created, Mycelium notifies the Metabolism service. The handler then runs a continuous loop: every N seconds, it decrements (or increments, for `produces`) a numeric property on the target thing. This turns VillageOS's static graph into a live simulation where resource quantities change over time.
 
-**In concrete terms**: if a village has 5 homes that each `consumes` electricity from a shared pool, the Metabolism service runs 5 independent loops, each decrementing the pool's `quantity` property at its own rate. The pool's value drops in real-time, and any ranges defined on it (e.g., "Low Power Alert" when `quantity < 50`) evaluate automatically.
+**In concrete terms**: if a village has 5 homes that each `consumes` electricity from a shared pool, the Metabolism service runs 5 independent loops, each decrementing the pool's `quantity` property at its own rate. The pool's value drops in real-time, and any ranges defined on it (such as "Low Power Alert" when `quantity < 50`) evaluate automatically.
 
 ## Why This Architecture
 
-### One binary, two predicates
+### One program, two predicates
 
-`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` binary accepts `--mode=consumes` or `--mode=produces`. The `ServiceArgs` property on the Service each predicate `has` tells Mycelium which mode to pass:
+`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` program accepts `--mode=consumes` or `--mode=produces`. The `ServiceArgs` property on the Service each predicate's connection `has` tells Mycelium which mode to pass:
 
 ```json
 { "ServiceArgs": "--mode=consumes" }
 ```
 
-> `ServiceArgs` is plain CLI text passed verbatim to the daemon at launch. A handler that
-> needs startup context subscribes for it over SSE — see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md);
+> `ServiceArgs` is plain command-line text passed as written to the daemon at launch. A handler that
+> needs startup context subscribes for it — see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md);
 > no identifiers are passed to it at launch.
 
 This means there are two running processes (on ports 7102 and 7103), but built from the same source.
@@ -28,9 +28,9 @@ This means there are two running processes (on ports 7102 and 7103), but built f
 
 The handler doesn't do one thing and exit. It stays alive, running simulation loops for every relationship registered with it. This avoids process startup overhead (dotnet cold start is expensive) and lets it maintain in-memory state about all active simulations.
 
-### SSE for live updates
+### Live updates over the change stream
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding the relationship's subject with an outgoing relationship rule when a simulation registers, because the broker resolves `ids` against Things only, and removing the relationship when it cancels, with the subject too when no running simulation shares it — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
+When someone changes a relationship property in the console (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it as it happens over a subscription's change stream, sent as server-sent events (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new settings. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding the relationship's subject with an outgoing relationship rule when a simulation registers, because the broker resolves `ids` against Things only, and removing the relationship when it cancels, with the subject too when no running simulation shares it — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
 
 ### Staggered ticks
 
@@ -42,9 +42,9 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 
 ```text
 1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token or ApiKey, and VerificationKey, from configuration)
-2. Use the service JWT from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
+2. Use the service JSON Web Token (JWT) from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Service.Auth)
-4. Open an SSE subscription to Mycelium for relationship property-change events
+4. Open a subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
 ```
 
@@ -96,7 +96,7 @@ stateDiagram-v2
     end note
 ```
 
-**delayed**: If `startDelaySeconds > 0`, the loop sleeps for that duration first. Used to stagger different stages of a process (e.g., a greenhouse's water draw starts 10 seconds after its pump comes on).
+**delayed**: If `startDelaySeconds > 0`, the loop sleeps for that duration first. Used to stagger different stages of a process (such as a greenhouse's water draw starts 10 seconds after its pump comes on).
 
 **waiting**: If `startUtc` is in the future, the loop sleeps until that time.
 
@@ -110,11 +110,11 @@ stateDiagram-v2
 
 **cancelled**: A simulation that is stopped, cancelled or registered again reads `cancelled`, wherever in its run the stop arrived.
 
-If a relationship is registered again (e.g., on seed reload), the previous simulation is cancelled and replaced.
+If a relationship is registered again (such as on seed reload), the previous simulation is cancelled and replaced.
 
 ### Live hot-reload
 
-The handler receives `RelationshipPropertyChanged` events over its Mycelium SSE subscription. When a tracked property changes:
+The handler receives `RelationshipPropertyChanged` events over its Mycelium subscription. When a tracked property changes:
 
 | Property | Effect |
 |----------|--------|
@@ -124,7 +124,7 @@ The handler receives `RelationshipPropertyChanged` events over its Mycelium SSE 
 | `propertyPath` | Changes which property on the target is modified |
 | `startDelaySeconds` | Changes the initial delay (restarts the loop) |
 
-The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions when multiple properties change in rapid succession (e.g., a user updates both `quantity` and `frequencySeconds` in the GUI). Each change cancels the current loop and starts a fresh one with the updated config.
+The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions when multiple properties change in rapid succession (such as a user updating both `quantity` and `frequencySeconds` in the console). Each change cancels the current loop and starts a fresh one with the updated settings.
 
 ## Code Structure
 
@@ -139,7 +139,7 @@ vos.Service.Metabolism/
 │   └── SimulationConfig.cs             # Simulation loop parameters
 ├── Services/
 │   ├── MyceliumClient.cs                 # HTTP write calls to Mycelium (quantity/increment)
-│   ├── MetabolismSubscriptionService.cs  # SSE subscription: streams changes + manages membership
+│   ├── MetabolismSubscriptionService.cs  # the subscription: streams changes and keeps what it follows
 │   ├── Metabolism.cs                   # Simulation loop engine
 │   └── HandleRequestProcessor.cs       # Request validation + config extraction
 ├── Helpers/
@@ -154,7 +154,7 @@ vos.Service.Metabolism/
 
 **`MyceliumClient`** — HTTP communication with Mycelium: the service token from the `Token` startup setting, or the one exchanged for an `ApiKey`, and the quantity increment and decrement calls.
 
-**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations: on Register it adds the relationship's subject with an outgoing relationship rule; on Cancel it removes the relationship, and the subject when no running simulation shares it.
+**`MetabolismSubscriptionService`** — Hosted service owning the subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations: on Register it adds the relationship's subject with an outgoing relationship rule; on Cancel it removes the relationship, and the subject when no running simulation shares it.
 
 **`HandleRequestProcessor`** — Pure extraction logic. Takes a `HandleRequest`, extracts a `SimulationConfig` with sensible defaults, and registers it with Metabolism. The `ExtractConfig` method is `internal static` and side-effect-free, making it testable.
 
@@ -191,12 +191,17 @@ These are set on the relationship (not the things) and control the simulation:
 
 ### 1. Define the connections and their services in your seed
 
-Each predicate is a connection that `has` a Service; one shared prototype carries the binary and each
-service holds only what differs between the two:
+Each predicate names a connection, and the connection `has` a Service. The platform calls a connection
+for a relationship only when the relationship's predicate names that connection along the predicate the
+`notifiedConnection` role binds (`notifies` in the shared site template); a predicate that names no
+connection calls nothing, even when it is a connection itself. One shared prototype carries the program
+and each service holds only what differs between the two:
 
 ```json
 { "Name": "consumes", "Properties": { } }
 { "Name": "produces", "Properties": { } }
+{ "Name": "consumes connection", "Properties": { } }
+{ "Name": "produces connection", "Properties": { } }
 
 {
   "Name": "Metabolism prototype",
@@ -217,9 +222,10 @@ service holds only what differs between the two:
     "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
 ```
 
-Relationships wire them: `consumes is PlatformServiceConnection`, `consumes triggeredBy graph`,
-`consumes has "consumes service"`, `"consumes service" is "Metabolism prototype"`,
-`"Metabolism prototype" is Service` — and the same for `produces`. The `Service` archetype carries the
+Relationships wire them: `consumes notifies "consumes connection"`, `"consumes connection" is
+PlatformServiceConnection`, `"consumes connection" triggeredBy graph`, `"consumes connection" has
+"consumes service"`, `"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service`
+— and the same for `produces`. The `Service` archetype carries the
 `ExecutablePathTemplate` that turns `ServiceAssembly` into a path, and relates to the `daemon` run
 mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the roles the platform finds the two archetypes through, are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md#platformserviceconnection--service-configuration).
@@ -274,7 +280,7 @@ curl http://localhost:7102/simulations
 
 ### 5. Monitor and adjust live
 
-Change a relationship property in the GUI or via API — the handler picks it up over its SSE subscription and adjusts immediately. No restart needed.
+Change a relationship property in the console or through the API — the handler picks it up over its subscription and adjusts immediately. No restart needed.
 
 ## Shutdown
 
@@ -282,7 +288,7 @@ On `ApplicationStopping`:
 
 1. All simulation loops are cancelled via their `CancellationTokenSource`
 2. `Task.WhenAll` waits for all loops to finish
-3. The SSE subscription is cancelled and unsubscribed
+3. The subscription is cancelled and unsubscribed
 
 The handler has no registration to withdraw. Mycelium tracks it under the
 connection that binds it, and shows it as stopped while its process is not

@@ -4,7 +4,7 @@
 
 Builds the two seeds under [`Tests/vos.Tests.Shared/Fixtures`](../../Tests/vos.Tests.Shared/Fixtures): a small
 model of sites, catchments, reservoirs and springs that the tests of the MCP server and of the pages
-library read. Stock Python 3.10+, no third-party dependencies.
+library read. Plain Python 3.10 or later, with no packages to install.
 
 ## Use it
 

@@ -28,13 +28,13 @@ Questions and answers are the JSON Mycelium's routes take and give. The library 
 - A page is read from only the Things its description implies, chosen by Tendril's selector, the rule the console uses for the page's subscription. The roles the console's detail card reads are not asked for.
 - Nothing is kept between calls. The Things are indexed for one call and let go at its end.
 - One engine serves every call. It lets one caller in at a time; a read that is waiting on `IPageReads` lets the others run.
-- The engine's memory is capped by `PageReaderOptions.EngineMemoryCeilingMebibytes`.
+- The engine's memory is capped by the constant `EngineMemoryCeilingMebibytes` in `PageReader`.
 - Where a page description asks a question that cannot be asked, the reader resolves that binding to nothing and says why. In a browser that goes to the console; here it goes to `PageReaderOptions.Warned`.
 
 ## Language
 
 - Every call takes a language. Names a page lists are ordered as that language orders them, and never by the machine's own language.
-- Results are data. Wording a figure as the console words it is the next step, from the same reader entry.
+- Results are data.
 
 ## The engine
 

@@ -15,8 +15,9 @@ copy of its own.**
     its own questions and post to its own route, and decided rows can sit behind a switch.
   - the **form**: records something no row on the page lists yet.
   - the **fields** either widget asks a person to fill before a press.
-- **Builds what a press posts**: the body, and the route the widget's `via` names. `pressOf` composes
-  the writes a press makes and sends nothing; `sendPress` sends them and stops at a refusal.
+- **Builds what a press posts**: the body, and the route the widget's `via` names. `offeredChoices`
+  lists the choices a row is offered, `pressOf` composes the writes a press makes and sends nothing,
+  and `sendPress` sends them and stops at a refusal.
 - **Words a figure**: a number in the format and the language asked for, a verdict's sentence, the
   line saying where a value came from, and what a figure was worked out from. The console's KPI
   card, verdict list and working list take their text from these, and `readWidget` reads a whole
@@ -40,7 +41,7 @@ fails if React becomes reachable, and `npm run typecheck` checks the entry with 
 runs this entry inside a C# process from one built file, `vos.Pages/reader.bundle.js`, which is
 committed. The files the entry reaches are the ones `src/reader.ts` lists and what they import: the
 `api`, `i18n`, `types`, `utils` and `wording` folders and `widgets/writeRequest.ts`. After changing
-one, from the repository root:
+one, from the repository root, with `npm ci` run once in `vos.Tendril` first:
 
 ```sh
 node vos.Pages/bundle/build.mjs
@@ -81,12 +82,11 @@ hook or a test does not reach the entry and needs no rebuild.
 
 ## Why it exists
 
-Another application draws a model's pages besides the console, and it kept its own copy of the
-binding reader and the writing widgets. The copies drift apart: every kind of binding added to the
-console has to be copied by hand, or the other application cannot draw a page that uses it, and a
-fix made in one copy never reaches the other. Installed by version from one place, a binding kind
-or a widget feature is built once, and each application takes it when it moves to the version that
-carries it. The console uses Tendril itself, so what it draws is what every other application draws.
+Another application draws a model's pages besides the console. With a copy of its own of the binding
+reader and the writing widgets, every kind of binding added to the console would have to be copied
+by hand, or the other application could not draw a page that uses it, and a fix made in one copy
+would never reach the other. Installed by version from one place, a binding kind or a widget feature
+is built once, and each application takes it when it moves to the version that carries it. The console uses Tendril itself, so what it draws is what every other application draws.
 
 Tendril holds platform vocabulary only. Every noun a reader sees comes from the page description.
 

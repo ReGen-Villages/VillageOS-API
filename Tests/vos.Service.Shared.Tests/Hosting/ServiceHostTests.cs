@@ -268,9 +268,8 @@ public class ServiceHostTests
         ServiceHost.LogDirectory.Should().BeNull("there is no file for the broker to find");
     }
 
-    // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
-    // every shutdown. The broker's liveness monitor removes a registration whose service stops
-    // answering, so shutdown must not ask at all.
+    // Shutdown does not ask: the broker's liveness monitor removes a registration after repeated failed
+    // health checks, unless the broker supervises the service.
     [Fact]
     public async Task AddMyceliumRegistration_DoesNotAskTheBrokerToWithdrawOnShutdown()
     {
