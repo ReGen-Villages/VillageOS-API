@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -129,12 +128,5 @@ public class LogsCommandHandlerTests
         await Execute("tail");
 
         _writer.ToString().Should().Contain("Error:").And.Contain("offline");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> EndlessAfter([EnumeratorCancellation] CancellationToken token, params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-            yield return one;
-        await Task.Delay(Timeout.Infinite, token);
     }
 }

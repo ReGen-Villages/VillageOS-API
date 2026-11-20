@@ -1,5 +1,4 @@
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -222,12 +221,5 @@ public class RequestsCommandHandlerTests
         await Execute("latest");
 
         _writer.ToString().Should().StartWith("Error: ");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> EndlessAfter([EnumeratorCancellation] CancellationToken token, params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-            yield return one;
-        await Task.Delay(Timeout.Infinite, token);
     }
 }
