@@ -177,6 +177,51 @@ public abstract class MyceliumClientBase
         }
     }
 
+    protected Task<PlatformAnswer> AskForThingNamedAsync(string name, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Get, $"/api/things?name={Uri.EscapeDataString(name)}", null, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToCreateThingAsync(HttpContent thing, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Post, "/api/things", thing, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToDeleteThingAsync(Guid thingId, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Delete, $"/api/things/{thingId}", null, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToApplyFragmentAsync(HttpContent fragment, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Post, "/api/model/fragment", fragment, timeout, cancellationToken);
+
+    private async Task<PlatformAnswer> AskAsync(
+        HttpMethod method, string path, HttpContent? content, TimeSpan? timeout, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(timeout);
+        var request = new HttpRequestMessage(method, $"{MyceliumUrl}{path}") { Content = content };
+        using var response = await client.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var outcome = response.IsSuccessStatusCode ? PlatformOutcome.Done
+            : response.StatusCode == HttpStatusCode.NotFound ? PlatformOutcome.NotFound
+            : PlatformOutcome.Refused;
+        return new PlatformAnswer(outcome, response.StatusCode, body);
+    }
+
+    protected static Guid? IdentifierOf(JsonElement thing) =>
+        TryGetPropertyCaseInsensitive(thing, "Id", out var identifier)
+        && identifier.ValueKind == JsonValueKind.String
+        && Guid.TryParse(identifier.GetString(), out var parsed)
+            ? parsed
+            : null;
+
+    protected static bool TryReadThing(JsonElement thing, out Guid identifier, out string name)
+    {
+        name = string.Empty;
+        identifier = IdentifierOf(thing) ?? Guid.Empty;
+        if (identifier == Guid.Empty
+            || !TryGetPropertyCaseInsensitive(thing, "Name", out var named)
+            || named.ValueKind != JsonValueKind.String)
+            return false;
+
+        name = named.GetString() ?? string.Empty;
+        return true;
+    }
+
     // Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
     // number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).
     public async Task<long> SetFactAsync(Guid thingId, string property, object? value)

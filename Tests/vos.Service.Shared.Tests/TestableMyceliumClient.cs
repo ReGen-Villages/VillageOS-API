@@ -26,4 +26,21 @@ internal sealed class TestableMyceliumClient : MyceliumClientBase
 
     public Task<bool> PostRelationshipPublicAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default)
         => PostRelationshipAsync(subjectId, predicateId, targetId, TimeSpan.FromSeconds(5), cancellationToken);
+
+    public Task<PlatformAnswer> AskForThingNamedPublicAsync(string name, TimeSpan? timeout = null)
+        => AskForThingNamedAsync(name, timeout, CancellationToken.None);
+
+    public Task<PlatformAnswer> AskToCreateThingPublicAsync(HttpContent thing)
+        => AskToCreateThingAsync(thing, timeout: null, CancellationToken.None);
+
+    public Task<PlatformAnswer> AskToDeleteThingPublicAsync(Guid thingId)
+        => AskToDeleteThingAsync(thingId, timeout: null, CancellationToken.None);
+
+    public Task<PlatformAnswer> AskToApplyFragmentPublicAsync(HttpContent fragment)
+        => AskToApplyFragmentAsync(fragment, timeout: null, CancellationToken.None);
+
+    public static Guid? IdentifierOfPublic(System.Text.Json.JsonElement thing) => IdentifierOf(thing);
+
+    public static bool TryReadThingPublic(System.Text.Json.JsonElement thing, out Guid identifier, out string name)
+        => TryReadThing(thing, out identifier, out name);
 }

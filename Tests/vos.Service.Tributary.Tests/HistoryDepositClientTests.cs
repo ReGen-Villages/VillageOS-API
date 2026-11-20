@@ -16,11 +16,6 @@ public class HistoryDepositClientTests
 {
     private static readonly DateTime FirstHour = new(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private sealed class PerCallFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
-    }
-
     private sealed class Broker(Func<HttpRequestMessage, string, HttpResponseMessage> answer) : HttpMessageHandler
     {
         public List<(HttpMethod Method, string Path, string Body)> Asked { get; } = new();
@@ -35,7 +30,7 @@ public class HistoryDepositClientTests
     }
 
     private static MyceliumClient ClientOver(HttpMessageHandler broker) => new(
-        new PerCallFactory(broker), Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
+        new PerCallHttpClientFactory(broker), Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
         new ClockThatWaitsNoTime(), new LaunchToken("test-token"));
 
     private static HttpResponseMessage Answer(HttpStatusCode status, string body = "{}", TimeSpan? retryAfter = null)
