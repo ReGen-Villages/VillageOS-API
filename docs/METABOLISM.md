@@ -30,7 +30,7 @@ The handler doesn't do one thing and exit. It stays alive, running simulation lo
 
 ### Live updates over the change stream
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it as it happens over a subscription's change stream, sent as server-sent events (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding the relationship's subject with an outgoing relationship rule when a simulation registers, because the broker resolves `ids` against Things only, and removing the relationship when it cancels, with the subject too when no running simulation shares it — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
+When someone changes a relationship property in the console (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it as it happens over a subscription's change stream, sent as server-sent events (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new settings. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding the relationship's subject with an outgoing relationship rule when a simulation registers, because the broker resolves `ids` against Things only, and removing the relationship when it cancels, with the subject too when no running simulation shares it — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
 
 ### Staggered ticks
 
@@ -42,7 +42,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 
 ```text
 1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token or ApiKey, and VerificationKey, from configuration)
-2. Use the service JWT from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
+2. Use the service JSON Web Token (JWT) from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Service.Auth)
 4. Open a subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
@@ -124,7 +124,7 @@ The handler receives `RelationshipPropertyChanged` events over its Mycelium subs
 | `propertyPath` | Changes which property on the target is modified |
 | `startDelaySeconds` | Changes the initial delay (restarts the loop) |
 
-The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions when multiple properties change in rapid succession (such as a user updating both `quantity` and `frequencySeconds` in the GUI). Each change cancels the current loop and starts a fresh one with the updated config.
+The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions when multiple properties change in rapid succession (such as a user updating both `quantity` and `frequencySeconds` in the console). Each change cancels the current loop and starts a fresh one with the updated settings.
 
 ## Code Structure
 
@@ -280,7 +280,7 @@ curl http://localhost:7102/simulations
 
 ### 5. Monitor and adjust live
 
-Change a relationship property in the GUI or via API — the handler picks it up over its subscription and adjusts immediately. No restart needed.
+Change a relationship property in the console or through the API — the handler picks it up over its subscription and adjusts immediately. No restart needed.
 
 ## Shutdown
 

@@ -85,7 +85,7 @@ ones. Every request carries a token naming the model it applies to, so two proje
 other.
 
 **Fragment** — a partial model posted in one call: some Things, some relationships, some values. It
-**upserts** — creating what is missing and updating what exists — so posting the same fragment twice
+**adds or updates** — creating what is missing and updating what exists — so posting the same fragment twice
 produces one result, not two. This is how a submission enters the model.
 
 ### The parts
@@ -276,7 +276,7 @@ before the questions.
 - **Everything else is a dial on the report.** The page forwards itself to the findings with the
   reference and the ticket already in hand; the programme split, the population, the household size
   and what the person has seen of each hazard re-post the same submission under the same identifier —
-  a fragment upserts — and every figure recomputes. A re-post waits while a typed population or
+  a fragment adds or updates — and every figure recomputes. A re-post waits while a typed population or
   household size cannot be read, with the reason under the dial, and goes once the field is mended or
   cleared. A successful post or read hands a fresh ticket
   back in the response header, so a long session is not sent back to the mailbox every ten minutes,
@@ -306,7 +306,7 @@ meets it in.
 
 The wizard posts the **submission** — what it has collected so far — to the intake service
 (`vos.Service.Intake`). The service composes one **fragment** from it (Things, relationships and values
-in a single call) and applies it. Because a fragment upserts, progress can be saved as the planner
+in a single call) and applies it. Because a fragment adds or updates, progress can be saved as the planner
 goes: the same submission posted again updates rather than duplicating. Closing the tab does not lose
 the work.
 

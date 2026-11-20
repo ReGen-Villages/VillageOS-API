@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Go example
 
-A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JWTs (the signed tokens Mycelium issues), and graceful shutdown.
+A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JSON Web Tokens (JWTs, the signed tokens Mycelium issues), and graceful shutdown.
 
 This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) example — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the body of `handleRelationship` in `main.go` with your predicate logic.
 

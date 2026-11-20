@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Python example
 
-A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JWTs (the signed tokens Mycelium issues, with PyJWT), and graceful shutdown. The contract itself is implemented once, in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the importable package `vos_service`); this service adds a handler and its own routes to it.
+A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JSON Web Tokens (JWTs, the signed tokens Mycelium issues, with PyJWT), and graceful shutdown. The contract itself is implemented once, in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the importable package `vos_service`); this service adds a handler and its own routes to it.
 
 It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `app.py` with your own logic; a new Python service is a copy of this folder that keeps the `vos_service` import and changes the handler.
 

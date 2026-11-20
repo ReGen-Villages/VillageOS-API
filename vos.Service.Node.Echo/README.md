@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Node.js example
 
-A complete, runnable VillageOS handler written in **TypeScript on Node.js using only built-in modules** (`node:http`, `node:crypto`, global `fetch`) — no runtime dependencies. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md), including checking inbound JWTs, the signed tokens Mycelium issues.
+A complete, runnable VillageOS handler written in **TypeScript on Node.js using only built-in modules** (`node:http`, `node:crypto`, global `fetch`) — no runtime dependencies. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md), including checking inbound JSON Web Tokens (JWTs), the signed tokens Mycelium issues.
 
 It's the Node analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the `/handle` block in `src/index.ts` with your own logic.
 

@@ -132,7 +132,7 @@ template added to a live model is used by the next registration.
 | `POST /shutdown` | Graceful stop after a short delay. |
 
 When a `VerificationKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid
-Mycelium-signed token (a JWT) addressed to Delta; `/health` stays open. Delta exposes no `/stats` endpoint.
+Mycelium-signed JSON Web Token (JWT) addressed to Delta; `/health` stays open. Delta exposes no `/stats` endpoint.
 
 ## CLI & configuration
 

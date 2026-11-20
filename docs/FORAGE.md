@@ -58,8 +58,8 @@ administrative division code (`hazardPortalDivision`), which a project can put o
 related into and which a run otherwise works out for itself from the site's position — see
 [Resolving the hazard division](#resolving-the-hazard-division). A site that reaches no such Place and
 whose division could not be resolved has the portal's calls refused before the provider is contacted
-and reported with the unfilled placeholder named: the model gap said out loud, where hiding the source
-would leave a quietly short report.
+and reported with the unfilled placeholder named, so the gap in the model is reported, where leaving
+the source out would make the report look complete.
 
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
@@ -95,8 +95,8 @@ model-wide, the two division lookups, which no relationship reaches because neit
 every Place, asked for through the `placeArchetype` role, so the run can relate the site to the one
 carrying the code the geocoder answers. Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
-Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
-see [`TRIBUTARY.md`](TRIBUTARY.md). A site's read carries only the relationships the selected Things
+Places are in the set finds nothing. Tributary's read of an endpoint's kinds has to keep its rules in
+order for the same reason; see [`TRIBUTARY.md`](TRIBUTARY.md). A site's read carries only the relationships the selected Things
 hold outgoing, in one rule naming no predicate, so the `isIn` every other site writes into a shared
 Place does not travel with it. **A source's read** is the same walk from the other end, naming its
 predicates one by one: the Places it `covers`, then `isIn` walked *downwards* through their nesting, then
@@ -228,7 +228,7 @@ aborted because one provider was unavailable would be abandoned. A source that f
 value undiscovered, does not stop the others, and appears in Record results' `unresolved` with a
 reason — carrying the provider's own words where there are any, because that is the most useful thing
 a planner can be told about why a value is missing. Reporting what did *not* resolve matters as much as
-reporting what did: a quietly short list reads as a complete one.
+reporting what did: a list with sources missing and nothing said about them reads as a complete one.
 
 **A call is addressed from its subject outward.** Whatever the call's subject carries — coordinates,
 elevation, climate zone — is passed as its address parameters, and behind it, layered so the most

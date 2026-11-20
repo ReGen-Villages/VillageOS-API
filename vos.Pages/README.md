@@ -34,7 +34,7 @@ Questions and answers are the JSON Mycelium's routes take and give. The library 
 ## Language
 
 - Every call takes a language. Names a page lists are ordered as that language orders them, and never by the machine's own language.
-- Results are data. Wording a figure as the console words it is the next step, from the same reader entry.
+- Results are data.
 
 ## The engine
 

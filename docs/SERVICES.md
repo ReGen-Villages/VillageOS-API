@@ -72,8 +72,9 @@ site template), and the connection's microservice is called. A predicate that na
 nothing. That is the platform's extension point: a new capability — simulation, integration,
 computation — ships as a microservice bound to a connection a predicate names, with no change to
 Mycelium (Metabolism backs `consumes`/`produces`; a pipeline node and the `runs` spawn-trigger are the
-same pattern). The service-call machinery is load-bearing even with a single handler — don't flatten it, and
-don't add a third built-in predicate beside `is` and `binds`. The full relationship-service handler model,
+same pattern). Keep the path through a connection even where one service uses it: a predicate wired
+straight to a service inside Mycelium would make every new behaviour a change to Mycelium, and so would
+a third built-in predicate beside `is` and `binds`. The full relationship-service handler model,
 the Mycelium API handlers use, and worked examples are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
 

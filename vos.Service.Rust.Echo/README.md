@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Rust example
 
-A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JWTs (the signed tokens Mycelium issues, with `jsonwebtoken`), and graceful shutdown.
+A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JSON Web Tokens (JWTs, the signed tokens Mycelium issues, with `jsonwebtoken`), and graceful shutdown.
 
 It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `src/main.rs` with your own logic.
 
