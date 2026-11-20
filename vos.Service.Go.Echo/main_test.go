@@ -451,7 +451,7 @@ func TestDemoSubscribePassesARefusalThroughAsGiven(t *testing.T) {
 	}
 }
 
-// The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+// The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 func TestShutdownDoesNotAskTheBrokerToWithdraw(t *testing.T) {
 	var got []capturedReq
 	srv := mockMycelium(t, &got)

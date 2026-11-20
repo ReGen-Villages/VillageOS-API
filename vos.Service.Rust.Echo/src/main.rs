@@ -992,7 +992,7 @@ mod tests {
         assert!(!body.contains("\"all\"")); // unset fields omitted
     }
 
-    // The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+    // The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
     #[tokio::test]
     async fn shutdown_does_not_ask_the_broker_to_withdraw() {
         let cap: Cap = Arc::new(Mutex::new(Vec::new()));
