@@ -10,9 +10,8 @@ import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
 
-// Build the demo model (Generate –carries(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
-// Every archetype here is named something the editor has never heard of and says what it is through the role
-// Thing that binds it, so a fixture that resolves at all proves nothing is found by name.
+// Every archetype here has a name the editor has never seen and says what it is through its role Thing, so a
+// fixture that resolves at all shows that nothing is found by name.
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -77,10 +76,9 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   return { model: new PipelineModel(...withRoles(things, relationships)), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
-// The same two nodes, wired by Things rather than relationships, and wired twice — the case a relationship cannot
-// express, because the model refuses a second relationship on one subject, predicate and target. The wires are
-// listed before the predicate on purpose: a snapshot's order is arbitrary, and both are of the wire
-// archetype, so anything picking "the first of that archetype" picks a wire here.
+// Wired by Things rather than relationships, and twice, which a relationship cannot express because the model
+// refuses a second one on one subject, predicate and target. The wires come before the predicate because a
+// snapshot's order is arbitrary and both are of the wire archetype, so taking the first of it takes a wire.
 function heldWireModel(): { model: PipelineModel; carriesId: string } {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -224,12 +222,10 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
-  /** The roles the page reads that the orchestrator does not: the range, trigger and judged-Thing roles are
-   *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
-   *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
-   *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
-   *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either. The orchestrator follows any
+  /** Only the page reads these. The range, trigger and judged-Thing roles are the platform's, which the
+   *  orchestrator never walks; it does not yet act on a kind of message or what a system sends or is told; its
+   *  prototype role is how the page finds the service to bind a state to; a waiting node run's connection is
+   *  named by its archetype; when a call is finished is the platform's to judge; and the orchestrator follows any
    *  relationship from a wire to a node, so only the page, which writes new wires, needs the wire predicate. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
@@ -413,7 +409,7 @@ describe('run animation source', () => {
     };
     const has = T('has');
     const run = T('PipelineRun', { status: 'running' });
-    const agg = T('NodeRun Scorer', { nodeId: 'node-score', status: 'running' }); // aggregate — no index
+    const agg = T('NodeRun Scorer', { nodeId: 'node-score', status: 'running' }); // the node's whole record, with no index
     const i0 = T('NodeRun Scorer #0', { nodeId: 'node-score', status: 'succeeded', index: '0', total: '3' });
     const i1 = T('NodeRun Scorer #1', { nodeId: 'node-score', status: 'succeeded', index: '1', total: '3' });
     const i2 = T('NodeRun Scorer #2', { nodeId: 'node-score', status: 'running', index: '2', total: '3' });
@@ -421,7 +417,7 @@ describe('run animation source', () => {
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
 
     const model = new PipelineModel(...withRoles(things, relationships));
-    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // the ring reads the whole record only
     expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, reached: 3, spreadOver: 3 } });
   });
 
@@ -460,7 +456,7 @@ describe('run animation source', () => {
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
 
-    // Two runs of A (different times) + one run of B — B must not leak into A's history.
+    // Two runs of A at different times and one of B, which must not appear in A's history.
     const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
     const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z', requestId: '01999a2b-0000-7000-8000-000000000001' });
     const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
@@ -584,9 +580,8 @@ describe('loadPipeline', () => {
   });
 });
 
-// A value the page writes for a name the port archetype declares lands in the Thing's override store,
-// not among its own properties. Read from own properties alone, a saved start port fell back to the
-// Thing's name and to direction `in`, and the wire drawn from it matched nothing.
+// A value written for a name the port archetype declares is stored as an override, so reading own properties
+// alone loses the saved port's name and direction, and the wire drawn from it matches nothing.
 describe('a saved port is read from what it states', () => {
   const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
     'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', Properties: values },
