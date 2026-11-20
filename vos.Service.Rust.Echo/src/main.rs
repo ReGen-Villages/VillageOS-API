@@ -185,7 +185,7 @@ async fn handle_relationship(State(state): State<Arc<AppState>>, body: Option<Js
     let n = state.requests.fetch_add(1, Ordering::SeqCst) + 1;
     let payload = body.map(|Json(v)| v).unwrap_or(Value::Null);
     let rel_id = payload.get("relationshipId").cloned().unwrap_or(Value::Null);
-    // Real handlers do their predicate work here; the echo example acks + reflects.
+    // A real handler does its predicate's work here; the echo example answers with what it was sent.
     println!("handle #{n}: relationship {rel_id}");
     Json(json!({
         "success": true,
@@ -357,7 +357,7 @@ struct SedimentResult {
     samples: i64,
 }
 
-/// Percent-encode a single URL path segment (property names are usually safe, but be correct).
+/// Percent-encode a single URL path segment: property names are usually safe, but one from a model may not be.
 fn enc(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
@@ -463,7 +463,7 @@ async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<
     }
 }
 
-// Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/SERVICE_CONTRACT.md § "Selecting a slice".
+// Snapshot selector — subscribe to a slice. docs/SERVICE_CONTRACT.md § "Selecting a slice".
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -855,8 +855,7 @@ mod tests {
     }
 
     // ---- Write kinds (Fact / Observation / Sediment) ----
-    // Spin up an in-process Axum mock Mycelium (no extra dependencies) and assert the write
-    // helpers hit the right routes, carry the bearer token, and parse the responses.
+    // An in-process Axum stand-in for Mycelium, so these need no extra dependency.
 
     use axum::http::header::AUTHORIZATION;
     use std::sync::Mutex;
