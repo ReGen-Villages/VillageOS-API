@@ -2638,12 +2638,13 @@
   function thingsOfArchetype(archetype, index) {
     return thingsWithIds(thingIdsOfArchetype(archetype, index), index);
   }
-  function thingIdBoundBy(roleId, index) {
-    return boundBy(roleId, index)[0];
+  function thingsOfArchetypeBoundBy(roleId, index) {
+    const archetype = thingIdBoundBy(roleId, index);
+    return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
   }
-  function thingsBoundAndBeneath(roleId, index) {
-    const archetypeId = thingIdBoundBy(roleId, index);
-    return archetypeId ? thingsWithIds(instancesBelow([archetypeId], index), index) : [];
+  function thingIdBoundBy(roleId, index) {
+    const bound = boundBy(roleId, index);
+    return bound.length === 1 ? bound[0] : void 0;
   }
   function thingsWithIds(ids, index) {
     const out = [];
@@ -2662,7 +2663,7 @@
       index.dashboards.set(language, inThisLanguage);
       return inThisLanguage;
     }
-    const found = thingsBoundAndBeneath(PAGE_ROLE_ID, index).map((thing) => ({
+    const found = thingsOfArchetypeBoundBy(PAGE_ROLE_ID, index).map((thing) => ({
       thing,
       specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY])
     }));
