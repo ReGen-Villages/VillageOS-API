@@ -59,8 +59,7 @@ export async function refusalFrom(response: Response): Promise<ServiceRefusal> {
   }
 }
 
-/** Whether the refusal is the ticket's rather than the submission's: the one a person mends by
- *  confirming their address again. */
+/** The ticket's refusal rather than the submission's, which a person fixes by confirming their address again. */
 export function isTicketRefusal(error: unknown): boolean {
   return error instanceof ServiceRefusal && (error.code === 'ticketMissing' || error.code === 'ticketExpired');
 }

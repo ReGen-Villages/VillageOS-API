@@ -1,14 +1,7 @@
 /**
- * What a single figure on a dashboard is made of.
- *
- * A tile answers one question with one number. This answers the second question a reader has about
- * it — which Things it was formed from, and how — by asking the same narrowed question the figure
- * was formed from, for its members instead of its number, rather than resolving a second binding
- * written beside it. A count's breakdown *is* the list the count counted, so the list and the
- * figure above it cannot disagree.
- *
- * Nothing here names a domain. The words in {@link FigureTerms} are the model's own and reach the
- * reader untranslated, exactly as state names, archetypes and property keys do everywhere else.
+ * Which Things a figure was formed from, found by asking the figure's own question for its members rather
+ * than through a second binding, so the list and the figure above it cannot disagree. The words in
+ * {@link FigureTerms} are the model's own and reach the reader untranslated, as state names do everywhere.
  */
 import { SCOPE_REFERENCE, type Binding, type PropertyFilter } from '@tendril-ui/tendril';
 import {
@@ -26,11 +19,9 @@ import {
   thingsOfArchetype,
 } from '@tendril-ui/tendril';
 
-/** How the rows became the figure. `read` is the one that reduces nothing: the figure is a value a
- *  Thing already carries, and the row behind it is that Thing. */
+/** `read` reduces nothing: the figure is a value one Thing carries, and that Thing is the row behind it. */
 type Reduction = 'count' | 'sum' | 'average' | 'min' | 'max' | 'read';
 
-/** The model's own words for what a figure names, carried to the reader as the model wrote them. */
 export interface FigureTerms {
   archetype?: string;
   state?: string;
@@ -44,9 +35,8 @@ export interface FigureTerms {
 export type BehindTheFigure =
   | { kind: 'things'; reduction: Reduction; rows: Row[]; measure: string | null }
   | { kind: 'division'; numerator: FigureBreakdown; denominator: FigureBreakdown }
-  /** A reduction the platform performed over time. There are no rows behind it — what there is is
-   *  the same question over the same window, asked in parts. `endsAt` is the moment the answer came
-   *  back, which is where the trailing window ends and what the parts are labelled from. */
+  /** A reduction over time has no rows behind it, only the same question over the same window in parts.
+   *  `endsAt` is when the answer came back, where the window ends and what the parts are labelled from. */
   | {
       kind: 'buckets';
       reduction: Reduction;
@@ -63,8 +53,7 @@ export interface FigureBreakdown {
   behind: BehindTheFigure | null;
 }
 
-/** Whether a figure has anything behind it to open. Answered from the binding's shape alone, so a
- *  tile draws the mark that says so without asking the platform anything. */
+/** From the binding's shape alone, so a tile draws its mark without asking the platform anything. */
 export function hasBreakdown(binding: Binding | undefined): boolean {
   if (!binding) return false;
   switch (binding.kind) {
@@ -75,8 +64,7 @@ export function hasBreakdown(binding: Binding | undefined): boolean {
     case 'ratio':
       return hasBreakdown(binding.numerator) || hasBreakdown(binding.denominator);
     case 'latest':
-      // What is behind the figure is the buckets its point was added from; a point that is one
-      // bucket has no finer question to ask.
+      // Behind the figure are the buckets its point was added from, and a one-bucket point has none finer.
       return (binding.series.bucketsPerPoint ?? 1) > 1;
     default:
       // A trace is already the detail behind a tile; a constant and a service's answer have no
@@ -85,7 +73,6 @@ export function hasBreakdown(binding: Binding | undefined): boolean {
   }
 }
 
-/** What one figure is made of, or null when it is made of nothing a reader can be shown. */
 export async function breakdownOf(binding: Binding, context: ResolveContext): Promise<FigureBreakdown | null> {
   const selected = context.scopeId ? context.index.byId.get(context.scopeId)?.Name : undefined;
 
@@ -94,8 +81,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
       return { value: binding.value, terms: {}, behind: null };
 
     case 'stateCount': {
-      // The count's own narrowing, asked for its rows: the state read narrows a list exactly as it
-      // narrows a count, so the members listed are the members counted.
+      // The state read narrows a list exactly as it narrows a count, so the members listed are those counted.
       const counted = asRows(
         await resolveBinding({ kind: 'stateList', state: binding.state, scope: binding.scope, archetype: binding.archetype, excludeState: binding.excludeState }, context),
       );
@@ -133,8 +119,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
 
     case 'property': {
       const named = referencedThing(binding.thing, context);
-      // With nothing selected, `$scope` reads as the average across the compared entities — so the
-      // rows behind such a figure are those entities, each with the value it contributed.
+      // With nothing selected, `$scope` reads as the average across the compared entities, so those are the rows.
       const averaged =
         !named && binding.thing === SCOPE_REFERENCE && context.compareArchetype
           ? thingsOfArchetype(context.compareArchetype, context.index)

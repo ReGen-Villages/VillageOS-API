@@ -21,11 +21,9 @@ import type {
   FormWidget,
 } from '@tendril-ui/tendril';
 
-/** A specification exercising every widget type plus a detail card. The base strings are
- *  deliberately plain English; `translations.es` renders them in Spanish. One
- *  key (the exceptions section title) is left untranslated to prove key-level
- *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
- *  binding value matching a translation entry is never rewritten. */
+/** Every widget type and a detail card. The exceptions section title is left untranslated to show fallback
+ *  for one string, and the state name "Harvested" is also a KPI unit, to show a binding value matching a
+ *  translation is never rewritten. */
 function fixture(): DashboardSpecification {
   return {
     title: 'Village Operations',
@@ -211,8 +209,7 @@ describe('localizeSpecification', () => {
   });
 });
 
-// The verdict wording is the only display text the specification vocabulary keeps on a binding, so the
-// invariant that binding values pass through untouched has to bend for it — and only for it.
+// The verdict wording is display text kept on a binding, so it is translated where other binding values are not.
 describe('localizeSpecification over a verdict widget', () => {
   function verdictSpecification(): DashboardSpecification {
     return {

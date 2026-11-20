@@ -2,9 +2,8 @@ import { myceliumApi } from './myceliumApi';
 import { declaredPageDescriptor } from '@tendril-ui/tendril';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
 
-/** Reads the pages the platform declares for the signed-in account into the store, once per
- *  account. Claimed before the read answers, so two pages mounting together ask once between them;
- *  the last account's pages go with the claim, since they were declared for somebody else. */
+/** Once per account. Claimed before the read answers, so two pages mounting together ask once, and the
+ *  last account's pages are dropped with the claim, because they were declared for somebody else. */
 export async function loadPlatformPages(accountId: string): Promise<void> {
   const store = usePlatformPagesStore;
   if (store.getState().loadedFor === accountId) return;

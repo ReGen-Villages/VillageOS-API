@@ -3,8 +3,8 @@ import { FeedbackRefusedError, type FeedbackReport } from '../feedback/feedbackP
 
 const SWITCHED_OFF = 'off';
 
-/** The relay is routed on this host by default, so a report crosses no origin. A deployment that runs
- *  it elsewhere names its address; one that runs none says `off`. Read at call time so a test can set it. */
+/** On this host by default, so a report crosses no origin; a deployment names another address, or `off`
+ *  for none. Read at call time so a test can set it. */
 const relayAddress = () => (import.meta.env.VITE_FEEDBACK_URL as string | undefined) || '/feedback';
 
 interface RelayRefusal {

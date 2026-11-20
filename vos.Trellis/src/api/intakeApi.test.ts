@@ -12,9 +12,7 @@ const SUBMISSION: SubmissionDocument = {
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 
-/** The ticket exchange first, then whatever the test says the submission is answered with. Every faked
- *  answer carries a header map because every real one does — the accepting route reads the renewed
- *  ticket off it. */
+/** Every faked answer carries headers, because a real accepted post returns the renewed ticket in one. */
 function answering(submissionAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
@@ -52,8 +50,7 @@ describe('posting a submission', () => {
     expect(accepted.reference).toBe('sub-ref-1');
   });
 
-  // The service holds its own credential and decides for itself who may submit. A form sent under a
-  // planner's token would work only for a planner, and this is the route a stranger uses.
+  // A form sent under a planner's token would work only for a planner, and this is the route a stranger uses.
   it('carries no credential', async () => {
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
@@ -180,8 +177,6 @@ describe('what the form draws itself with', () => {
     expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
   });
 
-  // A source whose tile address is a path is the intake service's own route to imagery it proxies — the
-  // public pages are served from a site of their own, so the path is the service's, not the page's.
   it('resolves a tile address that is a path against the intake service', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -246,9 +241,8 @@ describe('what the form draws itself with', () => {
     expect((await intakeApi.formOptions()).layerKinds).toEqual([]);
   });
 
-  // A deployment whose model is not seeded answers this route with a problem document, and a form that
-  // read the absent fields as an empty model would offer a programme step with nothing in it and no
-  // explanation.
+  // A deployment with no seeded model answers with a problem document; read as an empty model, the form
+  // would offer an empty programme step with no explanation.
   it('raises what the service said rather than reading a refusal as an empty model', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
