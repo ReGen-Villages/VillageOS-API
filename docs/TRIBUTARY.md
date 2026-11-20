@@ -614,6 +614,10 @@ readable rather than being settled by whichever was written last.
   } }
 ```
 
+The expression the seed declares also keeps the portal's general recommendation and its
+climate-change recommendation beside the level, as `recommendation` and
+`climateChangeRecommendation`; the one above is shortened to the level and the date.
+
 - **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on the
   site or on a Place it is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
   the run layers a call's address from its subject outward, so both arrive with no per-source code. A
