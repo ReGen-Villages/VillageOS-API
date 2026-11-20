@@ -139,18 +139,7 @@ export function findGuiSettingsProperties(
   };
 }
 
-/**
- * Extract flash settings from graph data.
- * Finds the GUI_Settings type Thing via relationships.
- * Returns defaults for any missing or invalid values.
- */
-export function extractFlashSettings(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): FlashSettings {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return { ...FLASH_DEFAULTS };
-
+function readFlashSettings(p: Record<string, unknown>): FlashSettings {
   return {
     flashEdgeSize: toNumber(p['FlashEdgeSize'], FLASH_DEFAULTS.flashEdgeSize),
     flashNodeSizeFactor: toNumber(p['FlashNodeSizeFactor'], FLASH_DEFAULTS.flashNodeSizeFactor),
@@ -158,26 +147,6 @@ export function extractFlashSettings(
   };
 }
 
-/**
- * Extract ForceAtlas2 layout settings from graph data.
- * Finds the GUI_Settings type Thing via relationships.
- * Returns defaults for any missing or invalid values.
- */
-export function extractLayoutSettings(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): LayoutSettings {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return { ...LAYOUT_DEFAULTS };
-
-  return readLayoutSettings(p);
-}
-
-/**
- * Internal — read every LayoutSettings field from a GUI_Settings property bag,
- * with defaults filling in any missing fields. Shared by both single-call and
- * combined-extraction code paths so the property names live in exactly one place.
- */
 function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   return {
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
@@ -196,20 +165,9 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   };
 }
 
-/**
- * Extract predicate→color overrides from graph data.
- * The GUI_Settings Thing may have a `PredicateColors` string property
- * containing a JSON object mapping predicate names to hex colours,
- * e.g. `{"consumes":"#fb7185","produces":"#22d3ee"}`.
- * Returns an empty object when the property is missing or invalid.
- */
-export function extractPredicateColors(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): Record<string, string> {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return {};
-
+/** `PredicateColors` is a string holding a JSON object of predicate names to hex colours, e.g.
+ *  `{"consumes":"#fb7185","produces":"#22d3ee"}`. */
+function readPredicateColors(p: Record<string, unknown>): Record<string, string> {
   const raw = p['PredicateColors'];
   if (typeof raw !== 'string' || !raw) return {};
 
@@ -228,46 +186,13 @@ export function extractPredicateColors(
   }
 }
 
-/**
- * Extract all GUI settings in a single traversal.
- * Calls `findGuiSettingsProperties` once and derives all setting groups.
- */
 export function extractAllGuiSettings(
   things: VosThing[],
   relationships: VosRelationship[],
 ): { flash: FlashSettings; layout: LayoutSettings; predicateColors: Record<string, string> } {
   const p = findGuiSettingsProperties(things, relationships);
-
-  const flash: FlashSettings = p
-    ? {
-        flashEdgeSize: toNumber(p['FlashEdgeSize'], FLASH_DEFAULTS.flashEdgeSize),
-        flashNodeSizeFactor: toNumber(p['FlashNodeSizeFactor'], FLASH_DEFAULTS.flashNodeSizeFactor),
-        flashNodeBrighten: toNumber(p['FlashNodeBrighten'], FLASH_DEFAULTS.flashNodeBrighten),
-      }
-    : { ...FLASH_DEFAULTS };
-
-  const layout: LayoutSettings = p ? readLayoutSettings(p) : { ...LAYOUT_DEFAULTS };
-
-  const predicateColors: Record<string, string> = {};
-  if (p) {
-    const raw = p['PredicateColors'];
-    if (typeof raw === 'string' && raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === 'string' && value.startsWith('#')) {
-              predicateColors[key] = value;
-            }
-          }
-        }
-      } catch {
-        // Overrides that do not parse are treated as none.
-      }
-    }
-  }
-
-  return { flash, layout, predicateColors };
+  if (!p) return { flash: { ...FLASH_DEFAULTS }, layout: { ...LAYOUT_DEFAULTS }, predicateColors: {} };
+  return { flash: readFlashSettings(p), layout: readLayoutSettings(p), predicateColors: readPredicateColors(p) };
 }
 
 export function extractNumberDisplaySettings(
