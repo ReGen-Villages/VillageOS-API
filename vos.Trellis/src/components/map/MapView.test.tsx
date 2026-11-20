@@ -256,8 +256,6 @@ beforeEach(() => {
 
 describe('MapView', () => {
 
-  // Lose this and the map still mounts, still draws its controls and still reports no error — it
-  // simply never parses a tile. See the reason in MapView.
   it('sends the sign-in its page provides with a request for the page’s own server', () => {
     render(
       <OwnServerRequestHeaders.Provider value={() => ({ Authorization: 'Bearer the-token' })}>
@@ -276,6 +274,8 @@ describe('MapView', () => {
     expect(transform('/basemaps/satellite-tiles/3/4/5')).toBeUndefined();
   });
 
+  // Lose this and the map still mounts, still draws its controls and still reports no error, but never parses a
+  // tile. The reason is in MapView.
   it('points maplibre at the worker the bundler emitted', () => {
     expect(mocks.configuration.WORKER_URL).toBe('https://example.test/assets/maplibre-worker.mjs');
   });
@@ -289,7 +289,6 @@ describe('MapView', () => {
 
   it('opens the map on the given point with the style the model supplied', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
-    // Let the style land on a map given no boundary: it draws none, and takes none off.
     theStyleArrives();
     expect(maps[0].sources.has('boundary')).toBe(false);
     expect(maps[0].options.center).toEqual([-70.64, 41.38]);
@@ -361,10 +360,6 @@ describe('the boundary on the map', () => {
     return feature.geometry.coordinates[0];
   }
 
-  // Leaving the Parcel step and coming back builds a second map with the boundary already in hand, so
-  // it is drawn the moment the map exists — against a style that has not finished loading. maplibre
-  // refuses that by throwing, and a throw in this effect unmounts the form, losing the page a
-  // submitter was filling in.
   it('waits for the style rather than throwing when it opens with a boundary already drawn', () => {
     expect(() =>
       render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />),
@@ -376,10 +371,6 @@ describe('the boundary on the map', () => {
     expect(maps[0].sources.has('boundary')).toBe(true);
   });
 
-  // What a live run showed: every `styledata` a real map fires arrives while its sources are still
-  // loading, and nothing fires another once they are in. A boundary the map opened with waited for a
-  // moment that never came, and the corner handles stood around nothing. `idle` is the map saying it
-  // has drawn everything it has, and is when the boundary goes in — as the ground already does.
   it('draws a boundary it opened with on the first idle, where every styledata came too early', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
     act(() => maps[0].fire('styledata'));
@@ -393,8 +384,6 @@ describe('the boundary on the map', () => {
     expect(maps[0].sources.has('boundary')).toBe(true);
   });
 
-  // Rewriting the boundary's data repaints the map, which settles into another idle. Drawn on each of
-  // those, the map never stops.
   it('leaves a drawn boundary alone, however often the map settles', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
     theStyleArrives();
@@ -409,8 +398,8 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
   });
 
-  // A page that stops giving a boundary at all — not an empty one — must still get the drawn one taken
-  // off, or the polygon outlives the parcel it stood for.
+  // A page that stops giving a boundary at all, rather than giving an empty one, still has the drawn one taken
+  // off, or the polygon stays on the map after the parcel it stood for has gone.
   it('takes a drawn boundary off when the caller stops giving one', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
     theStyleArrives();
@@ -523,10 +512,6 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toEqual([]);
   });
 
-  // A page that opens on the whole world and closes in on a picked position changes the
-  // zoom it opens at. That is the zoom the map *opens* at, so it moves the map rather than replacing
-  // it — a replaced map is built with no style, and the style is applied when the source changes,
-  // which a zoom change is not.
   it('moves rather than rebuilds when the zoom it opens at changes', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} initialZoom={2} />);
     theStyleArrives();
@@ -538,9 +523,8 @@ describe('the boundary on the map', () => {
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
   });
 
-  // The other half of the same bug: whatever rebuilds the map, the new one must be drawn on. Sources
-  // arriving after the first render is the case every public page meets, because the page is drawn
-  // before the service has answered what it may draw with.
+  // Every public page meets this, because the page is drawn before the service has answered what it may draw
+  // with.
   it('draws the basemap on a map built after the sources arrive', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[]} />);
     expect(maps).toHaveLength(0);
@@ -552,9 +536,8 @@ describe('the boundary on the map', () => {
   });
 });
 
-// Land rather than a diagram, from what the model declares and nothing else. A source
-// saying nothing about the ground draws exactly as every source does today, which is what keeps this
-// from being a change every deployment has to opt out of.
+// The land is raised from what the model declares and nothing else, so a source that says nothing about the
+// ground draws flat and no deployment has to opt out.
 describe('drawing the land in three dimensions', () => {
   it('raises the ground from the pyramid the model declares, once the style is in', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
@@ -581,8 +564,6 @@ describe('drawing the land in three dimensions', () => {
     });
   });
 
-  // A map that raises land opens showing it, or the reader has been handed a diagram again. Looking
-  // straight down is theirs to ask for, and the control below is what says so.
   it('opens tilted where the model declares ground to raise', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     theStyleArrives();
@@ -613,8 +594,6 @@ describe('drawing the land in three dimensions', () => {
     expect(tiltedTo.pitch).toBeGreaterThan(0);
   });
 
-  // Nothing declared, nothing raised: no elevation source, no extrusion, a map left flat and no control
-  // offering a view the model cannot draw.
   it('draws flat where the model declares no ground', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     theStyleArrives();
@@ -627,9 +606,6 @@ describe('drawing the land in three dimensions', () => {
     expect(screen.queryByRole('button', { name: 'Look straight down' })).toBeNull();
   });
 
-  // What the live run showed: `styledata` fires while the style is still coming in, so the map answers
-  // that it holds nothing and the handler raises nothing. `idle` is the map saying it has drawn what it
-  // has, and is where the ground actually goes in.
   it('raises the ground on the first idle where the style arrived before one', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     act(() => {
@@ -646,9 +622,6 @@ describe('drawing the land in three dimensions', () => {
     expect(maps[0].terrain).toEqual({ source: 'terrain', exaggeration: 1.4 });
   });
 
-  // Raising the ground fires maplibre's `terrain` event, whose own handler repaints the map — which
-  // settles into another idle. Raising again on each of those never stops, and every pass destroys and
-  // rebuilds the terrain and its render-to-texture cache.
   it('raises the ground once, however often the map settles', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     theStyleArrives();
@@ -662,8 +635,6 @@ describe('drawing the land in three dimensions', () => {
     expect(maps[0].setTerrain.mock.calls.length).toBe(raisedOnce);
   });
 
-  // The control goes when the reader switches to a source with nothing to raise, so a camera left over
-  // is a tilted flat map with no way back to looking down.
   it('takes the camera back down when the reader switches to a source that raises nothing', () => {
     render(<MapView {...POSITION} sources={[RAISED, AERIAL]} />);
     theStyleArrives();
@@ -674,8 +645,6 @@ describe('drawing the land in three dimensions', () => {
   });
 });
 
-// The land is drawn on a globe under a sky wherever the library can draw
-// one, which is every map this client builds, and the camera's heading is shown and given back.
 describe('the globe, the sky and the heading', () => {
   const LIBRARY_PITCH_CEILING = 60;
 
@@ -690,8 +659,6 @@ describe('the globe, the sky and the heading', () => {
     expect(maps[0].sky).toMatchObject({ 'sky-color': expect.any(String) });
   });
 
-  // Setting either repaints the map, which settles into another idle. Set on each of those, the map
-  // never stops drawing — the trap raising the ground already guards against.
   it('sets the globe and the sky once, however often the map settles', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     theStyleArrives();
@@ -722,8 +689,6 @@ describe('the globe, the sky and the heading', () => {
     expect(maps[0].sky).toBeDefined();
   });
 
-  // The sky stands above the horizon, and the library's own ceiling on the camera stops short of
-  // bringing the horizon into view. Where there is land to look across, the camera may lean far enough.
   it('lets the camera lean to the horizon where the model declares ground to raise', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     theStyleArrives();
@@ -741,8 +706,6 @@ describe('the globe, the sky and the heading', () => {
     expect(maps[0].maxPitch).toBe(LIBRARY_PITCH_CEILING);
   });
 
-  // Turning the map is the library's own gesture. What the page adds is where north has gone, and the
-  // way back to it.
   it('shows which way north lies as the reader turns the map', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     const needle = () => screen.getByRole('button', { name: 'North up' }).querySelector('svg')!;
