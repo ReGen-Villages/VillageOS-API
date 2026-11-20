@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Python example
 
-A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (PyJWT), and graceful shutdown. The contract itself is implemented once, in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the importable package `vos_service`); this service adds a handler and its own routes to it.
+A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JWTs (the signed tokens Mycelium issues, with PyJWT), and graceful shutdown. The contract itself is implemented once, in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the importable package `vos_service`); this service adds a handler and its own routes to it.
 
 It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `app.py` with your own logic; a new Python service is a copy of this folder that keeps the `vos_service` import and changes the handler.
 
@@ -66,8 +66,8 @@ All come from the environment and are never flags. A command line is readable by
 The pieces below are in `vos.Service.Python.Shared`, which is tested there.
 
 - **Registration** — `MyceliumClient.register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; `ServiceHost` runs it from the FastAPI `lifespan` startup hook.
-- **JWT validation** — `verifier(config)` returns a FastAPI dependency (`host.verify_request`, which `/handle`, `/shutdown` and this service's demo routes use) that uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — `POST /shutdown` acknowledges and then stops the server, which is how a service Mycelium did not start itself is stopped. The `lifespan` hook makes no call to the broker on the way out. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration whose service stops answering.
+- **JWT validation** — `verifier(config)` returns a FastAPI dependency (`host.verify_request`, which `/handle`, `/shutdown` and this service's demo routes use) that uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry, allowing 30 seconds of clock difference (matching `ServiceTokenValidator`).
+- **Shutdown** — `POST /shutdown` acknowledges and then stops the server, which is how a service Mycelium did not start itself is stopped. The `lifespan` hook makes no call to the broker on the way out. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handler_id}`; the broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 ## Test
 
@@ -79,9 +79,9 @@ python3 -m venv .venv
 
 Covers this service's handler and demo endpoints, and that they sit behind the library's token check. The contract itself (every standard endpoint, JWT validation in all its failure modes, argument parsing, registration) is tested in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared).
 
-This is the one Python suite in the repository that runs under pytest; the rest are stdlib
+The Python services' suites run under pytest, while the checks in `ci/` and `tools/` are stdlib
 `unittest`. `python3 -m unittest discover` collects nothing here and still reports `OK`, so reach
-for the command above rather than the one the other suites use.
+for the command above rather than the one those checks use.
 
 ## Writing data back (Facts / Observations / Sediment)
 
