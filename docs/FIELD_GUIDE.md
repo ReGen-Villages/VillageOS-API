@@ -184,10 +184,10 @@ platform answers it in three phases, each of which can be re-run on its own.
 
 ![From a piece of land to a living village](assets/field-guide-land.svg)
 
-**Intake.** A planner fills in five steps in the console, or a member of the public fills in the
+**Intake.** A planner fills in six steps in the console, or a member of the public fills in the
 same steps on a public website: the project, a contact, the location, the size and the programme
-(how the land divides between homes, growing, restoration, commerce, community and transport), and
-the parcel boundary drawn on a map. The submission becomes Things in the model at once: a Site, a
+(how the land divides between homes, growing, restoration, commerce, community and transport), the
+parcel boundary drawn on a map, and the hazards the person has seen on the land. The submission becomes Things in the model at once: a Site, a
 Parcel with its boundary and a record of how the boundary was obtained, the programme as shares of
 the parcel, and a Study that will hold the results. A public submission is accepted only from
 somebody who answered a code sent to the email address on it, and waits on a review page for a
@@ -195,8 +195,9 @@ planner to reject it or promote it into a project of its own.
 
 **Discovery.** The platform works out which open data sources cover the site — by walking the
 places the site sits in, never by matching a country name — and calls each one with the site's
-coordinates: rainfall, sunlight, a climate classification, hazard gradings, and ten years of hourly
-climate history. Every fetched value is recorded as an Observation with its source and the date it
+coordinates: rainfall, sunlight, a climate classification, hazard gradings, ten years of hourly
+climate history and of air quality, thirty-five years of daily rain, and the soil at each depth the
+model declares. Every fetched value is recorded as an Observation with its source and the date it
 was fetched, so it can never be mistaken for something a person typed. The site's elevation is not
 among them: the intake looks it up when the border arrives and writes it as a fact.
 
@@ -325,7 +326,7 @@ of your own. This guide lives in the public repository.
 | **Derived value** | A property the platform works out: a total over related Things, or a formula over a Thing's own values |
 | **Role** | A Thing with a fixed identifier standing for something the platform asks for, which reaches the one Thing playing it along `binds`, so the platform finds that Thing without knowing its name (chapter 18) |
 | **Service** | A separate program the server starts and calls, in any programming language, that does the work a relationship, a state or a request asks for |
-| **Connection** | The Thing that binds a predicate, a state or a request address to a service |
+| **Connection** | The Thing that binds a service to what calls it: a predicate that names the connection along `notifies`, a state it watches, or a request address |
 | **Pipeline** | A drawing of services joined by typed wires, run by the orchestrator |
 
 ### 15. Things, kinds and inheritance
@@ -365,12 +366,13 @@ Predicates come in two flavours:
 | Flavour | What it does | Examples |
 | --- | --- | --- |
 | **Structural** | Describes how things are arranged. The platform reads it, pages draw it, ranges can follow it, and nothing else happens | `contains`, `has`, `feeds`, `powers`, `isIn` |
-| **Handled** | Bound to a service. Creating a relationship through it starts that service with the subject and the target | `consumes`, `produces`, `runs` |
+| **Handled** | Names a connection along `notifies`, the predicate the `notifiedConnection` role binds. Creating a relationship through it calls that connection's service with the subject and the target | `consumes`, `produces`, `runs` |
 
 Two predicates have behaviour built into the server: `is`, whose behaviour is inheritance, and
 `binds`, along which a role Thing reaches the one Thing playing that role. Every other behaviour is a
-service (Part V). This is the platform's extension point: a new
-capability ships as a service bound to a predicate, and the server does not change.
+service (Part V). This is the platform's extension point: a new capability ships as a service, a
+connection bound to it, and a predicate that names the connection, and the server does not change. A
+predicate that names no connection calls nothing, even when it is a connection itself.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
 binding them to the `containment` role. Every read that narrows to "what is within this building"
@@ -844,7 +846,7 @@ starts automatically.
 
 | Trigger | What starts the service | What it is sent |
 | --- | --- | --- |
-| **graph** | Creating a relationship whose predicate is the connection | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
+| **graph** | Creating a relationship whose predicate names the connection along `notifies` | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
 | **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is, under a pass that also names the caller; the reply returned to the caller directly |
 | **state** | A Thing entering the range the connection watches | The Thing as subject (chapter 28) |
 
@@ -936,9 +938,9 @@ property; a derived property refuses every write.
 | --- | --- | --- |
 | **Metabolism** | graph: `consumes`, `produces` | One program, two modes. For each relationship it runs a loop that takes from, or adds to, a numeric property on the target at the relationship's rate, and reconfigures itself live when the relationship's values change (chapter 37) |
 | **Delta** | http | Checks every registration against the catalogue of data-source templates the model holds, and writes it (chapter 38) |
-| **Tributary** | http | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings as Observations onto the Thing the call was about (chapter 38) |
-| **Forage** | state | Finds every source covering a site, calls Tributary for each, resolves each fetched word to the Thing it names, and starts the analysis (chapter 39) |
-| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves. The last write of every recompute is `energyWorkedOutAt`, the model clock's moment, even when an input is still missing and no verdict is written; the study's `EnergyWorkedOut` state reads it |
+| **Tributary** | http, and a pipeline node | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings onto the Thing the call was about: as Observations, except that a history source's timed readings go to bulk history until the Thing's history is judged. As a pipeline step it fetches, or asks for a Thing's history to be judged (chapter 38) |
+| **Forage** | a pipeline node | Discovery's steps: finds every source covering a site, plans each source's calls, records what they came to, resolves each fetched word to the Thing it names, and marks the site discovered (chapter 39) |
+| **EnergyBalance** | a pipeline node | Works out solar and total generation, the share of consumption and whether the site is net positive from the six inputs wired into it, and answers them to the run |
 | **WaterReserve** | a pipeline node | Reserve figures for a pipeline run |
 | **ModelBridge** | a pipeline node | Reads a Thing's property into a pipeline, or writes a pipeline value onto one (chapter 44) |
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
@@ -980,7 +982,11 @@ map tile's `{z}/{x}/{y}` — filled per call from the values of the Thing the ca
 registration serves every site. The reply is reshaped by the registration's rule (written in a
 small expression language for reshaping structured data) into readings: which property, what value,
 observed when. Each reading is written as an Observation onto the subject, and the registration is
-related to that Thing through `observed`, so every fetched value leads back to what produced it.
+related to that Thing through `observed`, so every fetched value leads back to what produced it. A
+history source, an endpoint under the kind the `historySource` role binds, is the exception: its
+readings that carry a time go to bulk history without recomputing anything, until the subject's history
+is judged (the discovery drawing's *Judge history* box), which moves its current values to the newest
+readings and works out again the derived values that read them.
 When the server's readings queue is full it refuses the readings and says when to send them again;
 Tributary waits that long and sends them again, a few times at most, and stops if the call it is part
 of has been given up. Tributary fetches and reshapes; it computes nothing and remembers nothing. A
@@ -998,47 +1004,49 @@ was fetched. The console draws such a property as the image it names.
 Places nest. A source covering a region covers every site within it without naming any, and a
 country spelled two ways can never hide a source. The registrations every project shares ship as
 template data: a climate classification, rainfall and sunlight averaged over twenty years, hazard
-gradings from a public portal, ten years of hourly climate history.
+gradings from a public portal, ten years of hourly climate history and of air quality, thirty-five
+years of daily rain, and the soil at each declared depth.
 
 ### 39. Discovery: Forage
-Nothing calls Forage. A site whose coordinates are known and whose coverage has not yet been
-worked out enters a state, and a connection watching that state calls the service with the
-site as subject (chapter 28). A run:
+Discovery is a pipeline drawn in the model, and Forage answers its steps. A site whose coordinates
+are known and whose coverage has not yet been worked out enters a state; a connection bound to the
+orchestrator watches that state and runs the discovery drawing with the site as subject (chapter 28).
+Its boxes, in order:
 
-1. **Reads the site's places, the sources covering them, and their registrations** in one
-   snapshot. A failed read writes nothing — an unreachable server must never read as "no source
-   covers this site".
-2. **Records one coverage per call** it will make: a Thing per site and source that says whether
-   the call answered, when, how many attempts, and why not. Its identifier is worked out from the
-   site and the source, and the record and its relationships go in one write, so writing it twice
-   changes nothing. A call already answered is not made again, so a run after a partial failure asks
-   only the sources that failed.
-3. **Calls each source through Tributary**, a bounded number at a time, each with a time limit,
-   addressing the call from the site's own values outward — its coordinates, then the values of the
-   places it sits in, then the source's own settings. A source that grades one hazard per call is
-   called once per hazard assessment the site has, with that assessment as the subject.
-4. **Resolves the fetched words.** A climate code or a hazard grade arrives as a word; the run
-   relates the subject to the vocabulary Thing the word names, reading the declaration the model
-   carries, so a project adding a vocabulary edits its model and deploys nothing. A word the
-   vocabulary does not hold writes no relationship and is reported.
-5. **Starts the analysis** by relating the site's study to each compute connection the
-   `siteAnalysisConnection` role binds. A relationship written along a connection calls its
-   service, so creating that relationship is what starts the analysis — one way to start it, and
-   one answerable from the model afterwards. A
-   connection the study is already related through, by the seed or an earlier run, is left as it
-   is and counts as started.
+1. **Resolve region** reads the site's places, the sources covering them, and their registrations in
+   one snapshot. A failed read writes nothing, because an unreachable server must never read as "no
+   source covers this site"; the box fails and may be tried again.
+2. **Plan calls** records one coverage per call it plans: a Thing per site and source that says whether
+   the call answered, when, how many attempts, and why not. Its identifier is worked out from the site
+   and the source, and the record and its relationships go in one write, so writing it twice changes
+   nothing. A call already answered is not planned again, so a run after a partial failure asks only
+   the sources that failed. Each call is addressed from the site's own values outward — its
+   coordinates, then the values of the places it sits in, then the source's own settings. A source that
+   grades one hazard per call is called once per hazard assessment the site has, with that assessment
+   as the subject.
+3. **Fetch each call** is Tributary's fetch step. It asks each planned call and tries a failed one again
+   as the box's own settings say, so the box, not Forage, bounds the calls.
+4. **Judge history** is Tributary's other step: it asks for each subject's stored history to be judged.
+5. **Record results** records what each call came to, once every subject's history is judged.
+6. **Resolve words.** A climate code or a hazard grade arrives as a word; the box relates the subject
+   to the vocabulary Thing the word names, reading the declaration the model carries, so a project
+   adding a vocabulary edits its model and deploys nothing. A word the vocabulary does not hold writes
+   no relationship and is reported as unknown. A relationship the platform refuses for good is reported
+   in `refusedWords` and the step succeeds; one it rejects makes Forage read the vocabulary again,
+   failing at once on the same refusal, failing so it may be tried again where a member changed, and
+   reporting the word as unknown where its member is gone.
+7. **Mark discovered** stamps `coverageMatchedAt` on the site and answers the site's one study.
 
 Partial failure is normal. A source that fails leaves its value undiscovered and its coverage
-outstanding; the site stays in the state and is driven again; and the analysis starts on whatever
-resolved, including nothing, because a site whose sources were all unavailable is exactly the case
-a planner needs an answer about. A source added to the catalogue later enters a state of its own
-and is offered to every site under the places it covers, the same way. Every write a run makes is
-safe to repeat, so a run caught by a restart, or two runs for one site, leave one result.
+outstanding, and the site stays in the state and is driven again, because a site whose sources were
+all unavailable is exactly the case a planner needs an answer about. A source added to the catalogue
+later is offered to every site under the places it covers by a second drawing, whose *Offer a source*
+box is Forage's `offerSource` step. Every write is safe to repeat, so a run caught by a restart, or two
+runs for one site, leave one result.
 
-Forage also answers as **pipeline steps**, one per box, chosen by the box's `step` setting:
-`resolveRegion`, `planCalls`, `recordResults`, `resolveWords`, `startAnalysis` and `offerSource` —
-the same work as a run, drawn on a canvas (Part VI). A failed read of the model is a failure the
-orchestrator may try again.
+Forage answers nothing but these steps, each box choosing one by its `step` setting: `resolveRegion`,
+`planCalls`, `recordResults`, `resolveWords`, `markDiscovered` and `offerSource`. A relationship call is
+refused with `400`. A failed read of the model is a failure the orchestrator may try again.
 
 ---
 
