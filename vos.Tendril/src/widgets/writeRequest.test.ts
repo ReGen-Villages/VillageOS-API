@@ -152,6 +152,10 @@ describe('the label of a choice the model offers', () => {
     expect(choiceLabelOf({ id: 'c2', name: 'Fenced' }, 'de')).toBe('Fenced');
     expect(choiceLabelOf({ id: 'c3', name: 'Dug', wording: 'not words by language' }, 'en')).toBe('Dug');
   });
+
+  it('is nothing where the Thing has neither wording nor a name, as the console showed it', () => {
+    expect(choiceLabelOf({ id: 'c4' }, 'en')).toBe('');
+  });
 });
 
 describe('the writes a press makes, composed and not sent', () => {
