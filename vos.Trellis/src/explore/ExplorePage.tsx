@@ -28,7 +28,8 @@ import { useResolveContext } from '../hooks/useDashboard';
 import { isTicketRefusal } from '../api/refusals';
 import { useTermWords } from '@tendril-ui/tendril';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
-import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
+import { fromHectares, withHazardReported, withShareSet, wholePercentages } from '../intake/submissionDraft';
+import { everyFigureReads, figureRefusals, FIGURE_REFUSAL_WORDING, type FigureRefusal } from '../intake/typedFigure';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
 import { OverviewView } from './OverviewView';
 import { tabSections } from './overviewState';
@@ -229,6 +230,7 @@ export function ExplorePage() {
   // change is the dialled values spelled out, so a render that moved nothing posts nothing.
   const dialled = JSON.stringify(
     [state.population, state.householdSize, state.shares, state.reportedHazards]);
+  const figuresRead = everyFigureReads(state);
   const posted = useRef<string | null>(null);
   useEffect(() => {
     if (session === null) return;
@@ -237,10 +239,11 @@ export function ExplorePage() {
       posted.current = dialled;
       return;
     }
-    if (posted.current === dialled) return;
-    posted.current = dialled;
+    if (posted.current === dialled || !figuresRead) return;
 
     const timer = window.setTimeout(async () => {
+      // Marked only once it goes, so a change cleared before it settled is still posted when typed back.
+      posted.current = dialled;
       const held = ticket.current;
       if (held === null) return;
       try {
@@ -254,7 +257,7 @@ export function ExplorePage() {
       }
     }, DIAL_SETTLE_MILLISECONDS);
     return () => window.clearTimeout(timer);
-  }, [session, dialled, readFindings, t]);
+  }, [session, dialled, figuresRead, readFindings, t]);
 
   function resume(): Promise<void> {
     return whileBusy(async () => {
@@ -876,6 +879,7 @@ function Dials({
     [i18n.language],
   );
   const shown = wholePercentages(state.shares);
+  const refusals = figureRefusals(state);
 
   return (
     <section className="mt-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5">
@@ -883,48 +887,54 @@ function Dials({
       <p className="mb-4 text-xs text-zinc-400 dark:text-zinc-500">{t('explore.dialsHint')}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <label className="block">
-          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('explore.population')}</span>
-          <span className="mt-1 flex items-center gap-3">
-            <input
-              type="range"
-              min={0}
-              max={2000}
-              step={10}
-              value={state.population === '' ? 0 : Number(state.population)}
-              onChange={(event) => onDial({ population: event.target.value })}
-              className="flex-1 accent-emerald-600"
-            />
-            <input
-              value={state.population}
-              onChange={(event) => onDial({ population: event.target.value })}
-              inputMode="numeric"
-              placeholder={t('explore.notSet')}
-              className="w-24 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 tabular-nums"
-            />
-          </span>
-        </label>
-        <label className="block">
-          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('explore.householdSize')}</span>
-          <span className="mt-1 flex items-center gap-3">
-            <input
-              type="range"
-              min={1}
-              max={8}
-              step={0.1}
-              value={state.householdSize === '' ? 2.4 : Number(state.householdSize)}
-              onChange={(event) => onDial({ householdSize: event.target.value })}
-              className="flex-1 accent-emerald-600"
-            />
-            <input
-              value={state.householdSize}
-              onChange={(event) => onDial({ householdSize: event.target.value })}
-              inputMode="decimal"
-              placeholder={t('explore.notSet')}
-              className="w-24 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 tabular-nums"
-            />
-          </span>
-        </label>
+        <div>
+          <label className="block">
+            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('explore.population')}</span>
+            <span className="mt-1 flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={2000}
+                step={10}
+                value={state.population === '' ? 0 : Number(state.population)}
+                onChange={(event) => onDial({ population: event.target.value })}
+                className="flex-1 accent-emerald-600"
+              />
+              <input
+                value={state.population}
+                onChange={(event) => onDial({ population: event.target.value })}
+                inputMode="numeric"
+                placeholder={t('explore.notSet')}
+                className="w-24 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 tabular-nums"
+              />
+            </span>
+          </label>
+          <DialRefusal refusal={refusals.population} />
+        </div>
+        <div>
+          <label className="block">
+            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('explore.householdSize')}</span>
+            <span className="mt-1 flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={8}
+                step={0.1}
+                value={state.householdSize === '' ? 2.4 : Number(state.householdSize)}
+                onChange={(event) => onDial({ householdSize: event.target.value })}
+                className="flex-1 accent-emerald-600"
+              />
+              <input
+                value={state.householdSize}
+                onChange={(event) => onDial({ householdSize: event.target.value })}
+                inputMode="decimal"
+                placeholder={t('explore.notSet')}
+                className="w-24 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 tabular-nums"
+              />
+            </span>
+          </label>
+          <DialRefusal refusal={refusals.householdSize} />
+        </div>
       </div>
 
       <div className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('explore.programmeTitle')}</div>
@@ -959,12 +969,8 @@ function Dials({
                 <select
                   aria-label={wordsFor(hazardType)}
                   value={state.reportedHazards[hazardType] ?? ''}
-                  onChange={(event) => {
-                    const reported = { ...state.reportedHazards };
-                    if (event.target.value.length === 0) delete reported[hazardType];
-                    else reported[hazardType] = event.target.value;
-                    onDial({ reportedHazards: reported });
-                  }}
+                  onChange={(event) =>
+                    onDial({ reportedHazards: withHazardReported(state, hazardType, event.target.value).reportedHazards })}
                   className="px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                 >
                   <option value="">{t('explore.notReported')}</option>
@@ -979,6 +985,12 @@ function Dials({
       )}
     </section>
   );
+}
+
+function DialRefusal({ refusal }: { refusal: FigureRefusal | undefined }) {
+  const { t } = useTranslation();
+  if (refusal === undefined) return null;
+  return <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t(FIGURE_REFUSAL_WORDING[refusal])}</p>;
 }
 
 function Field({

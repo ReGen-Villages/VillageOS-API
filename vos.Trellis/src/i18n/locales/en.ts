@@ -1698,6 +1698,11 @@ export const en = {
       fromDevice: 'from this device',
     },
   },
+  typedFigure: {
+    notANumber: 'Not a number.',
+    negative: 'Cannot be negative.',
+    notWhole: 'Must be a whole number.',
+  },
   publicFindings: {
     noTicket: "Confirm your email address first.",
     fileNotSent: "The file could not be sent.",

@@ -1805,6 +1805,11 @@ export const ar: WithArabicPluralForms<Resources> = {
       fromDevice: "من هذا الجهاز",
     },
   },
+  typedFigure: {
+    notANumber: "ليس رقمًا.",
+    negative: "لا يمكن أن يكون سالبًا.",
+    notWhole: "يجب أن يكون عددًا صحيحًا.",
+  },
   publicFindings: {
     noTicket: "أكّد عنوان بريدك الإلكتروني أولًا.",
     fileNotSent: "تعذّر إرسال الملف.",

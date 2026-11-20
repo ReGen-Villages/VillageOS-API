@@ -226,6 +226,20 @@ describe('a dial that cannot be read', () => {
     expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[1][0].site.population).toBe(12);
   });
 
+  it('posts a figure typed back after a refused one, though it had not settled before', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('Residents', '320');
+    typeIntoDial('Residents', 'abc');
+    await letTheDialSettle();
+    typeIntoDial('Residents', '320');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[1][0].site.population).toBe(320);
+  });
+
   it('posts again once the field is cleared', async () => {
     await reachTheReport();
     vi.useFakeTimers();
