@@ -52,8 +52,7 @@ def write_png(path, pixels):
 class WebHost:
     """A web server in its own process, serving a folder, that can say what was asked of it."""
 
-    def __init__(self, process, port):
-        self._process = process
+    def __init__(self, port):
         self.base = f"http://127.0.0.1:{port}"
 
     def address(self, name):
@@ -77,7 +76,7 @@ def web_host(tmp_path):
     folder.mkdir()
     process = subprocess.Popen(
         [sys.executable, str(Path(__file__).parent / "range_server.py"), str(folder)], stdout=subprocess.PIPE, text=True)
-    host = WebHost(process, int(process.stdout.readline()))
+    host = WebHost(int(process.stdout.readline()))
     host.folder = folder
     yield host
     process.kill()

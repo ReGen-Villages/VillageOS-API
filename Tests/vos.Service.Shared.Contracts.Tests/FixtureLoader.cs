@@ -11,13 +11,4 @@ internal static class FixtureLoader
             throw new FileNotFoundException($"Fixture not found: {path}", path);
         return File.ReadAllText(path);
     }
-
-    public static IEnumerable<string> EnumerateSchemaFolders()
-    {
-        var root = Path.Combine(AppContext.BaseDirectory, "Fixtures");
-        if (!Directory.Exists(root))
-            yield break;
-        foreach (var dir in Directory.EnumerateDirectories(root))
-            yield return Path.GetFileName(dir);
-    }
 }
