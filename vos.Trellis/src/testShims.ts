@@ -1,6 +1,4 @@
-// jsdom ships no ResizeObserver. Components that size themselves to their container observe one
-// and fall back to a default width when it is absent, so a shim that never fires keeps them on
-// that fallback instead of crashing the render.
+// jsdom has no ResizeObserver; one that never reports keeps components on their default width.
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -9,11 +7,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as unknown as typeof ResizeObserver;
 }
 
-// vitest 4.x + jsdom does not ship a usable `localStorage` by default. Modules
-// that read it at import time (e.g. `useUiStore` reading the persisted detail-
-// panel width, or i18n reading the persisted language) crash the whole test
-// file before any test runs. Provide a minimal in-memory shim so any test that
-// touches such modules just works.
+// jsdom under vitest has no working `localStorage`, and a module that reads it on import would fail the whole file.
 if (!globalThis.localStorage || typeof globalThis.localStorage.getItem !== 'function') {
   const store: Record<string, string> = {};
   Object.defineProperty(globalThis, 'localStorage', {

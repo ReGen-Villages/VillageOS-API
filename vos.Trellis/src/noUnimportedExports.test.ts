@@ -4,21 +4,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/**
- * Guards that nothing is exported from the console source without something importing it.
- *
- * An export says "somewhere else needs this". When nothing does, the word is a claim the code
- * cannot back: a reader weighing a change has to search the whole source to find out that the
- * answer is nobody, and a symbol nothing imports is kept alive by the keyword alone.
- *
- * Value exports only — `function`, `const`, `class`. A type is often exported to be named in a
- * consumer's signature rather than imported by name, so the same rule would misread it.
- *
- * A file's own test counts as an importer: a symbol reached only by the test that proves it is
- * still reached by something, and the alternative flags every component the moment it is written.
- *
- * A finding is silenced only by adding it to ALLOWED with a reason.
- */
+/** Value exports only, because a type is often exported to be named in a signature rather than imported.
+ *  A file's own test counts as an importer, or every new component would be reported as it is written. */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 

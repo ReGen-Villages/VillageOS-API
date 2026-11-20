@@ -1,7 +1,4 @@
-//   VOS_INTEGRATION_URL       default https://localhost:7243
-//   VOS_INTEGRATION_USERNAME  default admin
-//   VOS_INTEGRATION_PASSWORD  default admin
-//   VOS_INTEGRATION_MODEL     the model to sign in to, when the platform serves several
+// VOS_INTEGRATION_MODEL names the model to sign in to when the platform serves several.
 
 export const BASE_URL = process.env.VOS_INTEGRATION_URL || 'https://localhost:7243';
 const USERNAME = process.env.VOS_INTEGRATION_USERNAME || 'admin';

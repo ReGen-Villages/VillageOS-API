@@ -1,9 +1,5 @@
-// What a console tab's traffic looks like once the identifiers are taken out: every request to the
-// platform becomes "METHOD /route/with/{id}?parameterNames", so a hundred reads of a hundred Things
-// count as one route read a hundred times, and a count-only read is told from a full one by the
-// parameter it carries. The page's own assets and fonts are not the platform's traffic and are summed
-// as one number. The tab script feeds it every request and every handled stream event; the readings
-// a scenario records are what it tallies.
+// Each request to the platform is counted as "METHOD /route/with/{id}?parameterNames", so reads of many
+// Things count as one route read many times; the page's own files are summed as one number.
 
 const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
