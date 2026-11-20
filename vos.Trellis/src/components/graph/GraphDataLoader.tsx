@@ -12,10 +12,9 @@ interface Props {
 }
 
 /**
- * Syncs the Sigma graph with the model store on every data change.
- * The first load (empty graph) does a full loadGraph() and fits the camera;
- * every later change — including creates and deletes — is reconciled in place,
- * which preserves settled node positions and never resets the camera.
+ * An empty graph, on the first load or after a clear, is loaded whole and the camera fitted. Every later
+ * change, creates and deletes included, is reconciled in place, so settled node positions, the running layout
+ * and the camera are left alone.
  */
 export function GraphDataLoader({ things, relationships }: Props) {
   const sigma = useSigma();
@@ -30,9 +29,6 @@ export function GraphDataLoader({ things, relationships }: Props) {
     const nextGraph = buildGraph(things, relationships, predicateColors, layout);
     const liveGraph = sigma.getGraph();
 
-    // An empty live graph means first mount or a post-clear repopulate: do a full
-    // load and fit. Otherwise reconcile incrementally so the running layout and
-    // camera are left undisturbed.
     if (liveGraph.order === 0) {
       loadGraph(nextGraph);
       if (nextGraph.order > 0) {
