@@ -40,7 +40,7 @@ Land intake keeps the sequence and answers all three, by expressing intake in th
 rather than as a standalone tool.
 
 **The one-line version:** a planner draws a parcel, the platform fetches what is publicly known
-about that location, the model and a reactive service compute the balances, and everything — the
+about that location, the model computes the balances, and everything — the
 answers, the fetched values, the results, and where each came from — lives in the model.
 
 ---
@@ -93,25 +93,26 @@ produces one result, not two. This is how a submission enters the model.
 ```mermaid
 flowchart LR
   subgraph client["What people use"]
-    T["<b>Trellis</b><br/>the web GUI"]
+    T["<b>Trellis</b><br/>the web console"]
     TR["<b>Taproot</b><br/>the command line"]
   end
   M["<b>Mycelium</b><br/>the broker — holds the model,<br/>serves the API, runs the services"]
   subgraph svc["Services (each a small program)"]
+    I["<b>Intake</b><br/>composes a submission into the model"]
+    P["<b>Phloem</b><br/>runs the discovery drawing"]
     TB["<b>Tributary</b><br/>fetches outside data"]
     D["<b>Delta</b><br/>registers data sources"]
-    F["<b>Forage</b><br/>finds the sources covering a site"]
-    C["<b>Compute service</b><br/>the energy balance"]
+    F["<b>Forage</b><br/>plans the calls for a site"]
   end
   T --> M
   TR --> M
-  M --> TB & D & F & C
+  M --> I & P & TB & D & F
 ```
 
 **Mycelium** — the broker. It holds the models, serves the API, authenticates every caller, and
 starts and supervises the services. Everything goes through it.
 
-**Trellis** — the web GUI. Has a graph view, a 3D building viewer, a map, and dashboards.
+**Trellis** — the web console. Has a graph view, a 3D building viewer, a map, and dashboards.
 
 **Taproot** — the command-line client.
 
@@ -127,41 +128,35 @@ is described entirely by configuration, never by code written for that provider.
 
 **Delta** — the service that validates and registers those provider descriptions.
 
-**Forage** — the service that works out which registered sources cover a site and calls each one.
+**Forage** — the service that works out which registered sources cover a site, plans the calls to
+each one, and records what each call came to.
 
-**Compute service** — a microservice that reads its inputs off one Thing, computes, and writes its
-outputs back onto the same Thing. What falls to one is what a formula on the study cannot express: a
-verdict, which is a yes-or-no where a formula yields a number.
+**Phloem** — the orchestrator. It runs a drawn pipeline, a drawing of boxes and wires, one box at a
+time. Discovery is one such drawing, whose boxes call Forage and Tributary.
 
-**Derived property** — a formula the study declares and the model computes, over the study's own values
-and what it inherits. It refuses every value write, which is why nothing else may assert a figure
-declared this way.
+**Derived property** — a formula or a reduction the study declares and the model computes, over the
+study's own values, what it inherits and the Things it is related to. It refuses every value write,
+which is why nothing else may assert a figure declared this way.
 
-### How a calculation is started and kept current
+**Range** — a condition a Thing is judged by, such as "generation covers consumption". A Thing that
+meets it is in that state, so a verdict is a range rather than a stored yes or no.
 
-A calculation is **not** a graph of boxes and wires here. It is a service that reads and writes one
-Thing, started by a relationship and kept current by a subscription.
+### How a calculation is kept current
 
-```mermaid
-flowchart LR
-  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the relationship calls the service)</i>"| SV["EnergyBalance"]
-  SV -.->|"reads inputs, writes outputs"| ST
-```
+A calculation here is **not** a service and is not run in steps. It is a derived property the study
+declares, judged by the ranges the study declares.
 
-- **Handled predicate** — a predicate Thing bound to a service. Creating a relationship whose
-  predicate is one calls that service, handing it the subject. The model carries the trigger.
-- **Connection** — the Thing that binds a predicate to a service. It is the predicate in the
-  relationship above, which is why relating a study to a service is what starts it.
+- **Handled predicate** — a predicate that names a connection. Creating a relationship through it
+  calls the connection's service, handing it the subject. The model carries the trigger.
+- **Connection** — the Thing that binds a trigger to a service: a predicate naming it, a request
+  address, or a state it watches. Discovery is started by a connection watching a state.
 - **Effective properties** — a Thing's own values plus everything it inherits through its `is` chain.
-  A service reads these, so an assumption declared once on a shared archetype reaches every study.
-- **Input-change subscription** — a service watches the Thing it computed and recomputes when one of
-  its *declared inputs* moves. It watches its inputs rather than the Thing itself because it writes
-  its outputs there too, and reacting to those would recompute forever.
-- **Recompute round limit** — a bound on a chain where one computed value feeds another. The
-  footprints feed the balances, so the cascade settles or stops and names what was still moving.
+  A formula reads these, so an assumption declared once on a shared archetype reaches every study.
+- **Recompute round limit** — a bound on a chain where one derived property feeds another. The
+  footprints feed the balances, so the chain settles or stops and names what was still moving.
 
-Nothing has to be re-run: a planner changing an assumption changes a property, and every balance that
-declared it as an input recomputes.
+Nothing has to be re-run: a planner changing an assumption changes a property, and every figure that
+reads it is worked out again.
 
 ---
 
@@ -178,10 +173,10 @@ flowchart TB
 
   subgraph P2["② DISCOVERY — the platform looks the place up"]
     direction LR
-    SEL["Select sources<br/>covering this site"] --> FETCH["Tributary calls each<br/>with the site's coordinates"]
+    SEL["Forage plans a call for each<br/>source covering this site"] --> FETCH["Tributary makes each<br/>with the site's coordinates"]
   end
 
-  subgraph P3["③ ANALYSIS — the model and one service do the arithmetic"]
+  subgraph P3["③ ANALYSIS — the model does the arithmetic"]
     direction LR
     READ["Read the study"] --> CALC["Land split →<br/>energy · food · water"] --> WRITE["Results<br/>on the study"]
   end
@@ -215,7 +210,8 @@ instead of failing the whole thing.
 | **Parcel** | The actual boundary, drawn on a map |
 
 The wizard holds a submission back until the site name, the project name, and the contact's name and
-email address are filled in. Everything else can be left for later. The address is where the reviewer's
+email address are filled in and a boundary encloses land. It holds it too while a typed population or
+household size cannot be read, and says why under the field. Everything else can be left for later. The address is where the reviewer's
 decision is sent, which is why it is not among the fields a part-filled submission may go without.
 
 The programme categories are residential; food and agriculture; green, water and restoration;
@@ -267,8 +263,9 @@ before the questions.
   model's own account of the value's origin.
 - **The report is a grid of tiles.** Each section of the submission dashboard that names a theme the
   model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
-  a click opens its charts as a gallery, and a card opens full width. A section naming no theme
-  draws as a list, so the same specification serves the findings page. See
+  a click opens its charts as a gallery, and a card opens full width. A tile and its gallery are
+  named by the section's own title where the page gives one, then by the theme's words in the page
+  language, then by the theme's name. A section naming no theme draws as a list, so the same specification serves the findings page. See
   [the Field Guide](FIELD_GUIDE.md#94-tiles-and-what-a-page-is-sent).
 - **The only questions are a name for the land, the person's name, and the mailbox** — the same
   verification exchange as the wizard, and nothing else. The programme starts from the default share
@@ -279,7 +276,9 @@ before the questions.
 - **Everything else is a dial on the report.** The page forwards itself to the findings with the
   reference and the ticket already in hand; the programme split, the population, the household size
   and what the person has seen of each hazard re-post the same submission under the same identifier —
-  a fragment upserts — and every figure recomputes. A successful post or read hands a fresh ticket
+  a fragment upserts — and every figure recomputes. A re-post waits while a typed population or
+  household size cannot be read, with the reason under the dial, and goes once the field is mended or
+  cleared. A successful post or read hands a fresh ticket
   back in the response header, so a long session is not sent back to the mailbox every ten minutes,
   while an abandoned ticket still dies at its own age.
 - **After the report, the page asks for surveys.** *Have you done any surveys which you can share?* —
@@ -426,7 +425,7 @@ Registrations inherit from a small hierarchy of templates, so shared behaviour i
 flowchart BT
   R1["<b>a registration</b><br/>climate-averages<br/>supplies: url, responseTransform"]
   R2["<b>a registration</b><br/>county-parcels<br/>supplies: url, tokenUrl, tokenRequest"]
-  E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no auth · no paging"]
+  E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no authentication · no paging"]
   E2["<b>EsriEndpoint</b><br/>token exchange · offset paging<br/>provider's field names fixed"]
   R1 -->|is| E1
   R2 -->|is| E2
@@ -435,8 +434,8 @@ flowchart BT
 
 A registration's allowed settings are the union of everything declared along its chain, and a value
 resolves to the nearest ancestor that sets it. **Delta** validates all of that at registration time
-and refuses anything that does not fit, so a broken configuration fails immediately rather than at
-3am during a run.
+and refuses anything that does not fit, so a broken configuration fails immediately rather than
+partway through a run.
 
 **A registration lives in the project's own model, not in a catalogue shared between projects.** A
 model is the boundary of every read, so an endpoint and the Site its readings name have to be in the
@@ -507,50 +506,55 @@ name here would fit one site and be wrong for every other — see
 sequenceDiagram
   participant Site
   participant Mycelium
+  participant Phloem
   participant Forage
   participant Tributary
   participant Provider as Outside provider
   Site->>Mycelium: coordinates written, coverage never worked out
   Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
-  Mycelium->>Forage: service call, naming the site as the subject
-  Forage-->>Mycelium: accepted — the fetching has not started
+  Mycelium->>Phloem: service call, naming the site as the subject
+  Note over Phloem: runs the Site discovery drawing
+  Phloem->>Forage: Resolve region: the site's division, where the model has none
+  Phloem->>Forage: Plan calls
   Forage->>Mycelium: which sources cover this site,<br/>and what does each one's coverage already say?
   Mycelium-->>Forage: sources reached by walking<br/>isIn and covers relationships, and their coverages
   Forage->>Mycelium: mint a SourceCoverage per call with none,<br/>appliesTo the Site and sourcedFrom the source
-  loop each call whose coverage is outstanding, bounded concurrency
-    Forage->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
+  Forage-->>Phloem: one item per outstanding call, or per slice of a long history
+  loop each planned call, one at a time
+    Phloem->>Tributary: Fetch each call: the source, the site's coordinates<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
+  Phloem->>Tributary: Judge history: each subject the fetches wrote onto
+  Phloem->>Forage: Record results
   Forage->>Mycelium: resolvedAt on each coverage that answered;<br/>attempts, lastAttemptAt and failureReason on each that did not
+  Phloem->>Forage: Resolve words
   Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared relationship
+  Phloem->>Forage: Mark discovered
   Forage->>Mycelium: coverageMatchedAt on the Site
-  Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery for SiteDiscovered
-  Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run asks only that source
-  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one relationship per analysis connection
-  Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the relationship starts it
-  Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the service call, not its reply
+  Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery
+  Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run plans only that source
+  Phloem->>Mycelium: the run ended, which finishes the service call
 ```
 
-**Nothing calls Forage by hand.** The site entering `SiteAwaitingDiscovery` is what calls it, and the
-call record that writes is what a reader asks afterwards to find out what started a run — see
+**Nothing calls Forage by hand.** The site entering `SiteAwaitingDiscovery` is what starts a run, and
+the call record that writes is what a reader asks afterwards to find out what started it — see
 [FORAGE.md](FORAGE.md#what-starts-a-run).
 
 **A source added to the catalogue reaches the sites already in the model the same way.** The source
-enters its own state, `SourceAwaitingSites`, and Forage is called about it from there; its run walks from the source
-down through the Places it covers to every site in them and mints the coverages those sites' runs
-will look for, fetching nothing. One outstanding coverage puts a site back in `SiteAwaitingDiscovery`,
-and that site's run asks only the new source — see
+enters its own state, `SourceAwaitingSites`, which starts a run of the Source offer drawing; its one
+Forage box walks from the source down through the Places it covers to every site in them and mints the
+coverages those sites' runs will look for, fetching nothing. One outstanding coverage puts a site back
+in `SiteAwaitingDiscovery`, and that site's run plans only the new source — see
 [FORAGE.md](FORAGE.md#a-source-added-to-the-catalogue).
 
-The analysis starts whatever mixture resolved, including none — a site whose sources were all
-unavailable is the case a planner most needs an answer about. Forage never calls a compute
-service: it writes the relationships and the platform calls the services, so there is one way to start an analysis
-rather than two. The subject is the study, because that is where a service reads its inputs.
-See [FORAGE.md](FORAGE.md#starting-the-analysis).
+**Discovery starts no analysis.** The analysis is the study's own formulas and ranges, so a value
+discovery writes is read by every figure that declares it as soon as it lands, whatever mixture of
+sources resolved, including none — a site whose sources were all unavailable is the case a planner
+most needs an answer about.
 
 Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
 Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways
@@ -571,8 +575,11 @@ Each of these is registered as seed data.
 | Climate zone | The property takes observations only, so nobody can type one in and a fetch is the only thing that writes it |
 | Solar resource | A measured long-term average, where a curve applied to latitude is an estimate that looks like a measurement |
 | Rainfall | A sourced and dated figure for the water balance, where a typed number has neither |
-| Hazard levels | One grading per hazard, read from the portal with its date, called once per assessment |
+| Hazard levels | One grading per hazard, read from the portal with its date, called once per assessment. Beside the level it keeps the portal's general recommendation and its climate-change recommendation, word for word, read again with the level |
 | Climate history | Ten years of hourly readings, which the climate charts and the frost-day and comfort figures are folded from |
+| Daily rain | The latest 35 complete years of daily totals, which the water figures read for wet and dry spells |
+| Air quality | Hourly particulate matter, dust and aerosol readings over a ten-year window, as far back as the provider holds them |
+| Soil | Bulk density, clay, sand, silt, pH and organic carbon at each soil depth the model declares, called once per soil horizon |
 
 **Rainfall and the solar resource arrive from one call.** The same provider averages both over the
 same twenty years, so a second registration would be a second outage for one answer. An average over
@@ -584,7 +591,7 @@ the border arrives and writes it as a fact, so `Site.elevationMetres` takes fact
 border-elevation lookup answers the centre, lowest and highest heights. `Site` holds no surface for a
 terrain model to land on.
 
-**Two registrations in the catalogue fetch no value at all.** A run makes them to work out which
+**Two registrations in the catalogue fetch no value at all.** Forage's Resolve region step makes them to work out which
 administrative division a site stands in, so the hazard call can be addressed: one turns the site's
 position into an area name, the other searches the portal's own divisions for that name. Neither
 covers a Place and neither carries a reshape expression, because nothing they answer is a reading
@@ -636,52 +643,43 @@ commercial products behind a licence. The catalogue holds none of those.
 
 ## 6. Phase three — analysis
 
-The analysis reads what is in the model and answers back onto the study. It makes no outside calls.
+The analysis reads what is in the model and answers back onto the study. It makes no outside calls,
+and no service runs it.
 
-**A figure the study can work out for itself is declared on the study, not asserted by a service.** The
-shared `SiteStudy` archetype carries the formula for each one, and the model computes it when the model
-loads and again whenever a term moves — so the arithmetic is checked against the properties the study
-declares, a page can show a figure's working, and a term with no answer leaves the figure unknown rather
-than failing the service that would have written it. That last part is what lets a site nobody surveyed
-read as not assessed instead of as a site that failed.
+**Every figure is declared on the study, not asserted by a service.** The shared `SiteStudy` archetype
+carries the formula or the reduction for each one, and the model computes it when the model loads and
+again whenever a term moves — so the arithmetic is checked against the properties the study declares,
+a page can show a figure's working, and a term with no answer leaves the figure unknown rather than
+failing whatever would have written it. That last part is what lets a site nobody surveyed read as not
+assessed instead of as a site that failed.
 
-What is left to a service is what no declaration on the study can hold: a verdict, which is a boolean
-where an expression yields a number. A figure summed across a set is a reduction the study declares,
-and the harvest apportioned over the demands is worked out by the demands themselves, each taking the
-smaller of what it wants and what the demands before it left — so neither is a service's work.
-
-That one service runs **reactively** here, not as a step in a drawn pipeline. A relationship whose subject is the
-study and whose predicate is the connection bound to the service is what calls it: the service
-reads the study's effective properties, computes, writes what is its to write back as a Fact, and starts
-watching the study. Every later change to an input recomputes on its own.
+**A verdict is a range on the study.** The energy verdict is the `EnergyNetPositive`,
+`EnergyShortOfTarget` and `EnergyNotAssessed` ranges, each reading `percentOfConsumption`. A figure
+summed across a set is a reduction the study declares, and the harvest apportioned over the demands is
+worked out by the demands themselves, each taking the smaller of what it wants and what the demands
+before it left.
 
 ```mermaid
 flowchart TB
   R["<b>On the study</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
-  M["<b>Worked out by the model</b><br/>each allocation's area · both footprints<br/>every stored-water and food figure · the harvest<br/>each demand's size and what it takes"]
-  EB["<b>Energy<br/>balance</b>"]
-  W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
+  M["<b>Worked out by the model</b><br/>each allocation's area · both footprints<br/>generation · consumption · their share<br/>every stored-water and food figure · the harvest<br/>each demand's size and what it takes"]
+  W["<b>Judged by the study's ranges</b>"]
 
-  R --> M
-  R -->|"solar resource · panel area · consumption"| EB
-  M --> W
-  EB --> W
+  R --> M --> W
 ```
 
-The arrows are property reads and writes on one Thing, not wires. The model answers the middle box as
-the model loads and again whenever a term moves, generation, consumption and their share included;
-what the energy balance adds is the verdict. Its panel area is the arrays' measured area once the
-model holds arrays and an estimate from the land until then, and its consumption is worked out from
-the population, so it reads figures the model has already worked out. Nothing sequences any of them:
-each recomputes when an input it declared moves, and the cascade is bounded by the model's recompute
-round limit.
+The arrows are property reads on one Thing, not wires. The study's panel area is the arrays' measured
+area once the model holds arrays and an estimate from the land until then, and its consumption is
+worked out from the population. Nothing sequences any of the figures: each is worked out again when a
+term it reads moves, and a chain where one derived property feeds another is bounded by the model's
+recompute round limit.
 
 **Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
 the stated programme and its share of the parcel from definitions the shared analysis declares on the
-`ProgrammeAllocation` archetype, so a page can show the working and no service asserts either figure.
+`ProgrammeAllocation` archetype, so a page can show the working and nothing asserts either figure.
 Both footprints are reductions on the study carrying a condition, because each sums the allocations whose
-*category* carries a mark and a relationship path narrows by archetype rather than by a property a Thing
-carries — so the condition does what no path reaches.
+*category* `is` a footprint kind, and the category is one relationship beyond the allocation, where the
+reduction's path does not reach — so the condition does what the path cannot.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner varies, and they live on the
@@ -696,32 +694,8 @@ because it looks like an answer.
 
 **An input the study does not carry yet is waited for, not failed.** A submission describes land,
 a boundary and programme shares, so a reservoir capacity is absent until a building model exists or
-somebody states one. A service that finds one of its inputs missing writes nothing, names it in its own log, and
-answers what it is waiting for; the watch it registered on the study is what brings it back when the
-figure arrives. A service that failed instead would have the broker record the call failed and
-call it again on every reconciliation for as long as the model lived.
-
-### What a service call looks like
-
-A handled relationship names the study; the service answers with what it computed:
-
-```jsonc
-// Mycelium → the service                   // the service → Mycelium
-{                                            {
-  "relationshipId": "…",                       "success": true,
-  "subjectId": "…",   // the study             "outputs": {
-  "targetId":  "…",                              "solarGenerationMwhPerYear": 1180.4,
-  "properties": { }                              "totalGenerationMwhPerYear": 1380.4,
-}                                                "percentOfConsumption": 104.2,
-                                                 "netPositive": true
-                                               }
-                                             }
-```
-
-The inputs are not in the body. The service reads them off the study by name, which is what lets an
-assumption declared on the shared archetype resolve without the caller knowing where it came from. A
-service still waiting on one of those names answers the same shape with `"outputs": null` and a
-`"waitingFor"` naming what has not arrived.
+somebody states one. The figures that read it stay unknown, the ranges that judge them hold "not
+assessed", and every one is worked out when the figure arrives.
 
 ---
 
@@ -739,12 +713,14 @@ flowchart LR
   ST["<b>SiteStudy</b><br/><i>computed outputs</i><br/><i>judge-ranges</i>"]
   PA["<b>Parcel</b><br/>boundary · measured area"]
   AL["<b>ProgrammeAllocation</b><br/>share · area"]
-  HA["<b>HazardAssessment</b><br/>level · date"]
+  HA["<b>HazardAssessment</b><br/>level · date<br/>general and climate-change recommendations"]
+  SH["<b>SoilHorizon</b><br/>soil properties at one depth"]
   DS["<b>SubmittedSource</b><br/>which source · coverage<br/>last resolved"]
 
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area · fetched-from-register"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
   HT["<b>HazardType</b><br/>river-flood · landslide · wildfire<br/>…one Thing per hazard"]
+  SDE["<b>SoilDepth</b><br/>0-5cm · 5-15cm<br/>…one Thing per depth"]
 
   SU -->|proposes| SI
   SU -->|resolvedAs| SD
@@ -759,15 +735,17 @@ flowchart LR
   PA -->|obtainedBy| BS
   AL -->|categorizedAs| AC
   HA -->|assesses| HT
+  SI -->|has| SH
+  SH -->|assesses| SDE
 ```
 
 **A category, a boundary source and a hazard type are Things, and a submission relates to them.** All
 three vocabularies are declared in the model, so a project whose programme divides differently, or whose
 hazards differ, adds a Thing rather than changing a service. The composer resolves the submitted word against what the model declares and refuses one that
-matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
-carries and writes the relationship through the predicate the model marks, never by either name — so a
-model that renames one keeps working, and each footprint's reduction narrows by the marks on the Thing
-at the end of the relationship. **The relationship is the only record**: neither term is also written
+matches nothing, naming the terms the model holds. It finds each vocabulary through the role that binds
+its archetype and writes the relationship through the predicate a role binds, never by either name — so
+a model that renames one keeps working, and each footprint's reduction narrows by what the Thing at the
+end of the relationship `is`. **The relationship is the only record**: neither term is also written
 as a word on the Thing it came from, because a copy beside the relationship can be read but not walked
 from, and two readings of one value
 can come to disagree with nothing to notice.
@@ -841,6 +819,8 @@ graded on nothing — and no form asks about hazards. A landowner is asking whic
 land, not asking for a list they supplied to be graded. Naming one is therefore telling us what they have
 seen, not choosing what is looked into: it adds the source they cite, and the assessment is the same
 Thing the site has in any case. A model declaring a hazard of its own gets it assessed with no change here.
+A site likewise gets one `SoilHorizon` per soil depth the model declares, which `assesses` that depth,
+and a model declaring no soil vocabulary composes without them.
 
 **An assessment reaches its source, rather than naming it.** The source is the `SubmittedSource` Thing
 the assessment hangs off, not a name copied onto it — one per submission, under the archetype that says a
@@ -939,8 +919,8 @@ parcel is the per-category areas.
 
 **Solar output takes two factors, not one.** `moduleEfficiency` (0.17) is what the panel delivers
 under test conditions. `performanceRatio` (0.77) is everything lost between panel and meter: inverter
-losses, wiring, soiling, heat and downtime. Together they come to 0.131. The study and the energy
-balance service each take the two as separate inputs, so leaving the losses out is a visible omission:
+losses, wiring, soiling, heat and downtime. Together they come to 0.131. The study's formula and the
+energy balance pipeline node each take the two as separate inputs, so leaving the losses out is a visible omission:
 a module efficiency alone would overstate output by about a third.
 
 **Each input reads the best source the model holds.** The study's array area is the estimate above
@@ -1044,8 +1024,9 @@ them out.
 
 ### Hazards
 
-River flood, landslide, wildfire, earthquake, cyclone, extreme heat, water scarcity and urban flood,
-each graded on a scale from "no data" to "high". Discovery writes each grade as a reading with a
+River flood, landslide, wildfire, earthquake, cyclone, extreme heat, water scarcity, urban flood,
+coastal flood, tsunami and volcano — every hazard the portal grades — each graded on a scale from
+"no data" to "high". Discovery writes each grade as a reading with a
 source and a date, which is the difference between an assessment and a recollection.
 
 **The portal is ThinkHazard, and its grading is the scale.** The levels are the ones it publishes.
@@ -1080,7 +1061,9 @@ Neither is a value a site carries, so the registration leans on the model holdin
 
 The source declares that it resolves onto the assessment archetype, so a discovery run calls it once
 per assessment the site has, with that assessment as the call's subject: the reading — `hazardLevel`
-as the vocabulary word, and `assessedOn` — lands on the assessment it grades. The run then relates
+as the vocabulary word, `assessedOn`, and the portal's `recommendation` and
+`climateChangeRecommendation` word for word — lands on the assessment it grades. Forage's Resolve
+words step then relates
 the assessment to the `HazardLevel` Thing the word names, reading the declaration the
 platform model carries; a word the vocabulary does not hold writes no
 relationship and is reported, and either way the word stays on the series as the record of what the portal
@@ -1105,7 +1088,7 @@ Every request to the API carries a token, and the token names the model it appli
 exceptions except signing in itself. That single rule is what keeps two projects from seeing each
 other's data.
 
-Callers hold a role — admin, editor, viewer, or service — and endpoints require a named policy such
+Callers hold a role — administrator, editor, viewer, or service — and endpoints require a named policy such
 as "may read the model" or "may modify data".
 
 ### The route for service endpoints
@@ -1123,7 +1106,7 @@ sequenceDiagram
   Mycelium-->>Trellis: result
 ```
 
-This gives a lot for free: one authentication system, model scoping, services started on demand,
+This route provides one authentication system, model scoping, services started on demand,
 per-route traffic statistics, and — importantly — the services themselves never listen on a public
 address. They are reachable only from the machine Mycelium runs on.
 
@@ -1158,7 +1141,7 @@ So public submission gets a separate, small program with one job:
 ```mermaid
 flowchart TB
   U["Someone with land<br/><i>public internet</i>"]
-  PX["Reverse proxy — terminates TLS"]
+  PX["Reverse proxy — ends HTTPS"]
   LI["<b>Land intake service</b><br/>the only public-facing service"]
   M["<b>Mycelium</b><br/>API + Trellis<br/><i>every other service stays on loopback</i>"]
   IM[("<b>Intake model</b><br/>write-only for<br/>this service")]
@@ -1178,8 +1161,8 @@ flowchart TB
 | Anonymous in | The service decides; no platform rule is widened |
 | Rate limited, size capped, address verified | Owned by the service, where the public traffic is — see "What guards the route" below |
 | Cannot read project data | Its credential names only the intake model: a key created against a model is exchanged for a token naming that model, and refused one naming any other |
-| Writes go through normal auth | It mints a Mycelium token and posts a fragment, like any service |
-| Blast radius of a mistake | One service, not every endpoint in the model |
+| Writes go through normal authentication | It mints a Mycelium token and posts a fragment, like any service |
+| What a mistake can reach | One service, not every endpoint in the model |
 
 ### What guards the route
 
@@ -1245,7 +1228,7 @@ ticket is only good at the instance that issued it — one service, one hostname
 path segment, not DNS — nothing in the broker reads the request's host name. If you want
 `intake.example.org`, that split belongs in the reverse proxy. Do not teach the broker host-header
 routing; it knows nothing about deployment topology, and that is deliberate. The proxy
-configuration that makes the split — both hostnames, TLS termination, and the form's cross-origin
+configuration that makes the split — both hostnames, where HTTPS ends, and the form's cross-origin
 allowance — lives in [`deploy/`](../deploy/README.md).
 
 ### Where the form lives
@@ -1282,7 +1265,10 @@ Things of the archetype the `basemapSource` role binds, whatever that archetype 
 the themes a report's tiles are faced with are the members of the archetype the `theme` role binds, each with its colour, icon
 and order as the model states them, and none where the model declares no themes. The kinds a layer
 file's shapes may be given are the members of the archetype the `siteLayerKind` role binds, each with its
-colour, and none where the model declares no site layer. Each category, hazard and layer kind carries its
+colour, and none where the model declares no site layer. Each kind also carries `themes`, the names of
+the form's themes it is related to along the predicate the `shownUnder` role binds, in the order the
+form offers its themes; a model that binds no `shownUnder` role answers every kind with an empty list.
+Each category, hazard, theme and layer kind carries its
 `wording` — its words in every language the model states them in — so the form
 offers a term in the reader's language and still submits it by its name. A model that was never
 seeded is answered `503` carrying the code `serviceUnavailable` and nothing else, as a submission into
@@ -1437,7 +1423,7 @@ no history ([§11](#11-handling-personal-data)).
 
 A reviewer does this either from the **Submissions** page in Trellis or from `submissions list`,
 `submissions reject` and `submissions promote` in Taproot. Both read the same model the same way — by
-the marks it puts on its own vocabulary rather than by any name — and both call the same two actions,
+the roles that bind its own vocabulary rather than by any name — and both call the same two actions,
 so a staging model can be worked from a browser or a terminal. Clearing the rejected ones once their
 period has run is `submissions dispose`, which has no page: it is a retention pass rather than
 something a reviewer decides. See [the Field Guide](FIELD_GUIDE.md#58-reviewing-what-has-arrived), which covers the page and the
@@ -1451,16 +1437,16 @@ Most of land intake is the platform's general machinery, pointed at land by data
 
 | Capability | Where it lives |
 |---|---|
-| The energy verdict | The energy balance service, called reactively |
+| The energy verdict | The energy ranges the study declares |
 | Water storage, the food balance, land allocation and the footprints | Formulas and reductions the study declares |
 | The rainwater harvest, apportioned over the demands in serving order | Formulas on the study and on each of its demands |
 | Capacity figures needing no population, default programme shares, the intake-stage energy estimate | Declarations in the analysis templates |
-| Calling a service by relating a Thing to it | Handled predicates |
-| Recomputing a service's outputs when its inputs move | The input-change subscription |
+| Starting discovery when a site enters a state | A connection watching that state, which calls the orchestrator |
+| Running discovery a box at a time | The Site discovery and Source offer drawings, run by Phloem |
 | Bounding a chain where one computed value feeds another | The recompute round limit |
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | Tributary |
 | Checking data-source registrations against the model's template tree, and writing them | Delta |
-| Working out which sources cover a site, calling each, and starting the analysis from what resolved | Forage |
+| Working out which sources cover a site, planning the calls, and recording what each came to | Forage, as steps of the discovery drawing |
 | Rendering a report from a specification stored in the model | The dashboard pages |
 | Posting a whole submission in one idempotent call | Fragments |
 | Authentication, model isolation, service supervision | Mycelium |
@@ -1471,7 +1457,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | The parcel boundary at a clicked position, a place search, the plots in a map view and a border's elevation, answered to a page with no credential | `POST /submissions/parcel-at-position`, `POST /submissions/place-search`, `POST /submissions/plots-in-view` and `POST /submissions/border-elevation`, from the registrations the `parcelLookup`, `placeSearch`, `plotsInViewLookup` and `borderElevation` roles bind |
 | A site's centre, lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
 | The features of a shared layer file, kept under the site and removed with the file | `POST` and `DELETE` on `/submissions/{submissionId}/documents`, under the ticket |
-| Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
+| Land-intake archetypes, registrations, the discovery drawings, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
 in the model and is not mailed to the submitter. A submitter reads their findings with the mailbox
@@ -1520,7 +1506,7 @@ and reads the service's own log back, both when the submission lands and when it
 
 | Doc | Why it matters here |
 |---|---|
-| [TRIBUTARY.md](TRIBUTARY.md) | The fetcher — templates, auth modes, paging, and the proven site-ingest examples |
+| [TRIBUTARY.md](TRIBUTARY.md) | The fetcher — templates, authentication kinds, paging, and the proven site-ingest examples |
 | [DELTA.md](DELTA.md) | How registrations are checked against the model's template tree |
 | [SERVICES.md](SERVICES.md) | Section 14 for endpoint services and how a handled predicate calls one |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
