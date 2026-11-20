@@ -4,13 +4,8 @@ import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
 import { rowKindOf, rowsBindingOf } from './rowKind';
 
-/**
- * What the Design page refuses a page for, and what it warns about.
- *
- * Nothing checks a specification written in a browser the way the platform's seed validation checks
- * a seeded one, so the rules it holds a seeded page to are carried here and judged before the page is
- * written. A refusal stops the write; a warning does not. Each finding says which widget it is about.
- */
+/** Nothing checks a specification written in a browser as the seed validation checks a seeded one, so its
+ *  rules are carried here and judged before the page is written. A refusal stops the write; a warning does not. */
 
 export const DESIGN_FINDING_CODES = [
   'namesAnUnknownKind',
@@ -68,10 +63,8 @@ function kindOf(binding: Binding, context: DesignCheckContext, rowKind: string |
   return rowKind ?? context.compareKind;
 }
 
-/** The kind whose states a binding names, given the kind the binding itself is about. A binding that
- *  selects a state's members is about whatever holds the state, and the archetype it names is the
- *  only thing that says what that is: a scope reaches a kind the specification never writes down,
- *  and the kind a page compares is not that kind, so neither stands in for it. */
+/** The archetype a binding names is the only word for what holds the state: a scope reaches a kind the
+ *  specification never writes down, and the kind a page compares is a different one. */
 function kindHoldingTheStates(binding: Binding, kind: string | undefined): string | undefined {
   const selectsMembersOfTheState = binding.kind === 'stateCount' || binding.kind === 'stateList';
   return selectsMembersOfTheState ? binding.archetype : kind;
