@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ModelContextProtocol;
-using vos.MyceliumClient;
+using vos.PlatformClient;
 
 namespace vos.Hypha.Tools.Process;
 
