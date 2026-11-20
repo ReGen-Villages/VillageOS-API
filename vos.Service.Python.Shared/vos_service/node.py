@@ -57,7 +57,7 @@ class Setting:
 
 @dataclass(frozen=True)
 class NodeContext:
-    """One run of a node: who is asking, the node's own settings, and its inputs with every graph reference already read."""
+    """One run of a node: who is asking, the node's own settings, and its inputs with every reference to a Thing's property already read."""
 
     run_id: uuid.UUID
     node_id: uuid.UUID

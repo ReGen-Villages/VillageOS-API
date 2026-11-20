@@ -2,10 +2,10 @@
 
 A managed microservice is a handler that Mycelium (the VillageOS gateway)
 launches as a daemon and calls when a relationship with the service's predicate
-is created. The whole contract is HTTP + a single JWT signed on the P-256 elliptic
-curve (ES256). The key a handler holds checks a signature and cannot produce one.
+is created. The whole contract is HTTP and a single signed token (a JWT, signed on the P-256
+elliptic curve, ES256). The key a handler holds checks a signature and cannot produce one.
 
-The contract itself — arguments, inbound JWT validation, registration, the four
+The contract itself — arguments, checking inbound tokens, registration, the contract's
 endpoints — is implemented once in vos.Service.Python.Shared. This file is what a
 service adds to it: a handler, and any routes of its own.
 
@@ -55,7 +55,7 @@ DEFAULT_SLICE_PREDICATE = "provides"
 
 
 async def demo_subscribe(type_: str = DEFAULT_SLICE_TYPE, predicate: str = DEFAULT_SLICE_PREDICATE, *, client: httpx.AsyncClient | None = None) -> dict:
-    """Subscribe for a by-type+traverse slice, report the closure, unsubscribe."""
+    """Subscribe for a slice by type and one step along a predicate, report the closure, unsubscribe."""
     sub = await mycelium.subscribe(mycelium.slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
     things = snap.get("things", [])

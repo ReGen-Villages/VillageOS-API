@@ -1,6 +1,6 @@
 """The raster reader as a pipeline node: the envelope in, the outputs or the refusal out.
 
-The contract itself (the endpoints, inbound JWT validation, registration, arguments) is tested in
+The contract itself (the endpoints, checking inbound tokens, registration, arguments) is tested in
 vos.Service.Python.Shared. This covers what Quadrat adds: the node envelope, its operations and its
 manifest. Registration is mocked so the tests never touch the network.
 """
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.usefixtures("reads_in_this_process", "readable")
 
 @pytest.fixture
 def signing(monkeypatch):
-    """Enable JWT auth against a stand-in for Mycelium's key pair; yields the private half."""
+    """Turn on token checking against a stand-in for Mycelium's key pair; yields the private half."""
     pair = ec.generate_private_key(ec.SECP256R1())
     verification_key = base64.b64encode(
         pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)

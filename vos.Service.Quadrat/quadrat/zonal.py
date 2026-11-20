@@ -15,7 +15,7 @@ POLYGONS = ("Polygon", "MultiPolygon")
 
 @contextmanager
 def zone_window(path, geometry, max_cells=None):
-    """The raster opened and the part of the zone that lies on it, in the raster's own CRS, once the zone has passed every check.
+    """The raster opened and the part of the zone that lies on it, in the raster's own coordinate reference system, once the zone has passed every check.
 
     A zone is refused here, before any cell is read, when it is not a valid polygon, lies outside the raster, or
     needs a window of more cells than `max_cells`.
