@@ -18,7 +18,7 @@ export interface PropertyMatch {
   inheritedFrom?: string;
 }
 
-/** Skip large blob properties that clutter results. */
+/** Large shapes would bury the results. */
 const SKIP_KEYS = new Set(['geometry', 'footprint', '__geometry_envelope']);
 
 interface SearchInputs {
@@ -31,10 +31,8 @@ interface SearchInputs {
   mode: 'name' | 'value';
 }
 
-/**
- * Find property matches across things (from the server-resolved effective set, so inherited values —
- * including archetype defaults the instance never overrode — are searchable) and relationships.
- */
+/** Things are searched through the server's resolved set, so inherited values, archetype defaults included,
+ *  are found too. */
 export function searchProperties({ effectiveProperties, relationships, thingNames, query, mode }: SearchInputs): PropertyMatch[] {
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [];

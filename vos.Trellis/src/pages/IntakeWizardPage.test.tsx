@@ -127,10 +127,8 @@ const EDGES: VosRelationship[] = [
 
 const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {};
 
-/** Long enough that whatever the answer feeds is on screen before it arrives, which is the order a
- *  loaded build agent produces. A mock answering at once puts the two in the same instant, so a test
- *  reading the answer the moment its element appears passes on a quiet machine and fails on the
- *  agent. */
+/** Long enough that what the answer feeds is on screen before it arrives, as on a busy build agent; a mock
+ *  answering at once lets a test pass on a quiet machine and fail on the agent. */
 const ANSWER_DELAY_MILLISECONDS = 50;
 
 function answeredLate<T>(value: T): () => Promise<T> {
@@ -148,7 +146,7 @@ beforeEach(() => {
   vi.mocked(intakeApi.askForCode).mockImplementation(answeredLate(undefined));
 });
 
-/** Walk to a step by pressing Next, which is also what makes each one reachable again. */
+/** By pressing Next, which is also what makes each step reachable again. */
 function goToStep(times: number): void {
   for (let step = 0; step < times; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 }
@@ -514,9 +512,8 @@ describe('posting the submission', () => {
       projectName: 'Willow Bend Regeneration',
       contactName: 'Ana Ferreira',
       emailAddress: 'ana.ferreira@example.pt',
-      // The land the submission is about. A draft describing none cannot be submitted at all, so a
-      // fixture named for being submittable has to enclose some — and has to say how the boundary was
-      // come by, because a stored one without its source is not a parcel and is dropped when read back.
+      // A draft with no land cannot be submitted, and a boundary stored without how it was obtained is
+      // dropped when read back.
       boundary: [
         { latitude: 39.4988, longitude: -8.4168 },
         { latitude: 39.5036, longitude: -8.4168 },
@@ -527,8 +524,7 @@ describe('posting the submission', () => {
     };
   }
 
-  /** The whole of what submitting is now: ask for a code, read it off the mail the person got, and send
-   *  the submission under it. */
+  /** Ask for a code, read it off the person's mail, and send the submission under it. */
   async function askForACodeAndSubmit(code = '314159'): Promise<void> {
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
 
@@ -761,7 +757,7 @@ describe('the hazards step', () => {
     }
   });
 
-  // A mis-click has to be takeable back, so clearing a row says nothing again rather than something else.
+  // A wrong click has to be undoable, so clearing a row reports nothing rather than something else.
   it('takes a report back when the row is cleared', async () => {
     render(<IntakeWizardPage />);
     goToStep(5);

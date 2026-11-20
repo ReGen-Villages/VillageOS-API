@@ -1,12 +1,6 @@
-/**
- * How this client reads a model's own vocabulary: the Thing a role binds, and the terms declared under it.
- * Every page that finds something through a role reads it through here, so there is one answer to what a
- * binding means rather than one per page.
- *
- * Nothing here names an archetype. A vocabulary is found through the role Thing that binds its archetype,
- * so a model that renamed the archetype keeps answering and a project that declares a term of its own is
- * offered it without a line changing here.
- */
+/** Every page finding something through a role reads it here, so a binding means one thing everywhere. Nothing
+ *  here names an archetype, so a model that renames one keeps answering and a project's own term is offered
+ *  without a change here. */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
