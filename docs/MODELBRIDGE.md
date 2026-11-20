@@ -23,7 +23,7 @@ A common shape:
 
 ```mermaid
 flowchart LR
-    R["ModelBridge<br/>(mode: read)<br/>site.total_pv_area"] -->|value| C["compute node<br/>(e.g. EnergyBalance)"]
+    R["ModelBridge<br/>(mode: read)<br/>site.total_pv_area"] -->|value| C["compute node<br/>(such as EnergyBalance)"]
     C -->|value| W["ModelBridge<br/>(mode: write)<br/>site.pv_generation_kwh"]
 ```
 
@@ -46,7 +46,7 @@ Every invocation is configured by three params carried in the node envelope's `p
 | Param | Required | Meaning |
 |---|---|---|
 | `mode` | yes | `"read"` or `"write"` — chooses the direction. Any other value fails the node. |
-| `thingId` | yes | GUID of the Thing to read from / write to. Written into the node's params when the seed is built (the same under `--name`), so nothing is looked up at run time. |
+| `thingId` | yes | Identifier of the Thing to read from / write to. Written into the node's params when the seed is built (the same under `--name`), so nothing is looked up at run time. |
 | `property` | yes | Name of the property to read or write. |
 
 A missing or malformed param fails the node cleanly (the throw becomes
@@ -71,7 +71,7 @@ missing, unreadable, or not a number — the model decides whether the reduction
 no value at all, and yielding no value is the default. The property is still present, so this emits
 `null` on the `value` output rather than failing.
 
-A non-2xx response fails the node with an `HttpRequestException`; a property that isn't present
+A response that is not a success fails the node with an `HttpRequestException`; a property that isn't present
 fails with `KeyNotFoundException`.
 
 ## `mode: "write"`
@@ -112,7 +112,7 @@ estimate).
 // → POST /api/things/<site-guid>/properties/pv_generation_kwh/facts { "value": 24917.6 }
 ```
 
-## CLI & registration
+## Command line and registration
 
 ModelBridge takes only the **standard launch settings** — no service-specific args (see
 [`SERVICES.md`](SERVICES.md) §4):

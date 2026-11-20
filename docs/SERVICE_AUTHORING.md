@@ -272,14 +272,14 @@ The header also carries `kid`, the name of the key that signed the token. A hand
 
 **Name the algorithm, or the key you were given becomes a signing key.** Every handler holds the
 verification key, and it is not a secret. A library that takes a raw key and trusts the token's own
-`alg` header will happily check an `HS256` token using those same bytes as a shared secret — so
+`alg` header will check an `HS256` token using those same bytes as a shared secret — so
 anyone holding the public key can mint a token that such a handler accepts. Several mainstream
 libraries behave this way unless told otherwise. Pin ES256 explicitly; a token claiming any other
 algorithm, `none` included, must be refused.
 
 Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before the call, so your handler should apply the identical checks. Reject with 401 on any failure.
 
-**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
+**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` need only one line for this: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
 
 **Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives. Work a `/handle` call starts and that runs on after the answer — a simulation loop, a discovery run — takes `HeldModelToken.SwapFromTheCallAsync` while the call is still being answered and acts through its `ActAsync`; when Mycelium will not swap the token, answer `503` and start nothing, since the work would be refused partway through.
 
