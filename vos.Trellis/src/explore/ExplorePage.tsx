@@ -34,7 +34,7 @@ import { OverviewView } from './OverviewView';
 import { tabSections } from './overviewState';
 import { SurveysStep } from './SurveysStep';
 import type { SharedSurvey } from './sharedSurveys';
-import type { DashboardSection, KpiWidget } from '@tendril-ui/tendril';
+import type { DashboardSection, KpiWidget, TemporalReduceQuery } from '@tendril-ui/tendril';
 import { reduceUnderTicket } from '../api/reduceUnderTicket';
 import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
@@ -158,8 +158,8 @@ export function ExplorePage() {
     });
   }
 
-  const reduceThroughTheService = useMemo(
-    () => reduceUnderTicket(() => stateReference.current.submissionId, ticket, t('explore.noTicket')),
+  const reduceThroughTheService = useCallback(
+    (query: TemporalReduceQuery) => reduceUnderTicket(query, stateReference.current.submissionId, ticket, t('explore.noTicket')),
     [t],
   );
 

@@ -11,9 +11,10 @@
  * Nothing here reaches the broker. That is the point of the page rather than an accident of how it was
  * written, and `../publicForm/noSignedInCode.test.ts` fails if an import ever leads back to it.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Sprout } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TemporalReduceQuery } from '@tendril-ui/tendril';
 import { findingsApi } from '../api/findingsApi';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
@@ -66,8 +67,8 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
   // The ticket the read bought outlives the form: a chart on the page reduces a property's history
   // through the service under it.
   const ticket = useRef<string | null>(null);
-  const reduceThroughTheService = useMemo(
-    () => reduceUnderTicket(() => submissionId.trim(), ticket, t('publicFindings.noTicket')),
+  const reduceThroughTheService = useCallback(
+    (query: TemporalReduceQuery) => reduceUnderTicket(query, submissionId.trim(), ticket, t('publicFindings.noTicket')),
     [submissionId, t],
   );
 

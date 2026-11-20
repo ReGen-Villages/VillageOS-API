@@ -158,7 +158,7 @@ describe('what the form draws itself with', () => {
 
     const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/form');
-    expect(requestOptions).toBeUndefined();
+    expect(requestOptions).toEqual({ method: 'GET', headers: {} });
     expect(options.allocationCategories).toEqual(['residential']);
   });
 

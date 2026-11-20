@@ -15,18 +15,14 @@ describe('reduceUnderTicket', () => {
     vi.mocked(findingsApi.reduceWithTicket).mockResolvedValue({ answer, ticket: 'ticket-2' });
     const ticket = { current: 'ticket-1' as string | null };
 
-    const reduce = reduceUnderTicket(() => 'submission-1', ticket, 'no ticket');
-
-    await expect(reduce(question)).resolves.toBe(answer);
+    await expect(reduceUnderTicket(question, 'submission-1', ticket, 'no ticket')).resolves.toBe(answer);
     const { thingId: _dropped, ...asked } = question;
     expect(findingsApi.reduceWithTicket).toHaveBeenCalledWith('submission-1', 'ticket-1', asked);
     expect(ticket.current).toBe('ticket-2');
   });
 
   it('refuses with the page\'s words and asks nothing while no ticket is held', async () => {
-    const reduce = reduceUnderTicket(() => 'submission-1', { current: null }, 'no ticket');
-
-    await expect(reduce(question)).rejects.toThrow('no ticket');
+    await expect(reduceUnderTicket(question, 'submission-1', { current: null }, 'no ticket')).rejects.toThrow('no ticket');
     expect(findingsApi.reduceWithTicket).not.toHaveBeenCalled();
   });
 });

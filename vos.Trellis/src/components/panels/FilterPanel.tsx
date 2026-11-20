@@ -1,14 +1,14 @@
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { numberIn } from '../../i18n/numbers';
 import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
-import { FilterControls } from './FilterControls';
+import { FilterControls, type FilterControlsProperties } from './FilterControls';
 
 export function FilterPanel({ title, shown, total, controls, noMatch, beforeList, children }: {
   title: string;
   shown: number;
   total: number;
-  controls: ComponentProps<typeof FilterControls>;
+  controls: FilterControlsProperties;
   noMatch: string | null;
   beforeList?: ReactNode;
   children: ReactNode;
