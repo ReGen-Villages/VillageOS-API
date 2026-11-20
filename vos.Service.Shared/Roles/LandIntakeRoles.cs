@@ -36,7 +36,6 @@ public static class LandIntakeRoles
     public static readonly Role ParcelLookup = new("parcelLookup", new("b4094d7a-944f-52ca-8ec5-856526b76195"));
     public static readonly Role PlaceSearch = new("placeSearch", new("cdb5e35c-ba1d-5e9f-be4e-330b3b234223"));
     public static readonly Role SourceCoverage = new("sourceCoverage", new("2b8de5b8-d8ff-503d-86d8-38b53c00d438"));
-    public static readonly Role SiteAnalysisConnection = new("siteAnalysisConnection", new("b79434df-2c42-58a2-bdaa-db241a458804"));
     public static readonly Role DiscoveredVocabulary = new("discoveredVocabulary", new("7f80ce0e-0cc2-58c4-a1ad-92df27b2cbbd"));
     public static readonly Role StudiedSite = new("studiedSite", new("84e004bc-835c-5888-81ab-2a8c70c1a086"));
     public static readonly Role ServiceOrder = new("serviceOrder", new("f5c493f4-5c42-5d83-9948-9850d3e41869"));
@@ -56,6 +55,10 @@ public static class LandIntakeRoles
     public static readonly Role SiteLayerFeature = new("siteLayerFeature", new("da99b07b-fa78-581c-bb5f-7560773cbee4"));
     public static readonly Role OfLayerKind = new("ofLayerKind", new("f60956a5-cde5-5f08-8176-6e98f7d69d2b"));
     public static readonly Role SourcedFrom = new("sourcedFrom", new("7b89b20c-9f9c-5d60-9481-56c524dd1370"));
+    public static readonly Role ShownUnder = new("shownUnder", new("70b382c6-edfa-5295-9b43-de0471b147a4"));
+    public static readonly Role HistorySource = new("historySource", new("db993771-bdc0-513f-a5c2-dab3e999471d"));
+    public static readonly Role SoilDepth = new("soilDepth", new("7adcafde-a041-5e55-bb29-c3a03bd35493"));
+    public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -63,9 +66,9 @@ public static class LandIntakeRoles
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
         ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, RootPlace, PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
-        PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
+        PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
-        SourcedFrom,
+        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon,
     ];
 }

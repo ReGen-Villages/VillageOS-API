@@ -41,6 +41,9 @@ public static class WillowBend
     public static readonly Guid HazardAssessmentArchetypeId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid SubmittedSourceArchetypeId = new("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    public static readonly Guid SoilHorizonArchetypeId = new("50505050-5050-5050-5050-505050505050");
+
+    public static readonly string[] SoilDepthNames = ["0-5cm", "5-15cm", "15-30cm"];
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),

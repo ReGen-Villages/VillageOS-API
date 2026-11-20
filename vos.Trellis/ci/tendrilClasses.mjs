@@ -1,7 +1,6 @@
 const CLASS_NAME = /^[a-z0-9!-][a-z0-9:/.[\]()%#_,!-]*$/i;
 
-/** The expression a `className` is given — a quoted string, or a braced expression up to its
- *  matching brace — and the value of every constant named `…_CLASS`, which a className then names. */
+/** Also the value of each `…_CLASS` constant, because a `className` can name one. */
 function classNameExpressions(source) {
   const found = [];
   for (const match of source.matchAll(/className=(["{])/g)) {
@@ -27,8 +26,7 @@ function closingBrace(text, from) {
   return at - 1;
 }
 
-/** The text of every string in an expression, a template's own text included and the strings inside
- *  its `${…}` parts read the same way. */
+/** A template's own text counts, and so do the strings inside its `${…}` parts. */
 function stringsIn(expression) {
   const found = [];
   let at = 0;
@@ -61,8 +59,7 @@ function stringsIn(expression) {
   return found;
 }
 
-/** Every class name a source file gives a `className`, including the ones a condition chooses
- *  between, because each still has to be in the stylesheet when it is chosen. */
+/** Includes each class a condition chooses between, because each must be in the stylesheet when chosen. */
 export function classNamesIn(source) {
   const names = new Set();
   for (const expression of classNameExpressions(source)) {
@@ -79,8 +76,7 @@ function selectorFor(className) {
   return `.${className.replace(/[:/.[\]()%#,!]/g, (character) => `\\${character}`)}`;
 }
 
-/** The class names a stylesheet has no rule for. A selector counts only where it ends there, so
- *  `min-w-4` is not found inside `min-w-40`. */
+/** A selector counts only where it ends, so `min-w-4` is not found inside `min-w-40`. */
 export function missingFrom(stylesheet, classNames) {
   return classNames.filter((className) => {
     const selector = selectorFor(className).replace(/[\\^$.*+?()[\]{}|]/g, (character) => `\\${character}`);

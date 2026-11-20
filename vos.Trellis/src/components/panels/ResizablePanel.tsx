@@ -1,5 +1,6 @@
-import { useRef, useCallback, useEffect, type ReactNode } from 'react';
+import { useRef, useCallback, type ReactNode } from 'react';
 import { useUiStore, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH } from '../../stores/uiStore';
+import { usePreventsSelectionWhileDragging } from '../../hooks/usePreventsSelectionWhileDragging';
 
 interface Props {
   children: ReactNode;
@@ -45,13 +46,7 @@ export function ResizablePanel({ children }: Props) {
     dragging.current = false;
   }, []);
 
-  useEffect(() => {
-    const prevent = (e: Event) => {
-      if (dragging.current) e.preventDefault();
-    };
-    document.addEventListener('selectstart', prevent);
-    return () => document.removeEventListener('selectstart', prevent);
-  }, []);
+  usePreventsSelectionWhileDragging(dragging);
 
   return (
     <div
@@ -59,7 +54,6 @@ export function ResizablePanel({ children }: Props) {
       className="absolute top-0 right-0 h-full flex z-20"
       style={{ width }}
     >
-      {/* Drag handle */}
       <div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -70,7 +64,6 @@ export function ResizablePanel({ children }: Props) {
         <div className="h-full w-px mx-auto bg-zinc-700 group-hover:bg-blue-500 group-active:bg-blue-400 transition-colors" />
       </div>
 
-      {/* Panel content fills remaining space */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 shadow-xl">
         {children}
       </div>

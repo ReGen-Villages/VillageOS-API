@@ -1,8 +1,8 @@
 namespace vos.Service.Shared;
 
 // Mycelium routes every service shares. Building a path here rather than repeating the literal means a
-// route rename is one edit, not one per caller — the previous rename reached the browser client and the
-// command-line client but was missed in five services, which then requested a route that no longer existed.
+// route rename is one edit, not one per caller, where a caller that is missed requests a route that no
+// longer exists.
 public static class MyceliumRoutes
 {
     // A Thing's resolved properties: own plus inherited, own shadowing inherited. Named "properties"

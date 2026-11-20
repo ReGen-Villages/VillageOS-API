@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { linearScale, niceTicks, paddedDomain } from './chartScale';
+import { ANNUAL, linearScale, monthSlots, niceTicks, paddedDomain } from './chartScale';
+
+describe('monthSlots', () => {
+  it('centres twelve months evenly across the plot', () => {
+    const { slotWidth, centreOf } = monthSlots(40, 520, false);
+
+    expect(slotWidth).toBe(40);
+    expect(centreOf(0)).toBe(60);
+    expect(centreOf(11)).toBe(500);
+  });
+
+  it('sets the annual column apart after December, with more room than a month', () => {
+    const { slotWidth, centreOf } = monthSlots(0, 136, true);
+
+    expect(slotWidth).toBe(10);
+    expect(centreOf(11)).toBe(115);
+    expect(centreOf(ANNUAL)).toBe(128);
+  });
+});
 
 describe('a linear scale', () => {
   it('maps the domain onto the range, either way up', () => {

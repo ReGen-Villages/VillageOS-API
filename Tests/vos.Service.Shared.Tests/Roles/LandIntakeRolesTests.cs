@@ -31,6 +31,8 @@ public class LandIntakeRolesTests
     [InlineData("siteStudy", "e9036a23-21c1-5956-b0d8-a212e8ad8272")]
     [InlineData("proposedSite", "ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b")]
     [InlineData("placeNesting", "c3c9edde-b271-5a52-8f23-cc6bae9ea1d1")]
+    [InlineData("shownUnder", "70b382c6-edfa-5295-9b43-de0471b147a4")]
+    [InlineData("historySource", "db993771-bdc0-513f-a5c2-dab3e999471d")]
     public void The_derivation_agrees_with_the_identifiers_the_templates_declare(string word, string declared)
     {
         RoleIdentity.Of(word).Should().Be(Guid.Parse(declared));

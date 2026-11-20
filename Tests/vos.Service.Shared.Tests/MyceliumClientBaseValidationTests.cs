@@ -8,10 +8,8 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// Outbound validation in MyceliumClientBase.
-// Both Throw and Log policies tested regardless of build config -- the MyceliumClient's
-// OutboundViolationMode is a virtual property the test subclass overrides, so
-// CI (Release) can exercise both paths without re-running tests in two configurations.
+// OutboundViolationMode is a virtual property the test subclass overrides, so the Release build checks
+// both the throwing and the logging path without running the tests in two configurations.
 public class MyceliumClientBaseValidationTests
 {
     private const string MyceliumUrl = "http://localhost:7243";

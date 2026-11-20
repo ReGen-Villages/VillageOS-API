@@ -20,7 +20,7 @@ public class ServicesPresentTheirApiKeyTests
 
         var withoutTheKey =
             from entryPoint in ServiceEntryPoints.Under(root)
-            let source = File.ReadAllText(entryPoint)
+            let source = ServiceEntryPoints.SourceOf(root, entryPoint)
             from clientType in clientTypes
             from construction in ConstructionsOf(clientType, source)
             where !construction.Contains("apiKey") && !construction.Contains("ApiKey")
@@ -38,7 +38,7 @@ public class ServicesPresentTheirApiKeyTests
     // covered on the day it is written.
     //
     // The parameter list between the name and the base is optional because a client written with a
-    // primary constructor carries one — and the client this guard was written for is one of those.
+    // primary constructor carries one.
     private static IReadOnlyCollection<string> BrokerClientTypesUnder(string root)
     {
         var derived = new HashSet<string> { "SubscriptionClient" };

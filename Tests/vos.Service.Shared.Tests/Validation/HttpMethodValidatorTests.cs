@@ -31,11 +31,11 @@ public class HttpMethodValidatorTests
     }
 
     [Theory]
-    [InlineData("BREW")]      // April Fool's HTCPCP method; not in the set
-    [InlineData("PROPFIND")]  // WebDAV; not in the set
+    [InlineData("BREW")]
+    [InlineData("PROPFIND")]  // a real method the set does not hold
     [InlineData("")]
     [InlineData(" ")]
-    [InlineData("GET ")]      // trailing space — HashSet lookup is exact match (ignoring case only)
+    [InlineData("GET ")]      // the lookup ignores case, not space
     public void IsSupportedMethod_UnknownOrMalformed_ReturnsFalse(string method)
     {
         HttpMethodValidator.IsSupportedMethod(method).Should().BeFalse();

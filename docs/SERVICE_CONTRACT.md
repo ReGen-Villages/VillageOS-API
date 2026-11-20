@@ -1,7 +1,8 @@
-# VillageOS Service Contract (HTTP + SSE)
+# VillageOS Service Contract (HTTP and server-sent events)
 
-The contract every managed microservice speaks, independent of language. It is plain HTTP plus
-a single JWT signed on the P-256 elliptic curve — implementable in any stack. The Go, Node, Python, and Rust services in this
+The contract every managed microservice speaks, independent of language. It is plain HTTP, with
+server-sent events (SSE: one long HTTP response the server keeps writing events into) for changes,
+plus a single JSON Web Token (JWT) signed on the P-256 elliptic curve — implementable in any stack. The Go, Node, Python, and Rust services in this
 repo are reference implementations of the handler side; the shared .NET `SubscriptionClient` and
 Trellis are reference consumers of the subscription side.
 
@@ -27,22 +28,22 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
 | `--serviceCallLimitSeconds` | How long Mycelium waits for the service to answer a service call, in whole seconds (15 by default), so a service can keep its own waits shorter |
 | `--passedOnRequestLimitSeconds` | The same for a request Mycelium passes on to the service from another (30 by default). A service reads either limit as none when it is absent or unusable, and is free to keep a limit of its own or none |
-| `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
+| `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over HTTPS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
 
-Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
+Plain service-specific flags (such as `--mode=consumes`) are passed through verbatim.
 
 The two credentials are **not** flags. Mycelium sets them on the daemon's environment, and a service
 reads them from configuration:
 
 | Setting | Meaning |
 |---------|---------|
-| `Token` | Pre-minted service JWT. A service holding an `ApiKey` in its place exchanges the key for one (see Auth) |
+| `Token` | Pre-minted service JWT. A service holding an `ApiKey` in its place exchanges the key for one (see Authentication) |
 | `VerificationKey` | Base64 of Mycelium's public signing key, for checking inbound `/handle` JWTs |
 
 A command line is readable by every process on the host and is recorded by anything that logs the
 line a service was started with, which is why neither credential travels there.
 
-## Auth
+## Authentication
 
 One JWT, signed on the P-256 elliptic curve (ES256). The service token (the `Token` setting) carries `vos:token_type=service` and a scope
 that describes what the handler is for without restricting it — `TokenScope` in
@@ -85,7 +86,7 @@ property value in the batch is readable, and derived properties are recomputed. 
 observes a half-applied fragment. The services of several handled relationships in one fragment are
 called in creation order.
 
-**Delivery is at-least-once.** Mycelium sends a relation again when it cannot confirm the handler
+**A relation can arrive more than once.** Mycelium sends a relation again when it cannot confirm the handler
 finished, and a handler that reconnects after a break is sent what it missed. `relationshipId` is the
 same on every delivery of one relation, so a handler in any language recognises a repeat by that key,
 does the work once, and answers 2xx to the repeat. C# handlers have a shared helper for this — see
@@ -122,7 +123,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`. It answers `{ Service, ModelTime }`: the registration, and the model clock as `GET /api/time` would answer it
-- `DELETE /api/mycelium/services/{handlerId}` (Bearer) removes a registration: a service may remove the one it made itself, and another service's is refused with `403`. A service that stops answering `/health` is removed by the broker's liveness monitor.
+- `DELETE /api/mycelium/services/{handlerId}` (Bearer) removes a registration: a service may remove the one it made itself, and another service's is refused with `403`. The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
 is treated as healthy even if its `/health` is briefly unreachable.
@@ -541,13 +542,13 @@ loop {
 
 ## Writing data back: Facts, Observations, Sediment
 
-A handler often needs to write to the model, not just read it. There are three write kinds, each a
-Bearer-authed POST. Pick by intent:
+A handler often needs to write to the model, not only read it. There are three write kinds, each a
+POST carrying the bearer token. Pick by intent:
 
 | Kind | When | Route | Body | Success |
 |---|---|---|---|---|
-| **Fact** | structural truth that must survive replay (status, config, a corrected value) — synchronous, never lossy | `POST /api/things/{id}/properties/{property}/facts` | `{ "value": <scalar> }` | `201 { sequenceNumber, value }` |
-| **Observation** (single) | one sampled telemetry value — queued & batched | `POST /api/things/{id}/properties/{property}/observations` | `{ "value": <scalar>, "observedAt"?: <iso8601> }` | `202` |
+| **Fact** | structural truth that must survive replay (status, a setting, a corrected value) — synchronous, never lossy | `POST /api/things/{id}/properties/{property}/facts` | `{ "value": <scalar> }` | `201 { sequenceNumber, value }` |
+| **Observation** (single) | one sampled reading — queued and batched | `POST /api/things/{id}/properties/{property}/observations` | `{ "value": <scalar>, "observedAt"?: <iso8601> }` | `202` |
 | **Observation** (batch) | many samples across one entity's properties, one call | `POST /api/things/{id}/observations` | `[{ "property", "value", "observedAt"? }]` | `202 { accepted }` |
 | **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "objectId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
 
@@ -591,7 +592,7 @@ The reply counts what the batch changed and lists the Things it leaves the calle
 never told it created a Thing the model no longer holds live.
 
 - **Upsert, idempotent.** Existing Things and relationships are left in place (values re-applied);
-  re-posting the same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
+  re-posting the same fragment neither duplicates nor errors. `ModifyData` (an editor, an administrator or a **service**).
 - **Additive-only.** A fragment only *creates or updates*. It never deletes or retracts Things,
   relationships, or properties, and never renames an existing Thing (identity is by `Id`; the `Name`
   sent for a known `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
@@ -617,9 +618,9 @@ never told it created a Thing the model no longer holds live.
   value written as an **override** — so you send the natural
   `{Thing-with-own-Properties} + {Thing is Archetype}` shape. Batches order writes so an `is`-target's
   own properties land before the subject that inherits them.
-- **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
+- **Emits the same Facts and stream events** as the per-write endpoints (it goes through the same fact pipeline), so
   every created Thing, relationship and value animates and survives replay. Property values carry a
-  typed envelope (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
+  typed envelope (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals and measures are not truncated.
 - **An envelope can configure the property, not only value it.** Alongside `typeInfo` and `value` it
   may carry `writeKind` (the `AllowedWriteKinds` gating above: `Both` / `FactOnly` / `ObservationOnly`)
   and `mode` / `ringBufferSize` / `sampleRate` / `sampleSeconds` (the `PropertyMode` and its size, or
@@ -647,7 +648,7 @@ never told it created a Thing the model no longer holds live.
   properties, and only an administrator writes or removes a protected-category grant relationship;
   either is refused whole with `403`.
 
-Contrast `POST /api/model`, which **replaces** the whole model (admin-only, bulk load); the fragment
+Contrast `POST /api/model`, which **replaces** the whole model (administrators only, bulk load); the fragment
 endpoint merges incrementally into the live model.
 
 ### Reference: write the three kinds, per language
@@ -725,8 +726,8 @@ or on an archetype it `is`. The call is the same `POST /handle` a `state` connec
 state's name. A Thing naming no connection is called itself, so the call fails saying so rather than
 going nowhere. A subject already standing in the range is answered as the write completing the watch
 commits. The call is a record the platform owns, driven by the same reconciler and completing under
-the connection's own completion rules, so delivery is at-least-once exactly as for a `state`
-connection: handle a repeat of the same `relationshipId` as done.
+the connection's own completion rules, so it can arrive more than once exactly as a `state`
+connection's call can: handle a repeat of the same `relationshipId` as done.
 
 An answered watch is not answered again. Its record stays until the wait ends — the `awaits` or
 `watches` relationship retracted, or the watching Thing deleted — and goes with it, whatever became of

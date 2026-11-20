@@ -6,6 +6,7 @@ import { OfferedField } from './OfferedField';
 import { BindingEditor } from './BindingEditor';
 import type { BindingContext } from './bindingContext';
 import { StringsField } from './FieldControls';
+import { dropAt, replaceAt } from '../../utils/listEdits';
 import { nestedClass, offeredFor, smallButtonClass, withKey } from './fieldSupport';
 import { Removable } from './Removable';
 import { rowKindOf } from '../../utils/rowKind';
@@ -30,10 +31,10 @@ export function AskedEditor({
       {() => (
         <div className={nestedClass}>
           {held.map((field, index) => {
-            const set = (key: keyof AskedValue, next: unknown) => write(held.map((each, at) => (at === index ? (withKey(each as unknown as Record<string, unknown>, key, next) as unknown as AskedValue) : each)));
+            const set = (key: keyof AskedValue, next: unknown) => write(replaceAt(held, index, withKey(field, key, next)));
             const picked = field.kind === 'choice' || field.kind === 'multichoice';
             return (
-              <Removable key={index} name={field.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(held.filter((_, at) => at !== index))}>
+              <Removable key={index} name={field.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(dropAt(held, index))}>
                 <TextField label={t('design.asked.key')} value={field.key} mono onCommit={(key) => set('key', key)} />
                 <TextField label={t('design.asked.label')} value={field.label} onCommit={(text) => set('label', text)} />
                 <ChoiceField label={t('design.asked.kind')} value={field.kind ?? ''} options={ASKED_KINDS} emptyLabel="text" onCommit={(kind) => set('kind', kind || undefined)} />
@@ -64,7 +65,7 @@ export function ActionWritesEditor({
 }: { label: string; value: ActionRecords | undefined; context: BindingContext; onChange: (value: ActionRecords) => void }) {
   const { t } = useTranslation();
   const held: ActionRecords = value ?? { via: '', choices: [] };
-  const set = (key: keyof ActionRecords, next: unknown) => onChange(withKey(held as unknown as Record<string, unknown>, key, next) as unknown as ActionRecords);
+  const set = (key: keyof ActionRecords, next: unknown) => onChange(withKey(held, key, next));
   const writeChoices = (next: ActionChoice[]) => set('choices', next);
   const carries = held.carries ?? [];
   const writeCarries = (next: CarriedValue[]) => set('carries', next.length ? next : undefined);
@@ -82,9 +83,9 @@ export function ActionWritesEditor({
             {() => (
               <div className={nestedClass}>
                 {carries.map((carried, index) => {
-                  const setCarried = (key: keyof CarriedValue, next: string) => writeCarries(carries.map((each, at) => (at === index ? { ...each, [key]: next.trim() } : each)));
+                  const setCarried = (key: keyof CarriedValue, next: string) => writeCarries(replaceAt(carries, index, { ...carried, [key]: next.trim() }));
                   return (
-                    <Removable key={index} name={carried.property || t('design.list.item', { position: index + 1 })} onRemove={() => writeCarries(carries.filter((_, at) => at !== index))}>
+                    <Removable key={index} name={carried.property || t('design.list.item', { position: index + 1 })} onRemove={() => writeCarries(dropAt(carries, index))}>
                       <OfferedField label={t('design.writes.carriesProperty')} value={carried.property} mono offered={offeredFor('property', context, held.archetype, t)} onCommit={(property) => setCarried('property', property)} />
                       <OfferedField label={t('design.writes.carriesReads')} value={carried.reads} mono offered={offeredFor('rowKey', context, undefined, t)} onCommit={(reads) => setCarried('reads', reads)} />
                     </Removable>
@@ -102,9 +103,9 @@ export function ActionWritesEditor({
             {() => (
               <div className={nestedClass}>
                 {held.choices.map((choice, index) => {
-                  const setChoice = (key: keyof ActionChoice, next: unknown) => writeChoices(held.choices.map((each, at) => (at === index ? (withKey(each as unknown as Record<string, unknown>, key, next) as unknown as ActionChoice) : each)));
+                  const setChoice = (key: keyof ActionChoice, next: unknown) => writeChoices(replaceAt(held.choices, index, withKey(choice, key, next)));
                   return (
-                    <Removable key={index} name={choice.label || t('design.list.item', { position: index + 1 })} onRemove={() => writeChoices(held.choices.filter((_, at) => at !== index))}>
+                    <Removable key={index} name={choice.label || t('design.list.item', { position: index + 1 })} onRemove={() => writeChoices(dropAt(held.choices, index))}>
                       <TextField label={t('design.writes.choiceLabel')} value={choice.label} onCommit={(text) => setChoice('label', text)} />
                       <TextField label={t('design.writes.choiceAct')} value={choice.act ?? ''} mono onCommit={(act) => setChoice('act', act.trim() || undefined)} />
                       <OfferedField label={t('design.writes.choiceTarget')} value={choice.target ?? ''} mono offered={kinds} onCommit={(target) => setChoice('target', target.trim() || undefined)} />
@@ -136,7 +137,7 @@ export function FormWritesEditor({
         <div className={nestedClass}>
           <OfferedField label={t('design.writes.via')} value={held.via} mono offered={offeredFor('endpoint', context, undefined, t)} onCommit={(via) => onChange({ ...held, via: via.trim() })} />
           <TextField label={t('design.writes.act')} value={held.act} mono onCommit={(act) => onChange({ ...held, act: act.trim() })} />
-          <OfferedField label={t('design.writes.archetype')} value={held.archetype ?? ''} mono offered={context.offers.kinds.map((each) => ({ value: each }))} onCommit={(archetype) => onChange(withKey(held as unknown as Record<string, unknown>, 'archetype', archetype.trim() || undefined) as unknown as FormWidget['writes'])} />
+          <OfferedField label={t('design.writes.archetype')} value={held.archetype ?? ''} mono offered={context.offers.kinds.map((each) => ({ value: each }))} onCommit={(archetype) => onChange(withKey(held, 'archetype', archetype.trim() || undefined))} />
         </div>
       )}
     </Field>

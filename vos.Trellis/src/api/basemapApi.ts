@@ -1,11 +1,5 @@
-/**
- * Basemap discovery from a model the page already holds.
- *
- * A model declares Things of the archetype its basemapSource role binds. This reads them
- * out of the already-loaded model store and hands them to the shared rule that says which can be drawn.
- * Which provider a deployment uses, and what its licence obliges the page to display, are answers the
- * model gives — no address or credit is written here.
- */
+/** Reads basemap sources from the model the page already holds. The provider, and the credit its licence
+ *  requires the page to show, are the model's answers, so no address or credit is written here. */
 import type { ModelIndex } from '@tendril-ui/tendril';
 import { thingsOfArchetypeBoundBy } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';

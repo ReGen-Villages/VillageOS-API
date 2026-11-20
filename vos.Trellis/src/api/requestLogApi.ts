@@ -48,8 +48,7 @@ export async function fetchRequest(id: string): Promise<RequestLookup> {
   }
 }
 
-/** One hour's entries as the broker keeps them, a line apiece, or null where nothing was recorded in that
- *  hour. Fetched with the bearer token rather than a plain link so the token never lands in an address. */
+/** Null where nothing was recorded that hour. The token goes in a header so it never lands in an address. */
 export async function fetchRequestHour(hour: string): Promise<{ blob: Blob; fileName: string } | null> {
   const token = await apiClient.ensureToken();
   const response = await fetch(`${BASE_URL}/api/requests/download?hour=${encodeURIComponent(hour)}`, {

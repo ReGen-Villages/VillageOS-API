@@ -9,18 +9,20 @@
 
 import type { FormOptions } from '../api/intakeApi';
 import i18n from '../i18n';
-import type {
-  ProgrammeShares,
-  ReportedHazards,
-  SubmissionDocument,
+import {
+  parcelFrom,
+  type ProgrammeShares,
+  type ReportedHazards,
+  type SubmissionDocument,
 } from '../intake/submissionDraft';
+import { figuresFrom } from '../intake/typedFigure';
 import { enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 
 /** The term the land-intake template declares for a boundary a register answered. The other two ways a
  *  boundary comes to be here reuse the wizard's terms. */
 export const BOUNDARY_FETCHED_FROM_REGISTER = 'fetched-from-register';
 
-export type ExploreBoundarySource = typeof BOUNDARY_FETCHED_FROM_REGISTER | 'drawn-by-hand';
+type ExploreBoundarySource = typeof BOUNDARY_FETCHED_FROM_REGISTER | 'drawn-by-hand';
 
 /** How the pin came to be where it is, which is what the coordinates card names in place of a tick. */
 export type PositionSource = 'map' | 'place-search' | 'device';
@@ -149,9 +151,6 @@ export function documentFrom(state: ExploreState): SubmissionDocument {
     hazardType,
     reportedLevel,
   }));
-  const population = wholeNumberFrom(state.population);
-  const householdSize = numberFrom(state.householdSize);
-
   return {
     submissionId: state.submissionId,
     project: { name: `${state.siteName.trim()} exploration` },
@@ -159,25 +158,10 @@ export function documentFrom(state: ExploreState): SubmissionDocument {
     site: {
       name: state.siteName.trim(),
       ...(state.position ? { latitude: state.position.latitude, longitude: state.position.longitude } : {}),
-      ...(population !== null ? { population } : {}),
-      ...(householdSize !== null ? { householdSize } : {}),
+      ...figuresFrom(state),
     },
-    ...(state.boundarySource !== null && state.boundary.length > 0
-      ? { parcel: { boundarySource: state.boundarySource, boundary: [...state.boundary] } }
-      : {}),
+    ...parcelFrom(state.boundarySource, state.boundary),
     ...(allocations.length > 0 ? { allocations } : {}),
     ...(hazards.length > 0 ? { hazards } : {}),
   };
-}
-
-function numberFrom(typed: string): number | null {
-  const text = typed.trim();
-  if (text.length === 0) return null;
-  const value = Number(text);
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function wholeNumberFrom(typed: string): number | null {
-  const value = numberFrom(typed);
-  return value === null ? null : Math.round(value);
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { catalystFixture } from '../pipeline/catalysts.test.fixture';
-import type { OutputRow } from '../pipeline/catalysts';
+import { catalystRail, type OutputRow } from '../pipeline/catalysts';
 import type { PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { usePipelineDrawing } from './usePipelineDrawing';
 
@@ -41,6 +41,46 @@ describe('usePipelineDrawing', () => {
     act(() => result.current.onEdgesDelete());
     expect(result.current.canUndo).toBe(true);
     expect(result.current.savedId).toBeNull();
+  });
+
+  it('places a start node standing for a cadence whose one out port is the instant the run was due', () => {
+    const { model, id } = catalystFixture();
+    const { result } = renderHook(() => usePipelineDrawing({ model, connections: model.connections(), setError: vi.fn() }));
+    const cadence = catalystRail(model).flatMap((group) => group.rows).find((row) => row.standsForId === id.everyHour)!;
+
+    act(() => result.current.placeStart(cadence));
+
+    const [start] = result.current.nodes;
+    expect((start.data as PipelineNodeData).ports.map((port) => [port.portName, port.direction])).toEqual([['due', 'out']]);
+    expect((start.data as PipelineNodeData).standsForId).toBe(id.everyHour);
+  });
+
+  it('places a relate box with its kind\'s ports, which needs a predicate until the person chooses one the orchestrator accepts', () => {
+    const { model, id } = catalystFixture({ bindsRelate: true });
+    const { result } = renderHook(() => usePipelineDrawing({ model, connections: model.connections(), setError: vi.fn() }));
+
+    act(() => result.current.placeRelate());
+    const [relate] = result.current.nodes;
+    expect((relate.data as PipelineNodeData).ports.map((port) => [port.portName, port.direction]))
+      .toEqual([['thing', 'in'], ['thing', 'out'], ['written', 'out']]);
+    expect(result.current.validationIssues.map((issue) => issue.kind)).toContain('relate-without-predicate');
+    expect((result.current.canvasNodes[0].data as PipelineNodeData).relating).toBe('relates along no predicate yet');
+
+    act(() => result.current.setStandsFor(relate.id, id.ripens));
+    expect(result.current.validationIssues.map((issue) => issue.kind)).not.toContain('relate-without-predicate');
+    expect(result.current.validationIssues.map((issue) => issue.kind)).not.toContain('relate-refused');
+    expect((result.current.canvasNodes[0].data as PipelineNodeData).relating).toBe('relates along ripens, then waits for ripe');
+  });
+
+  it('says why the orchestrator would refuse a relate box standing for a connection', () => {
+    const { model, id } = catalystFixture({ bindsRelate: true });
+    const { result } = renderHook(() => usePipelineDrawing({ model, connections: model.connections(), setError: vi.fn() }));
+
+    act(() => result.current.placeRelate());
+    act(() => result.current.setStandsFor(result.current.nodes[0].id, id.ripensCalled));
+
+    const refused = result.current.validationIssues.find((issue) => issue.kind === 'relate-refused')!;
+    expect(refused.message).toContain("'ripens called' is a connection");
   });
 
   it('draws a wire between compatible ports, refuses one between incompatible ports saying why, and ignores one to nowhere', () => {

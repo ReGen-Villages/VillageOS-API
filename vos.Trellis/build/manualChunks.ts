@@ -1,11 +1,5 @@
-/**
- * Maps a module id to a named rollup output chunk, or `undefined` to defer.
- * Order matters: the three-ecosystem rule must run first so three-stdlib /
- * three-mesh-bvh don't fall through to `vendor`.
- */
 export function pickChunk(id: string): string | undefined {
-  // Three.js ecosystem shares one chunk for `instanceof Camera` identity
-  // across OrbitControls + Fragments raycasting.
+  // One chunk for every three.js package, so `instanceof Camera` holds between OrbitControls and the Fragments raycaster.
   if (
     /node_modules\/three(-[\w-]+)?\//.test(id) ||
     id.includes('node_modules/@react-three/') ||
@@ -26,19 +20,15 @@ export function pickChunk(id: string): string | undefined {
     return 'vendor-graph';
   }
 
-  // React kept on its own cache key so unrelated node_modules churn doesn't
-  // invalidate it, and to keep `vendor` under the size warning limit.
+  // On its own, React stays in the browser's cache when another package changes, and `vendor` stays under the size warning.
   if (
     /node_modules\/(react|react-dom|scheduler)\//.test(id)
   ) {
     return 'vendor-react';
   }
 
-  // A model names the icon for each dashboard it publishes, so the whole icon set ships rather than
-  // the icons this source happens to name. Folded into `vendor` that takes the chunk past the size
-  // warning; on its own it is legible in the build output as what it is. The first page loads it
-  // either way — the app's own icons come from the same modules — so this names the bytes, it does
-  // not defer them.
+  // A model can name any icon, so the whole set ships, and inside `vendor` it would pass the size warning.
+  // The first page loads it either way, so this chunk names those bytes rather than delaying them.
   if (id.includes('node_modules/lucide-react/dist/esm/icons/')) {
     return 'vendor-icons';
   }

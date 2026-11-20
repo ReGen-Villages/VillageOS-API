@@ -21,14 +21,13 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
 
     private async Task<(MyceliumGateway Gateway, Guid RunId, Guid NodeId)> ANodeRunThatTriedAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
-        await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true), binds);
-        await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true), binds);
-        await BindOnceAsync(PipelineRoles.Attempt, await _engine.DeclareOnceAsync("Attempt", isArchetype: true), binds);
-        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true), binds);
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.Attempt, "Attempt", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
         var runId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();
         await gateway.CreateRunAsync(runId, await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}"), CancellationToken.None);
@@ -76,10 +75,4 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
         unfinished.Should().NotContain(new UnfinishedNodeRun(runId, finished));
     }
 
-    private async Task BindOnceAsync(Role role, Guid played, Guid binds)
-    {
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, binds, played);
-    }
 }

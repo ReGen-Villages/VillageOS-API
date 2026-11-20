@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { localizeSpecification, displayStringsOf } from './dashboardLocalization';
 import type {
   Binding,
+  BoxPlotWidget,
   DashboardSpecification,
+  DepthProfileWidget,
   FunnelWidget,
+  PolarSharesWidget,
   KpiWidget,
   LeaderboardWidget,
   TableWidget,
@@ -18,11 +21,9 @@ import type {
   FormWidget,
 } from '@tendril-ui/tendril';
 
-/** A specification exercising every widget type plus a detail card. The base strings are
- *  deliberately plain English; `translations.es` renders them in Spanish. One
- *  key (the exceptions section title) is left untranslated to prove key-level
- *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
- *  binding value matching a translation entry is never rewritten. */
+/** Every widget type and a detail card. The exceptions section title is left untranslated to show fallback
+ *  for one string, and the state name "Harvested" is also a KPI unit, to show a binding value matching a
+ *  translation is never rewritten. */
 function fixture(): DashboardSpecification {
   return {
     title: 'Village Operations',
@@ -208,8 +209,7 @@ describe('localizeSpecification', () => {
   });
 });
 
-// The verdict wording is the only display text the specification vocabulary keeps on a binding, so the
-// invariant that binding values pass through untouched has to bend for it — and only for it.
+// The verdict wording is display text kept on a binding, so it is translated where other binding values are not.
 describe('localizeSpecification over a verdict widget', () => {
   function verdictSpecification(): DashboardSpecification {
     return {
@@ -339,6 +339,76 @@ describe('localizeSpecification over an origin binding', () => {
   });
 });
 
+describe('localizeSpecification over a boxPlot widget', () => {
+  const one = { kind: 'const', value: 1 } as const;
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'boxPlot',
+              title: 'Wet bulb',
+              hint: 'by month',
+              unit: 'degrees',
+              months: { whiskerLow: one, boxLow: one, median: one, boxHigh: one, whiskerHigh: one },
+              bands: [{ label: 'Danger', colour: '#f00' }],
+            } satisfies BoxPlotWidget] }],
+    translations: { es: { 'Wet bulb': 'Bulbo húmedo', 'by month': 'por mes', 'degrees': 'grados', 'Danger': 'Peligro' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as BoxPlotWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Bulbo húmedo');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('grados');
+    expect(localized.bands?.[0].label).toBe('Peligro');
+  });
+});
+
+describe('localizeSpecification over a polarShares widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'polarShares',
+              title: 'Wind rose',
+              hint: 'whole year',
+              counts: { kind: 'const', value: 1 },
+              cells: { kind: 'const', value: 1 },
+              bearingKey: 'centreDegrees', classOrderKey: 'order', classLabelKey: 'name', classColourKey: 'colour',
+            } satisfies PolarSharesWidget] }],
+    translations: { es: { 'Wind rose': 'Rosa de los vientos', 'whole year': 'todo el año' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as PolarSharesWidget;
+
+  it('translates the wording the widget shows, and keeps the row keys it reads', () => {
+    expect(localized.title).toBe('Rosa de los vientos');
+    expect(localized.hint).toBe('todo el año');
+    expect(localized.bearingKey).toBe('centreDegrees');
+  });
+});
+
+describe('localizeSpecification over a depthProfile widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'depthProfile',
+              title: 'Soil texture',
+              hint: 'by depth',
+              unit: 'per cent',
+              rows: { kind: 'const', value: 1 },
+              labelKey: 'name',
+              parts: [{ label: 'Sand', key: 'sandPercent', colour: '#e0b973' }],
+            } satisfies DepthProfileWidget] }],
+    translations: { es: { 'Soil texture': 'Textura del suelo', 'by depth': 'por profundidad', 'per cent': 'por ciento', 'Sand': 'Arena' } },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as DepthProfileWidget;
+
+  it('translates the wording the widget shows, and keeps the keys it reads', () => {
+    expect(localized.title).toBe('Textura del suelo');
+    expect(localized.hint).toBe('por profundidad');
+    expect(localized.unit).toBe('por ciento');
+    expect(localized.parts[0]).toEqual({ label: 'Arena', key: 'sandPercent', colour: '#e0b973' });
+  });
+});
+
 describe('localizeSpecification over a rangeBar widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
@@ -416,12 +486,14 @@ describe('localizeSpecification over a heatmap widget', () => {
               hint: 'hour by day',
               unit: 'watts',
               value: { kind: 'const', value: 1 },
+              classes: [{ label: 'bright', colour: '#ffcc00' }],
             } satisfies HeatmapWidget] }],
     translations: {
       es: {
           'Sun': 'Sol',
           'hour by day': 'hora por día',
           'watts': 'vatios',
+          'bright': 'brillante',
       },
     },
   };
@@ -431,6 +503,7 @@ describe('localizeSpecification over a heatmap widget', () => {
     expect(localized.title).toBe('Sol');
     expect(localized.hint).toBe('hora por día');
     expect(localized.unit).toBe('vatios');
+    expect(localized.classes?.[0].label).toBe('brillante');
   });
 });
 

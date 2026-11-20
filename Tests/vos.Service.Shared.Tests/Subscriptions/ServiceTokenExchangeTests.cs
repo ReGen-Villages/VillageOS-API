@@ -9,7 +9,7 @@ using Xunit;
 namespace vos.Service.Shared.Tests.Subscriptions;
 
 // The bearer forwarded with a /handle call names the caller's model but expires in minutes, so a
-// subscription that has to outlast it trades up. These pin the call that does the trading, and pin that a
+// subscription that has to outlast it trades up. These check the call that does the trading, and that a
 // refusal is survivable rather than fatal — a daemon that cannot extend one model's token must keep
 // serving the others.
 public class ServiceTokenExchangeTests

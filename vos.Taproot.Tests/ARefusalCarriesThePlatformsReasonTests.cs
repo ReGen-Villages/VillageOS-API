@@ -144,8 +144,9 @@ public class ARefusalCarriesThePlatformsReasonTests
     }
 
     private static IEnumerable<string> TaprootSources() =>
-        new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), "vos.Taproot"))
-            .EnumerateFiles("*.cs", SearchOption.AllDirectories)
+        new[] { "vos.Taproot", "vos.Taproot.Client" }
+            .SelectMany(project => new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), project))
+                .EnumerateFiles("*.cs", SearchOption.AllDirectories))
             .Where(file => !IsBuildOutput(file.FullName))
             .Select(file => file.FullName);
 

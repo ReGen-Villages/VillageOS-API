@@ -24,18 +24,19 @@ public static class EndpointKindResolver
     // a relationship points at, and the relationship rules add the relationships, but the Thing naming a relationship is neither.
     // The walk below compares that name, so a predicate left out here is a role that matches nothing
     // and reads as "reaches no kind" — a wrong answer that looks like a valid one.
-    private static readonly string[] PredicatesRead = ["is", .. EndpointKindRoles.All];
+    private static readonly string[] PredicatesRead = [PlatformPredicates.Is, .. EndpointKindRoles.All];
 
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
         // The `observed` and `predicate` roles and their bindings are asked for the provenance read, not for any kind.
         // The endpoint's observed relationships are asked for through the role, and without the predicate the role
         // binds none of them can be told from any other relationship; asking here lets one read answer both.
-        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id],
+        // The `historySource` role is asked for so the same read says whether the endpoint's timed readings are deposited.
+        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [
-            new TraverseRule { Predicate = "is", Depth = TemplateChainDepth },
+            new TraverseRule { Predicate = PlatformPredicates.Is, Depth = TemplateChainDepth },
             .. EndpointKindRoles.All.Select(role => new TraverseRule { Predicate = role }),
             RoleBindings.FollowBindings,
         ],
@@ -77,6 +78,15 @@ public static class EndpointKindResolver
         return resolved;
     }
 
+    public static bool IsHistorySource(SnapshotDocument snapshot, Guid endpointId)
+    {
+        var historyKinds = snapshot.Bound(LandIntakeRoles.HistorySource).Select(kind => kind.Id).ToHashSet();
+        if (historyKinds.Count == 0) return false;
+
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        return ChainFrom(snapshot, endpointId, thingsById).Any(historyKinds.Contains);
+    }
+
     // The endpoint and then its templates, nearest first, so the closest declaration of a role wins —
     // the same closest-ancestor-wins rule a narrowed property follows.
     private static IEnumerable<Guid> ChainFrom(
@@ -95,7 +105,7 @@ public static class EndpointKindResolver
             foreach (var edge in snapshot.Relationships)
                 if (edge.SubjectId == current
                     && thingsById.TryGetValue(edge.PredicateId, out var predicate)
-                    && string.Equals(predicate.Name, "is", StringComparison.Ordinal))
+                    && string.Equals(predicate.Name, PlatformPredicates.Is, StringComparison.Ordinal))
                     frontier.Enqueue(edge.TargetId);
         }
     }

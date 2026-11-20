@@ -2,11 +2,10 @@ import type { ClusterMap } from './predicateCluster';
 import type { FlashSettings } from './guiSettings';
 import { brightenColor } from './colors';
 
-/** Bright style for edges connected to hovered or selected node. */
-export const BRIGHT_EDGE_COLOR = '#d4d4d8'; // zinc-300
+/** For an edge of the hovered or selected node. */
+export const BRIGHT_EDGE_COLOR = '#d4d4d8';
 export const BRIGHT_EDGE_SIZE = 1.5;
 
-/** Apply selection highlight to a node result. */
 export function applySelectionHighlight(
   node: string,
   result: Record<string, unknown>,
@@ -18,18 +17,11 @@ export function applySelectionHighlight(
   return result;
 }
 
-/** Return bright edge style for hovered/selected edges. */
 export function brightenEdge(data: Record<string, unknown>): Record<string, unknown> {
   return { ...data, color: BRIGHT_EDGE_COLOR, size: BRIGHT_EDGE_SIZE, forceLabel: true };
 }
 
-/**
- * Compute the visual style for a node in clustering mode.
- *
- * Handles: predicate nodes (dimmed), expanded nodes, unclustered nodes,
- * collapsed cluster members (hidden except representative), and normal
- * cluster members.
- */
+/** Predicate nodes are dimmed, and a collapsed cluster shows only its representative. */
 export function computeClusterNodeStyle(
   node: string,
   data: Record<string, unknown>,
@@ -76,7 +68,6 @@ export function computeClusterNodeStyle(
   return applySelectionHighlight(node, { ...data, zIndex: 1 }, selId);
 }
 
-/** Apply flash pulse to a node whose property just changed. */
 export function applyNodeFlash(data: Record<string, unknown>, settings: FlashSettings): Record<string, unknown> {
   const color = (data.color as string) || '#94a3b8';
   const baseColor = color.length >= 7 ? color.slice(0, 7) : color;
@@ -89,7 +80,6 @@ export function applyNodeFlash(data: Record<string, unknown>, settings: FlashSet
   };
 }
 
-/** Apply flash pulse to an edge whose property just changed. */
 export function applyEdgeFlash(data: Record<string, unknown>, settings: FlashSettings): Record<string, unknown> {
   const color = (data.color as string) || '#71717a';
   const baseColor = color.length >= 7 ? color.slice(0, 7) : color;

@@ -1,0 +1,31 @@
+/**
+ * The reader without the widgets: everything that reads a model's pages and words what they show,
+ * and nothing that draws. A program with no browser imports this entry. Nothing reachable from it
+ * may import React or need a browser's types; `reader.test.ts` and `tsconfig.reader.json` hold it
+ * to that.
+ */
+export * from './api/askedOptions';
+export * from './api/bindingRefresh';
+export * from './api/compareNames';
+export * from './api/dashboardApi';
+export * from './api/dashboardWrites';
+export * from './api/modelReads';
+export * from './api/pageSelector';
+export * from './api/platformRoles';
+export * from './api/propertyNames';
+export * from './api/stateQuery';
+export * from './i18n/languages';
+export * from './i18n/termWording';
+export * from './i18n/words';
+export * from './types/dashboard';
+export * from './types/vos';
+export * from './utils/precedenceOrder';
+export * from './utils/propertyMapper';
+export * from './utils/propertyOrigin';
+export * from './utils/rangeHelpers';
+export * from './widgets/writeRequest';
+export * from './wording/figureReadings';
+export * from './wording/formatNumber';
+export * from './wording/originSentence';
+export * from './wording/readWidget';
+export * from './wording/verdictSentence';

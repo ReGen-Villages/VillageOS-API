@@ -12,9 +12,7 @@ const SUBMISSION: SubmissionDocument = {
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 
-/** The ticket exchange first, then whatever the test says the submission is answered with. Every faked
- *  answer carries a header map because every real one does — the accepting route reads the renewed
- *  ticket off it. */
+/** Every faked answer carries headers, because a real accepted post returns the renewed ticket in one. */
 function answering(submissionAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
@@ -52,8 +50,7 @@ describe('posting a submission', () => {
     expect(accepted.reference).toBe('sub-ref-1');
   });
 
-  // The service holds its own credential and decides for itself who may submit. A form sent under a
-  // planner's token would work only for a planner, and this is the route a stranger uses.
+  // A form sent under a planner's token would work only for a planner, and this is the route a stranger uses.
   it('carries no credential', async () => {
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
@@ -158,7 +155,7 @@ describe('what the form draws itself with', () => {
 
     const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/form');
-    expect(requestOptions).toBeUndefined();
+    expect(requestOptions).toEqual({ method: 'GET', headers: {} });
     expect(options.allocationCategories).toEqual(['residential']);
   });
 
@@ -180,8 +177,6 @@ describe('what the form draws itself with', () => {
     expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
   });
 
-  // A source whose tile address is a path is the intake service's own route to imagery it proxies — the
-  // public pages are served from a site of their own, so the path is the service's, not the page's.
   it('resolves a tile address that is a path against the intake service', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -224,28 +219,30 @@ describe('what the form draws itself with', () => {
     expect((await intakeApi.formOptions()).themes).toEqual([]);
   });
 
-  it('carries the layer kinds the model declares, and none where the service names none', async () => {
+  it('carries the layer kinds the model declares with their themes, and none where the service names none', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
           allocationCategories: [],
-          layerKinds: [{ name: 'brook-or-wadi', colour: '#2F80ED' }, { name: 'other-layer' }],
+          layerKinds: [
+            { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+            { name: 'other-layer' },
+          ],
         }),
     });
 
     expect((await intakeApi.formOptions()).layerKinds).toEqual([
-      { name: 'brook-or-wadi', colour: '#2F80ED' },
-      { name: 'other-layer', colour: null },
+      { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+      { name: 'other-layer', colour: null, themes: [] },
     ]);
 
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ allocationCategories: [] }) });
     expect((await intakeApi.formOptions()).layerKinds).toEqual([]);
   });
 
-  // A deployment whose model is not seeded answers this route with a problem document, and a form that
-  // read the absent fields as an empty model would offer a programme step with nothing in it and no
-  // explanation.
+  // A deployment with no seeded model answers with a problem document; read as an empty model, the form
+  // would offer an empty programme step with no explanation.
   it('raises what the service said rather than reading a refusal as an empty model', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -254,5 +251,40 @@ describe('what the form draws itself with', () => {
     });
 
     await expect(intakeApi.formOptions()).rejects.toThrow('cannot answer');
+  });
+});
+
+describe('the lookups a deployment may not register', () => {
+  it('answers no parcel and no places where the service answers that nothing is there', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, headers: new Headers(), json: () => Promise.resolve({}) });
+
+    await expect(intakeApi.parcelAt(39.5, -8.4)).resolves.toBeNull();
+    await expect(intakeApi.searchPlaces('Willow')).resolves.toEqual([]);
+  });
+
+  it('raises any other refusal of a lookup rather than reading it as nothing there', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ detail: 'This service cannot answer at the moment.' }),
+    });
+
+    await expect(intakeApi.parcelAt(39.5, -8.4)).rejects.toThrow('cannot answer');
+    await expect(intakeApi.searchPlaces('Willow')).rejects.toThrow('cannot answer');
+  });
+
+  it('posts a lookup as JSON and reads the form options with no body', async () => {
+    fetchMock.mockResolvedValue({ ok: true, headers: new Headers(), json: () => Promise.resolve({ places: [] }) });
+
+    await intakeApi.searchPlaces('Willow');
+    const [, posted] = fetchMock.mock.calls[0];
+    expect(posted).toMatchObject({ method: 'POST', body: JSON.stringify({ query: 'Willow' }) });
+    expect(posted.headers['Content-Type']).toBe('application/json');
+
+    await intakeApi.formOptions();
+    const [, read] = fetchMock.mock.calls[1];
+    expect(read.method).toBe('GET');
+    expect(read.body).toBeUndefined();
+    expect(read.headers['Content-Type']).toBeUndefined();
   });
 });

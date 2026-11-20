@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -55,14 +56,7 @@ public sealed record CodedPlace(
 // Every such Place the model holds, and the predicate a site is related to one through.
 public sealed record CodedPlaces(Guid NestingPredicateId, IReadOnlyList<CodedPlace> Places);
 
-// One compute service to start on the site's study: the connection to relate through, and the service
-// prototype the relationship points at. The connection is the predicate, which is what makes the relationship call its service.
-// A study already holding the relationship has its analysis running, and the model refuses a second copy.
-public sealed record AnalysisTrigger(
-    string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId, bool AlreadyRelated);
-
-// The study to compute, and every service that computes part of it.
-public sealed record SiteAnalysis(Guid StudyId, IReadOnlyList<AnalysisTrigger> Triggers);
+public sealed record Study(Guid Id, string Name);
 
 // Reads which sources cover a site, and which sites a source reaches, each from one scoped snapshot.
 //
@@ -85,12 +79,6 @@ public static class CoveringSourceResolver
     public const string SourcedFromPredicate = "sourcedFrom";
     public const string StudiesPredicate = "studies";
     public const string HasPredicate = "has";
-    public const string IsPredicateName = "is";
-
-    // The archetype every connection a site analysis calls `is`, found through the role that binds it
-    // rather than by name, so adding a balance is an edit to the model: name them here and the two
-    // repositories would agree about the analysis only by spelling.
-    public static readonly Role SiteAnalysisConnectionRole = LandIntakeRoles.SiteAnalysisConnection;
 
     // The archetype every site `is`, bound by the platform's site role so that a walk reaching Places
     // and sites alike can tell the two apart — and so that a service call naming a source is told from one
@@ -125,7 +113,7 @@ public static class CoveringSourceResolver
     private static readonly string[] PredicatesRead =
     [
         IsInPredicate, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
-        AssessesPredicate, StudiesPredicate, HasPredicate, IsPredicateName,
+        AssessesPredicate, StudiesPredicate, HasPredicate, PlatformPredicates.Is,
         AppliesToPredicate, SourcedFromPredicate,
     ];
 
@@ -159,7 +147,7 @@ public static class CoveringSourceResolver
     // plays which part whatever the model calls it.
     private static readonly Role[] SiteReadRoles =
     [
-        SiteRole, PlaceNestingRole, SiteAnalysisConnectionRole, PlaceArchetypeRole, SourceCoverageRole,
+        SiteRole, PlaceNestingRole, PlaceArchetypeRole, SourceCoverageRole,
         AreaNameLookupRole, LocalAreaNameLookupRole, HazardDivisionLookupRole, ProvidedVariableRole,
     ];
     private const string PlaceCodePropertyName = "placeCodeProperty";
@@ -176,20 +164,17 @@ public static class CoveringSourceResolver
     // than overwriting what earlier runs recorded.
     private const string AttemptsProperty = "attempts";
 
-    // Everything in one read: the site's Places, every source whose coverage reaches one of them, the
-    // study of the site, and every connection a site analysis calls with the service each one binds.
-    // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
-    // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
+    // One read, so the coverage and the study come from the same snapshot.
+    // Traverse rules compose over the set built so far, so `isIn` must come first — as with the endpoint
+    // kinds, rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
     {
         Ids = [siteId, .. RoleBindings.Identifiers(SiteReadRoles)],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
-        // Model-wide rather than reached from the site: a study is related through a connection only once
-        // its analysis has started there, and finding the connections it has not started is what this read is for.
-        BoundTypes = RoleBindings.Identifiers(SiteAnalysisConnectionRole, PlaceArchetypeRole),
+        BoundTypes = RoleBindings.Identifiers(PlaceArchetypeRole),
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
-        // members, every coverage in the model arrived on every site's read; the ones about
+        // members, every coverage in the model would arrive on every site's read; the ones about
         // this site come through the `appliesTo` traversal below. The two division lookups are asked for
         // the same way and for the same reason: no relationship reaches either, because neither covers a Place.
         // The predicate a source provides its variables through is asked for here because the traversal
@@ -225,51 +210,14 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
-        // The one rule names no predicate: a study's analysis relationships run along whichever connection the
-        // model declares, and a rule cannot name an archetype's members. Outgoing alone still leaves out the isIn
-        // every other site writes into a shared Place.
+        // The one rule names no predicate, so every relationship out of what the read reached arrives. Outgoing
+        // alone still leaves out the isIn every other site writes into a shared Place.
         Relationships = [new RelationshipRule { Direction = "outgoing" }],
-    };
-
-    // What a service call named. The subject's own `is` chain arrives with the ancestors the broker closes
-    // over; the site role is asked for with what it binds so that a model binding no site reads as one,
-    // rather than as a subject that is not a site — and the archetype alone, because with its members every
-    // site in the model would arrive to answer a question about one Thing.
-    public static SubscriptionSelector KindSelectorFor(Guid subjectId) => new()
-    {
-        Ids = [subjectId, SiteRole.Id],
-        Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate, RoleBindings.BindsPredicateName],
-        Traverse = [RoleBindings.FollowBindings],
-        IncludeRelationships = true,
-        Relationships = Outgoing(RoleBindings.BindsPredicateName, IsPredicateName, CoversPredicate, ResolvedByPredicate),
     };
 
     // Outgoing only: a subject that is a Place would otherwise bring the isIn of every site standing in it.
     private static List<RelationshipRule> Outgoing(params string[] predicates) =>
         [.. predicates.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" })];
-
-    // A site is whatever `is` the archetype the site role binds, directly or through intermediate types. A
-    // source is whatever else covers a Place or is resolved by a registration — the two relationships that make
-    // it one — rather than anything that is not a site, because anything else taken for a source would be
-    // stamped as worked out, and a stamp on the archetype itself is inherited by every site.
-    public static SubjectKind KindOf(SnapshotDocument snapshot, Guid subjectId)
-    {
-        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
-
-        var siteArchetypes = SiteArchetypes(snapshot);
-        if (siteArchetypes.Count == 0) return SubjectKind.ModelBindsNoSite;
-
-        if (MembersReachedFrom(snapshot, thingsById, namesById, siteArchetypes).Contains(subjectId))
-            return SubjectKind.Site;
-
-        var callable = snapshot.Relationships.Any(edge =>
-            edge.SubjectId == subjectId
-            && (IsPredicate(namesById, edge.PredicateId, CoversPredicate)
-                || IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)));
-
-        return callable ? SubjectKind.Source : SubjectKind.NeitherSiteNorSource;
-    }
 
     // Everything in one read, from the other end: the Places the source covers, everything nested in
     // them to the depth a site's own walk climbs, what each site there has of what the source resolves
@@ -299,7 +247,7 @@ public static class CoveringSourceResolver
         // covered Place holds relationships this read never follows.
         Relationships = Outgoing(
             RoleBindings.BindsPredicateName, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
-            IsInPredicate, IsPredicateName, HasPredicate, AppliesToPredicate, SourcedFromPredicate),
+            IsInPredicate, PlatformPredicates.Is, HasPredicate, AppliesToPredicate, SourcedFromPredicate),
     };
 
     // The source, with a call for every subject the sites under the Places it covers would be called
@@ -315,7 +263,7 @@ public static class CoveringSourceResolver
         if (EndpointOf(snapshot, namesById, thingsById, sourceId) is not { } endpoint) return [];
 
         var covered = snapshot.Relationships
-            .Where(edge => edge.SubjectId == sourceId && IsPredicate(namesById, edge.PredicateId, CoversPredicate))
+            .Where(edge => edge.SubjectId == sourceId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, CoversPredicate))
             .Select(edge => edge.TargetId);
         var within = NestedWithin(snapshot, namesById, covered);
 
@@ -349,7 +297,7 @@ public static class CoveringSourceResolver
             foreach (var edge in snapshot.Relationships)
             {
                 if (edge.TargetId != current) continue;
-                if (!IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
+                if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
                 if (within.Add(edge.SubjectId)) frontier.Enqueue(edge.SubjectId);
             }
         }
@@ -376,7 +324,7 @@ public static class CoveringSourceResolver
         var recorded = new List<RecordedCoverage>();
         foreach (var edge in snapshot.Relationships)
         {
-            if (!IsPredicate(namesById, edge.PredicateId, AppliesToPredicate)) continue;
+            if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, AppliesToPredicate)) continue;
             if (SourceOf(snapshot, namesById, edge.SubjectId) is not { } sourceId) continue;
 
             thingsById.TryGetValue(edge.SubjectId, out var coverage);
@@ -401,7 +349,7 @@ public static class CoveringSourceResolver
         Guid? Predicate(string name) => snapshot.Things
             .FirstOrDefault(thing => string.Equals(thing.Name, name, StringComparison.Ordinal))?.Id;
 
-        if (Predicate(IsPredicateName) is not { } isPredicate) return null;
+        if (Predicate(PlatformPredicates.Is) is not { } isPredicate) return null;
         if (Predicate(AppliesToPredicate) is not { } appliesTo) return null;
         if (Predicate(SourcedFromPredicate) is not { } sourcedFrom) return null;
 
@@ -419,9 +367,9 @@ public static class CoveringSourceResolver
         if (areaName?.Name is not { Length: > 0 } areaNameEndpoint) return null;
         if (search?.Name is not { Length: > 0 } searchEndpoint) return null;
 
-        if (StatedText(search, DivisionCodeProperty) is not { } codeProperty) return null;
-        if (StatedText(search, DivisionNameProperty) is not { } nameProperty) return null;
-        if (StatedText(search, AddressProperty) is not { } address) return null;
+        if (NonEmptyText(search, DivisionCodeProperty) is not { } codeProperty) return null;
+        if (NonEmptyText(search, DivisionNameProperty) is not { } nameProperty) return null;
+        if (NonEmptyText(search, AddressProperty) is not { } address) return null;
 
         // Exactly one, because the run has one name to fill and no way to tell which of two a second
         // placeholder wanted — and a call left with an unfilled one is refused before the provider is
@@ -436,7 +384,7 @@ public static class CoveringSourceResolver
 
         return new DivisionLookup(
             areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty,
-            StatedText(areaName, PlaceCodePropertyName),
+            NonEmptyText(areaName, PlaceCodePropertyName),
             localAreaName?.Name is { Length: > 0 } localEndpoint ? localEndpoint : null);
     }
 
@@ -456,7 +404,7 @@ public static class CoveringSourceResolver
         var places = new List<CodedPlace>();
         foreach (var edge in snapshot.Relationships)
         {
-            if (edge.TargetId != archetype.Id || !IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
+            if (edge.TargetId != archetype.Id || !SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is)) continue;
 
             var values = StatedValues.Of(snapshot, edge.SubjectId);
             if (!values.TryGetValue(codeProperty, out var code)) continue;
@@ -500,19 +448,12 @@ public static class CoveringSourceResolver
         })
     ];
 
-    private static string? StatedText(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
-            ? stated.Value.GetString() is { Length: > 0 } text ? text : null
-            : null;
+    private static string? NonEmptyText(SnapshotThing thing, string property) =>
+        thing.StatedText(property) is { Length: > 0 } text ? text : null;
 
     // Nought where the coverage carries no count, which is a coverage nothing has tried yet — the same
     // answer as a count of nought, and the run's next write makes it one either way.
-    private static long AttemptsOn(SnapshotThing coverage)
-        => coverage.StatedValue(AttemptsProperty) is { } property
-           && property.Value.ValueKind == JsonValueKind.Number
-           && property.Value.TryGetInt64(out var attempts)
-            ? attempts
-            : 0;
+    private static long AttemptsOn(SnapshotThing coverage) => coverage.StatedWholeNumber(AttemptsProperty) ?? 0;
 
     private static bool HasResolvedAt(SnapshotThing coverage)
         => coverage.StatedValue(ResolvedAtProperty) is { } property
@@ -522,7 +463,7 @@ public static class CoveringSourceResolver
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid coverageId)
     {
         foreach (var edge in snapshot.Relationships)
-            if (edge.SubjectId == coverageId && IsPredicate(namesById, edge.PredicateId, SourcedFromPredicate))
+            if (edge.SubjectId == coverageId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, SourcedFromPredicate))
                 return edge.TargetId;
 
         return null;
@@ -547,7 +488,7 @@ public static class CoveringSourceResolver
 
         foreach (var edge in snapshot.Relationships)
         {
-            if (!IsPredicate(namesById, edge.PredicateId, CoversPredicate)) continue;
+            if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, CoversPredicate)) continue;
             if (!places.Contains(edge.TargetId)) continue;
             if (!alreadyTaken.Add(edge.SubjectId)) continue;
             if (!thingsById.TryGetValue(edge.SubjectId, out var source)) continue;
@@ -635,7 +576,7 @@ public static class CoveringSourceResolver
     {
         var declared = snapshot.Relationships
             .Where(edge => edge.SubjectId == sourceId
-                && IsPredicate(namesById, edge.PredicateId, ResolvesOntoPredicate))
+                && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, ResolvesOntoPredicate))
             .Select(edge => edge.TargetId)
             .ToList();
 
@@ -649,7 +590,7 @@ public static class CoveringSourceResolver
             .ToList();
 
         var owned = snapshot.Relationships
-            .Where(edge => edge.SubjectId == siteId && IsPredicate(namesById, edge.PredicateId, HasPredicate))
+            .Where(edge => edge.SubjectId == siteId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, HasPredicate))
             .Select(edge => edge.TargetId)
             .ToHashSet();
 
@@ -667,7 +608,7 @@ public static class CoveringSourceResolver
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid subjectId) =>
         snapshot.Relationships
             .Where(edge => edge.SubjectId == subjectId
-                && !IsPredicate(namesById, edge.PredicateId, IsPredicateName))
+                && !SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is))
             .Select(edge => edge.TargetId)
             .ToList();
 
@@ -711,116 +652,27 @@ public static class CoveringSourceResolver
         return values;
     }
 
-    // The study of the site and the services that compute it, or null when the site has no study. A site
-    // with nothing to compute is not a failed discovery — nothing was ever going to run — so the run
-    // reports it and does not treat it as an outage, the same rule a DataSource with no registration is
-    // left out under.
-    //
-    // The study is the subject of every relationship written, never the site: a compute service reads its inputs
-    // off the study, so a relationship naming the site would call the service for a Thing holding none
-    // of them.
-    public static SiteAnalysis? AnalysisOf(SnapshotDocument snapshot, Guid siteId)
+    // Every study that studies the site, ordered by identifier because relationship order is not defined. The
+    // caller refuses any count but one rather than picking a study that would change from run to run.
+    public static IReadOnlyList<Study> StudiesOf(SnapshotDocument snapshot, Guid siteId)
     {
-        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
-
-        if (StudyOf(snapshot, namesById, siteId) is not { } studyId) return null;
-
-        var studyRelationships = new HashSet<(Guid Predicate, Guid Target)>();
-        foreach (var edge in snapshot.Relationships)
-            if (edge.SubjectId == studyId)
-                studyRelationships.Add((edge.PredicateId, edge.TargetId));
-
-        var triggers = new List<AnalysisTrigger>();
-        foreach (var connectionId in MembersReachedFrom(
-                     snapshot, thingsById, namesById, BoundIds(snapshot, SiteAnalysisConnectionRole)))
-        {
-            if (ServicePrototypeOf(snapshot, thingsById, namesById, connectionId) is not { } prototypeId)
-                continue;
-
-            triggers.Add(new AnalysisTrigger(
-                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId,
-                studyRelationships.Contains((connectionId, prototypeId))));
-        }
-
-        // Ordered by name so a run writes its relationships the same way twice, which is what makes the log of
-        // two runs comparable.
-        triggers.Sort((left, right) => string.CompareOrdinal(left.ConnectionName, right.ConnectionName));
-        return new SiteAnalysis(studyId, triggers);
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+        return snapshot.Relationships
+            .Where(edge => edge.TargetId == siteId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, StudiesPredicate))
+            .Select(edge => edge.SubjectId)
+            .Distinct()
+            .Order()
+            .Select(studyId => new Study(studyId, namesById.GetValueOrDefault(studyId, string.Empty)))
+            .ToList();
     }
 
-    // The one study of the site. More than one is refused rather than picked between: relationship order
-    // is not defined, so choosing would analyse a different study on different runs and report neither
-    // choice. Null means none, which the caller reports as nothing to compute.
-    private static Guid? StudyOf(
-        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid siteId)
-    {
-        Guid? found = null;
-        foreach (var edge in snapshot.Relationships)
-        {
-            if (edge.TargetId != siteId) continue;
-            if (!IsPredicate(namesById, edge.PredicateId, StudiesPredicate)) continue;
-            if (found != null && found != edge.SubjectId) return null;
-            found = edge.SubjectId;
-        }
-
-        return found;
-    }
-
-    // A connection binds its service through `has`, and the service `is` the prototype the analysis relationship
-    // points at — the shape the site-survey template authors by hand.
-    private static Guid? ServicePrototypeOf(
-        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
-        IReadOnlyDictionary<Guid, string> namesById, Guid connectionId)
-    {
-        foreach (var bound in snapshot.Relationships)
-        {
-            if (bound.SubjectId != connectionId) continue;
-            if (!IsPredicate(namesById, bound.PredicateId, HasPredicate)) continue;
-
-            foreach (var typed in snapshot.Relationships)
-            {
-                if (typed.SubjectId != bound.TargetId) continue;
-                if (!IsPredicate(namesById, typed.PredicateId, IsPredicateName)) continue;
-                if (thingsById.TryGetValue(typed.TargetId, out var prototype) && prototype.IsArchetype)
-                    return typed.TargetId;
-            }
-        }
-
-        return null;
-    }
-
-    // Every Thing that `is` — directly or through intermediate types — one of the given archetypes.
-    // Walked outwards from them rather than upwards from each Thing, so the snapshot's relationships
-    // are read once per level instead of once per Thing.
-    //
     // An archetype does not play its own role, so an archetype is not among its own members, and an
     // intermediate type between a member and the top is a type rather than a member.
     private static List<Guid> MembersReachedFrom(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
-        IReadOnlyDictionary<Guid, string> namesById, IEnumerable<Guid> archetypeIds)
-    {
-        var reached = new HashSet<Guid>(archetypeIds);
-        var members = new List<Guid>();
-        var frontier = new Queue<Guid>(reached);
-
-        while (frontier.Count > 0)
-        {
-            var current = frontier.Dequeue();
-            foreach (var edge in snapshot.Relationships)
-            {
-                if (edge.TargetId != current) continue;
-                if (!IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
-                if (!reached.Add(edge.SubjectId)) continue;
-
-                frontier.Enqueue(edge.SubjectId);
-                if (thingsById.TryGetValue(edge.SubjectId, out var member) && !member.IsArchetype)
-                    members.Add(edge.SubjectId);
-            }
-        }
-
-        return members;
-    }
+        IReadOnlyDictionary<Guid, string> namesById, IEnumerable<Guid> archetypeIds) =>
+        [.. SnapshotWalk.ThingsUnder(snapshot, namesById, archetypeIds)
+            .Where(id => thingsById.TryGetValue(id, out var member) && !member.IsArchetype)];
 
     // The site's own Place and every Place containing it, grouped by how many isIn relationships away each
     // stands. The nesting is what makes a source covering the root cover every site under it without
@@ -839,7 +691,7 @@ public static class CoveringSourceResolver
                 foreach (var edge in snapshot.Relationships)
                 {
                     if (edge.SubjectId != current) continue;
-                    if (!IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
+                    if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
                     if (seen.Add(edge.TargetId))
                         next.Add(edge.TargetId);
                 }
@@ -859,15 +711,10 @@ public static class CoveringSourceResolver
     {
         foreach (var edge in snapshot.Relationships)
             if (edge.SubjectId == dataSourceId
-                && IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)
+                && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)
                 && thingsById.TryGetValue(edge.TargetId, out var endpoint))
                 return endpoint;
 
         return null;
     }
-
-    private static bool IsPredicate(
-        IReadOnlyDictionary<Guid, string> namesById, Guid predicateId, string name) =>
-        namesById.TryGetValue(predicateId, out var predicate)
-        && string.Equals(predicate, name, StringComparison.Ordinal);
 }

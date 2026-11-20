@@ -9,6 +9,7 @@ using vos.Service.Shared.Roles;
 using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
+using static vos.BrokerContract.Tests.AgainstTheEngine.EngineArrangement;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -23,7 +24,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     private MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
         transport is null ? _engine.ClientFactory : new PerCallHttpClientFactory(transport),
-        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private sealed record Village(Guid PipelineId, Guid Plot, Guid Decided);
 
@@ -32,32 +33,32 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     // Every case arranges this and the host is shared by the class, so the vocabulary is written once.
     private async Task<Village> AVillageWithAPlotToWaitForAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        var isPredicate = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var isPredicate = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
         var nodeRun = await _engine.DeclareOnceAsync("NodeRun", isArchetype: true);
-        await BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
-        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
-        await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
+        await _engine.BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
+        await _engine.BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
+        await _engine.BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
         var notifies = await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
-        await BindOnceAsync(NotifiedConnectionRole, notifies);
-        await BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
-        await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
+        await _engine.BindOnceAsync(PipelineRoles.NotifiedConnection, notifies);
+        await _engine.BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
+        await _engine.BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
-        await BindOnceAsync(JudgedThingRole, judges);
+        await _engine.BindOnceAsync(JudgedThingRole, judges);
         var range = await _engine.DeclareOnceAsync("Range", isArchetype: true, Marked("__IsRangeArchetype"));
-        await BindOnceAsync(RangeRole, range);
+        await _engine.BindOnceAsync(RangeRole, range);
         var plotArchetype = await _engine.DeclareOnceAsync("Plot", isArchetype: true);
 
         if (await _engine.FindAsync("resumesRun") is null)
         {
             var connectionArchetype = await _engine.DeclareAsync("PlatformServiceConnection", isArchetype: true, Marked("__IsConnectionArchetype"));
             var serviceArchetype = await _engine.DeclareAsync("Service", isArchetype: true, Marked("__IsServiceArchetype"));
-            await BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
-            await BindOnceAsync(PipelineRoles.Service, serviceArchetype);
+            await _engine.BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
+            await _engine.BindOnceAsync(PipelineRoles.Service, serviceArchetype);
             var resumes = await _engine.DeclareAsync("resumesRun");
             var service = await _engine.DeclareAsync("orchestrator service");
             await _engine.RelateAsync(resumes, isPredicate, connectionArchetype);
@@ -82,19 +83,6 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     private async Task EnterTheRangeAsync(Guid plot) =>
         (await _engine.Admin.PutAsJsonAsync($"/api/things/{plot}/properties", new { Name = Moisture, Type = "vos.LongInteger", Value = 10L }))
             .EnsureSuccessStatusCode();
-
-    private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
-
-    private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
-    private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-    private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
-
-    private async Task BindOnceAsync(Role role, Guid played)
-    {
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
-    }
 
     private static readonly IReadOnlyDictionary<string, JsonElement> Noticed =
         new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent for review") };
@@ -141,6 +129,26 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     // A gateway that has read the run back writes the node run's next status onto the same Thing, as one would
     // after a restart, rather than creating it again.
+    [FactAgainstTheEngine]
+    public async Task A_waits_deadline_travels_in_the_write_that_places_its_watch_and_a_restart_reads_it_back()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var transport = new RecordingTransport(_engine.Transport);
+        var gateway = Gateway(transport);
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
+        await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+
+        var before = transport.Writes.Count;
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: Noticed,
+            watch: new Watch(village.Plot, village.Decided, until));
+
+        (transport.Writes.Count - before).Should().Be(1);
+        (await WaitOfAsync(runId))!.Watching.Should().Be(new Watch(village.Plot, village.Decided, until));
+    }
+
     [FactAgainstTheEngine]
     public async Task A_gateway_that_read_a_run_back_moves_its_waiting_node_run_on()
     {

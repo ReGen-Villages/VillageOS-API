@@ -9,7 +9,7 @@ import { edgeKey, edgesFrom, kindsOffered, propertiesOf, type EdgeCandidate, typ
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { useModelIndexAt } from '../hooks/useModelIndexAt';
 import { useSubscription } from '../hooks/useSse';
-import { useStatesOf } from '../hooks/useStatesOf';
+import { useStatesByKind } from '../hooks/useStatesByKind';
 import { toast } from '../components/common/toastStore';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 import { DataTable } from '../components/dashboard/widgets/DataTable';
@@ -18,14 +18,9 @@ import { formatPropertyValue } from '../utils/formatters';
 import { columnKey, hopsOf, pageOf, tableOf, unresolvedNames } from '../utils/composer';
 
 /**
- * Composing a table from a kind of Thing.
- *
- * Everything offered here is read off the model the console holds — the properties a kind
- * declares, the links its instances carry, the states it derives — so a person chooses from the
- * model's own words and never types a name blind. What the choices become is the same roster
- * binding a seeded page carries, drawn by the same table, so the search and the card a row opens
- * come with it — and kept, when asked, as the same Dashboard Thing a seeded page is, so it stands
- * in the sidebar for everyone who opens the console.
+ * Everything offered is read off the model the console holds, so a person chooses from the model's own words
+ * rather than typing a name. The choices become the roster binding a seeded page carries, drawn by the same
+ * table with its search and row card, and kept as the same Dashboard Thing, so it shows in everyone's sidebar.
  */
 
 const OPERATORS: PropertyFilter['operator'][] =['=', '!=', '>', '>=', '<', '<='];
@@ -40,6 +35,7 @@ const offerClass =
   'w-full text-left rounded px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-700';
 const captionClass = 'ml-2 text-xs text-zinc-500 dark:text-zinc-400';
 const headingClass = 'text-xs font-medium uppercase tracking-wide text-zinc-500';
+const NO_STATES: string[] = [];
 
 /** The instant a moment names, or nothing while the field is empty or half-typed. */
 function instantOf(moment: string): string | undefined {
@@ -75,11 +71,11 @@ export function ComposerPage() {
   const kinds = useMemo(() => kindsOffered(modelIndex), [modelIndex]);
   const properties = useMemo(() => (kind ? propertiesOf(kind, modelIndex) : []), [kind, modelIndex]);
   const edges = useMemo(() => (kind ? edgesFrom(kind, modelIndex) : []), [kind, modelIndex]);
-  const states = useStatesOf(kind, modelIndex);
+  const statesOf = useStatesByKind(modelIndex);
+  const states = statesOf(kind) ?? NO_STATES;
 
-  /** A moment carries no state, so choosing one takes the state choices off the composition rather
-   *  than leaving columns nothing can answer — the sort with them when it named the column that
-   *  went. */
+  /** A moment carries no state, so choosing one takes the state choices off rather than leave columns nothing
+   *  can answer, and the sort with them where it named a column that went. */
   const chooseMoment = (chosen: string) => {
     setMoment(chosen);
     if (!instantOf(chosen)) return;

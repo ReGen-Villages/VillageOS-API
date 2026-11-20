@@ -1,5 +1,4 @@
-// The platform's own type names (vos.Core VosType), which its write routes look every incoming name
-// up in. It accepts no others — a short name like "double" is answered with "Invalid type specified".
+// The platform's own type names (vos.Core VosType); its write routes refuse any other, such as "double".
 export const VOS_TYPES = [
   'vos.String',
   'vos.Integer',
@@ -16,15 +15,9 @@ export const VOS_TYPES = [
 
 export type VosTypeName = (typeof VOS_TYPES)[number];
 
-/**
- * A reported type name narrowed to one the write routes accept, or null when it is not one.
- *
- * A name the client writes is checked when the code is compiled. A name a property reports is not:
- * it arrives over the network, where a compiler cannot reach. Declaring it as one of the set would
- * be an assertion nobody verified. A property's type is a plain settable string on the platform, so
- * one can hold a name outside the set — readable, but rejected by every write route. Narrowing here
- * turns that into a refusal that names the type, instead of an opaque "Invalid type specified".
- */
+/** A reported name arrives over the network, where the compiler cannot check it, and a property's type is a
+ *  plain string that can hold a name every write route refuses; narrowing here makes that a refusal naming
+ *  the type rather than "Invalid type specified". */
 export function asVosTypeName(name: string): VosTypeName | null {
   return (VOS_TYPES as readonly string[]).includes(name) ? (name as VosTypeName) : null;
 }

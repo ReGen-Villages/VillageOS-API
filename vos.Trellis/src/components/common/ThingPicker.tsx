@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useCallback, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import type { VosThing } from '@tendril-ui/tendril';
 
 interface PickerItem {
@@ -49,13 +50,8 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
     return { filtered: matches.slice(0, MAX_DISPLAY), total: matches.length };
   }, [items, query]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (reference.current && !reference.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const close = useCallback(() => setOpen(false), []);
+  useClosesOnEscapeOrPressOutside(open, reference, close);
 
   return (
     <div ref={reference} className="relative">

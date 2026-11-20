@@ -49,7 +49,8 @@ public class EndpointKindResolverTests
     {
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
-        selector.Ids.Should().Equal(Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id);
+        selector.Ids.Should().Equal(
+            Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id);
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);
@@ -83,7 +84,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void Resolve_SnapshotWithoutThePredicateThings_ReachesNothing()
     {
-        // Pins the failure the selector exists to prevent, so the two cannot drift apart silently.
+        // The failure the selector exists to prevent, checked here so the two cannot come apart unnoticed.
         var snapshot = Snapshot();
         snapshot.Things.RemoveAll(thing => thing.Name is "is" or "authenticatesBy");
 
@@ -176,6 +177,48 @@ public class EndpointKindResolverTests
     public void MissingRequirements_NoKindReached_NamesNothing()
     {
         EndpointKindResolver.MissingRequirements(null, Effective()).Should().BeEmpty();
+    }
+
+    private static readonly Guid HistoryKind = Guid.NewGuid();
+    private static readonly Guid BindsPredicate = Guid.NewGuid();
+
+    private static SnapshotDocument WithHistoryKind(Guid registrationIs, bool roleBindsTheKind) => new(0,
+        [
+            Thing(Registration, "climate-history"),
+            Thing(Template, "EsriEndpoint"),
+            Thing(HistoryKind, "HistoryEndpoint"),
+            Thing(RootTemplate, "Endpoint"),
+            Thing(IsPredicate, "is"),
+            Thing(BindsPredicate, RoleBindings.BindsPredicateName),
+            Thing(LandIntakeRoles.HistorySource.Id, "HistorySource"),
+        ],
+        [
+            Edge(Registration, IsPredicate, registrationIs),
+            Edge(HistoryKind, IsPredicate, RootTemplate),
+            Edge(Template, IsPredicate, RootTemplate),
+            .. roleBindsTheKind ? [Edge(LandIntakeRoles.HistorySource.Id, BindsPredicate, HistoryKind)] : Array.Empty<SnapshotRelationship>(),
+        ]);
+
+    [Fact]
+    public void An_endpoint_of_the_kind_the_history_source_role_binds_is_a_history_source()
+    {
+        EndpointKindResolver.IsHistorySource(WithHistoryKind(HistoryKind, roleBindsTheKind: true), Registration)
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public void An_endpoint_of_another_kind_is_not_a_history_source()
+    {
+        EndpointKindResolver.IsHistorySource(WithHistoryKind(Template, roleBindsTheKind: true), Registration)
+            .Should().BeFalse();
+    }
+
+    // A model seeded before the role existed binds nothing, and its sources keep the readings route.
+    [Fact]
+    public void An_endpoint_in_a_model_binding_no_history_source_kind_is_not_a_history_source()
+    {
+        EndpointKindResolver.IsHistorySource(WithHistoryKind(HistoryKind, roleBindsTheKind: false), Registration)
+            .Should().BeFalse();
     }
 
     // Handed back as a view nothing can write to, which is what the call path holds and what the

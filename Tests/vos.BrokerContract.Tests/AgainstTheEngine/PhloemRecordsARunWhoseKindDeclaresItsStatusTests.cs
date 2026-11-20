@@ -18,26 +18,20 @@ public class PhloemRecordsARunWhoseKindDeclaresItsStatusTests : IClassFixture<Th
     public PhloemRecordsARunWhoseKindDeclaresItsStatusTests(TheEngine engine) => _engine = engine;
 
     private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> AModelWhoseRunKindsDeclareTheirStatusAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, "RunKind");
-        await BindOnceAsync(PipelineRoles.NodeRun, "NodeRunKind");
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "RunKind", isArchetype: true, DeclaresStatus);
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRunKind", isArchetype: true, DeclaresStatus);
 
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
     }
 
-    private async Task BindOnceAsync(Role role, string archetypeName)
-    {
-        var archetype = await _engine.DeclareOnceAsync(
-            archetypeName, isArchetype: true, new Dictionary<string, object?> { [ModelNames.Status] = "" });
-        if (await _engine.FindAsync(role.Word) is not null) return;
-        await _engine.BindAsync(role, archetype);
-    }
+    private static readonly IReadOnlyDictionary<string, object?> DeclaresStatus = new Dictionary<string, object?> { [ModelNames.Status] = "" };
 
     [FactAgainstTheEngine]
     public async Task A_run_is_recorded_and_belongs_to_its_pipeline()

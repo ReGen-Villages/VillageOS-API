@@ -125,7 +125,7 @@ public class DivisionLookupTests
         CoveringSourceResolver.DivisionLookupIn(model)!.LocalAreaNameEndpoint.Should().Be("local-area-name-at-position");
     }
 
-    // The English lookup and the search are a whole declaration on their own, as they were before.
+    // The English lookup and the search are a whole declaration on their own.
     [Fact]
     public void AModelDeclaringNoLocalLookupStillOffersTheLookup()
     {
@@ -153,7 +153,7 @@ public class DivisionLookupTests
         CoveringSourceResolver.DivisionLookupIn(model)!.PlaceCodeProperty.Should().Be("iso3166Code");
     }
 
-    // The search alone is a whole declaration, as it was before Places carried a code.
+    // The search alone is a whole declaration, for a model whose Places carry no code.
     [Fact]
     public void AModelNamingNoPlaceCodePropertyStillOffersTheLookup()
     {

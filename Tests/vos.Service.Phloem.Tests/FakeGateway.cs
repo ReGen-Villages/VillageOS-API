@@ -5,7 +5,7 @@ using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Tests;
 
-// Mycelium faked behind the gateway seam: one graph answers every read, and every write is recorded so a
+// Mycelium faked behind the gateway interface: one graph answers every read, and every write is recorded so a
 // test can say what the orchestrator told the model.
 internal sealed class FakeGateway : IMyceliumGateway
 {
@@ -149,7 +149,7 @@ internal sealed class FakeGateway : IMyceliumGateway
                 if (status == RunStatus.Waiting)
                 {
                     var held = Watches.GetValueOrDefault((runId, nodeId));
-                    Watches[(runId, nodeId)] = new Watch(watch.AwaitedId ?? held?.AwaitedId, watch.RangeId ?? held?.RangeId);
+                    Watches[(runId, nodeId)] = new Watch(watch.AwaitedId ?? held?.AwaitedId, watch.RangeId ?? held?.RangeId, watch.Until ?? held?.Until);
                 }
                 else
                 {
@@ -213,6 +213,26 @@ internal sealed class FakeGateway : IMyceliumGateway
     {
         if (CadencesFailure is { } failure) return Task.FromException<IReadOnlyList<Cadence>>(failure);
         lock (Cadences) return Task.FromResult<IReadOnlyList<Cadence>>(Cadences.ToList());
+    }
+
+    public RunsToJudge RunsJudged { get; set; } = new([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>(), RunRetention.RunsPerLookOf(null));
+    public List<Guid> Cleared { get; } = new();
+    public HashSet<Guid> RefusesToClear { get; } = new();
+
+    public int JudgingReadsThatFail { get; set; }
+
+    public Task<RunsToJudge> RunsToJudgeAsync(CancellationToken ct)
+    {
+        if (JudgingReadsThatFail <= 0) return Task.FromResult(RunsJudged);
+        JudgingReadsThatFail--;
+        return Task.FromException<RunsToJudge>(new HttpRequestException("the snapshot read failed"));
+    }
+
+    public Task<int> ClearRunAsync(Guid runId, CancellationToken ct)
+    {
+        if (RefusesToClear.Contains(runId)) return Task.FromException<int>(new HttpRequestException("refused"));
+        lock (Cleared) Cleared.Add(runId);
+        return Task.FromResult(3);
     }
 
     public Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken ct)

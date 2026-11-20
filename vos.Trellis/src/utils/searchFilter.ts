@@ -12,17 +12,8 @@ interface SearchResult {
   matchCount: number;
 }
 
-/**
- * Build a string matcher from the query and options.
- *
- * Supports three modes (checked in order):
- * 1. **Regex** — query compiled as RegExp; invalid regex falls through to plain text.
- * 2. **Comma-separated list** — split into trimmed terms, any must match.
- * 3. **Single term** — plain substring or exact-match.
- *
- * This is the shared core used by both `buildMatcher` (thing-level, checks
- * Name + Id) and `buildLabelMatcher` in nodeVisibility (label strings).
- */
+/** Shared by the Thing matcher and the label matcher, so the two agree. A query is a regular expression when
+ *  that option is on and it compiles, else a comma-separated list where any term matches, else one term. */
 export function buildStringMatcher(
   query: string,
   options: SearchOptions,
@@ -62,11 +53,7 @@ export function buildStringMatcher(
   };
 }
 
-/**
- * Build a thing-level matcher that checks Name and Id.
- * Delegates string matching to `buildStringMatcher`, then adds Id lookup
- * for comma-separated lists.
- */
+/** Matches a Thing's identifier as well as its name, for a comma-separated list. */
 function buildMatcher(
   query: string,
   options: SearchOptions,
@@ -104,8 +91,7 @@ export function filterGraph(
     (r) => matchedIds.has(r.SubjectId) || matchedIds.has(r.TargetId) || matchedIds.has(r.PredicateId),
   );
 
-  // Expand to include neighbor nodes so edges always have both endpoints,
-  // and predicate things so edge labels resolve to names instead of GUIDs
+  // Neighbours are added so every edge has both ends, and predicates so edge labels show names, not identifiers.
   const expandedIds = new Set(matchedIds);
   for (const r of touchingRelationships) {
     expandedIds.add(r.SubjectId);
@@ -119,8 +105,6 @@ export function filterGraph(
     (r) => ftIds.has(r.SubjectId) && ftIds.has(r.TargetId),
   );
 
-  // Also include predicate things for any remaining filtered relationships
-  // so the mapper can always resolve predicate names
   const predicateIds = new Set(fr.map((r) => r.PredicateId));
   const extraPredicates = things.filter((t) => predicateIds.has(t.Id) && !ftIds.has(t.Id));
   const allFilteredThings = extraPredicates.length > 0 ? [...ft, ...extraPredicates] : ft;

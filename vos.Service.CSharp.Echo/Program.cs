@@ -23,7 +23,7 @@ var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, mycelium
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-ServiceHost.ConfigureLogging("Echo", "echo-.log", launchSettings.LogDirectory);
+ServiceHost.ConfigureLogging("Echo", "echo-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile);
 
 try
 {
@@ -111,7 +111,7 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
 });
 if (authEnabled) handleEndpoint.RequireAuthorization();
 
-// Advertise the node's ports so the orchestrator and the Trellis palette can type-check wires.
+// Advertise the step's ports so Phloem and the Trellis palette can check that a wire joins matching types.
 var manifestEndpoint = app.MapGet("/manifest", (EchoNode node) => Results.Ok(node.Ports));
 if (authEnabled) manifestEndpoint.RequireAuthorization();
 

@@ -5,8 +5,8 @@ import { LAYOUT_DEFAULTS } from './guiSettings';
 describe('resolveFA2Settings', () => {
   it('produces the validated defaults', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, false);
-    // A scaling ratio of 10 converges on a graph of tens of thousands of nodes in
-    // about twelve seconds; 50 expands without bound because gravity cannot counteract it.
+    // A scaling ratio of 10 settles a very large graph in seconds; 50 spreads without end, because gravity
+    // cannot hold it.
     expect(r.scalingRatio).toBe(10);
     // Gravity of 1.0 with strong-gravity mode is the only setting that holds such a
     // graph in a stable disc.

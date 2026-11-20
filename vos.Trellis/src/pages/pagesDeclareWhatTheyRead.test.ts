@@ -5,14 +5,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * A page that reads the model store has to say what its subscription must cover, or it is shown
- * whatever the page before it asked for — for a page reading across the model, a handful of Things
- * where it expected everything, with nothing on screen to say so.
- *
- * Source text rather than a render: mounting every page would mean standing up each one's whole
- * dependency tree to assert one line. It catches a page that reads the store in its own source,
- * which is how every page here reads it; one reading it only through a component it renders would
- * slip through.
+ * A page reading the model store must say what its subscription covers, or it is shown whatever the page
+ * before it asked for, with nothing to say so. Read from source, because mounting every page would stand up
+ * each one's dependencies to check one line; a page reading the store only through a component would slip by.
  */
 
 const PAGES = dirname(fileURLToPath(import.meta.url));

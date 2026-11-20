@@ -20,6 +20,10 @@ import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
+import { BoxPlot } from './BoxPlot';
+import { DepthProfile } from './DepthProfile';
+import { PolarShares } from './PolarShares';
+import { DensityGrid } from './DensityGrid';
 import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
 import { StackedShares } from './StackedShares';
@@ -28,8 +32,7 @@ import { SmallMultiples } from './SmallMultiples';
 import { SearchBox } from './SearchBox';
 import { WidgetCard } from './WidgetCard';
 
-/** Renders a single widget by its `type`. The only place that knows the widget union.
- *  `openDetail`, when provided, lets row-clickable widgets open a Thing detail window. */
+/** The only place that knows the widget union. */
 export function WidgetRenderer({
   widget,
   context,
@@ -70,6 +73,14 @@ export function WidgetRenderer({
       return <TableWidgetView widget={widget} context={context} openDetail={openDetail} />;
     case 'rangeBar':
       return <RangeBar widget={widget} context={context} />;
+    case 'boxPlot':
+      return <BoxPlot widget={widget} context={context} />;
+    case 'depthProfile':
+      return <DepthProfile widget={widget} context={context} />;
+    case 'polarShares':
+      return <PolarShares widget={widget} context={context} />;
+    case 'densityGrid':
+      return <DensityGrid widget={widget} context={context} />;
     case 'lineSeries':
       return <LineSeries widget={widget} context={context} />;
     case 'heatmap':
@@ -106,10 +117,9 @@ function ChooseOneEntity({ title, label }: { title?: string; label: string }) {
   );
 }
 
-/** A widget this build did not draw, and which of the two reasons it was. The specification is model data, so
- *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
- *  question in vocabulary this client has no answer for; the view draws everything else and says
- *  what it left out, rather than leaving a silent hole an author cannot account for. */
+/** The specification is model data, so it can name a kind misspelt or newer than this client, or ask in words
+ *  this client cannot answer; the view draws everything else and says what it left out, rather than leaving a
+ *  gap an author cannot account for. */
 function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
   const { t } = useTranslation();
   // A specification can leave the word out as easily as misspell it, and either way the reader is owed a

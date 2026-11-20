@@ -2,23 +2,13 @@ import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { DISPLAY_SETTINGS_ROLE_ID, thingBoundBy } from '@tendril-ui/tendril';
 import { IS_PREDICATE } from '@tendril-ui/tendril';
 
-/** Flash-effect settings extracted from the GUI_Settings type Thing. */
 export interface FlashSettings {
   flashEdgeSize: number;
   flashNodeSizeFactor: number;
   flashNodeBrighten: number;
 }
 
-/**
- * ForceAtlas2 layout settings extracted from the GUI_Settings type Thing.
- *
- * The FA2 supervisor + node-size + edge-size knobs are here so the
- * perf-critical parameters that used to be hard-coded constants are now
- * runtime-tunable through GUI_Settings, the same way repulsion / gravity
- * already were. classifyingProperty lets the GUI run
- * against any domain ontology, not just IFC. Editing the GUI_Settings Thing
- * on Mycelium (or in the seed JSON) overrides any of these without a rebuild.
- */
+/** Read from GUI_Settings, so a deployment can change any of these in the model or its seed without a rebuild. */
 export interface LayoutSettings {
   // Repulsion for the whole graph; clusterRepulsion applies while a predicate cluster is active, so its
   // members spread apart enough to show their sub-structure.
@@ -26,7 +16,7 @@ export interface LayoutSettings {
   gravity: number;
   clusterRepulsion: number;
 
-  // Force-layout settings, validated against a building model of tens of thousands of nodes.
+  // Force-layout settings, checked against a very large building model.
   scalingRatioMultiplier: number;
   gravityMultiplier: number;
   barnesHutTheta: number;
@@ -40,17 +30,9 @@ export interface LayoutSettings {
   // One width for every edge; a smaller one reduces clutter where many edges share endpoints.
   edgeSize: number;
 
-  /**
-   * Name of the Thing-property whose value drives the per-node
-   * color/bucket lookup and the per-element color in the BuildingDetail3D
-   * viewport. The system itself knows nothing about specific ontologies; pick
-   * whatever property the loaded model uses to identify class membership.
-   *
-   * Default `'ifcClass'` so IFC-imported seeds work out of the box. Any
-   * non-IFC deployment overrides via `GUI_Settings.ClassifyingProperty`.
-   * When the property is missing on a Thing, that Thing falls back to the
-   * default bucket color.
-   */
+  /** The property that says which class a Thing is in, for its colour in the graph and in BuildingDetail3D;
+   *  the console knows no particular vocabulary, so a deployment names its own in
+   *  `GUI_Settings.ClassifyingProperty`. A Thing without the property takes the default colour. */
   classifyingProperty: string;
 }
 
@@ -60,10 +42,10 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   clusterRepulsion: 0.4,
   scalingRatioMultiplier: 100,
   gravityMultiplier: 10000,
-  // The ForceAtlas2 paper's value for graphs past ten thousand nodes.
+  // The ForceAtlas2 paper's value for very large graphs.
   barnesHutTheta: 1.2,
   slowDown: 10,
-  // Gravity that weakens with distance cannot hold tens of thousands of nodes against their repulsion.
+  // Gravity that weakens with distance cannot hold a very large graph against its repulsion.
   strongGravityMode: true,
   nodeSizeMin: 1,
   nodeSizeMax: 6,
@@ -74,14 +56,9 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
 };
 
 /**
- * How many decimal places a number shows, read from the GUI_Settings type Thing.
- *
- * There is no digit count that suits every model — a model of geometry, a model of money and a
- * model of sensor readings each want a different one, and the client cannot know which it is
- * looking at. The model that knows says so. The floating-point types and the decimal type are
- * separate settings because they exist for different reasons: one is a measurement with limited
- * significant digits, the other an exact quantity of the kind money is counted in. The whole-number
- * types take no setting, having no decimal places to show.
+ * Read from the model, because only the model knows which count suits it: geometry, money and readings
+ * each want a different one. Floating-point and decimal types are set apart, because one is a measurement
+ * with limited significant digits and the other an exact quantity, as money is; whole numbers have none.
  */
 export interface NumberDisplaySettings {
   floatingPointPrecision: number;
@@ -100,15 +77,10 @@ export const FLASH_DEFAULTS: FlashSettings = {
 };
 
 /**
- * The properties a model says should travel with its model load, read from the settings Thing.
- *
- * An empty list means no narrowing — send everything. That is the right default for a model that has
- * not been tuned, and especially for an operations model, whose few properties are the live values a
- * dashboard is watching: deferring those would add a round trip to the only data anyone is looking at.
- *
- * A model that does declare a list has to name everything its pages read across the whole model, not
- * just what the graph draws with — a dashboard's bound properties, a pipeline's wiring. Anything left
- * out is fetched per surface, not silently absent.
+ * An empty list sends everything, the right default for an untuned model and above all for an operations
+ * model, whose few properties are live values a dashboard watches and should not wait for a second request.
+ * A model that declares a list must name everything its pages read across the model, such as a dashboard's
+ * bound properties and a pipeline's wiring; anything left out is fetched per page, not silently absent.
  */
 export function readModelLoadProperties(properties: Record<string, unknown> | null): string[] {
   const raw = properties?.['ModelLoadProperties'];
@@ -139,18 +111,7 @@ export function findGuiSettingsProperties(
   };
 }
 
-/**
- * Extract flash settings from graph data.
- * Finds the GUI_Settings type Thing via relationships.
- * Returns defaults for any missing or invalid values.
- */
-export function extractFlashSettings(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): FlashSettings {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return { ...FLASH_DEFAULTS };
-
+function readFlashSettings(p: Record<string, unknown>): FlashSettings {
   return {
     flashEdgeSize: toNumber(p['FlashEdgeSize'], FLASH_DEFAULTS.flashEdgeSize),
     flashNodeSizeFactor: toNumber(p['FlashNodeSizeFactor'], FLASH_DEFAULTS.flashNodeSizeFactor),
@@ -158,26 +119,6 @@ export function extractFlashSettings(
   };
 }
 
-/**
- * Extract ForceAtlas2 layout settings from graph data.
- * Finds the GUI_Settings type Thing via relationships.
- * Returns defaults for any missing or invalid values.
- */
-export function extractLayoutSettings(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): LayoutSettings {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return { ...LAYOUT_DEFAULTS };
-
-  return readLayoutSettings(p);
-}
-
-/**
- * Internal — read every LayoutSettings field from a GUI_Settings property bag,
- * with defaults filling in any missing fields. Shared by both single-call and
- * combined-extraction code paths so the property names live in exactly one place.
- */
 function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   return {
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
@@ -196,20 +137,9 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   };
 }
 
-/**
- * Extract predicate→color overrides from graph data.
- * The GUI_Settings Thing may have a `PredicateColors` string property
- * containing a JSON object mapping predicate names to hex colours,
- * e.g. `{"consumes":"#fb7185","produces":"#22d3ee"}`.
- * Returns an empty object when the property is missing or invalid.
- */
-export function extractPredicateColors(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): Record<string, string> {
-  const p = findGuiSettingsProperties(things, relationships);
-  if (!p) return {};
-
+/** `PredicateColors` is a string holding a JSON object of predicate names to hex colours, e.g.
+ *  `{"consumes":"#fb7185","produces":"#22d3ee"}`. */
+function readPredicateColors(p: Record<string, unknown>): Record<string, string> {
   const raw = p['PredicateColors'];
   if (typeof raw !== 'string' || !raw) return {};
 
@@ -228,46 +158,13 @@ export function extractPredicateColors(
   }
 }
 
-/**
- * Extract all GUI settings in a single traversal.
- * Calls `findGuiSettingsProperties` once and derives all setting groups.
- */
 export function extractAllGuiSettings(
   things: VosThing[],
   relationships: VosRelationship[],
 ): { flash: FlashSettings; layout: LayoutSettings; predicateColors: Record<string, string> } {
   const p = findGuiSettingsProperties(things, relationships);
-
-  const flash: FlashSettings = p
-    ? {
-        flashEdgeSize: toNumber(p['FlashEdgeSize'], FLASH_DEFAULTS.flashEdgeSize),
-        flashNodeSizeFactor: toNumber(p['FlashNodeSizeFactor'], FLASH_DEFAULTS.flashNodeSizeFactor),
-        flashNodeBrighten: toNumber(p['FlashNodeBrighten'], FLASH_DEFAULTS.flashNodeBrighten),
-      }
-    : { ...FLASH_DEFAULTS };
-
-  const layout: LayoutSettings = p ? readLayoutSettings(p) : { ...LAYOUT_DEFAULTS };
-
-  const predicateColors: Record<string, string> = {};
-  if (p) {
-    const raw = p['PredicateColors'];
-    if (typeof raw === 'string' && raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === 'string' && value.startsWith('#')) {
-              predicateColors[key] = value;
-            }
-          }
-        }
-      } catch {
-        // Overrides that do not parse are treated as none.
-      }
-    }
-  }
-
-  return { flash, layout, predicateColors };
+  if (!p) return { flash: { ...FLASH_DEFAULTS }, layout: { ...LAYOUT_DEFAULTS }, predicateColors: {} };
+  return { flash: readFlashSettings(p), layout: readLayoutSettings(p), predicateColors: readPredicateColors(p) };
 }
 
 export function extractNumberDisplaySettings(

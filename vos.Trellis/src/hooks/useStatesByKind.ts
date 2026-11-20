@@ -3,11 +3,8 @@ import type { ModelIndex } from '@tendril-ui/tendril';
 import { rangeApi } from '../api/rangeApi';
 import { statesOf } from '../api/modelDeclaration';
 
-/**
- * The states each kind derives, read once per kind the first time it is asked for and kept with the
- * index they were read against. A kind asked about before its answer lands reads as deriving
- * nothing, and the asker redraws when the answer arrives.
- */
+/** Read once per kind and kept with the index it was read against. A kind asked about before its answer
+ *  arrives reads as deriving nothing, and the asker redraws when the answer comes. */
 export function useStatesByKind(modelIndex: ModelIndex): (kind: string) => string[] | undefined {
   const known = useRef(new WeakMap<ModelIndex, Map<string, string[] | null>>());
   const [, redraw] = useState(0);

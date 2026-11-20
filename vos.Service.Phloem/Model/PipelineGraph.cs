@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Model;
@@ -12,7 +13,12 @@ public sealed class GraphThing
 
     public string? PropertyString(string name) =>
         Properties.TryGetValue(name, out var v)
-            ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
+            ? v.ValueKind switch
+            {
+                JsonValueKind.String => v.GetString(),
+                JsonValueKind.Null => null,
+                _ => v.ToString(),
+            }
             : null;
 
     // A template declares a port's marks as booleans and the page writes them as text, so both are read as one.
@@ -43,8 +49,6 @@ public sealed class GraphRelationship
 // archetypes and its wire predicates whatever it likes.
 public sealed class PipelineGraph
 {
-    private const string IsPredicate = "is";
-
     private const string HasPredicate = "has";
 
     private const string BindsPredicate = ModelNames.Binds;
@@ -126,7 +130,7 @@ public sealed class PipelineGraph
 
     private bool IsBeneath(GraphThing thing, Guid archetypeId, HashSet<Guid> seen)
     {
-        foreach (var parent in OutgoingTargets(thing, IsPredicate))
+        foreach (var parent in OutgoingTargets(thing, PlatformPredicates.Is))
         {
             if (!seen.Add(parent.Id)) continue;
             if (parent.Id == archetypeId) return true;

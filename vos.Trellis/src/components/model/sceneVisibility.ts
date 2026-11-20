@@ -1,11 +1,3 @@
-// What the type filter says the 3D scene should show, and how the viewer turns
-// that into a set of scene items to hide.
-//
-// A Fragments artifact holds every element the IFC had; the model holds Things
-// only for the ones it was given. So a list of IFC identifiers built from Things
-// covers a fraction of the scene, and cannot express "show nothing" at all —
-// which is why unchecking every type once left the model on screen.
-
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { applyTypeFilter } from '../../utils/typeFilter';
 import { ifcGlobalIdOf } from '../../utils/ifcIdentity';
@@ -45,7 +37,7 @@ export function sceneVisibilityFor(
 }
 
 /** The part of the Fragments model this module needs, so it can be faked in tests. */
-export interface SceneItemSource {
+interface SceneItemSource {
   getItemsByVisibility(visible: boolean): Promise<number[]>;
   getLocalIdsByGuids(guids: string[]): Promise<(number | null | undefined)[]>;
 }

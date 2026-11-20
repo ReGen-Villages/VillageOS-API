@@ -7,7 +7,7 @@ namespace vos.Service.Shared;
 // A Thing is created with {"status": {"typeInfo": "vos.String", "value": "running"}} and never
 // with {"status": "running"}. The create route reads each property through the same converter
 // the property routes use, and that converter refuses a value with no type on it — answering 400 with
-// no body to say which property was wrong. Three services wrote the bare shape.
+// no body to say which property was wrong.
 public static class TypedProperties
 {
     private const string String = "vos.String";

@@ -72,7 +72,7 @@ public class ConsoleOptionsTests
     [Fact]
     public void Parse_WithMalformedArg_IgnoresIt()
     {
-        var options = ConsoleOptions.Parse(new[] { "--mycelium-url" }); // Missing =
+        var options = ConsoleOptions.Parse(new[] { "--mycelium-url" });
 
         Assert.Equal("https://localhost:7243", options.MyceliumUrl);
     }
@@ -80,7 +80,7 @@ public class ConsoleOptionsTests
     [Fact]
     public void Parse_WithPartialMatch_IgnoresIt()
     {
-        var options = ConsoleOptions.Parse(new[] { "--mycelium-urls=https://example.com" }); // Extra 's'
+        var options = ConsoleOptions.Parse(new[] { "--mycelium-urls=https://example.com" });
 
         Assert.Equal("https://localhost:7243", options.MyceliumUrl);
     }

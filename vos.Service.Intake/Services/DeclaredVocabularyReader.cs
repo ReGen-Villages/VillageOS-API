@@ -1,4 +1,5 @@
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -26,7 +27,7 @@ public static class DeclaredVocabularyReader
     private static readonly Role[] TermArchetypeRoles =
     [
         LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-        LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent,
+        LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
     ];
 
     // The predicates a relationship to a term is written with, the archetype a study `is`, and where a site
@@ -46,7 +47,7 @@ public static class DeclaredVocabularyReader
     public static SubscriptionSelector Selector() => new()
     {
         Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles]),
-        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
@@ -60,7 +61,14 @@ public static class DeclaredVocabularyReader
         HazardLevels(snapshot),
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
-        Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")));
+        Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
+        SoilDepths(snapshot));
+
+    // None where the model reads no soil, so a submission into it is still composed, as with water demands.
+    internal static DeclaredTerms? SoilDepths(SnapshotDocument snapshot) =>
+        snapshot.Bound(LandIntakeRoles.SoilDepth).Count == 0
+            ? null
+            : TermsBound(snapshot, LandIntakeRoles.SoilDepth, LandIntakeRoles.Assesses, "the depths a site's soil is read at");
 
     // The demands one harvest is served over, in the order it serves them. Empty where the model
     // declares none: a study then holds no demand and every coverage reads unassessed, which is the honest
@@ -73,7 +81,7 @@ public static class DeclaredVocabularyReader
 
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+                thing.Name, PlatformPredicates.Is, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
         var under = snapshot.Relationships
@@ -90,9 +98,7 @@ public static class DeclaredVocabularyReader
 
     // An analysis stating no order anywhere leaves every demand at nought, which serves them in the order
     // it declared them — a poor answer, and better than refusing every submission into that model.
-    private static long ServingOrderOf(SnapshotThing demand) =>
-        demand.StatedValue(ServingOrderProperty) is { } stated
-        && stated.Value.TryGetInt64(out var order) ? order : 0;
+    private static long ServingOrderOf(SnapshotThing demand) => demand.StatedWholeNumber(ServingOrderProperty) ?? 0;
 
     // What a hazard assessment is about, offered by a form so somebody marks what they have
     // seen rather than nominating hazards from memory.
@@ -183,7 +189,7 @@ public static class DeclaredVocabularyReader
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+                thing.Name, PlatformPredicates.Is, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
 

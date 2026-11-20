@@ -53,12 +53,12 @@ public sealed record RetryPolicy(int Attempts, double PauseMinutes, double Pause
 public sealed record ChosenThing(Guid Id, string Name);
 
 // What a node waits for: the Thing reaching PortName entering the range. A service node waits once its service has answered.
-public sealed record DagWait(Guid RangeId, string RangeName, string PortName);
+public sealed record DagWait(Guid RangeId, string RangeName, string PortName, TimeSpan? Limit = null);
 
 public sealed record FollowedPredicate(Guid Id, string Name);
 
-// The connection a relate node stands for, and the service a Thing related along it is related to.
-public sealed record Relating(Guid ConnectionId, string ConnectionName, Guid ServiceId);
+// The predicate a relate node stands for, and the service of the connection it names, which a Thing related along it is related to.
+public sealed record Relating(Guid PredicateId, string PredicateName, Guid ServiceId);
 
 public sealed class DagNode
 {
@@ -78,6 +78,9 @@ public sealed class DagNode
     // Per-item failure policy when fanning out: fail (fail-fast, default) or
     // continue (collect-partial — failed items become null holes, node is partial).
     public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
+
+    // Null leaves the orchestrator's own limit; a number lowers it for this node's items.
+    public int? ItemsAtOnce { get; init; }
 
     // For an end node standing for an external system: who is sent what reaches it, and through what.
     public Telling? Tells { get; init; }

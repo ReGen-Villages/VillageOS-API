@@ -1,10 +1,8 @@
 import { create } from 'zustand';
 import type { BasemapSource } from '../types/basemap';
 
-/**
- * Map state, kept in its own store rather than in the shared UI store: an earlier map view spread
- * its state through the global store and had to be deleted whole to get it back out.
- */
+/** Its own store, because an earlier map view spread its state through the shared store and had to be
+ *  removed whole to take it out. */
 interface MapState {
   /** The layer the reader chose, by name — ids are not stable across a model switch. */
   selectedSourceName: string | null;

@@ -34,7 +34,7 @@ public static class ServiceHost
         var configuration = LevelsAndEnrichment(serviceName)
             .WriteTo.Console(outputTemplate: LogLineTemplate);
 
-        // Tests leave the file sink off: writing files from shared build agents invites flakiness.
+        // Tests write no log file, because tests writing files on a shared build agent can fail at random.
         if (writeToFile)
         {
             var folder = logDirectory ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs");
@@ -72,10 +72,10 @@ public static class ServiceHost
         services.AddHostedService(provider => new MyceliumRegistration(
             provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port));
 
-    /// <summary>The clock this service stamps model values with, kept on the broker's. Registered as
-    /// <see cref="ModelClock"/> rather than as the injected <c>TimeProvider</c>, because a service also
-    /// measures real durations of its own — how long a verification code stays good, when a token is due
-    /// for replacement — and those are not the model's business however fast a simulation runs.</summary>
+    // The clock this service stamps model values with, kept on the broker's. Registered as ModelClock
+    // rather than as the injected TimeProvider, because a service also measures real durations of its
+    // own — how long a verification code stays good, when a token is due for replacement — and those are
+    // not the model's business however fast a simulation runs.
     public static IServiceCollection AddModelClock<TClient>(this IServiceCollection services, string serviceName)
         where TClient : MyceliumClientBase
     {

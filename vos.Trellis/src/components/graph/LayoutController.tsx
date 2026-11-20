@@ -41,21 +41,15 @@ function useGraphIsPopulated(graph: Graph): boolean {
 }
 
 /**
- * Force-directed layout lifecycle. Every graph runs the worker-based
- * ForceAtlas2 (Barnes-Hut, off the main thread) so panning and
- * clicking stay responsive while the layout runs.
+ * Every graph runs the force layout in a worker, so panning and clicking stay responsive while it runs.
  *
- * Predicate clustering has no dedicated engine: instead of a main-thread
- * supervisor with shouldSkipNode/shouldSkipEdge callbacks, the active-predicate
- * members are freed and every other node is pinned via the `fixed` attribute,
- * and non-active edges are given zero weight so they exert no attraction. Both
- * are read by FA2 on the main thread at matrix-build time. Child of
- * <SigmaContainer>.
+ * Clustering by predicate needs no layout of its own on the main thread: the active predicates' members are
+ * left free, every other node is pinned with the `fixed` attribute, and every other edge gets zero weight so it
+ * pulls on nothing. The layout reads both on the main thread as it starts.
  *
- * No supervisor runs while the graph is empty. FA2's worker loop is paced only
- * by how long an iteration takes, so with nothing to lay out it ping-pongs
- * messages with the main thread as fast as the two can post — enough to starve
- * rendering. An empty graph is reachable from the UI: hide every type.
+ * No layout runs while the graph is empty, which hiding every type reaches. The worker's loop is paced only by
+ * how long a step takes, so with nothing to place it trades messages with the main thread fast enough to stop
+ * the page drawing.
  */
 export function LayoutController() {
   const sigma = useSigma();

@@ -1,5 +1,4 @@
-// Tests for the pure helpers (arg parsing + inbound JWT validation) using Node's
-// built-in test runner — no extra dependencies. Run via `npm test`.
+// Node's built-in test runner, so the tests need no extra dependency. Run with `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
@@ -386,7 +385,7 @@ test("unsubscribe issues a DELETE", async () => {
 import { shutdown } from "./index.js";
 import { createServer } from "node:http";
 
-// The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+// The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 test("shutdown does not ask the broker to withdraw", async () => {
   const s = stubFetch(() => ({ status: 200 }));
   const server = createServer();

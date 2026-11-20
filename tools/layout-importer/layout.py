@@ -10,11 +10,12 @@ are all named by the caller, so nothing here carries a vocabulary of its own.
 
 Two things make it worth a tool rather than a script. **Names usually carry the structure** — a
 naming standard that encodes position lets the whole tree be derived from the leaf names, so the
-file lists only what the names cannot say. And **it is re-runnable**: ids come from names, and the
-fragment endpoint is an idempotent upsert, so running it again to extend a structure adds what is
-new and leaves everything else — including whatever is standing in it — exactly as it was.
+file lists only what the names cannot say. And **it can be run again**: ids come from names, and the
+fragment route adds what is missing and updates what is there, so running it again to extend a
+structure adds what is new and leaves everything else — including whatever is standing in it — exactly
+as it was.
 
-Stock Python 3.10+, no third-party dependencies, like tools/simulator beside it.
+Plain Python 3.10 or later, with no packages to install, like tools/simulator beside it.
 """
 from __future__ import annotations
 
@@ -222,7 +223,7 @@ def names_used(layout: Layout) -> list:
 
 
 def main(argv=None, client=None) -> int:
-    """`client` is a test seam: given one, nothing here opens a connection."""
+    """A test passes `client`, and then nothing here opens a connection."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("spec", help="the layout file")
     parser.add_argument("--ids", help="JSON mapping predicate and type names to model ids")
@@ -234,8 +235,8 @@ def main(argv=None, client=None) -> int:
     with open(args.spec, encoding="utf-8") as handle:
         spec = json.load(handle)
 
-    # Read the file before reaching for the network, so a spec that cannot be read says so straight
-    # away rather than after a round trip.
+    # Read before anything is sent, so a layout file that cannot be read says so at once rather than
+    # after a call to the broker.
     layout = read_layout(spec)
 
     ids = {}

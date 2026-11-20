@@ -1,9 +1,8 @@
 import { wireEnds, type EndKind, type NodeKind, type PortInformation } from './model';
 import i18n from '../i18n';
 
-// Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
-// user hits Run, instead of a silent service-call failure. Kept pure so it is trivially unit-tested and can
-// drive both a canvas marker and the Run button's enabled state.
+// Says why a pipeline will not run before Run is pressed, rather than a service call failing with no word; it
+// marks the canvas and turns Run off.
 
 export interface ValidationNode {
   id: string;
@@ -13,6 +12,10 @@ export interface ValidationNode {
   kind?: NodeKind;
   /** What a node stands for, and which end it may be. */
   standsFor?: { name: string; kind: EndKind; mayStart: boolean; mayEnd: boolean };
+  waitsFor?: string;
+  waitsAtMostMinutes?: number;
+  /** Absent until a relate box stands for something. */
+  relates?: { refusal?: string };
 }
 
 export interface ValidationEdge {
@@ -22,8 +25,14 @@ export interface ValidationEdge {
   targetHandle: string;
 }
 
-export type ValidationIssue =
+type ValidationIssue =
   | { kind: 'unbound-required-input'; nodeId: string; port: string; message: string }
+  | {
+      kind: 'wait-without-state' | 'wait-without-thing' | 'wait-limit-not-whole-minutes'
+        | 'relate-without-predicate' | 'relate-refused' | 'relate-without-thing';
+      nodeId: string;
+      message: string;
+    }
   | EndIssue
   | {
       kind: 'dangling-wire';
@@ -34,7 +43,7 @@ export type ValidationIssue =
       message: string;
     };
 
-export type EndIssue =
+type EndIssue =
   | { kind: 'start-cannot-start'; nodeId: string; named: string; message: string }
   | { kind: 'end-cannot-end'; nodeId: string; named: string; message: string };
 
@@ -69,8 +78,7 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
 export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  // A wire is dangling if either endpoint node, or the port on it, no longer exists. Only
-  // well-formed wires count toward satisfying a required input.
+  // A wire is broken when either end's node or port is gone, and only a whole wire fills a required input.
   const wiredInputs = new Set<string>();
   for (const e of edges) {
     const source = byId.get(e.source);
@@ -93,7 +101,6 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
     wiredInputs.add(key(e.target, inPort.portName));
   }
 
-  // Every required input port must be satisfied by a wire or a run-param binding.
   for (const n of nodes) {
     for (const p of n.ports) {
       if (p.direction !== 'in' || !p.required) continue;
@@ -107,6 +114,32 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
         });
       }
     }
+  }
+
+  // The orchestrator refuses each of these before anything runs, so they are said here in its terms.
+  for (const n of nodes) {
+    if (n.kind !== 'wait' && n.kind !== 'relate') continue;
+    const inPort = n.ports.find((p) => p.direction === 'in');
+    const wired = inPort !== undefined && wiredInputs.has(key(n.id, inPort.portName));
+    if (n.kind === 'wait') {
+      if (!n.waitsFor)
+        issues.push({ kind: 'wait-without-state', nodeId: n.id, message: i18n.t('pipeline.waitWithoutState', { node: n.label }) });
+      if (!wired)
+        issues.push({ kind: 'wait-without-thing', nodeId: n.id, message: i18n.t('pipeline.waitWithoutThing', { node: n.label }) });
+    } else {
+      if (!n.relates)
+        issues.push({ kind: 'relate-without-predicate', nodeId: n.id, message: i18n.t('pipeline.relateWithoutPredicate', { node: n.label }) });
+      else if (n.relates.refusal)
+        issues.push({ kind: 'relate-refused', nodeId: n.id, message: i18n.t('pipeline.relateRefused', { node: n.label, reason: n.relates.refusal }) });
+      if (!wired)
+        issues.push({ kind: 'relate-without-thing', nodeId: n.id, message: i18n.t('pipeline.relateWithoutThing', { node: n.label }) });
+    }
+    const limit = n.waitsAtMostMinutes;
+    if (limit !== undefined && !(Number.isInteger(limit) && limit >= 1))
+      issues.push({
+        kind: 'wait-limit-not-whole-minutes', nodeId: n.id,
+        message: i18n.t('pipeline.waitLimitNotWholeMinutes', { node: n.label, minutes: limit }),
+      });
   }
 
   return issues;

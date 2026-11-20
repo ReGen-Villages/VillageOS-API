@@ -21,30 +21,24 @@ public class PhloemRecordsAnAttemptAndAMessageWhoseKindsDeclareTheirPropertiesTe
     private static readonly DateTimeOffset Noon = new(2026, 10, 30, 12, 0, 0, TimeSpan.Zero);
 
     private MyceliumGateway Gateway() => new(
-        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> ARunWhoseKindsDeclareTheirPropertiesAsync(MyceliumGateway gateway)
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, "RunKind", ModelNames.Status);
-        await BindOnceAsync(PipelineRoles.NodeRun, "NodeRunKind", ModelNames.Status);
-        await BindOnceAsync(PipelineRoles.Attempt, "AttemptKind", ModelNames.Status);
-        await BindOnceAsync(PipelineRoles.SentMessage, "SentMessageKind", ModelNames.Payload);
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "RunKind", isArchetype: true, Declaring(ModelNames.Status));
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRunKind", isArchetype: true, Declaring(ModelNames.Status));
+        await _engine.PlayingAsync(PipelineRoles.Attempt, "AttemptKind", isArchetype: true, Declaring(ModelNames.Status));
+        await _engine.PlayingAsync(PipelineRoles.SentMessage, "SentMessageKind", isArchetype: true, Declaring(ModelNames.Payload));
 
         var runId = Guid.NewGuid();
         await gateway.CreateRunAsync(runId, await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}"), CancellationToken.None);
         return runId;
     }
 
-    private async Task BindOnceAsync(Role role, string archetypeName, string declaredProperty)
-    {
-        var archetype = await _engine.DeclareOnceAsync(
-            archetypeName, isArchetype: true, new Dictionary<string, object?> { [declaredProperty] = "" });
-        if (await _engine.FindAsync(role.Word) is not null) return;
-        await _engine.BindAsync(role, archetype);
-    }
+    private static IReadOnlyDictionary<string, object?> Declaring(string property) => new Dictionary<string, object?> { [property] = "" };
 
     [FactAgainstTheEngine]
     public async Task An_attempt_is_recorded_under_its_node_run()

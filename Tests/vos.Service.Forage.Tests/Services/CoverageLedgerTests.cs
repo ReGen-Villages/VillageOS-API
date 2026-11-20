@@ -11,10 +11,10 @@ namespace vos.Service.Forage.Tests.Services;
 
 // What a run records about each call, and which calls it makes at all.
 //
-// A site was discovered exactly once ever while the state that starts a run counted `observed` relationships: the
-// first source to answer ended the occupancy for every source, so a partial failure was never retried
-// and a source added later never reached an existing site. The coverage Things replace that count, and
-// this decides what goes on them.
+// Counting `observed` relationships to decide whether a site needs a run would discover a site exactly
+// once ever: the first source to answer would end the occupancy for every source, so a partial failure
+// would never be retried and a source added later would never reach an existing site. The coverage Things
+// are counted instead, and this decides what goes on them.
 //
 // Both halves fail quietly if they are wrong. A call skipped when its answer never landed leaves a value
 // missing with nothing saying why; a call made when the answer already stands calls a provider that has
@@ -41,12 +41,12 @@ public class CoverageLedgerTests
     private static SiteCoverage Coverage(
         IReadOnlyList<CoveringSource> covering,
         IReadOnlyList<RecordedCoverage>? recorded = null) =>
-        new(covering, null, recorded ?? [], Vocabulary, null, new Dictionary<string, string>());
+        new(covering, [], recorded ?? [], Vocabulary, null, new Dictionary<string, string>());
 
     // Spelled out rather than defaulted through the helper above: "no vocabulary" is the case under
     // test, and a helper that filled one in would pass it for the wrong reason.
     private static SiteCoverage CoverageWithoutVocabulary(IReadOnlyList<CoveringSource> covering) =>
-        new(covering, null, [], null, null, new Dictionary<string, string>());
+        new(covering, [], [], null, null, new Dictionary<string, string>());
 
     // A writer that answers and remembers, so a test reads as what the ledger decided rather than as
     // what a gateway happened to do.
@@ -268,8 +268,8 @@ public class CoverageLedgerTests
         _writer.Facts.Should().Contain((coverageId, "resolvedAt", modelInstant.UtcDateTime));
     }
 
-    // The provider's own words, kept where a planner reaches them from the gap they explain — the report
-    // that was a response body the broker discarded and then a log line nobody reads.
+    // The provider's own words, kept where a planner reaches them from the gap they explain rather than in
+    // a response body the broker discards and a log line nobody reads.
     [Fact]
     public async Task AFailedCallKeepsTheProvidersReasonAndStaysUnresolved()
     {
@@ -315,65 +315,6 @@ public class CoverageLedgerTests
 
         _writer.Facts.Should().ContainSingle()
             .Which.Should().Be((SiteId, CoverageLedger.CoverageMatchedAtProperty, (object?)Now.UtcDateTime));
-    }
-
-    // A source every one of whose calls has been answered drops out of the run entirely. Left in with an
-    // empty call list it would be reported as a source that resolved nothing, which is what a provider
-    // outage looks like.
-    [Fact]
-    public void ASourceWithNothingOutstandingIsNotCalledAtAll()
-    {
-        var answered = SourceCalling(Guid.NewGuid(), SiteId);
-        var outstanding = SourceCalling(Guid.NewGuid(), SiteId);
-        var still = CoverageLedger.CallsStillToMake(
-            [answered, outstanding],
-            [new OutstandingCall(outstanding, Call(SiteId), Guid.NewGuid(), 0)]);
-
-        still.Should().ContainSingle().Which.SourceId.Should().Be(outstanding.SourceId);
-    }
-
-    [Fact]
-    public void ASourceKeepsOnlyTheCallsStillOutstanding()
-    {
-        var silent = Guid.NewGuid();
-        var source = SourceCalling(Guid.NewGuid(), Guid.NewGuid(), silent);
-
-        var still = CoverageLedger.CallsStillToMake(
-            [source], [new OutstandingCall(source, Call(silent), Guid.NewGuid(), 0)]);
-
-        still.Should().ContainSingle().Which.Calls.Should().ContainSingle()
-            .Which.SubjectId.Should().Be(silent);
-    }
-
-    [Fact]
-    public void NothingOutstandingLeavesNoSourceToCall()
-    {
-        CoverageLedger.CallsStillToMake([SourceCalling(Guid.NewGuid(), SiteId)], []).Should().BeEmpty();
-    }
-
-    // Matched by identity, never by name: two sources sharing a name would otherwise be written each
-    // other's answers, and a resolved call would stamp a coverage whose source never answered.
-    [Fact]
-    public async Task AnOutcomeIsRecordedAgainstTheCallItCameFrom()
-    {
-        var first = SourceCalling(Guid.NewGuid(), SiteId);
-        var second = SourceCalling(Guid.NewGuid(), SiteId);
-        var firstCoverage = Guid.NewGuid();
-        var secondCoverage = Guid.NewGuid();
-        var outstanding = new[]
-        {
-            new OutstandingCall(first, Call(SiteId), firstCoverage, 0),
-            new OutstandingCall(second, Call(SiteId), secondCoverage, 0),
-        };
-        var report = new DiscoveryReport(
-            [new SourceOutcome(first.Name, true, null, SubjectId: SiteId, SourceId: first.SourceId)],
-            [new SourceOutcome(second.Name, false, "503", SubjectId: SiteId, SourceId: second.SourceId)]);
-
-        await Ledger().RecordAllAsync(outstanding, report, default);
-
-        _writer.Facts.Should().Contain((firstCoverage, "resolvedAt", (object?)Now.UtcDateTime));
-        _writer.Facts.Should().Contain((secondCoverage, "failureReason", (object?)"503"));
-        _writer.Facts.Should().NotContain(fact => fact.Thing == secondCoverage && fact.Property == "resolvedAt");
     }
 
     private static SourceCall Call(Guid subject) => new(subject, "subject", new Dictionary<string, string>());

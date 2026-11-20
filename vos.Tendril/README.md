@@ -15,7 +15,50 @@ copy of its own.**
     its own questions and post to its own route, and decided rows can sit behind a switch.
   - the **form**: records something no row on the page lists yet.
   - the **fields** either widget asks a person to fill before a press.
-- **Builds what a press posts**: the body, and the route the widget's `via` names.
+- **Builds what a press posts**: the body, and the route the widget's `via` names. `offeredChoices`
+  lists the choices a row is offered, `pressOf` composes the writes a press makes and sends nothing,
+  and `sendPress` sends them and stops at a refusal.
+- **Words a figure**: a number in the format and the language asked for, a verdict's sentence, the
+  line saying where a value came from, and what a figure was worked out from. The console's KPI
+  card, verdict list and working list take their text from these, and `readWidget` reads a whole
+  widget out for a program with no screen.
+- **Says which Things a page needs**: `subscriptionForSpecification` turns a page description into
+  the selector the platform reads.
+- **Names a figure's inputs**: `inputsOf` walks a Thing's derived figures to the inputs at the
+  bottom, says which way each moves the figure, and names the ones it leaves out with the reason.
+
+## Two entries
+
+| Import | Carries | For |
+| --- | --- | --- |
+| `@tendril-ui/tendril` | Everything, the widgets and hooks included | An application that draws pages with React |
+| `@tendril-ui/tendril/reader` | The reader, the wording, the selector, the inputs and the press composition | A program with no browser |
+
+Nothing reachable from the reader entry imports React or needs a browser's types. `src/reader.test.ts`
+fails if React becomes reachable, and `npm run typecheck` checks the entry with no browser types.
+
+**A change to any file the reader entry reaches needs the page reader's bundle rebuilt.** `vos.Pages`
+runs this entry inside a C# process from one built file, `vos.Pages/reader.bundle.js`, which is
+committed. The files the entry reaches are the ones `src/reader.ts` lists and what they import: the
+`api`, `i18n`, `types`, `utils` and `wording` folders and `widgets/writeRequest.ts`. After changing
+one, from the repository root, with `npm ci` run once in `vos.Tendril` first:
+
+```sh
+node vos.Pages/bundle/build.mjs
+```
+
+and commit the changed bundle with the change. The pipeline builds the bundle again and fails when
+the committed file differs, so a change that leaves it behind cannot merge. A change to a widget, a
+hook or a test does not reach the entry and needs no rebuild.
+
+## Order and language
+
+- **Names a reader sees listed follow the language of the context**: the pages, the Things a page
+  compares (as a list to choose from and as the rows of a comparison), the rows of a list of Things,
+  and several names joined in one cell. English where the
+  context gives no language. A list with a limit keeps the first rows in that language's order.
+- **Which of two sibling kinds a Thing takes a value from never follows a language.** The kind whose
+  name is last wins, compared code unit by code unit, so every reader resolves the same value.
 
 ## What the application that embeds it supplies
 
@@ -27,6 +70,9 @@ copy of its own.**
 - **The loaded model and the reads it cannot answer**, through ports the application fills.
 - **The words for a refusal.** The endpoint's whole answer goes to `wordRefusal(answer)` on the
   context, beside `wrote`. Without one, the endpoint's own words are shown.
+- **The language**, as `language` on the context, and **where a warning goes**, as `warn`. The
+  reader warns where a page description asks a question that cannot be asked, and resolves that
+  binding to nothing.
 - **Colours.** Tendril reads them from CSS custom properties, one per role: `--tendril-text`,
   `--tendril-muted`, `--tendril-refusal`, `--tendril-action`, `--tendril-action-hover`,
   `--tendril-action-text`, `--tendril-field-border` and `--tendril-field`. Each class falls back to
@@ -36,12 +82,11 @@ copy of its own.**
 
 ## Why it exists
 
-Another application draws a model's pages besides the console, and it kept its own copy of the
-binding reader and the writing widgets. The copies drift apart: every kind of binding added to the
-console has to be copied by hand, or the other application cannot draw a page that uses it, and a
-fix made in one copy never reaches the other. Installed by version from one place, a binding kind
-or a widget feature is built once, and each application takes it when it moves to the version that
-carries it. The console uses Tendril itself, so what it draws is what every other application draws.
+Another application draws a model's pages besides the console. With a copy of its own of the binding
+reader and the writing widgets, every kind of binding added to the console would have to be copied
+by hand, or the other application could not draw a page that uses it, and a fix made in one copy
+would never reach the other. Installed by version from one place, a binding kind or a widget feature
+is built once, and each application takes it when it moves to the version that carries it. The console uses Tendril itself, so what it draws is what every other application draws.
 
 Tendril holds platform vocabulary only. Every noun a reader sees comes from the page description.
 

@@ -9,7 +9,7 @@ namespace vos.Service.Tributary.Tests;
 
 // Integration tests for the acceptHeader structural key through /handle: when the endpoint
 // template carries acceptHeader, the outbound request must send exactly that Accept value —
-// needed for upstreams that content-negotiate (e.g. image/tiff from an ArcGIS ImageServer).
+// needed for upstreams that content-negotiate (such as image/tiff from an ArcGIS ImageServer).
 // Absent the key, no Accept header is invented.
 public class AcceptHeaderTests
 {
@@ -32,8 +32,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -61,8 +60,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -93,8 +91,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(TiffBytes, "image/tiff"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -127,8 +124,7 @@ public class AcceptHeaderTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
-            RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 

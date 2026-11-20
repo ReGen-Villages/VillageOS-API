@@ -1,61 +1,102 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { StackedSharesWidget } from '@tendril-ui/tendril';
-import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
-import { useBindings } from '@tendril-ui/tendril';
+import type { StackedSharesCounted, StackedSharesWidget } from '@tendril-ui/tendril';
+import type { BindingResult, ResolveContext, Row } from '@tendril-ui/tendril';
+import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale } from './chartScale';
-import { groupsByKey, monthNames, windowOf } from './historySeries';
+import { ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf } from './chartFrame';
+import { ANNUAL, monthSlots } from './chartScale';
+import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
-const PLOT_HEIGHT = 220;
-const TOP_GUTTER = 8;
-const AXIS_BAND = 22;
-const LEFT_GUTTER = 40;
-const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 28;
 /** The axis reads in quarters: 0%, 25%, 50%, 75%, 100%. */
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
 /** A thin ring in the surface colour is the gap between stacked segments. */
 const SURFACE_GAP = 1;
+const BINDINGS_PER_CLASS = 3;
+
+type DrawnClass = { label: string; colour: string; groups: Map<string, number>; annual: number | undefined };
+
+/** Each declared group's share of the hours counted under a declared group, a month at a time and over the
+ *  whole window, in the groups' order; a group nothing was counted under is left out. */
+function countedClasses(
+  counted: StackedSharesCounted, rows: Row[], byMonth: Map<string, number>, wholeWindow: Map<string, number>, language: string,
+): DrawnClass[] {
+  const groups = rows
+    .map((row) => ({
+      id: typeof row.id === 'string' ? row.id.toLowerCase() : '',
+      order: nullableNumber(row[counted.orderKey]) ?? Infinity,
+      label: rowLabel(row, counted.labelKey, counted.wordingKey, language),
+      colour: String(row[counted.colourKey] ?? ''),
+    }))
+    .filter((group) => group.id !== '')
+    .sort((one, other) => one.order - other.order);
+  const declared = new Set(groups.map((group) => group.id));
+  const monthTotals = new Map<string, number>();
+  const hours = new Map<string, Map<string, number>>();
+  for (const [key, count] of byMonth) {
+    const month = key.slice(0, key.indexOf(','));
+    const group = key.slice(key.indexOf(',') + 1).toLowerCase();
+    if (!declared.has(group)) continue;
+    monthTotals.set(month, (monthTotals.get(month) ?? 0) + count);
+    const ofGroup = hours.get(group) ?? new Map<string, number>();
+    hours.set(group, ofGroup.set(month, count));
+  }
+  const wholeTotal = [...wholeWindow].reduce((sum, [key, count]) => sum + (declared.has(key.toLowerCase()) ? count : 0), 0);
+  const wholeOf = (id: string) => [...wholeWindow].find(([key]) => key.toLowerCase() === id)?.[1];
+  return groups
+    .filter((group) => hours.has(group.id))
+    .map((group) => {
+      const whole = wholeOf(group.id);
+      return {
+        label: group.label,
+        colour: group.colour,
+        groups: new Map([...hours.get(group.id)!].map(([month, count]) => [month, count / monthTotals.get(month)!])),
+        annual: whole === undefined || wholeTotal === 0 ? undefined : whole / wholeTotal,
+      };
+    });
+}
 
 export function StackedShares({ widget, context }: { widget: StackedSharesWidget; context: ResolveContext }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
-  const resolved = useBindings(
-    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]), context);
-  const classes = widget.classes
-    .map((entry, at) => ({
-      label: entry.label,
-      colour: typeof entry.colour === 'object' ? asText(resolved[at * 2 + 1]?.value ?? null) : entry.colour,
-      groups: groupsByKey(resolved[at * 2]?.value ?? null),
-    }))
-    .filter((entry): entry is { label: string; colour: string; groups: Map<string, number> } =>
-      entry.groups.size > 0 && entry.colour !== null);
+  const listed = widget.counted ? [] : widget.classes;
+  const resolved = useBindings([
+    ...listed.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined, entry.annual]),
+    widget.counted?.counts, widget.counted?.annual, widget.counted?.groups,
+  ], context);
+  const countedAt = listed.length * BINDINGS_PER_CLASS;
+  const classes: DrawnClass[] = widget.counted
+    ? countedClasses(
+      widget.counted, asRows(resolved[countedAt + 2]?.value ?? null),
+      groupsByKey(resolved[countedAt]?.value ?? null), groupsByKey(resolved[countedAt + 1]?.value ?? null), i18n.language)
+    : listed
+      .map((entry, at) => ({
+        label: entry.label,
+        colour: typeof entry.colour === 'object' ? asText(resolved[at * BINDINGS_PER_CLASS + 1]?.value ?? null) : entry.colour,
+        groups: groupsByKey(resolved[at * BINDINGS_PER_CLASS]?.value ?? null),
+        annual: groupsByKey(resolved[at * BINDINGS_PER_CLASS + 2]?.value ?? null).values().next().value,
+      }))
+      .filter((entry): entry is DrawnClass => entry.groups.size > 0 && entry.colour !== null);
 
+  const sharesOf = (shareOf: (entry: (typeof classes)[number]) => number | undefined) => classes
+    .map((entry) => ({ label: entry.label, colour: entry.colour, share: shareOf(entry) }))
+    .filter((entry): entry is { label: string; colour: string; share: number } => entry.share !== undefined);
   const names = monthNames(i18n.language);
-  const months = names
-    .map((name, at) => ({
-      name,
-      at,
-      shares: classes
-        .map((entry) => ({ label: entry.label, colour: entry.colour, share: entry.groups.get(String(at + 1)) }))
-        .filter((entry): entry is { label: string; colour: string; share: number } => entry.share !== undefined),
-    }))
-    .filter((month) => month.shares.length > 0);
+  const hasAnnual = classes.some((entry) => entry.annual !== undefined);
+  const months = [
+    ...names.map((name, at) => ({ name, at, key: String(at + 1), shares: sharesOf((entry) => entry.groups.get(String(at + 1))) })),
+    ...(hasAnnual ? [{ name: t('widgets.history.annual'), at: ANNUAL, key: 'all', shares: sharesOf((entry) => entry.annual) }] : []),
+  ].filter((month) => month.shares.length > 0);
 
-  const width = measuredWidth || FALLBACK_WIDTH;
-  const plotTop = TOP_GUTTER;
-  const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
-  const y = linearScale([0, 1], [plotBottom, plotTop]);
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / 12;
+  const { width, height, plotTop, plotBottom, plotLeft, plotRight, y } = frameOf(measuredWidth, [0, 1]);
+  const { slotWidth, centreOf } = monthSlots(plotLeft, plotRight, hasAnnual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at + 0.5);
   const figure = (share: number | undefined) => share === undefined ? '—' : formatNumber(share, 'percent');
   const readOut = (month: (typeof months)[number]) =>
     `${month.name}: ${month.shares.map((entry) => `${entry.label} ${figure(entry.share)}`).join(', ')}`;
@@ -66,20 +107,13 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
       <div ref={measure} className="relative mt-2">
         <svg
           width={width}
-          height={plotBottom + AXIS_BAND}
-          viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={widget.title ?? ''}
           className="block max-w-full"
         >
-          {AXIS_TICKS.map((tick) => (
-            <g key={tick}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'percent')}
-              </text>
-            </g>
-          ))}
+          <ValueGridlines ticks={AXIS_TICKS} y={y} left={plotLeft} right={plotRight} format="percent" />
           {months.map((month) => {
             const centre = centreOf(month.at);
             const left = centre - barWidth / 2;
@@ -87,19 +121,18 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
             // first class sits at the bottom of every bar and a reader can follow it across months.
             let stacked = 0;
             return (
-              <g
+              <MonthColumn
                 key={month.at}
-                data-month={String(month.at + 1)}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(month)}
-                onFocus={() => setActive(month.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(month.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={month.key}
+                centre={centre}
+                markWidth={barWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={month.name}
+                readOut={readOut(month)}
+                active={active === month.at}
+                onActive={(on) => setActive(on ? month.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={barWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 {month.shares.map((entry) => {
                   const bottom = stacked;
                   stacked += entry.share;
@@ -117,13 +150,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
                     />
                   );
                 })}
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {month.name}
-                </text>
-                {active === month.at && (
-                  <rect x={left - 3} y={plotTop} width={barWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

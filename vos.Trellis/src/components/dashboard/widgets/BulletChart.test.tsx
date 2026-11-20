@@ -3,17 +3,10 @@ import { render, screen } from '@testing-library/react';
 import type { Binding, BulletWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
-const values = new Map<string, BindingResult>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: (Binding | undefined)[]) =>
-    bindings.map((binding) => ({
-      loading: false,
-      error: false,
-      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
-    })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { BulletChart } = await import('./BulletChart');
 
@@ -79,7 +72,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
     const widget: BulletWidget = {
       type: 'bullet',
       rows: [
-        // A misconfigured/legacy row: default max=1 with a band that runs to 2.0.
+        // A row written wrongly: the default max of 1 with a band that runs to 2.0.
         { label: 'Water — resilience', value: bind('daysOfSupply', 0), target: 1, band: [1, 2] },
       ],
     };

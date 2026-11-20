@@ -88,7 +88,7 @@ public static class FindingsReader
             Names =
             [
                 .. walked.Select(walk => walk.Predicate)
-                    .Append(SubmissionFragmentComposer.IsPredicateName)
+                    .Append(PlatformPredicates.Is)
                     .Concat(offersLevers ? [NamesPropertyOfPredicate, RoleBindings.BindsPredicateName] : [])
                     .Distinct(),
             ],
@@ -117,7 +117,7 @@ public static class FindingsReader
                     Predicate = walk.Predicate,
                     Direction = walk.Inbound ? "incoming" : "outgoing",
                 }),
-                new RelationshipRule { Predicate = SubmissionFragmentComposer.IsPredicateName, Direction = "outgoing" },
+                new RelationshipRule { Predicate = PlatformPredicates.Is, Direction = "outgoing" },
                 .. offersLevers
                     ?
                     [
@@ -231,7 +231,7 @@ public static class FindingsReader
     private static HashSet<Guid> ArchetypeAndItsMembers(Guid archetype, List<JsonElement> things, JsonElement snapshot)
     {
         var isPredicate = things
-            .Where(thing => FieldText(thing, "Name") == SubmissionFragmentComposer.IsPredicateName)
+            .Where(thing => FieldText(thing, "Name") == PlatformPredicates.Is)
             .Select(Identifier)
             .ToHashSet();
 

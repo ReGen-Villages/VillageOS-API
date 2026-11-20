@@ -5,7 +5,7 @@ import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
-export interface AuthenticationState {
+interface AuthenticationState {
   isAuthenticated: boolean;
   user: AuthenticatedUser | null;
   role: string | null;
@@ -25,6 +25,10 @@ export interface AuthenticationState {
 }
 
 export const AuthenticationContext = createContext<AuthenticationState | null>(null);
+
+function modelsFromSeeds(seeds: { name: string; sizeMb: number }[]): ModelSummary[] {
+  return seeds.map((seed) => ({ Id: seed.name, Name: `${seed.name.replace('.seed.json', '')}  (${seed.sizeMb} MB)` }));
+}
 
 export function useAuthentication(): AuthenticationState {
   const context = useContext(AuthenticationContext);
@@ -56,6 +60,13 @@ export function useAuthenticationState(): AuthenticationState {
 
   useEffect(() => stopPolling, [stopPolling]);
 
+  const signedIn = useCallback((signedInUser: AuthenticatedUser | null) => {
+    setUser(signedInUser);
+    setModelId(apiClient.getModelId());
+    setModelName(apiClient.getModelName());
+    setAuthenticationFailed(false);
+  }, []);
+
   useEffect(() => {
     apiClient.setAuthenticationRequiredCallback(() => {
       setUser(null);
@@ -71,14 +82,9 @@ export function useAuthenticationState(): AuthenticationState {
   useEffect(() => {
     if (apiClient.isAuthenticated()) return;
     apiClient.restoreSession().then((restored) => {
-      if (restored) {
-        setUser(apiClient.getUser());
-        setModelId(apiClient.getModelId());
-        setModelName(apiClient.getModelName());
-        setAuthenticationFailed(false);
-      }
+      if (restored) signedIn(apiClient.getUser());
     }).catch(() => {});
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     if (import.meta.env.VITE_API_KEY && !apiClient.isAuthenticated()) {
@@ -101,12 +107,8 @@ export function useAuthenticationState(): AuthenticationState {
           setStartupProgress(null);
           if (credentials) {
             try {
-              const u = await apiClient.login(credentials.username, credentials.password);
-              setUser(u);
-              setModelId(apiClient.getModelId());
-              setModelName(apiClient.getModelName());
+              signedIn(await apiClient.login(credentials.username, credentials.password));
               setAvailableModels(null);
-              setAuthenticationFailed(false);
               setError(null);
               setLoading(false);
             } catch {
@@ -116,13 +118,13 @@ export function useAuthenticationState(): AuthenticationState {
           }
         }
       } catch {
-        // Mycelium might not be reachable yet — keep polling
+        // The broker may not be reachable yet.
       }
     };
 
     poll();
     pollTimerReference.current = setInterval(poll, 2000);
-  }, [stopPolling]);
+  }, [stopPolling, signedIn]);
 
   const login = useCallback(async (username: string, password: string, selectedModelId?: string) => {
     setLoading(true);
@@ -130,12 +132,8 @@ export function useAuthenticationState(): AuthenticationState {
     stopPolling();
     setStartupProgress(null);
     try {
-      const u = await apiClient.login(username, password, selectedModelId);
-      setUser(u);
-      setModelId(apiClient.getModelId());
-      setModelName(apiClient.getModelName());
+      signedIn(await apiClient.login(username, password, selectedModelId));
       setAvailableModels(null);
-      setAuthenticationFailed(false);
     } catch (err: unknown) {
       // A multi-model login with no selection returns the available models in the error body.
       if (err instanceof Error && 'body' in err) {
@@ -149,9 +147,8 @@ export function useAuthenticationState(): AuthenticationState {
         } catch { /* not a models response */ }
       }
       const message = err instanceof Error ? err.message : i18n.t('authentication.loginFailed');
-      // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
-      // vs. an empty library that will never reach Phase=Done (surface
-      // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
+      // "No models loaded" means either a seed still loading, which is waited for, or an empty library that
+      // never finishes loading, which needs an error the person can act on; the startup status tells them apart.
       if (message.includes('No models loaded')) {
         try {
           const status = await myceliumApi.getStartupStatus();
@@ -161,7 +158,7 @@ export function useAuthenticationState(): AuthenticationState {
             startSeedPolling(username, password);
             return;
           }
-        } catch { /* fall through to actionable error */ }
+        } catch { /* the empty-library error below */ }
         setError(i18n.t('authentication.emptyLibrary'));
         throw err;
       }
@@ -170,19 +167,17 @@ export function useAuthenticationState(): AuthenticationState {
     } finally {
       setLoading(false);
     }
-  }, [stopPolling, startSeedPolling]);
+  }, [stopPolling, startSeedPolling, signedIn]);
 
   const logout = useCallback(async () => {
-    // setAuthFailed(true) is load-bearing: it forces the next render
-    // to see isAuthenticated as false even though apiClient.isAuthenticated()
-    // (a non-React field) stays true until the awaited round-trip completes.
-    // login() resets authFailed on success.
     useModelStore.getState().clear();
     setUser(null);
     setModelId(null);
     setModelName(null);
     setAvailableModels(null);
     setError(null);
+    // apiClient.isAuthenticated(), which React does not watch, stays true until the call below returns, so
+    // without this the next render still shows the person signed in.
     setAuthenticationFailed(true);
     await apiClient.logout();
   }, []);
@@ -190,12 +185,7 @@ export function useAuthenticationState(): AuthenticationState {
   const switchModel = useCallback(async () => {
     setError(null);
     try {
-      const seeds = await myceliumApi.getLibrarySeeds();
-      const asModels: ModelSummary[] = seeds.map((s) => ({
-        Id: s.name,
-        Name: `${s.name.replace('.seed.json', '')}  (${s.sizeMb} MB)`,
-      }));
-      setAvailableModels(asModels);
+      setAvailableModels(modelsFromSeeds(await myceliumApi.getLibrarySeeds()));
     } catch {
       setError(i18n.t('authentication.librarySeedsFailed'));
     }
@@ -240,12 +230,7 @@ export function useAuthenticationState(): AuthenticationState {
     setError(null);
     try {
       await myceliumApi.saveSeed(name);
-      const seeds = await myceliumApi.getLibrarySeeds();
-      const asModels: ModelSummary[] = seeds.map((s) => ({
-        Id: s.name,
-        Name: `${s.name.replace('.seed.json', '')}  (${s.sizeMb} MB)`,
-      }));
-      setAvailableModels(asModels);
+      setAvailableModels(modelsFromSeeds(await myceliumApi.getLibrarySeeds()));
     } catch (err) {
       setError(err instanceof Error ? err.message : i18n.t('authentication.saveSeedFailed'));
     } finally {

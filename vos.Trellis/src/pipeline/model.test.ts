@@ -5,13 +5,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+import { PREDICATE_ROLE_ID } from '@tendril-ui/tendril';
 import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
 
-// Build the demo model (Generate –carries(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
-// Every archetype here is named something the editor has never heard of and says what it is through the role
-// Thing that binds it, so a fixture that resolves at all proves nothing is found by name.
+// Every archetype here has a name the editor has never seen and says what it is through its role Thing, so a
+// fixture that resolves at all shows that nothing is found by name.
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -24,7 +24,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  const is = T('is'), has = T('has'), carries = T('carries');
+  const is = T('is'), has = T('has'), carries = T('carries', playing(ROLE.WirePredicate));
   const pipelineA = T('Workflow', playing(ROLE.Pipeline)),
     nodeA = T('Step', playing(ROLE.PipelineNode)),
     connA = T('Endpoint', playing(ROLE.Connection)),
@@ -33,7 +33,6 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
     wireA = T('Link', playing(ROLE.PipelineWire)),
     takesFrom = T('takesFrom', playing(ROLE.InputConnector)),
     deliversTo = T('deliversTo', playing(ROLE.OutputConnector));
-  R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
   R(proto.Id, is.Id, serviceA.Id);
@@ -77,10 +76,9 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   return { model: new PipelineModel(...withRoles(things, relationships)), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
-// The same two nodes, wired by Things rather than relationships, and wired twice — the case a relationship cannot
-// express, because the model refuses a second relationship on one subject, predicate and target. The wires are
-// listed before the predicate on purpose: a snapshot's order is arbitrary, and both are of the wire
-// archetype, so anything picking "the first of that archetype" picks a wire here.
+// Wired by Things rather than relationships, and twice, which a relationship cannot express because the model
+// refuses a second one on one subject, predicate and target. The wires come before the predicate because a
+// snapshot's order is arbitrary and both are of the wire archetype, so taking the first of it takes a wire.
 function heldWireModel(): { model: PipelineModel; carriesId: string } {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -99,8 +97,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
 
   const wireOne = T('w.echo');
   const wireTwo = T('w.trace');
-  const carries = T('carries');
-  R(carries.Id, is.Id, wireA.Id);
+  const carries = T('carries', playing(ROLE.WirePredicate));
 
   const gen = T('Generate'), ech = T('Echo');
   R(gen.Id, is.Id, nodeA.Id);
@@ -125,14 +122,14 @@ describe('PipelineModel', () => {
     expect(gen.ports.find((p) => p.portName === 'echo')?.direction).toBe('out');
   });
 
-  it('identifies the wire predicate by the role its archetype is bound to, not by name', () => {
+  it('identifies the wire predicate by the role that binds it, not by name', () => {
     const { model } = demoModel();
-    expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
+    expect(model.boundTo(ROLE.WirePredicate)).toBe(model.predicateIdByName('carries'));
   });
 
   it('does not mistake a wire held as a Thing for the wire predicate, whichever the model lists first', () => {
     const { model, carriesId } = heldWireModel();
-    expect(model.wirePredicateId()).toBe(carriesId);
+    expect(model.boundTo(ROLE.WirePredicate)).toBe(carriesId);
   });
 
   it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {
@@ -163,22 +160,6 @@ describe('PipelineModel', () => {
 
     expect(model.outgoing(pipeline.Id, 'has')).toEqual([]);
     expect(model.predicateIdByName('has')).toBeUndefined();
-  });
-
-  it('counts a wire Thing as held only along a predicate named exactly "has"', () => {
-    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
-    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
-    const wireArchetype: VosThing = { Id: 'wire', Name: 'Channel', Properties: playing(ROLE.PipelineWire) };
-    const first: VosThing = { Id: 'first', Name: 'First channel', Properties: {} };
-    const second: VosThing = { Id: 'second', Name: 'Second channel', Properties: {} };
-    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
-    const model = new PipelineModel(...withRoles([is, recased, wireArchetype, first, second, node], [
-      { Id: 'first is', Name: '', SubjectId: first.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
-      { Id: 'second is', Name: '', SubjectId: second.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
-      { Id: 'node Has first', Name: '', SubjectId: node.Id, PredicateId: recased.Id, TargetId: first.Id, Properties: {} },
-    ]));
-
-    expect(model.wirePredicateId()).toBe(first.Id);
   });
 
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
@@ -241,17 +222,16 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
-  /** The roles the page reads that the orchestrator does not: the range, trigger and judged-Thing roles are
-   *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
-   *  what a system sends, is told, or where a kind of message arrives, its own prototype's role is how the
-   *  page finds the service to bind a state to, and the connection a waiting node run is answered through is
-   *  named by the node run's archetype, so the orchestrator never looks it up. When a call is finished is the
-   *  platform's to judge, so the orchestrator reads none of its choices either. */
+  /** Only the page reads these. The range, trigger and judged-Thing roles are the platform's, which the
+   *  orchestrator never walks; it does not yet act on a kind of message or what a system sends or is told; its
+   *  prototype role is how the page finds the service to bind a state to; a waiting node run's connection is
+   *  named by its archetype; when a call is finished is the platform's to judge; and the orchestrator follows any
+   *  relationship from a wire to a node, so only the page, which writes new wires, needs the wire predicate. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
     ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
     ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt, ROLE.RunResumption,
-    ROLE.CallCompletion, ROLE.CompletesWhen,
+    ROLE.CallCompletion, ROLE.CompletesWhen, ROLE.WirePredicate,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -271,6 +251,7 @@ describe('the vocabulary the editor holds', () => {
     [ROLE.RunResumption, 'runResumption'],
     [ROLE.CallCompletion, 'callCompletion'],
     [ROLE.CompletesWhen, 'completesWhen'],
+    [ROLE.WirePredicate, 'wirePredicate'],
   ])('names the role %s by the version 5 identifier of its word, %s', (roleId, word) => {
     expect(roleId).toBe(roleIdentityOf(word));
   });
@@ -340,6 +321,59 @@ describe('typesCompatible', () => {
   });
 });
 
+// A kind that declares the names a run writes stores each value as an override, not among the run's own values.
+describe('a run whose kind declares the names it writes', () => {
+  const declared = (values: Record<string, unknown>) =>
+    ({ InheritedOverrides: { kind: { SourceId: 'kind', SourceName: 'NodeRunKind', Properties: values } } });
+
+  function overriddenRun() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, overrides: Record<string, unknown>, own: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: own, ...declared(overrides) };
+      things.push(t);
+      return t;
+    };
+    const has = T('has', {});
+    const pipeline = T('Discover a site', {});
+    const of = T('of', {});
+    const run = T('PipelineRun', { status: 'failed', startedUtc: '2030-06-01T12:00:00Z', error: 'stopped mid-call', requestId: 'request 7' });
+    things.push({ Id: 'run-kind', Name: 'RunKind', Properties: playing(ROLE.PipelineRun), IsArchetype: true });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: 'is', TargetId: 'run-kind', Properties: {} });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: of.Id, TargetId: pipeline.Id, Properties: {} });
+    things.push({ Id: 'is', Name: 'is', Properties: {} });
+    const aggregate = T('NodeRun Fetch', { nodeId: 'node-fetch', status: 'interrupted' });
+    const item = T('NodeRun Fetch #0', { nodeId: 'node-fetch', status: 'succeeded', index: '0', total: '2' });
+    for (const nodeRun of [aggregate, item])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
+    return { model: new PipelineModel(...withRoles(things, relationships)), run, pipeline };
+  }
+
+  it('reads the run, node-run and item values held as overrides', () => {
+    const { model, run, pipeline } = overriddenRun();
+
+    expect(model.runStatus(run.Id)).toBe('failed');
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-fetch': 'interrupted' });
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-fetch': { done: 1, reached: 1, spreadOver: 2 } });
+    expect(model.runsOf(pipeline.Id)).toEqual([{ runId: run.Id, status: 'failed', startedUtc: '2030-06-01T12:00:00Z', requestId: 'request 7' }]);
+    expect(model.runsARestartStopped()).toEqual([
+      { runId: run.Id, pipelineName: 'Discover a site', startedUtc: '2030-06-01T12:00:00Z', reason: 'stopped mid-call' },
+    ]);
+  });
+
+  it('takes a live value, filed among own values, over the override it replaces', () => {
+    const things: VosThing[] = [
+      { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'run', Name: 'PipelineRun', Properties: {} },
+      { Id: 'node-run', Name: 'NodeRun Fetch', Properties: { status: 'succeeded' }, ...declared({ nodeId: 'node-fetch', status: 'running' }) },
+    ];
+    const relationships: VosRelationship[] = [{ Id: 'r1', Name: '', SubjectId: 'run', PredicateId: 'has', TargetId: 'node-run', Properties: {} }];
+
+    expect(new PipelineModel(...withRoles(things, relationships)).nodeRunStatuses('run')).toEqual({ 'node-fetch': 'succeeded' });
+  });
+});
+
 describe('run animation source', () => {
   it('reads overall run status and per-node status from the live model', () => {
     const things: VosThing[] = [];
@@ -375,7 +409,7 @@ describe('run animation source', () => {
     };
     const has = T('has');
     const run = T('PipelineRun', { status: 'running' });
-    const agg = T('NodeRun Scorer', { nodeId: 'node-score', status: 'running' }); // aggregate — no index
+    const agg = T('NodeRun Scorer', { nodeId: 'node-score', status: 'running' }); // the node's whole record, with no index
     const i0 = T('NodeRun Scorer #0', { nodeId: 'node-score', status: 'succeeded', index: '0', total: '3' });
     const i1 = T('NodeRun Scorer #1', { nodeId: 'node-score', status: 'succeeded', index: '1', total: '3' });
     const i2 = T('NodeRun Scorer #2', { nodeId: 'node-score', status: 'running', index: '2', total: '3' });
@@ -383,7 +417,7 @@ describe('run animation source', () => {
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
 
     const model = new PipelineModel(...withRoles(things, relationships));
-    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // the ring reads the whole record only
     expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, reached: 3, spreadOver: 3 } });
   });
 
@@ -422,7 +456,7 @@ describe('run animation source', () => {
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
 
-    // Two runs of A (different times) + one run of B — B must not leak into A's history.
+    // Two runs of A at different times and one of B, which must not appear in A's history.
     const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
     const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z', requestId: '01999a2b-0000-7000-8000-000000000001' });
     const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
@@ -546,9 +580,8 @@ describe('loadPipeline', () => {
   });
 });
 
-// A value the page writes for a name the port archetype declares lands in the Thing's override store,
-// not among its own properties. Read from own properties alone, a saved start port fell back to the
-// Thing's name and to direction `in`, and the wire drawn from it matched nothing.
+// A value written for a name the port archetype declares is stored as an override, so reading own properties
+// alone loses the saved port's name and direction, and the wire drawn from it matches nothing.
 describe('a saved port is read from what it states', () => {
   const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
     'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', Properties: values },
@@ -588,11 +621,10 @@ describe('a saved port is read from what it states', () => {
   });
 });
 
-// The playground ships its pipelines drawn, so the wire predicate was always in use before it was
-// asked for. A model built from templates declares the predicate and draws nothing, and the first
-// pipeline anyone drew on it could not be saved.
+// A model built from templates declares the predicate and draws nothing, so the first wire anyone draws on
+// it is saved along a predicate nothing has used yet.
 describe('the wire predicate before any wire is drawn', () => {
-  function vocabularyAndNoWire() {
+  function vocabularyAndNoWire(carries: Record<string, unknown>) {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -600,32 +632,16 @@ describe('the wire predicate before any wire is drawn', () => {
     const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
     T('is', 'is'); T('has', 'has');
     T('arch-wire', 'Link', playing(ROLE.PipelineWire));
-    T('arch-node', 'Step', playing(ROLE.PipelineNode));
-    T('carries', 'carries'); R('carries', 'is', 'arch-wire');
-    return { things, relationships, T, R };
+    T('carries', 'carries', carries); R('carries', 'is', 'arch-wire');
+    return new PipelineModel(...withRoles(things, relationships));
   }
 
-  it('finds the predicate by its shape when nothing has used it yet', () => {
-    const { things, relationships } = vocabularyAndNoWire();
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
+  it('finds the predicate the wire predicate role binds', () => {
+    expect(vocabularyAndNoWire(playing(ROLE.WirePredicate)).boundTo(ROLE.WirePredicate)).toBe('carries');
   });
 
-  it('still never mistakes a held wire for the predicate, whichever the model lists first', () => {
-    const { things, relationships, T, R } = vocabularyAndNoWire();
-    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
-    T('N2', 'Node2'); R('N2', 'is', 'arch-node');
-    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
-    things.reverse();
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
-  });
-
-  it('finds nothing where the model holds only wires and no predicate', () => {
-    const { things, relationships, T, R } = vocabularyAndNoWire();
-    things.splice(things.findIndex((t) => t.Id === 'carries'), 1);
-    relationships.splice(0, relationships.length);
-    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
-    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
-    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBeUndefined();
+  it('takes nothing of the wire kind for the predicate where the model binds no wire predicate role', () => {
+    expect(vocabularyAndNoWire({}).boundTo(ROLE.WirePredicate)).toBeUndefined();
   });
 });
 
@@ -663,5 +679,73 @@ describe('what a node chose, and what a choice may compare with', () => {
   it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
     expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
     expect(offeringModel().thingsOfKinds([])).toEqual([]);
+  });
+});
+
+describe('what a wait box may wait for and follow', () => {
+  function stateModel(): PipelineModel {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('RANGE', 'Condition', playing(ROLE.Range));
+    T('judges', 'appliesTo', playing(ROLE.JudgedThing));
+    T('ROOT', 'Verb', playing(PREDICATE_ROLE_ID));
+    T('SITE', 'Site'); T('SUBMISSION', 'Submission');
+    things.find((thing) => thing.Id === 'RANGE')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'SITE')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'SUBMISSION')!.IsArchetype = true;
+    T('DISCOVERED', 'Discovered'); R('DISCOVERED', 'is', 'RANGE'); R('DISCOVERED', 'judges', 'SITE');
+    T('AWAITING', 'Awaiting discovery'); R('AWAITING', 'is', 'RANGE'); R('AWAITING', 'judges', 'SITE');
+    T('DECIDED', 'Decided'); R('DECIDED', 'is', 'RANGE'); R('DECIDED', 'judges', 'SUBMISSION');
+    T('LOOSE', 'Judging nothing'); R('LOOSE', 'is', 'RANGE');
+    T('decidedBy', 'decidedBy'); R('decidedBy', 'is', 'ROOT');
+    T('locatedIn', 'locatedIn'); R('locatedIn', 'is', 'ROOT');
+    T('S1', 'A submission'); R('S1', 'is', 'SUBMISSION'); R('S1', 'decidedBy', 'DECIDED');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+
+  it('lists every declared state with the kind it judges, by kind and then name', () => {
+    expect(stateModel().declaredStates().map((state) => [state.judgedKindName, state.name])).toEqual([
+      ['', 'Judging nothing'], ['Site', 'Awaiting discovery'], ['Site', 'Discovered'], ['Submission', 'Decided'],
+    ]);
+  });
+
+  it('offers the predicates relationships from Things of the judged kind run along, leaving out is and has', () => {
+    expect(stateModel().predicatesFollowedFrom('SUBMISSION').map((predicate) => predicate.Name)).toEqual(['decidedBy']);
+  });
+
+  it('offers every Predicate where nothing of the judged kind relates to anything, or no kind is judged', () => {
+    const model = stateModel();
+    expect(model.predicatesFollowedFrom('SITE').map((predicate) => predicate.Name)).toEqual(['decidedBy', 'locatedIn']);
+    expect(model.predicatesFollowedFrom(undefined).map((predicate) => predicate.Name)).toEqual(['decidedBy', 'locatedIn']);
+  });
+});
+
+describe('how often a cadence comes due', () => {
+  function cadences(...held: [string, Partial<VosThing>][]) {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-cadence', Name: 'Metronome', Properties: playing(ROLE.Cadence), IsArchetype: true },
+    ];
+    const relationships: VosRelationship[] = [];
+    for (const [id, thing] of held) {
+      things.push({ Id: id, Name: id, Properties: {}, ...thing });
+      relationships.push({ Id: `r-${id}`, Name: '', SubjectId: id, PredicateId: 'is', TargetId: 'arch-cadence', Properties: {} });
+    }
+    return new PipelineModel(...withRoles(things, relationships)).cadences();
+  }
+
+  it('reads the interval a cadence states in its override store, where a value its archetype declares lands', () => {
+    expect(cadences(['hourly', {
+      InheritedOverrides: { 'arch-cadence': { SourceId: 'arch-cadence', SourceName: 'Metronome', Properties: { intervalMinutes: 60 } } },
+    }])).toEqual([{ id: 'hourly', name: 'hourly', everyMinutes: 60 }]);
+  });
+
+  it('reads no interval where a cadence states none, or one that is not a positive number', () => {
+    expect(cadences(['none', {}], ['zero', { Properties: { intervalMinutes: 0 } }], ['word', { Properties: { intervalMinutes: 'often' } }])
+      .map((cadence) => cadence.everyMinutes)).toEqual([0, 0, 0]);
   });
 });

@@ -117,8 +117,8 @@ describe('unwrapThing', () => {
   });
 });
 
-// Under lazy inheritance an instance's value for an inherited name is relocated out of Properties
-// into InheritedOverrides, so reading Properties alone misses it and dashboard widgets render blank.
+// An instance's value for a name it inherits is held in InheritedOverrides rather than Properties, so
+// reading Properties alone misses it and dashboard widgets render blank.
 describe('effectiveProperties', () => {
   const noAncestors: IsChainLookup = { byId: new Map(), isParents: new Map() };
 
@@ -160,8 +160,7 @@ describe('effectiveProperties', () => {
     expect(merged).toEqual({ a: 1 });
   });
 
-  // Resolve a non-overridden inherited default from the archetype up the is-chain — the
-  // exact value that was invisible before, since it lives on the archetype, not in the instance.
+  // A default lives on the archetype, not in the instance, so it is reached only up the is-chain.
   it('resolves a non-overridden inherited default from the archetype', () => {
     const home = archetype('h', 'Home', { energy_rating: 'A+' });
     const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
@@ -196,6 +195,25 @@ describe('effectiveProperties', () => {
     // Alphabetically-last Name (Beta) wins, whatever order the parent ids arrive in.
     expect(effectiveProperties(instance, chain([alpha, beta], { i: ['a', 'b'] })).x).toBe('beta');
     expect(effectiveProperties(instance, chain([alpha, beta], { i: ['b', 'a'] })).x).toBe('beta');
+  });
+
+  it('picks between sibling archetypes in an order no language changes', () => {
+    // English orders "array" before "Zone" and Swedish orders "Åker" after it; neither decides here.
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    const zone = archetype('z', 'Zone', { x: 'zone' });
+    const array = archetype('a', 'array', { x: 'array' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    expect(effectiveProperties(instance, chain([zone, array], { i: ['z', 'a'] })).x).toBe('array');
+    expect(effectiveProperties(instance, chain([zone, field], { i: ['f', 'z'] })).x).toBe('åker');
+  });
+
+  it('picks between stored override sources in the same order', () => {
+    const instance = {
+      Id: 'i',
+      Properties: {},
+      InheritedOverrides: { z: inheritedSet('Zone', { x: 'zone' }), a: inheritedSet('array', { x: 'array' }) },
+    };
+    expect(effectiveProperties(instance, noAncestors).x).toBe('array');
   });
 
   it('survives a malformed is-cycle without infinite recursion', () => {

@@ -50,7 +50,7 @@ public static class PipelineDagBuilder
         {
             if (!nodesById.TryGetValue(nodeThing.Id, out var from)) continue;
 
-            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, ModelNames.Is))
+            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, PlatformPredicates.Is))
                 .Select(reached => reached.Id).ToHashSet();
             foreach (var targetId in graph.TargetIdsFrom(nodeThing).Distinct())
                 if (!heldOrKind.Contains(targetId) && nodesById.TryGetValue(targetId, out var to))
@@ -128,8 +128,9 @@ public static class PipelineDagBuilder
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
     {
-        // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
-        // are an Input source (params → outputs) or an Output sink (inputs → run result).
+        // Boundary nodes bind no Connection or Service: they declare their own ports (each a Port they
+        // `has`) and are an Input source, turning run parameters into outputs, or an Output sink, turning
+        // inputs into the run's result.
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
@@ -177,6 +178,7 @@ public static class PipelineDagBuilder
             DecisionPaths = Judged(problems, () => DecisionPathsOf(graph, nodeThing), []),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
+            ItemsAtOnce = Judged(problems, () => ItemsAtOnceOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
             MayBeCalledAgain = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.MayBeCalledAgain)),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
@@ -242,7 +244,7 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through its port '{portName}' but names no state for it to enter.");
         if (port is not { IsInput: true })
             throw new PipelineModelException($"Node '{nodeThing.Name}' waits through '{portName}', which is not an in port of it.");
-        return new DagWait(states[0].Id, states[0].Name, port.PortName);
+        return new DagWait(states[0].Id, states[0].Name, port.PortName, LimitOf(nodeThing));
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
@@ -339,17 +341,33 @@ public static class PipelineDagBuilder
 
     private static (Relating, DagWait)? RelatingOf(PipelineGraph graph, GraphThing nodeThing)
     {
-        var connection = graph.OutgoingAlong(nodeThing, PipelineRoles.StandsFor).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
-            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a relate node but stands for no connection.");
+        var predicate = graph.OutgoingAlong(nodeThing, PipelineRoles.StandsFor).FirstOrDefault()
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a relate node but stands for no predicate.");
+        var notifies = graph.Bound(PipelineRoles.NotifiedConnection)?.Name ?? PipelineRoles.NotifiedConnection.Word;
+        var connection = graph.OutgoingAlong(predicate, PipelineRoles.NotifiedConnection).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection));
+        if (connection is null)
+            throw new PipelineModelException(graph.IsOf(predicate, PipelineRoles.Connection)
+                ? $"Node '{nodeThing.Name}' stands for the connection '{predicate.Name}'; a relate box stands for the predicate that names its connection along '{notifies}'."
+                : $"Node '{nodeThing.Name}' stands for '{predicate.Name}', which names no connection along '{notifies}', so a relationship along it calls nothing.");
+        var whose = $"Node '{nodeThing.Name}' stands for '{predicate.Name}', whose connection '{connection.Name}'";
         var service = graph.OutgoingTargets(connection, ModelNames.Has).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Service))
-            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which binds no service, so nothing would be called.");
+            ?? throw new PipelineModelException($"{whose} binds no service, so nothing would be called.");
         var states = graph.OutgoingAlong(connection, PipelineRoles.CompletionRange).ToList();
         if (states.Count == 0)
-            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names no state its work is proven by, "
-                + "so the run could not tell when the work is done.");
+            throw new PipelineModelException($"{whose} names no state its work is proven by, so the run could not tell when the work is done.");
         if (states.Count > 1)
-            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names two states its work is proven by.");
-        return (new Relating(connection.Id, connection.Name, service.Id), new DagWait(states[0].Id, states[0].Name, ModelNames.Thing));
+            throw new PipelineModelException($"{whose} names two states its work is proven by.");
+        return (new Relating(predicate.Id, predicate.Name, service.Id),
+            new DagWait(states[0].Id, states[0].Name, ModelNames.Thing, LimitOf(nodeThing)));
+    }
+
+    private static TimeSpan? LimitOf(GraphThing nodeThing)
+    {
+        if (nodeThing.PropertyString(ModelNames.WaitsAtMostMinutes) is not { } written || string.IsNullOrWhiteSpace(written)) return null;
+        return long.TryParse(written, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) && minutes > 0
+            ? TimeSpan.FromMinutes(minutes)
+            : throw new PipelineModelException(
+                $"Node '{nodeThing.Name}' waits at most '{written}' minutes, which is not a whole number of minutes above zero.");
     }
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.
@@ -381,6 +399,14 @@ public static class PipelineDagBuilder
         if (policy.PauseMinutes < 0 || policy.PauseGrowth < 1 || policy.PauseSpread < 0 || policy.TryingMinutes <= 0)
             throw new PipelineModelException($"Node '{nodeThing.Name}' has a retry policy with a number out of range: the pause and the spread are at least 0, the growth at least 1, and the trying time above 0.");
         return policy;
+    }
+
+    private static int? ItemsAtOnceOf(GraphThing nodeThing)
+    {
+        if (!int.TryParse(nodeThing.PropertyString(ModelNames.ItemsAtOnce), out var itemsAtOnce)) return null;
+        if (itemsAtOnce < 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' holds {itemsAtOnce} items at once; a node that runs holds at least one.");
+        return itemsAtOnce;
     }
 
     // Refused at build rather than at the tell node, so a run that could never send its message does nothing first.
@@ -442,7 +468,7 @@ public static class PipelineDagBuilder
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
             yield return current;
-            foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
+            foreach (var parent in graph.OutgoingTargets(current, PlatformPredicates.Is))
                 stack.Push(parent);
         }
     }

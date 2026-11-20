@@ -93,8 +93,8 @@ describe('BUCKET_COLORS', () => {
   });
 });
 
-describe('resolveClassColor — override priority', () => {
-  it('returns the bucket color when no override is supplied (IFC default)', () => {
+describe('resolveClassColor', () => {
+  it('returns the bucket color of an IFC class', () => {
     expect(resolveClassColor('ifcClass', 'IfcWall')).toBe(BUCKET_COLORS.structural);
     expect(resolveClassColor('ifcClass', 'IfcDistributionPort')).toBe(BUCKET_COLORS.port);
   });
@@ -104,24 +104,5 @@ describe('resolveClassColor — override priority', () => {
     expect(resolveClassColor('ifcClass', undefined)).toBe(BUCKET_COLORS.other);
     expect(resolveClassColor('ifcClass', 'Bogus')).toBe(BUCKET_COLORS.other);
     expect(resolveClassColor('myProp', 'anything')).toBe(BUCKET_COLORS.other);
-  });
-
-  it('user override beats the curated bucket color (extension point)', () => {
-    expect(resolveClassColor('ifcClass', 'IfcWall', { IfcWall: '#ff00ff' })).toBe('#ff00ff');
-  });
-
-  it('override only applies to the matching value', () => {
-    const overrides = { IfcWall: '#ff00ff' };
-    expect(resolveClassColor('ifcClass', 'IfcSlab', overrides)).toBe(BUCKET_COLORS.structural);
-  });
-
-  it('override works for ANY propertyName (not just registered ones)', () => {
-    // A non-IFC deployment using `category` → "Hub" with a user override gets
-    // the override — no need to register a bucket table first.
-    expect(resolveClassColor('category', 'Hub', { Hub: '#abc123' })).toBe('#abc123');
-  });
-
-  it('null/undefined value with overrides still returns other (no crash)', () => {
-    expect(resolveClassColor('ifcClass', null, { IfcWall: '#ff00ff' })).toBe(BUCKET_COLORS.other);
   });
 });

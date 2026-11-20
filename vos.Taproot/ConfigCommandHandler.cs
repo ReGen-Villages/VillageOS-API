@@ -10,7 +10,7 @@ namespace vos.Taproot
 
         public ConfigCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
         {
-            _arg = arg ?? string.Empty;
+            _arg = arg;
             _writer = writer;
             _mycelium = mycelium;
             _resolver = new NameResolver(mycelium);
@@ -70,7 +70,7 @@ namespace vos.Taproot
         {
             var result = await _mycelium.GetDefaultPropertyModeAsync();
             _writer.WriteLine("Property Mode Configuration:");
-            _writer.WriteLine($"  Default Mode:     {GetStringProperty(result, "Mode")}");
+            _writer.WriteLine($"  Default Mode:     {result.GetStringOrDefault("Mode", "")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate:      {GetIntProperty(result, "SampleRate")}");
             _writer.WriteLine($"  Sample Seconds:   {GetIntProperty(result, "SampleSeconds")}");
@@ -135,7 +135,7 @@ namespace vos.Taproot
         private async Task ShowDefaultModeAsync()
         {
             var result = await _mycelium.GetDefaultPropertyModeAsync();
-            _writer.WriteLine($"Default property mode: {GetStringProperty(result, "Mode")}");
+            _writer.WriteLine($"Default property mode: {result.GetStringOrDefault("Mode", "")}");
         }
 
         private async Task ShowPropertyModeAsync(string thingNameOrId, string propertyName)
@@ -154,7 +154,7 @@ namespace vos.Taproot
         private void WritePropertyModeDetails(string propertyName, System.Text.Json.JsonElement result)
         {
             _writer.WriteLine($"Property: {propertyName}");
-            _writer.WriteLine($"  Mode: {GetStringProperty(result, "Mode")}");
+            _writer.WriteLine($"  Mode: {result.GetStringOrDefault("Mode", "")}");
 
             var capacity = GetIntProperty(result, "RingBufferCapacity");
             if (capacity > 0)
@@ -163,7 +163,7 @@ namespace vos.Taproot
                 _writer.WriteLine($"  Ring Buffer Count: {GetIntProperty(result, "RingBufferCount")}");
             }
 
-            switch (GetStringProperty(result, "Mode"))
+            switch (result.GetStringOrDefault("Mode", ""))
             {
                 case "SampledByObservations":
                     _writer.WriteLine($"  Sample Rate: 1 in {GetIntProperty(result, "SampleRate")}");
@@ -216,7 +216,7 @@ namespace vos.Taproot
 
             var result = await _mycelium.SetPropertyModeAsync(
                 resolveResult.Id, propertyName, mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds);
-            _writer.WriteLine($"Set property '{propertyName}' mode to {GetStringProperty(result, "Mode")}");
+            _writer.WriteLine($"Set property '{propertyName}' mode to {result.GetStringOrDefault("Mode", "")}");
         }
 
         private void ShowSetPropertyModeUsage()
@@ -239,7 +239,7 @@ namespace vos.Taproot
         {
             var result = await _mycelium.SetDefaultPropertyModeAsync(
                 mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds, sizes.VersionsInMemory, sizes.SecondsInMemory);
-            _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "Mode")}");
+            _writer.WriteLine($"Default property mode set to: {result.GetStringOrDefault("Mode", "")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate: {GetIntProperty(result, "SampleRate")}");
             _writer.WriteLine($"  Sample Seconds: {GetIntProperty(result, "SampleSeconds")}");
@@ -263,15 +263,15 @@ namespace vos.Taproot
 
             foreach (var arg in args)
             {
-                if (TryParseNamedArg(arg, "--ringbuffer=", out var size))
+                if (CommandOptions.TryNumber(arg, "--ringbuffer", out var size))
                     ringBufferSize = size;
-                else if (TryParseNamedArg(arg, "--samplerate=", out var rate))
+                else if (CommandOptions.TryNumber(arg, "--samplerate", out var rate))
                     sampleRate = rate;
-                else if (TryParseNamedArg(arg, "--sampleseconds=", out var seconds))
+                else if (CommandOptions.TryNumber(arg, "--sampleseconds", out var seconds))
                     sampleSeconds = seconds;
-                else if (TryParseNamedArg(arg, "--versionsinmemory=", out var versions))
+                else if (CommandOptions.TryNumber(arg, "--versionsinmemory", out var versions))
                     versionsInMemory = versions;
-                else if (TryParseNamedArg(arg, "--secondsinmemory=", out var held))
+                else if (CommandOptions.TryNumber(arg, "--secondsinmemory", out var held))
                     secondsInMemory = held;
                 else
                     positionalArgs.Add(arg);
@@ -280,20 +280,7 @@ namespace vos.Taproot
             return (positionalArgs, new ModeSizes(ringBufferSize, sampleRate, sampleSeconds, versionsInMemory, secondsInMemory));
         }
 
-        private static bool TryParseNamedArg(string arg, string prefix, out int value)
-        {
-            value = 0;
-            return arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                   int.TryParse(arg.Substring(prefix.Length), out value);
-        }
-
-        private static string GetStringProperty(System.Text.Json.JsonElement element, string name)
-        {
-            if (element.TryGetProperty(name, out var prop))
-                return prop.GetString() ?? "";
-            return "";
-        }
-
+        // Throws on a value that is not a number, where the shared readers would quietly answer 0.
         private static int GetIntProperty(System.Text.Json.JsonElement element, string name)
         {
             if (element.TryGetProperty(name, out var prop))

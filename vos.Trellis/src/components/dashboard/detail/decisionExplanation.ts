@@ -1,18 +1,13 @@
 /**
- * Why a service decided about one Thing, read through the roles the platform's site template binds.
- *
- * A decision is a Thing. It reaches the subject it is about, what it chose, the rule it was decided
- * under, and the considerations that spoke for the choice or turned candidates away. A consideration
- * reaches its cause, and where that cause is a constraint the numbers are not written down: the
- * constraint names the properties instead, and the card reads them as they stood at the instant the
- * decision carries.
- *
- * Nothing here names a predicate, an archetype or a kind. What a model calls them is its own; what is
- * fixed is the role each one is bound by.
+ * A decision is a Thing reaching its subject, its choice, its rule and the considerations for and against.
+ * Where a consideration's cause is a constraint, the numbers are not written down: the constraint names the
+ * properties, which are read as they stood at the decision's instant. Nothing here names a predicate,
+ * archetype or kind; only the role each is bound by is fixed.
  */
 import { thingIdBoundBy, type ModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import type { VosThing } from '@tendril-ui/tendril';
+import { textOf } from './propertyText';
 
 /** The role binding each predicate of the vocabulary, whatever this model calls them. */
 const PREDICATE_ROLES = {
@@ -50,7 +45,7 @@ export interface NamedThing {
 
 /** The four properties a constraint names and the unit they are compared in. A constraint naming none
  *  of them is a measure the model does not hold, and the consideration carries the number instead. */
-export interface Constraint {
+interface Constraint {
   measureSubjectProperty?: string;
   measureCandidateProperty?: string;
   limitSubjectProperty?: string;
@@ -177,11 +172,6 @@ function numberOf(properties: Record<string, unknown>, name: string): number | u
   return typeof value === 'number' ? value : undefined;
 }
 
-function textOf(properties: Record<string, unknown>, name: string): string | undefined {
-  const value = properties[name];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
 function constraintOf(cause: VosThing): Constraint {
   return {
     measureSubjectProperty: textOf(cause.Properties, MEASURE_SUBJECT_PROPERTY),
@@ -269,7 +259,7 @@ export function decisionsOn(thingId: string, modelIndex: ModelIndex): DecisionEx
 }
 
 /** One Thing to be read as it stood at one instant. */
-export interface InstantRead {
+interface InstantRead {
   thingId: string;
   instant: string;
 }
@@ -326,14 +316,9 @@ export function instantReadsFor(decisions: DecisionExplanation[]): InstantRead[]
   return [...wanted.values()];
 }
 
-/**
- * One measure against one limit.
- *
- * `measure` and `limit` are null where the platform did not answer the property at that instant —
- * a property declared current-only, or a past the eviction has already reclaimed. An absent `limit`
- * is the other thing entirely: the constraint declared none, so the measure reads as a value rather
- * than as a comparison.
- */
+/** `measure` and `limit` are null where the platform did not answer at that instant, for a current-only
+ *  property or a past already reclaimed. An absent `limit` is different: the constraint declared none, so the
+ *  measure reads as a value rather than a comparison. */
 export interface Comparison {
   candidate?: NamedThing;
   measure: number | null;

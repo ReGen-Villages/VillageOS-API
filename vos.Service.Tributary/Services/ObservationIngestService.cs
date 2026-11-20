@@ -17,13 +17,14 @@ public record ObservationIngestResult(
     int ObservationsSubmitted,
     string? Error,
     string? Detail,
-    IReadOnlyDictionary<string, object?>? Written = null);
+    IReadOnlyDictionary<string, object?>? Written = null,
+    bool CanBeTriedAgain = false);
 
 // Ingests fetched-and-reshaped readings as time-series observations.
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
 // become structural Things — created once, and related to the endpoint that wrote onto them once —
 // so the graph scales with the number of entities, not readings; the readings themselves are written
-// as observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
+// as observations on each entity's property series (from Canopy into Sapwood), bounded by PropertyMode.
 //
 // The `observed` relationship is what a value can be walked back along to the registration that produced it,
 // and from there to the source through `DataSource resolvedBy Endpoint`. It is written on every ingest
@@ -90,10 +91,12 @@ public class ObservationIngestService
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
-        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default, Action? onReshaped = null,
+        bool depositsTimedReadings = false)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
+        onReshaped?.Invoke();
 
         if (!TryParseReadings(transformed, subjectId != null, out var readings, out var parseError))
             return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);
@@ -102,7 +105,7 @@ public class ObservationIngestService
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
 
         if (subjectId != null)
-            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, cancellationToken);
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, depositsTimedReadings, cancellationToken);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -183,7 +186,8 @@ public class ObservationIngestService
     }
 
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
-        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, CancellationToken cancellationToken)
+        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, bool depositsTimedReadings,
+        CancellationToken cancellationToken)
     {
         var samples = SamplesOf(readings);
 
@@ -198,7 +202,15 @@ public class ObservationIngestService
         if (await provenance.EnsureObservedAsync(subjectId, cancellationToken) is { } failure)
             return new ObservationIngestResult(false, 1, 0, failure, null);
 
-        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples, cancellationToken))
+        var deposited = depositsTimedReadings ? samples.Where(sample => sample.ObservedAt is not null).ToList() : [];
+        var current = deposited.Count == 0 ? samples : samples.Where(sample => sample.ObservedAt is null).ToList();
+
+        if (deposited.Count > 0
+            && await _myceliumClient.DepositReadingsAsync(subjectId, deposited, cancellationToken) is { Accepted: false } refused)
+            return new ObservationIngestResult(false, 1, 0, $"The broker did not store the history: {refused.Refusal}", null,
+                CanBeTriedAgain: refused.CanBeTriedAgain);
+
+        if (current.Count > 0 && !await _myceliumClient.SubmitObservationsAsync(subjectId, current, cancellationToken))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null, WrittenOf(samples));
@@ -249,7 +261,7 @@ public class ObservationIngestService
 
             if (_predicateId == null)
             {
-                var isPredicate = await _myceliumClient.FindThingByNameAsync("is", cancellationToken);
+                var isPredicate = await _myceliumClient.FindThingByNameAsync(PlatformPredicates.Is, cancellationToken);
                 var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName, cancellationToken);
                 if (!await _myceliumClient.ApplyFragmentAsync(
                         ObservedEdges.CreationFragment(isPredicate?.Id, binds?.Id, _predicateRootId), cancellationToken))
@@ -257,7 +269,7 @@ public class ObservationIngestService
                 _predicateId = ObservedEdges.CreatedPredicateId;
             }
 
-            if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId, cancellationToken))
+            if (!await _myceliumClient.RelateUnlessHeldAsync(_endpointThingId, _predicateId.Value, thingId, cancellationToken))
                 return "Failed to relate entity to endpoint.";
 
             return null;

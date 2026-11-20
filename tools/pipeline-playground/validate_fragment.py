@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Reimplements the Trellis PipelineModel + Phloem PipelineDagBuilder traversals and asserts every
-generated pipeline resolves: every role is bound to a Thing, connections appear in the palette, each
-pipeline loads with nodes/edges, every required input is wired or param-bound (Run would be enabled), and
-seeded runs resolve. Every read here goes through the role Thing that binds a Thing, never through a name."""
+"""Reads the generated pipelines the way Trellis's PipelineModel and Phloem's PipelineDagBuilder do, and
+checks that every one resolves: every role is bound to a Thing, connections appear in the palette, each
+pipeline loads with its nodes and wires, every required input is wired or bound to a run parameter (so
+Run would be enabled), and seeded runs resolve. Every read here goes through the role Thing that binds a Thing, never through a name."""
 import json
 import sys
 
@@ -41,7 +41,7 @@ PIPELINE_FOLLOW_ON = "0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"
 PIPELINE_STOP = "a5f12016-a3f9-505c-95c7-d211fd84b8f2"
 REQUESTED_BY = "f0511a24-8925-5ac0-8f8e-971202c1741a"
 
-# The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
+# The roles a pipeline is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
 DAG_ROLES = {PIPELINE: "pipeline", PIPELINE_NODE: "pipelineNode", PIPELINE_INPUT: "pipelineInput",
              PIPELINE_OUTPUT: "pipelineOutput", PORT: "port", SERVICE: "service", CONNECTION: "connection",
@@ -162,8 +162,10 @@ class Model:
                             "in": [p["Id"] for p in self.reached_along(held["Id"], OUTPUT_CONNECTOR)]})
         return out
 
+    # Nothing legitimate relates one node to another but `is` and `has`, as PipelineDagBuilder reads it, so
+    # the wire predicate need not be found to spot a wire drawn as a relationship.
     def relationship_wires(self, subj):
-        return [r["Target"] for r in self.bysubj.get(subj, []) if self.is_of(r["Predicate"], PIPELINE_WIRE)]
+        return [r["Target"] for r in self.bysubj.get(subj, []) if self.name(r["Predicate"]) not in ("is", "has")]
 
 
 def main():

@@ -9,7 +9,7 @@ public class ConsoleOptions
 
     // The API key is deliberately not a command-line setting: an argument list is readable by every
     // process on the host and the shell keeps it in its history file. VOS_API_KEY is its only source.
-    // Precedence for everything else: command-line args > environment variables > defaults.
+    // Every other setting is taken from the command line first, then the environment, then the default.
     public static ConsoleOptions Parse(string[] args)
     {
         var options = new ConsoleOptions();

@@ -5,39 +5,26 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * A widget slot that takes a binding but is not collected by the subscription is a page asking for
- * less than it draws — and nothing says so. The widget resolves its binding against whatever the
- * page happens to hold, so the figure renders empty, or renders without the Thing it names, and
- * reads as a value the model does not have (the KPI's `origin` slot was the one left out).
- *
- * TypeScript cannot catch it: the collector is a hand-written switch returning an array, and a
- * missing element is a shorter array, not a type error. So this reads both files as source text and
- * asks whether every slot the vocabulary declares is read where the collector is supposed to read
- * it — the same shape as the guard on pages declaring their subscription.
- *
- * Source text rather than reflection, because a type has none at run time.
- *
- * Each slot is looked for in one switch arm rather than anywhere in the collector, because slot
- * names repeat across holders: `rows` is a binding on a table and a list of row objects on a
- * bullet, and `value` names a slot on three different holders. Searched file-wide, a dropped
- * binding read still finds one of its namesakes, and the guard passes on a page that is already
- * broken.
+ * A slot the subscription does not collect draws empty, or without the Thing it names, and reads as a
+ * value the model does not have, with nothing to say so. The compiler cannot catch it, because a missing
+ * element is a shorter array rather than a type error, and a type has nothing to read at run time, so this
+ * reads both files as source. Each slot is looked for in its own widget's switch arm, because slot names
+ * repeat across holders and a search of the whole file would find a namesake of a dropped one.
  */
 
 const API_DIRECTORY = dirname(fileURLToPath(import.meta.url));
-const VOCABULARY = join(API_DIRECTORY, '../../../vos.Tendril/src/types/dashboard.ts');
-const COLLECTOR = join(API_DIRECTORY, 'dashboardSubscription.ts');
+const TENDRIL = join(API_DIRECTORY, '../../../vos.Tendril/src');
+const VOCABULARY = join(TENDRIL, 'types/dashboard.ts');
+const COLLECTOR = join(TENDRIL, 'api/pageSelector.ts');
 
 const INTERFACE = /export interface (\w+)\s*\{([\s\S]*?)\n\}/g;
 /** `value: Binding`, `origin?: Binding`, `rows: Binding[]`, `spark?: Binding | null`. */
 const BINDING_FIELD = /^\s*(\w+)\??\s*:\s*Binding(?:\[\])?\s*(?:\|[^;]*)?;/gm;
-/** A field holding other declared Things — `rows: BulletRow[]` — whose slots the widget's own arm
- *  is the one that has to reach. */
+/** A field holding other declared types, such as `rows: BulletRow[]`, whose slots the widget's own arm must reach. */
 const NESTED_HOLDER_FIELD = /^\s*\w+\??\s*:\s*(\w+)(?:\[\])?\s*;/gm;
-/** The literal a widget answers `widget.type` with, which is also the arm that must read it. */
+/** Also names the switch arm that must read the widget's slots. */
 const WIDGET_TYPE = /^\s*type\s*:\s*'([^']+)'\s*;/m;
-/** The union the collector switches over. Read from the union rather than from every interface
- *  carrying a `type` field, so a non-widget that happens to have one is not mistaken for one. */
+/** Read from the union, so a type that is not a widget but has a `type` field is not taken for one. */
 const WIDGET_UNION = /export type Widget =([\s\S]*?);/;
 const UNION_MEMBER = /\|\s*(\w+)/g;
 
@@ -90,8 +77,7 @@ describe('the subscription a dashboard opens', () => {
 
   const nestedInAWidget = new Set(widgets.flatMap((widget) => widget.nestedHolders));
 
-  /** Every slot the arm for this widget has to read: the widget's own, and those of the holders it
-   *  lists, which the arm reaches through. */
+  /** The widget's own slots and those of the holders it lists, which its arm reaches through. */
   function slotsOwedBy(widget: Holder): { owner: string; slot: string }[] {
     const own = widget.bindingSlots.map((slot) => ({ owner: widget.name, slot }));
     const nested = widget.nestedHolders.flatMap((target) =>
@@ -100,9 +86,7 @@ describe('the subscription a dashboard opens', () => {
     return [...own, ...nested];
   }
 
-  // If the vocabulary is renamed or restructured past what the patterns above read, this test finds
-  // nothing and every assertion below passes vacuously. Saying so is the difference between a guard
-  // and a decoration.
+  // If the vocabulary changes past what the patterns above read, every assertion below passes on nothing.
   it('finds the widgets and binding slots the specification vocabulary declares', () => {
     expect(widgets.length, `no members of the Widget union matched in ${VOCABULARY}`).toBeGreaterThan(0);
     expect([...arms.keys()].sort(), 'the collector has an arm for a widget the union does not list, or the other way about')

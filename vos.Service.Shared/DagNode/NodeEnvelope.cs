@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace vos.Service.Shared.DagNode;
 
-// One input/output port a service advertises when it acts as a DAG node. The
-// shape mirrors the model's Port archetype (direction / type / portName / required) so a
-// service's /manifest can seed those Port Things, and the Trellis editor can type-check wires.
+// One input or output port a service advertises when it acts as a pipeline step. The fields mirror
+// the model's Port archetype (direction, type, portName, required), so a service's /manifest can seed
+// those Port Things, and the Trellis editor can check that a wire joins matching types.
 public sealed record PortDescriptor(
     [property: JsonPropertyName("portName")] string PortName,
     [property: JsonPropertyName("direction")] string Direction,
@@ -22,7 +22,7 @@ public sealed record PortDescriptor(
 }
 
 // The resolved invocation a node's business logic runs against: run/node identity, the node's static
-// params, and its inputs keyed by input-port name. Any graph references in the wire
+// params, and its inputs keyed by input-port name. Any references to a Thing's property in the
 // inputs have already been fetched, so every value here is a concrete JsonElement.
 public sealed class NodeContext
 {
@@ -46,8 +46,8 @@ public sealed class NodeContext
         Params.ValueKind == JsonValueKind.Object && Params.TryGetProperty(name, out var value) ? value : null;
 }
 
-// The result a node returns: output-port values, by port name. Values are literals (in-band)
-// or graph references the orchestrator routes downstream.
+// The result a step returns: output-port values, by port name. Each is a value, or a reference to a
+// Thing's property that the orchestrator passes on to the next step.
 public sealed class NodeResult
 {
     public IReadOnlyDictionary<string, object?> Outputs { get; }

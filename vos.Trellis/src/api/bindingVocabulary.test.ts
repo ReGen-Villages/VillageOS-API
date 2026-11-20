@@ -23,15 +23,11 @@ describe('what a widget asks for that this build cannot answer', () => {
       .toEqual(['runningTotal']);
   });
 
-  // Reporting the fields as well would bury the one word that explains all of them: there is no
-  // entry to judge them against, because the kind itself is the thing this build has never heard of.
   it('names only the kind when the kind itself is unknown', () => {
     const words = unimplementedWordsIn(tileShowing({ kind: 'runningTotal', over: 'a week', of: 'volume' }));
     expect(words).toEqual(['runningTotal']);
   });
 
-  // There is no word to name, and how to say so belongs to the sentence the reader is shown, which
-  // is translated. Naming it here would put an English literal inside every other language.
   it('reports no word at all for a binding naming no kind', () => {
     expect(unimplementedWordsIn(tileShowing({ property: 'volume' }))).toEqual(['']);
   });
@@ -50,7 +46,6 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).toEqual([]);
   });
 
-  // A nested binding is resolved exactly as a top-level one is, so it is judged the same way.
   it('judges the halves of a ratio', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'ratio',
@@ -77,9 +72,7 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).toEqual(['runningTotal']);
   });
 
-  // Reading what a widget asks for happens on the way to drawing it, so a specification that names a nested
-  // binding and does not write it would take the whole view down rather than the one widget that is
-  // wrong — a worse fault than the silent one this module exists to remove.
+  // This runs on the way to drawing, so throwing here would take down the whole view, not the one wrong widget.
   it('survives a binding whose nested series was never written', () => {
     expect(() => unimplementedWordsIn(tileShowing({ kind: 'latest' }))).not.toThrow();
   });
@@ -94,16 +87,9 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).not.toThrow();
   });
 
-  /**
-   * Every word reported reaches a reader inside a translated sentence, so a word this module made
-   * up rather than read off the specification arrives untranslated — English in the middle of Arabic, and
-   * only for the readers least able to report it.
-   *
-   * Stated as a property over malformed specifications rather than as one example, because the hazard is not
-   * one literal: it is any branch that answers with a word of its own. The empty string is the one
-   * legitimate answer that names nothing, and it is contained in every text, so it passes here and
-   * is judged by the tests above instead.
-   */
+  /** A word this module made up would reach a reader untranslated, inside a translated sentence. Any branch
+   *  could do it, so this is checked over many malformed specifications rather than one. The empty string
+   *  is inside every text, so it passes here and the tests above judge it. */
   it('never reports a word the specification did not contain', () => {
     const malformed: unknown[] = [
       { kind: 'runningTotal', property: 'volume' },
@@ -135,17 +121,9 @@ describe('what a widget asks for that this build cannot answer', () => {
   });
 });
 
-/**
- * The table is a mapping over the vocabulary, so the compiler already refuses a kind left out of it
- * and a field named that its kind has not got. What the compiler cannot say is whether an entry is
- * *complete* — a short list silently tolerates a word that should have been reported.
- *
- * So this reads the vocabulary as source. It matches braces rather than lines, because the union
- * holds arms written on one line and arms spread over a dozen with prose between their fields: a
- * reader that assumed either shape would find fewer arms than there are and agree with a table that
- * was just as short. The count assertion is what makes that impossible — the table cannot be short,
- * so a parse that finds fewer arms than the table has entries is a parse that failed.
- */
+/** The compiler refuses a kind missing from the table and a field its kind lacks, but not an entry missing a
+ *  field, so this reads the vocabulary as source. Braces rather than lines, because arms are written both on
+ *  one line and over many; the table cannot lack a kind, so a parse finding fewer arms has misread the file. */
 describe('the table of fields each kind reads', () => {
   const DECLARATION = /^\s*(\w+)\??\s*:/;
   const KIND_LITERAL = /^\s*kind\s*:\s*'([^']+)'/;
@@ -172,7 +150,6 @@ describe('the table of fields each kind reads', () => {
     return parts;
   }
 
-  /** Each arm of the union, as the text between its own braces. */
   function armsOf(source: string): string[] {
     const opening = source.indexOf('export type Binding =');
     if (opening < 0) return [];
@@ -215,14 +192,11 @@ describe('the table of fields each kind reads', () => {
   const arms = armsOf(source).map(readArm);
   const tabled = Object.keys(BINDING_FIELDS).sort();
 
-  // A parse that found nothing agrees with everything. Saying so is the difference between a guard
-  // and a decoration.
+  // A parse that found nothing agrees with everything.
   it('reads the vocabulary at all', () => {
     expect(arms.length, `no arms of the Binding union were read from ${VOCABULARY}`).toBeGreaterThan(0);
   });
 
-  // The table cannot be short — the compiler refuses that — so it is the honest side of this
-  // comparison, and a parse finding fewer arms than it has entries has misread the file.
   it('finds as many arms as the table has kinds', () => {
     expect(arms.length, 'the union was read as fewer arms than the table declares kinds').toBe(tabled.length);
   });

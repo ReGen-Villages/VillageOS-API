@@ -1,10 +1,10 @@
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -20,8 +20,6 @@ public class RequestsCommandHandlerTests
     private readonly StringWriter _writer = new();
 
     private Task Execute(string arg) => new RequestsCommandHandler(arg, _writer, _myceliumMock.Object).ExecuteAsync();
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     private static string Entry(Guid id, int status = 200, long durationMilliseconds = 12, string? caller = null, Guid? subject = null) =>
         $$"""
@@ -223,21 +221,5 @@ public class RequestsCommandHandlerTests
         await Execute("latest");
 
         _writer.ToString().Should().StartWith("Error: ");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> EndlessAfter([EnumeratorCancellation] CancellationToken token, params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-            yield return one;
-        await Task.Delay(Timeout.Infinite, token);
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> Events(params ServerSentEvent[] events)
-    {
-        foreach (var received in events)
-        {
-            await Task.Yield();
-            yield return received;
-        }
     }
 }

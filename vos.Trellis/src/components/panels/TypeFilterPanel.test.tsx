@@ -5,6 +5,7 @@ import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { stubScreenWidth } from '../../testScreenWidth';
+import { numberIn } from '../../i18n/numbers';
 
 /** The same layout guard as PredicateFilterPanel.test.tsx: both panels share the filter-cluster layout. */
 describe('TypeFilterPanel layout', () => {
@@ -83,5 +84,22 @@ describe('TypeFilterPanel layout', () => {
 
       expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument();
     });
+  });
+});
+
+describe('TypeFilterPanel header count', () => {
+  it('writes how many Things it shows, and of how many, in the page language', () => {
+    const instances: VosThing[] = Array.from({ length: 1500 }, (_, at) => ({ Id: `i${at}`, Name: `Inst${at}`, Properties: {} }));
+    useModelStore.setState({
+      things: [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'tA', Name: 'TypeA', Properties: {} }, ...instances],
+      relationships: instances.map((instance, at) => (
+        { Id: `r${at}`, Name: `rel-${at}`, SubjectId: instance.Id, PredicateId: 'is', TargetId: 'tA', Properties: {} })),
+    });
+    useUiStore.setState({ hiddenTypeIds: new Set<string>() });
+
+    render(<TypeFilterPanel />);
+
+    const everyThing = instances.length + 2;
+    expect(screen.getByText(`${numberIn(everyThing)}/${numberIn(everyThing)}`)).toBeInTheDocument();
   });
 });

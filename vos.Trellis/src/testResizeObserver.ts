@@ -1,7 +1,5 @@
-/** Test double for `ResizeObserver`, for components and hooks that size themselves to a measured
- *  element. jsdom performs no layout, so nothing is ever measured until a test reports a size:
- *  `report` pushes one to every observer, as both a `contentRect` and the observed element's
- *  bounding rectangle, so it serves callers that read either. */
+/** jsdom lays nothing out, so nothing is measured until `report`, which sets both the `contentRect` and the
+ *  element's bounding rectangle, because callers read either. */
 export function installResizeObserverDouble(): {
   observed: HTMLElement[];
   report: (size: { width?: number; height?: number }) => void;

@@ -1,13 +1,14 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
 // The walk in the other direction: from a source, through the Places it covers and down
-// their nesting, to every site in them. A source added to the catalogue reached no existing site while
-// the only walk ran from a site outward, and a site already discovered was never called again.
+// their nesting, to every site in them. With only the walk from a site outward, a source added to the
+// catalogue would reach no existing site, and a site already discovered would never be called again.
 //
 // The sites are told from the Places around them through the role the platform binds to the archetype
 // every site `is`. Nothing here names an archetype: named, a model calling its sites
@@ -19,7 +20,7 @@ public class SourceReachTests
         new ModelBuilder().Archetype("Site").Bound(CoveringSourceResolver.SiteRole, "Site");
 
     private static ModelBuilder SiteIn(ModelBuilder model, string site, string place) =>
-        model.Relate(site, CoveringSourceResolver.IsPredicateName, "Site")
+        model.Relate(site, PlatformPredicates.Is, "Site")
              .Relate(site, CoveringSourceResolver.IsInPredicate, place);
 
     // A source is callable only through its registration, so every scenario below wires both.
@@ -89,8 +90,8 @@ public class SourceReachTests
     public void Reach_ASiteThroughAnIntermediateType_IsStillASite()
     {
         var model = SourceCovering(
-            Model().Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "CoastalSite")
-                   .Relate("CoastalSite", CoveringSourceResolver.IsPredicateName, "Site")
+            Model().Relate("WillowBend", PlatformPredicates.Is, "CoastalSite")
+                   .Relate("CoastalSite", PlatformPredicates.Is, "Site")
                    .Archetype("CoastalSite")
                    .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"),
             "NationalFloodPortal", "Portugal");
@@ -120,9 +121,9 @@ public class SourceReachTests
             .Relate("HazardPortal", CoveringSourceResolver.ResolvesOntoPredicate, "HazardAssessment")
             .Archetype("HazardAssessment")
             .Relate("WillowBend", CoveringSourceResolver.HasPredicate, "flood assessment")
-            .Relate("flood assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment")
+            .Relate("flood assessment", PlatformPredicates.Is, "HazardAssessment")
             .Relate("Oakhollow", CoveringSourceResolver.HasPredicate, "wildfire assessment")
-            .Relate("wildfire assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment")
+            .Relate("wildfire assessment", PlatformPredicates.Is, "HazardAssessment")
             .Relate("Oakhollow", CoveringSourceResolver.HasPredicate, "a parcel");
 
         SubjectsOf(Reach(model, "HazardPortal")).Should().Equal("wildfire assessment", "flood assessment");
@@ -167,7 +168,7 @@ public class SourceReachTests
     {
         var model = SourceCovering(
             new ModelBuilder().Archetype("Site")
-                .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site")
+                .Relate("WillowBend", PlatformPredicates.Is, "Site")
                 .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"),
             "NationalFloodPortal", "Portugal");
 
@@ -221,7 +222,7 @@ public class SourceReachTests
             CoveringSourceResolver.ResolvedByPredicate,
             CoveringSourceResolver.ResolvesOntoPredicate,
             CoveringSourceResolver.HasPredicate,
-            CoveringSourceResolver.IsPredicateName,
+            PlatformPredicates.Is,
             CoveringSourceResolver.AppliesToPredicate,
             CoveringSourceResolver.SourcedFromPredicate,
         });
@@ -240,7 +241,7 @@ public class SourceReachTests
             CoveringSourceResolver.ResolvedByPredicate,
             CoveringSourceResolver.ResolvesOntoPredicate,
             CoveringSourceResolver.IsInPredicate,
-            CoveringSourceResolver.IsPredicateName,
+            PlatformPredicates.Is,
             CoveringSourceResolver.HasPredicate,
             CoveringSourceResolver.AppliesToPredicate,
             CoveringSourceResolver.SourcedFromPredicate,

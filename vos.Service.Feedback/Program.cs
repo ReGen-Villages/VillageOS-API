@@ -17,7 +17,7 @@ if (settings is null)
     return 1;
 }
 
-ServiceHost.ConfigureLogging("Feedback", "feedback-.log", settings.Service.LogDirectory, writeToFile: !builder.Environment.IsEnvironment("Testing"));
+ServiceHost.ConfigureLogging("Feedback", "feedback-.log", settings.Service.LogDirectory, writeToFile: settings.Service.LogToFile && !builder.Environment.IsEnvironment("Testing"));
 
 try
 {

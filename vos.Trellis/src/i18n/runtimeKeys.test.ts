@@ -8,6 +8,7 @@ import { AREA_UNITS, STEPS } from '../intake/submissionDraft';
 import { TEMPORAL_TABS } from '../pages/temporalTabs';
 import { DELETABLE_ENTITIES } from '../pages/graphDeletions';
 import { STATISTICS } from '../components/dashboard/widgets/RangeBar';
+import { PARTS } from '../components/dashboard/widgets/BoxPlot';
 import { SIDES } from '../components/dashboard/widgets/DivergingBar';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/widgetSchema';
@@ -18,6 +19,7 @@ import { PIPELINE_DECLARATIONS } from '../pipeline/serialize';
 import { CONNECTION_STATES } from '../types/connection';
 import { CALL_STATES } from '../components/dashboard/detail/serviceHandling';
 import { CALL_SETTING_SOURCES } from '../api/callSettingsApi';
+import { RELATE_REFUSALS } from '../pipeline/model';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -42,6 +44,7 @@ const BUILT_FROM = {
   'temporal.tabs': [...TEMPORAL_TABS],
   'graph.entity': [...DELETABLE_ENTITIES],
   'widgets.rangeBar': [...STATISTICS],
+  'widgets.boxPlot': [...PARTS],
   'widgets.divergingBar': SIDES.map((side) => side.word),
   'design.palette.kind': [...WIDGET_KINDS],
   'design.bindingKind': [...BINDING_KINDS],
@@ -55,6 +58,7 @@ const BUILT_FROM = {
   connection: [...CONNECTION_STATES],
   'entityDetail.callState': [...CALL_STATES],
   'pipeline.connectionSettings.source': [...CALL_SETTING_SOURCES],
+  'pipeline.relate': [...RELATE_REFUSALS],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

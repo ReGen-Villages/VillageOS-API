@@ -59,15 +59,13 @@ import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { toast } from '../components/common/toastStore';
 
-/** A subscription opening. Every load starts from one of these now that what a page holds follows
- *  what it subscribed to, so a test that wants a loaded store announces one. */
+/** Every load starts from one of these, so a test that wants a loaded store announces one. */
 function subscriptionOpened(over: Partial<SubscriptionOpened> = {}) {
   handlers.get('SubscriptionOpened')!({
     subscriptionId: 's1', watermark: 0, covered: null, ...over,
   });
 }
 
-/** Mount the hook the way the shell does and let the whole-model subscription answer. */
 async function mountLoaded() {
   const rendered = renderHook(() => useModelData());
   await act(async () => { subscriptionOpened(); });
@@ -91,7 +89,6 @@ describe('useModelData', () => {
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0, stateVersions: {} });
   });
 
-  // The model says which properties travel with its load, and the load has to ask for them.
   it('loads only the properties the model declares', async () => {
     mockGetThingBoundBy.mockResolvedValue({
       Id: 'settings-1',
@@ -106,9 +103,6 @@ describe('useModelData', () => {
     expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'specification']);
   });
 
-  // The navigation lists a model's dashboards on every page and reads each one out of `specification`. A
-  // model narrowing its load without naming it is describing what its pages draw, not asking for a
-  // navigation with nothing in it.
   it('loads the property a dashboard is written in even when the model does not name it', async () => {
     mockGetThingBoundBy.mockResolvedValue({
       Id: 'settings-1',
@@ -130,7 +124,6 @@ describe('useModelData', () => {
     expect(mockGetAllThings).toHaveBeenCalledWith([]);
   });
 
-  // Narrowing on a guess would strip properties a page needs; loading everything is only slower.
   it('loads every property when the settings cannot be read', async () => {
     mockGetThingBoundBy.mockRejectedValue(new Error('unreachable'));
 
@@ -191,7 +184,7 @@ describe('useModelData', () => {
       expect(useModelStore.getState().things.map((t) => t.Id).sort()).toEqual(['a', 'b', 'c']),
     );
     unsub();
-    expect(writes).toBe(1); // one applyBatch for the whole burst, not one write per event
+    expect(writes).toBe(1);
   });
 
   it('ThingCreated carrying no body changes nothing and asks for nothing', async () => {
@@ -462,8 +455,6 @@ describe('useModelData', () => {
     expect(useModelStore.getState().things).toHaveLength(1);
   });
 
-  // OperationsPage blocks rendering on the store's `loaded` flag, so reloadModelData has to flip it or
-  // the page shows "Loading model…" after the data arrived.
   it('marks the store loaded after a successful fetch', async () => {
     expect(useModelStore.getState().loaded).toBe(false);
     await reloadModelData();
@@ -487,24 +478,21 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // A reopened subscription answers with a fresh snapshot, and the changes missed while the stream
-  // was down come back with it — without blind polling.
+  // A reopened subscription answers with a fresh snapshot, so the changes missed while the stream was down
+  // come back with it.
   it('reads the model again when the subscription reopens, and says nothing about it', async () => {
     await mountLoaded();
     expect(mockGetAllThings).toHaveBeenCalledTimes(1);
 
-    // A Thing created while we were disconnected shows up in the next full payload.
     mockGetAllThings.mockResolvedValue([{ Id: 't-late', Name: 'Late', Properties: {} }]);
     await act(async () => { subscriptionOpened(); });
 
     expect(mockGetAllThings).toHaveBeenCalledTimes(2);
     expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-late');
-    // A refresh behind an already-drawn page must not raise a toast (they do not auto-dismiss).
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // The whole point of a narrowed subscription: what the page is about arrived with it, so nothing
-  // reads the model to find it again.
+  // What the page is about came with the subscription, so nothing reads the model to find it again.
   it('takes what a narrowed subscription covers as the load, without reading the model', async () => {
     renderHook(() => useModelData());
     await act(async () => {
@@ -530,9 +518,7 @@ describe('useModelData', () => {
     });
   }
 
-  // A page that asked for the whole model must not be shown the narrower page's set as though it
-  // were the model. Waiting for its subscription to open would leave that set on screen for a
-  // request or more, so it goes when the page asks.
+  // Waiting for the subscription to open would leave the narrower set on screen for a request or more.
   it('empties a narrowed set the moment a page asks for the whole model, before anything opens', async () => {
     await holdingANarrowedSet();
 
@@ -565,8 +551,6 @@ describe('useModelData', () => {
     expect(useModelStore.getState().holdsWholeModel).toBe(true);
   });
 
-  // A subscription covers what it resolved to when it opened, and a replaced model holds none of
-  // those Things — so the answer is to ask again, not to reconcile against the model that went.
   it('asks for the subscription again when the model is replaced', async () => {
     await mountLoaded();
 
@@ -596,8 +580,6 @@ describe('useModelData', () => {
     expect(mockGetAllThings).not.toHaveBeenCalled();
   });
 
-  // The Operations dashboard reads live business properties from the store, so a change to a
-  // non-graph property must land there too — not only `geometry`.
   it('PropertyChanged on a business property updates the store', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18 } }]);
     await mountLoaded();
@@ -621,8 +603,6 @@ describe('useModelData', () => {
     expect(mockGetAllThings).not.toHaveBeenCalled();
   });
 
-  // A thing can change several properties inside one debounce window; the buffer must keep
-  // them all, not collapse to the last one written.
   it('coalesces multiple property changes on the same thing in one window', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18, available_units: 18 } }]);
     await mountLoaded();
@@ -693,9 +673,7 @@ describe('useModelData', () => {
       });
     });
 
-    // A retraction used to arrive as a change to null, which is also what setting a
-    // property to null looks like, so a property another user deleted stayed on screen as an empty
-    // row. It now says so, and the two are handled apart.
+    // A retraction is told from a change to null, or a property someone else deleted would stay as an empty row.
     it('takes a deleted relationship property out of the store', async () => {
       mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });

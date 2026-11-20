@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { catalystFixture } from './catalysts.test.fixture';
 import { catalystRail, type CatalystRow } from './catalysts';
 import { handStateToOrchestrator, type BindingWrites } from './handOver';
+import type { PipelineModel } from './model';
 
 function recordingWrites(): BindingWrites & { calls: string[] } {
   const calls: string[] = [];
@@ -12,10 +13,13 @@ function recordingWrites(): BindingWrites & { calls: string[] } {
   };
 }
 
+const rowFor = (model: PipelineModel, thingId: string): CatalystRow =>
+  catalystRail(model).flatMap((group) => group.rows).find((each) => each.standsForId === thingId)!;
+
 describe('handing a state to the orchestrator', () => {
   it('binds the connection to the orchestrator, then retracts the binding it had', async () => {
     const { model, id } = catalystFixture();
-    const row = catalystRail(model)[1].rows.find((each) => each.standsForId === id.runningLow)!;
+    const row = rowFor(model, id.runningLow);
     const writes = recordingWrites();
 
     await handStateToOrchestrator(model, row, writes);
@@ -25,7 +29,7 @@ describe('handing a state to the orchestrator', () => {
 
   it('retracts nothing for a connection bound to no service', async () => {
     const { model, id } = catalystFixture();
-    const row = catalystRail(model)[1].rows.find((each) => each.standsForId === id.runningLow)!;
+    const row = rowFor(model, id.runningLow);
     const unbound: CatalystRow = { ...row, handling: { connectionId: id.watchesRunningLow, byOrchestrator: false } };
     const writes = recordingWrites();
 
@@ -36,10 +40,9 @@ describe('handing a state to the orchestrator', () => {
 
   it('writes nothing for a row the orchestrator is not offered on', async () => {
     const { model, id } = catalystFixture();
-    const [external, internal] = catalystRail(model);
     const writes = recordingWrites();
 
-    for (const row of [external.rows[0], internal.rows.find((each) => each.standsForId === id.surplus)!])
+    for (const row of [rowFor(model, id.hourlyReading), rowFor(model, id.surplus)])
       await handStateToOrchestrator(model, row, writes);
 
     expect(writes.calls).toEqual([]);

@@ -4,34 +4,52 @@ import { ROLE, type PipelineModel, type PipelineNamed, type CatalystConnection }
 // sets a run off, and what a run may leave behind. A site that adds a system, a state or a connection
 // adds a row the same way.
 
-/** The kinds of catalyst the platform calls services on: a message arriving at an HTTP connection, a Thing entering a
- *  state, a relationship written along a predicate, and a state the clock re-checks on an interval. */
-export type CatalystKind = 'message' | 'state' | 'relationship' | 'clock';
+/** The kinds of catalyst: a message arriving at an HTTP connection, a Thing entering a state, a cadence coming
+ *  due, and a relationship written along a predicate. */
+type CatalystKind = 'message' | 'state' | 'cadence' | 'relationship';
+
+export type CatalystGroupName = 'messages' | 'states' | 'clock' | 'relationships';
+
+/** What the model does with a catalyst today: runs a drawing, calls a service, or nothing. A state the orchestrator
+ *  receives with nothing drawn from it is refused each time, so nothing runs; a relationship along a connection that
+ *  names no connection along notifies is called for by nothing. */
+type CatalystHandling =
+  | { by: 'drawing'; name: string }
+  | { by: 'service'; name: string }
+  | { by: 'nothing'; refusedByTheOrchestrator?: true; namesNoConnectionAlong?: string };
 
 export interface CatalystRow {
   id: string;
   kind: CatalystKind;
   /** Who or what the catalyst is about: the sending system, or the kind of Thing entering the state.
-   *  Empty for an HTTP connection nobody in particular is said to send to, or a predicate. */
+   *  Empty for an HTTP connection nobody in particular is said to send to, a cadence, or a predicate. */
   who: string;
-  /** The act: the kind of message, the state, the predicate. */
+  /** The act: the kind of message, the state, the cadence, the predicate. */
   what: string;
   /** The Thing a start node placed from this row stands for. */
   standsForId: string;
+  /** Whether a start node standing for it may start a run, as the orchestrator reads a pipeline's start. */
+  placeable: boolean;
   /** The pipeline drawn for it, where one is. */
   starts?: PipelineNamed;
-  /** What happens to it today: the service the platform calls. Empty where the model says nothing. */
+  /** The service the platform calls for it. Empty where the model names none. */
   today: string;
+  handledBy: CatalystHandling;
   /** For a state the clock re-checks: how often. */
   everySeconds?: number;
+  /** For a cadence: how many model minutes apart its runs start. */
+  everyMinutes?: number;
   /** For a state watched through one connection: what the broker sends its entries to. */
   handling?: StateHandling;
+  /** For a connection used as a predicate that the platform calls nothing for: the model's name for the predicate it would
+   *  have to name a connection along. */
+  namesNoConnectionAlong?: string;
   /** Whether the row may be handed to the orchestrator: a state it does not handle yet, in a model holding
-   *  exactly one. Never an HTTP connection or a relationship, which reach the orchestrator without naming the drawing. */
+   *  exactly one. Never anything else, which reaches the orchestrator without naming the drawing. */
   offersOrchestrator: boolean;
 }
 
-export interface StateHandling {
+interface StateHandling {
   connectionId: string;
   /** The `has` relationship binding the connection to its service, which a hand-over retracts. */
   bindingId?: string;
@@ -40,25 +58,44 @@ export interface StateHandling {
 }
 
 export interface CatalystGroup {
-  side: 'external' | 'internal';
+  name: CatalystGroupName;
   rows: CatalystRow[];
 }
 
-const KIND_ORDER: CatalystKind[] = ['message', 'state', 'relationship', 'clock'];
+type RowWithoutItsHandling = Omit<CatalystRow, 'handledBy' | 'placeable'>;
+
+// A state drawn from runs its drawing only when the orchestrator receives its entries; sent anywhere else, the
+// drawing never runs, so the service it is sent to is what happens.
+function handledBy(row: RowWithoutItsHandling): CatalystHandling {
+  if (row.namesNoConnectionAlong !== undefined) return { by: 'nothing', namesNoConnectionAlong: row.namesNoConnectionAlong };
+  if (row.starts && (row.handling === undefined || row.handling.byOrchestrator)) return { by: 'drawing', name: row.starts.name };
+  if (row.handling?.byOrchestrator) return { by: 'nothing', refusedByTheOrchestrator: true };
+  return row.today ? { by: 'service', name: row.today } : { by: 'nothing' };
+}
 
 function ordered(rows: CatalystRow[]): CatalystRow[] {
-  return rows.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind)
+  return rows.sort((a, b) => Number(a.who === '') - Number(b.who === '')
     || a.who.localeCompare(b.who) || a.what.localeCompare(b.what));
 }
 
-/** Everything that sets a run off, in two groups: what arrives from outside, and what the model does on
- *  its own. Each is one pass over the model. */
-export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGroup] {
-  const connections = model.catalystConnections();
+/** Everything that sets a run off, in groups: messages from outside, states the model enters, the clock, and
+ *  relationships written. Every group is returned, empty or not. The orchestrator's own connections and a
+ *  connection a system is told through are left out, since no run starts from them. */
+export function catalystRail(model: PipelineModel): CatalystGroup[] {
+  const leftOut = new Set([
+    model.boundTo(ROLE.RunResumption), model.boundTo(ROLE.RunStopping),
+    ...model.externalSystems().map((system) => system.toldThroughConnectionId),
+  ].filter((thingId): thingId is string => thingId !== undefined));
+  const notifying = model.predicatesNotifying();
+  const notifiesName = model.thing(model.boundTo(ROLE.NotifiedConnection) ?? '')?.Name ?? '';
+  for (const { predicate, connectionId } of notifying) if (leftOut.has(predicate.Id)) leftOut.add(connectionId);
+  const connections = model.catalystConnections().filter((connection) => !leftOut.has(connection.connectionId));
   const byId = new Map(connections.map((connection) => [connection.connectionId, connection]));
   const orchestratorId = model.orchestratorService()?.Id;
-  const external: CatalystRow[] = [];
-  const internal: CatalystRow[] = [];
+  const rows: Record<CatalystGroupName, CatalystRow[]> = { messages: [], states: [], clock: [], relationships: [] };
+  const add = (name: CatalystGroupName, row: RowWithoutItsHandling) => rows[name].push({
+    ...row, handledBy: handledBy(row), placeable: model.endInformation(row.standsForId).mayStart,
+  });
 
   const startedBy = (thingId: string) => model.pipelineWhoseEndStandsFor(thingId, 'input');
   const startedAt = (arrivesAt: CatalystConnection | undefined) =>
@@ -70,26 +107,41 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
       const arrivesAt = kind.arrivesAtConnectionId ? byId.get(kind.arrivesAtConnectionId) : undefined;
       if (arrivesAt) connectionsCovered.add(arrivesAt.connectionId);
       const starts = startedBy(kind.id) ?? startedBy(system.id) ?? startedAt(arrivesAt);
-      external.push({
+      add('messages', {
         id: `message:${system.id}:${kind.id}`, kind: 'message', who: system.name, what: kind.name,
         standsForId: kind.id, ...(starts ? { starts } : {}), today: arrivesAt?.serviceName ?? '', offersOrchestrator: false,
       });
     }
+
+  const notified = notifying.filter(({ predicate }) => !leftOut.has(predicate.Id));
+  const notifiedConnections = new Set(notified.map(({ connectionId }) => connectionId));
+  const predicatesSeen = new Set<string>();
+  for (const { predicate, connectionId } of notified) {
+    if (predicatesSeen.has(predicate.Id)) continue;
+    predicatesSeen.add(predicate.Id);
+    const called = byId.get(connectionId);
+    const starts = startedBy(predicate.Id) ?? byId.get(predicate.Id)?.startsPipeline ?? (called && startedAt(called));
+    add('relationships', {
+      id: `relationship:${predicate.Id}`, kind: 'relationship', who: '', what: predicate.Name,
+      standsForId: predicate.Id, ...(starts ? { starts } : {}), today: called?.serviceName ?? '', offersOrchestrator: false,
+    });
+  }
 
   const seenRanges = new Set<string>();
   for (const connection of connections) {
     if (connection.trigger === 'http') {
       if (connectionsCovered.has(connection.connectionId)) continue;
       const starts = startedAt(connection);
-      external.push({
+      add('messages', {
         id: `httpConnection:${connection.connectionId}`, kind: 'message', who: '', what: connection.subdomain || connection.name,
         standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
       });
     } else if (connection.trigger === 'graph') {
+      if (predicatesSeen.has(connection.connectionId) || notifiedConnections.has(connection.connectionId)) continue;
       const starts = startedBy(connection.connectionId) ?? connection.startsPipeline;
-      internal.push({
+      add('relationships', {
         id: `relationship:${connection.connectionId}`, kind: 'relationship', who: '', what: connection.name,
-        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
+        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: '', namesNoConnectionAlong: notifiesName, offersOrchestrator: false,
       });
     } else if (connection.watches) {
       // A state several connections watch is one row: drawn if any of them draws.
@@ -104,8 +156,8 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
         ...(watching[0].bindingId ? { bindingId: watching[0].bindingId } : {}),
         byOrchestrator: orchestratorId !== undefined && watching[0].serviceId === orchestratorId,
       } : undefined;
-      internal.push({
-        id: `state:${rangeId}`, kind: everySeconds > 0 ? 'clock' : 'state', who: kindJudged, what: name,
+      add('states', {
+        id: `state:${rangeId}`, kind: 'state', who: kindJudged, what: name,
         standsForId: rangeId, ...(starts ? { starts } : {}), today: watching.find((each) => each.serviceName)?.serviceName ?? '',
         ...(everySeconds > 0 ? { everySeconds } : {}),
         ...(handling ? { handling } : {}),
@@ -114,10 +166,19 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
     }
   }
 
-  return [{ side: 'external', rows: ordered(external) }, { side: 'internal', rows: ordered(internal) }];
+  for (const cadence of model.cadences()) {
+    const starts = startedBy(cadence.id);
+    add('clock', {
+      id: `cadence:${cadence.id}`, kind: 'cadence', who: '', what: cadence.name, standsForId: cadence.id,
+      ...(starts ? { starts } : {}), today: '', ...(cadence.everyMinutes > 0 ? { everyMinutes: cadence.everyMinutes } : {}),
+      offersOrchestrator: false,
+    });
+  }
+
+  return (['messages', 'states', 'clock', 'relationships'] as const).map((name) => ({ name, rows: ordered(rows[name]) }));
 }
 
-export type OutputKind = 'answer' | 'pipeline' | 'externalSystem' | 'stop';
+type OutputKind = 'answer' | 'pipeline' | 'externalSystem' | 'stop';
 
 export interface OutputRow {
   id: string;

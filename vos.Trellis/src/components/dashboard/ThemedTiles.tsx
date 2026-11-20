@@ -1,12 +1,7 @@
 /**
- * A dashboard's themed sections as a grid of tiles.
- *
- * The model names a theme on a section and declares what the theme looks like — a colour, an icon, a
- * place in the grid — so the report a submitter sees is a grid of coloured tiles rather than a list,
- * and adding a tile is a template edit. A tile's `kpi` widgets are its summary, shown while the tile is
- * hovered or focused; its other widgets are the gallery a click opens; and a gallery card opens the
- * widget full width. Sections naming no theme are not drawn here at all, so a page draws them as the
- * list it always did.
+ * The model declares what a theme looks like, so the report a submitter sees is a grid of coloured tiles and
+ * adding one is a template edit. A tile's `kpi` widgets are its summary on hover or focus, and the rest are the
+ * gallery a click opens. A section naming no theme is not drawn here, so the page draws it as a list.
  */
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +10,8 @@ import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import type { ResolveContext } from '@tendril-ui/tendril';
 import { asNumber } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
-import type { DashboardSection, DeclaredTheme, KpiWidget, Widget } from '@tendril-ui/tendril';
+import type { DashboardSection, DeclaredTheme, KpiWidget, TermWording, Widget } from '@tendril-ui/tendril';
+import { wordsInLanguage } from '@tendril-ui/tendril';
 import { inkFor } from '../../utils/colors';
 import { formatNumber } from './widgets/format';
 import { WidgetRenderer } from './widgets/WidgetRenderer';
@@ -37,6 +33,12 @@ interface Tile {
   theme: DeclaredTheme | undefined;
 }
 
+/** A section's own title is the page author's choice and wins; otherwise the theme's words in the page
+ *  language, otherwise the theme's name. */
+function nameOf(section: DashboardSection, wording: TermWording, language: string): string {
+  return section.title ?? wordsInLanguage(wording[section.theme!], language) ?? section.theme!;
+}
+
 /** The themed sections in the order the themes declare; a section whose theme the model does not
  *  order, or does not declare, comes after every ordered one in the order the specification lists them. */
 function tilesOf(sections: DashboardSection[], themes: DeclaredTheme[]): Tile[] {
@@ -54,13 +56,15 @@ function isSummary(widget: Widget): widget is KpiWidget {
 export function ThemedTiles({
   sections,
   themes,
+  wording,
   context,
 }: {
   sections: DashboardSection[];
   themes: DeclaredTheme[];
+  wording: TermWording;
   context: ResolveContext;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tiles = useMemo(() => tilesOf(sections, themes), [sections, themes]);
   const [view, setView] = useState<View>({ kind: 'grid' });
 
@@ -73,6 +77,7 @@ export function ThemedTiles({
           <ThemeTile
             key={at}
             tile={tile}
+            name={nameOf(tile.section, wording, i18n.language)}
             context={context}
             onOpen={() => setView({ kind: 'gallery', tile: at })}
           />
@@ -83,7 +88,7 @@ export function ThemedTiles({
 
   const { section } = tiles[view.tile];
   const gallery = section.widgets.filter((widget) => !isSummary(widget));
-  const heading = section.title ?? section.theme;
+  const heading = nameOf(section, wording, i18n.language);
 
   if (view.kind === 'widget') {
     return (
@@ -131,7 +136,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
-function ThemeTile({ tile, context, onOpen }: { tile: Tile; context: ResolveContext; onOpen: () => void }) {
+function ThemeTile({ tile, name, context, onOpen }: { tile: Tile; name: string; context: ResolveContext; onOpen: () => void }) {
   const { t } = useTranslation();
   const { section, theme } = tile;
   const [revealed, setRevealed] = useState(false);
@@ -145,7 +150,7 @@ function ThemeTile({ tile, context, onOpen }: { tile: Tile; context: ResolveCont
   return (
     <button
       type="button"
-      aria-label={section.title ?? section.theme}
+      aria-label={name}
       disabled={!assessed}
       onClick={onOpen}
       onMouseEnter={() => setRevealed(true)}

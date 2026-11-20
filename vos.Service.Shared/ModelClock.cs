@@ -33,18 +33,17 @@ public sealed class ModelClock : TimeProvider
             : anchor.ModelInstant + (_real.GetUtcNow() - anchor.RealInstant) * anchor.Rate;
     }
 
-    /// <summary>How far the model's clock stands from this machine's, as the reading that anchored it
-    /// said. Positive where the model is ahead.</summary>
+    // How far the model's clock stands from this machine's, as the reading that anchored it said.
+    // Positive where the model is ahead.
     public TimeSpan OffsetFromWallClock()
     {
         var anchor = _anchor;
         return anchor is null ? TimeSpan.Zero : anchor.ModelInstant - anchor.RealInstant;
     }
 
-    /// <summary>Take the reading the broker gave. The real instant is read here rather than passed in,
-    /// so the mapping counts from the moment the answer landed and not from the moment it was asked
-    /// for — the round trip is on the side of the clock running behind, which is the side that cannot
-    /// stamp an instant the model has not reached yet.</summary>
+    // The real instant is read here rather than passed in, so the mapping counts from the moment the
+    // answer landed and not from the moment it was asked for — the round trip is on the side of the clock
+    // running behind, which is the side that cannot stamp an instant the model has not reached yet.
     public void AnchorTo(DateTimeOffset modelInstant, double rate)
     {
         if (rate < 0) throw new ArgumentOutOfRangeException(nameof(rate), "model time cannot run backwards");

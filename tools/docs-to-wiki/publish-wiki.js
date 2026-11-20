@@ -7,8 +7,8 @@
  * to every repository in the organisation, to publish one wiki. These calls need only the Wiki
  * scope, which grants exactly what its name says.
  *
- * The trade: page order lives in .order files that only the git path can write, so order is
- * whatever the service assigns. Content, images and removals are unaffected.
+ * The cost: page order lives in .order files that only a git push can write, so pages appear in
+ * whatever order the service assigns. Content, images and removals are unaffected.
  *
  * Usage: node publish-wiki.js <manifest> <generated-dir>   (AZURE_DEVOPS_PAT in the environment)
  */
@@ -34,7 +34,7 @@ function parentsFirst(pagePaths) {
 }
 
 /** Pages the wiki holds that no document produces, deepest first so a parent is never removed
- *  while a child still hangs off it.
+ *  while a page beneath it is still there.
  *
  *  A wiki that is entirely generated removes them. One that also holds pages written on the wiki
  *  and nowhere else removes nothing: there, an unlisted page is somebody's work rather than a
@@ -62,7 +62,7 @@ function markdownFiles(directory, base = directory) {
 
 /** The attachments API takes the content base64-encoded. A raw body is rejected with "The input
  *  is not a valid Base-64 string", which reads like a problem with the file rather than with how
- *  it was sent — so this stays a named step rather than an inline call nobody questions. */
+ *  it was sent. */
 function attachmentBody(bytes) {
   return bytes.toString('base64');
 }

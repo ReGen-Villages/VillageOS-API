@@ -31,7 +31,7 @@ describe('GraphDataLoader', () => {
     liveGraph.clear();
     loadGraphMock.mockClear();
     animatedReset.mockClear();
-    // Fire rAF synchronously so the camera-fit assertion is deterministic.
+    // Animation frames run at once, so the camera fit can be checked.
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
   });
 

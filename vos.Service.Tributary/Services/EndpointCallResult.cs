@@ -28,14 +28,14 @@ public sealed class EndpointCallResult
         new() { Content = content, ContentType = contentType, StatusCode = statusCode, RetryAfter = retryAfter, ProviderAway = providerAway };
 }
 
-// A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message
-// for the node failure path.
+// A failure carrying the exact HTTP status the call answers with, plus a message for a person, read when
+// the call fails a pipeline step.
 public abstract record EndpointCallError(int StatusCode, string Message);
 
 // A plain-JSON error body — the BadRequest/NotFound shape { error, … }.
 public sealed record JsonError(int StatusCode, object Body, string Message) : EndpointCallError(StatusCode, Message);
 
-// A ProblemDetails error (application/problem+json), as Results.Problem produced.
+// A ProblemDetails error (application/problem+json), as Results.Problem produces.
 public sealed record ProblemError(int StatusCode, string Title, string Detail) : EndpointCallError(StatusCode, Detail);
 
 // The summary returned when a response transform ingests readings as observations. Written carries

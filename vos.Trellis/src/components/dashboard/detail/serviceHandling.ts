@@ -1,20 +1,15 @@
 /**
- * Which services the platform ran on one Thing, and when.
- *
- * A service is reached through a connection: the predicate of a handled relationship, or the target of the
- * record relationship the platform writes when a Thing enters a watched state. Either way the platform
- * stamps that relationship with the state of the service call and the instant of its last attempt, and the
- * connection reaches the service bound to it. So the model itself says who ran and when — nothing
- * here names a service, a predicate or an archetype, only the roles the platform finds its own wiring by.
- *
- * The stamps live in the running platform's memory and are not written down, so a service call from
- * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceCall}
- * carries `at` as absent rather than guessing one.
+ * A service is reached through a connection, the predicate of a handled relationship or the target of the
+ * record the platform writes when a Thing enters a watched state, and the platform stamps that relationship
+ * with the call's state and last attempt. So the model says who ran and when, and nothing here names a service,
+ * predicate or archetype, only roles. The stamps live in the platform's memory, so a call from before the
+ * model was loaded has no time, and {@link ServiceCall} leaves `at` absent rather than guess one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '@tendril-ui/tendril';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
+import { textOf } from './propertyText';
 
 const BINDS_PREDICATE = 'binds';
 const IS_PREDICATE = 'is';
@@ -26,7 +21,7 @@ const CALL_ERROR = '__CallLastError';
 
 export const CALL_STATES = ['Pending', 'Sent', 'Received', 'Completed', 'Failed', 'Refused', 'Blocked'] as const;
 
-export type CallState = (typeof CALL_STATES)[number];
+type CallState = (typeof CALL_STATES)[number];
 
 export function isCallState(word: string): word is CallState {
   return (CALL_STATES as readonly string[]).includes(word);
@@ -38,7 +33,7 @@ export function mayBeRetried(call: ServiceCall): boolean {
 }
 
 /** A relationship on the Thing that a service is called through, and the service it reaches. */
-export interface ServiceEdge {
+interface ServiceEdge {
   relationshipId: string;
   /** The service Thing, so the card can open it. Absent where the connection binds none. */
   serviceId?: string;
@@ -93,8 +88,8 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
   const notifiedConnectionPredicateId = boundBy(modelIndex, NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
-  // A connection binds its service through a relation of the model's own choosing, so the service
-  // is found by what the edge reaches — never by what the predicate is called.
+  // A connection binds its service through a predicate of the model's choosing, so the service is found by what
+  // the relationship reaches, never by the predicate's name.
   const serviceByConnection = new Map<string, VosThing>();
   const notifiedConnectionOf = new Map<string, string>();
   const archetypesOf = new Map<string, string[]>();
@@ -142,16 +137,10 @@ function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
 }
 
 /**
- * Every relationship the platform called a service on this Thing through.
- *
- * The subject of the relationship is the Thing the work was done on, and only that end counts. The other
- * end is whatever the work pointed at, and reading it as handled would make every hub in a site
- * claim the whole run: a reservoir at the target end of every reading sent from a hundred
- * catchments would list a hundred rows naming one service, while nothing was ever run on it.
- * Work done on a related Thing is reached by opening that Thing's own card.
- *
- * The relationships are read from `modelIndex` and the connections, services and waiting Things from `wiringIndex`,
- * because a dashboard's index holds the Thing's relationships but none of the wiring.
+ * Only the subject end counts, because reading the other end as handled would make a Thing many relationships
+ * point at claim the whole run: a reservoir targeted by readings from a hundred catchments would list a hundred
+ * rows while nothing ran on it. Relationships come from `modelIndex` and the wiring from `wiringIndex`, because
+ * a dashboard's index holds the Thing's relationships but none of the wiring.
  */
 export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIndex: ModelIndex = modelIndex): ServiceEdge[] {
   const wiring = serviceWiring(wiringIndex);
@@ -180,19 +169,10 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
   return edges;
 }
 
-function stampedString(properties: Record<string, unknown>, name: string): string | undefined {
-  const value = properties[name];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
 /**
- * The service calls these relationships carry, oldest first, with one the platform holds no time for last —
- * an undated row sorted among the dated ones would claim a sequence nothing measured.
- *
- * `stamped` holds each relationship as it was read back from the platform, keyed by the relationship's id. The
- * stamps are written straight onto the relationship without becoming Facts, so they reach no client that
- * only follows the change stream: read them, or show a card whose service calls never move off the
- * state they were created in.
+ * An undated call sorts last, because among the dated ones it would claim an order nothing measured. The stamps
+ * are written onto the relationship without entering the model's history, so no client following only the
+ * change stream sees them; `stamped` holds each relationship as read back, keyed by its identifier.
  */
 export function serviceCallsFrom(
   edges: ServiceEdge[],
@@ -203,9 +183,9 @@ export function serviceCallsFrom(
       const properties = stamped.get(edge.relationshipId)?.Properties ?? {};
       return {
         ...edge,
-        at: stampedString(properties, CALLED_AT),
-        state: stampedString(properties, CALL_STATE),
-        error: stampedString(properties, CALL_ERROR),
+        at: textOf(properties, CALLED_AT),
+        state: textOf(properties, CALL_STATE),
+        error: textOf(properties, CALL_ERROR),
       };
     })
     .sort((a, b) => {

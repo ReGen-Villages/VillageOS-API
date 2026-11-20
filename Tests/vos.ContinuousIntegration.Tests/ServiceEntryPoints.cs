@@ -5,12 +5,22 @@ namespace vos.ContinuousIntegration.Tests;
 internal static class ServiceEntryPoints
 {
     private const string EntryPointFileName = "Program.cs";
+    private const string SharedNodeHostCall = "DagNodeHost.Run";
+    private static readonly string SharedNodeHostFile = Path.Combine("vos.Service.Shared", "DagNode", "DagNodeHost.cs");
 
     public static IEnumerable<DirectoryInfo> Services(string root) =>
         ServiceProjects.Under(root).Where(service => File.Exists(EntryPointIn(service)));
 
     public static IEnumerable<string> Under(string root) =>
         Services(root).Select(EntryPointIn);
+
+    public static string SourceOf(string root, string entryPoint)
+    {
+        var source = File.ReadAllText(entryPoint);
+        return source.Contains(SharedNodeHostCall, StringComparison.Ordinal)
+            ? source + Environment.NewLine + File.ReadAllText(Path.Combine(root, SharedNodeHostFile))
+            : source;
+    }
 
     private static string EntryPointIn(DirectoryInfo service) =>
         Path.Combine(service.FullName, EntryPointFileName);

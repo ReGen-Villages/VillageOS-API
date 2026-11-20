@@ -14,11 +14,10 @@ import { resolveClassColor } from './classPalette';
 
 // Built in one pass over things and relationships, rather than a scan of every relationship per thing.
 interface RelationshipIndex {
-  /** Set of all thing IDs used as predicates in any relationship. */
   predicateIds: Set<string>;
-  /** Set of thing IDs that are targets of "is" relationships (type things). */
+  /** The targets of `is` relationships, which are types. */
   isTypeTargets: Set<string>;
-  /** Map from subject ID → target name for "is" relationships (instance type). */
+  /** Each `is` subject's type name. */
   isSubjectToTypeName: Map<string, string>;
 }
 
@@ -87,7 +86,7 @@ interface GraphEdgeAttributes {
   size: number;
   color: string;
   label: string;
-  type: string; // 'arrow'
+  type: string;
   predicateId: string;
   [key: string]: unknown;
 }
@@ -96,13 +95,6 @@ export function buildGraph(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
-  /**
-   * Per-value color overrides scoped to the configured classifying property
-   * (LayoutSettings.classifyingProperty). Keys are values of that property
-   * (e.g. "IfcWall" when classifyingProperty='ifcClass'). Empty by default;
-   * future GUI_Settings panel will let users edit this map at runtime.
-   */
-  classColorOverrides: Record<string, string> = {},
   layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
   const classifyingProperty = layoutSettings.classifyingProperty;
@@ -146,13 +138,10 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // A missing classifying value, or one with no curated bucket and no override, falls back to the
-      // hash palette keyed by the `is`-target type name so a model without a class table still renders
-      // distinctly. An imported instance stores its own class as an override because its type declares
-      // the same name, so the own bag alone is empty here.
+      // An imported instance holds its class as an override, because its type declares the same property.
       const classifyingValue = storedTextOf(t, classifyingProperty);
       if (classifyingValue) {
-        color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
+        color = resolveClassColor(classifyingProperty, classifyingValue);
       } else {
         const typeName = getInstanceTypeName(t, relationshipIndex);
         const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
@@ -198,7 +187,7 @@ export function buildGraph(
   }
 
   graph.forEachNode((nodeId, attributes) => {
-    if (attributes.hasGeometry) return; // physical node — already classified
+    if (attributes.hasGeometry) return;
     graph.setNodeAttribute(nodeId, 'isLogical', true);
 
     const geoParent = findGeoParent(graph, nodeId);
@@ -210,11 +199,7 @@ export function buildGraph(
   return graph;
 }
 
-/**
- * Find the first geographic neighbour of a logical node.
- * Prefers "has" containment edges (geo parent → logical child),
- * then falls back to any neighbour with geometry.
- */
+/** Prefers a `has` relationship from a parent with a position, then any neighbour with geometry. */
 function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
   for (const edge of graph.inEdges(logicalNodeId)) {
     const source = graph.source(edge);
@@ -235,9 +220,6 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
   return null;
 }
 
-/**
- * Get all logical child node IDs whose parentGeoNodeId matches the given geo node.
- */
 export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   const children: string[] = [];
   graph.forEachNode((nodeId, attributes) => {
@@ -248,9 +230,6 @@ export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   return children;
 }
 
-/**
- * Count logical children of a geo node.
- */
 export function countLogicalChildren(graph: Graph, geoNodeId: string): number {
   let count = 0;
   graph.forEachNode((_nodeId, attributes) => {

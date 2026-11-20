@@ -11,15 +11,15 @@ public sealed record OutstandingCall(CoveringSource Source, SourceCall Call, Gui
 
 // What the model already records about a run's calls, and what each call came to.
 //
-// A site was discovered exactly once ever while the state that starts a run counted `observed`
-// relationships: nothing removes one, so the first source to answer ended the occupancy for every source. The
-// coverage Things replace that count, and this is what fills them — so a partial failure leaves exactly
-// the calls that failed outstanding, and a source added to the catalogue later reaches a site already
-// discovered.
+// Counting `observed` relationships to decide whether a site needs a run would discover a site exactly
+// once ever: nothing removes one, so the first source to answer would end the occupancy for every source.
+// The coverage Things are counted instead, and this is what fills them — so a partial failure leaves
+// exactly the calls that failed outstanding, and a source added to the catalogue later reaches a site
+// already discovered.
 public sealed class CoverageLedger
 {
     // Fields a run writes onto a coverage. They are the run's report, per call and durable, rather than
-    // the response body the broker discarded and the log line it became.
+    // a response body the broker discards and a log line.
     private const string ResolvedAtProperty = "resolvedAt";
     private const string LastAttemptAtProperty = "lastAttemptAt";
     private const string AttemptsProperty = "attempts";
@@ -68,41 +68,6 @@ public sealed class CoverageLedger
             }
 
         return outstanding;
-    }
-
-    // The covering sources, holding only the calls still to make. A source every one of whose calls has
-    // been answered drops out entirely rather than being called with an empty list.
-    public static IReadOnlyList<CoveringSource> CallsStillToMake(
-        IReadOnlyList<CoveringSource> covering, IReadOnlyList<OutstandingCall> outstanding)
-    {
-        var wanted = outstanding
-            .GroupBy(call => call.Source.SourceId)
-            .ToDictionary(group => group.Key, group => (IReadOnlyList<SourceCall>)[.. group.Select(call => call.Call)]);
-
-        return
-        [
-            .. covering
-                .Where(source => wanted.ContainsKey(source.SourceId))
-                .Select(source => source with { Calls = wanted[source.SourceId] })
-        ];
-    }
-
-    // Each outcome against the coverage of the call it came from, matched by identity rather than by
-    // name: two Things may share a name, and an answer written onto the wrong coverage would report one
-    // source's outage as another's.
-    public async Task RecordAllAsync(
-        IReadOnlyList<OutstandingCall> outstanding, DiscoveryReport report, CancellationToken cancellationToken)
-    {
-        var byCall = outstanding.ToDictionary(call => (call.Call.SubjectId, call.Source.SourceId));
-
-        foreach (var outcome in report.Resolved.Concat(report.Unresolved))
-        {
-            // An outcome naming neither came from no call this run made, so there is no coverage it
-            // belongs on. Recording it against a guess would put one source's answer on another's.
-            if (outcome.SubjectId is not { } subjectId || outcome.SourceId is not { } sourceId) continue;
-            if (byCall.TryGetValue((subjectId, sourceId), out var call))
-                await RecordAsync(call, outcome, cancellationToken);
-        }
     }
 
     // What one call came to. A resolved call is stamped and stops being asked; a failed one keeps the

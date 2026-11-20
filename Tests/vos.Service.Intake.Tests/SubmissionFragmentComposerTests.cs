@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentAssertions;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -512,6 +513,57 @@ public class SubmissionFragmentComposerTests
             refusal.Message.Should().Contain(declared);
     }
 
+    private static IEnumerable<FragmentThing> Horizons(ComposedSubmission composed) =>
+        composed.Fragment.Things.Where(thing => IsEdgeTo(composed, thing.Id, WillowBend.SoilHorizonArchetypeId));
+
+    private static ComposedSubmission ComposeWithSoil(Submission submission)
+    {
+        var vocabulary = WillowBend.KnownVocabulary with
+        {
+            SoilDepths = new DeclaredTerms(
+                new DeclaredTerm("assesses", WillowBend.AssessesPredicateId),
+                [.. WillowBend.SoilDepthNames.Select(depth => new DeclaredTerm(depth, WillowBend.TermId(depth)))]),
+        };
+        var archetypes = WillowBend.KnownArchetypes with
+        {
+            SoilHorizon = new DeclaredTerm("SoilHorizon", WillowBend.SoilHorizonArchetypeId),
+        };
+        return SubmissionFragmentComposer.Compose(
+            submission, WillowBend.KnownPredicates, archetypes, vocabulary, WillowBend.ArrivedAt, elevation: null);
+    }
+
+    [Fact]
+    public void Every_soil_depth_the_model_declares_is_a_horizon_the_site_has()
+    {
+        var composed = ComposeWithSoil(WillowBend.Submission());
+        var site = Named(composed, "Willow Bend");
+
+        Horizons(composed).Should().HaveCount(WillowBend.SoilDepthNames.Length);
+        foreach (var depth in WillowBend.SoilDepthNames)
+        {
+            var horizon = Horizons(composed).Single(thing =>
+                Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(depth)));
+            horizon.Name.Should().Be($"Willow Bend {depth}");
+            Holds(composed, site.Id, horizon.Id).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public void A_horizon_never_shares_an_identifier_with_a_hazard_assessment()
+    {
+        var composed = ComposeWithSoil(WillowBend.Submission());
+
+        Horizons(composed).Select(thing => thing.Id).Should().NotIntersectWith(Hazards(composed).Select(thing => thing.Id));
+    }
+
+    [Fact]
+    public void A_model_declaring_no_soil_vocabulary_composes_no_horizon()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Should().NotContain(thing => thing.Name.EndsWith("0-5cm"));
+    }
+
     // A term added to the model reaches the next submission without this service being rebuilt, which is
     // the whole reason the types are Things.
     [Fact]
@@ -749,7 +801,7 @@ public class SubmissionFragmentComposerTests
             && edge.Target == composed.ParcelId!.Value);
     }
 
-    // A study used to declare its own computed outputs, and named one no service writes. The archetype
+    // A study declaring its own computed outputs could name one no service writes. The archetype
     // declares every one of them, so a study that is the archetype resolves them through inheritance and
     // a declaration here could only disagree with it.
     [Fact]
@@ -905,6 +957,12 @@ public class SubmissionFragmentComposerTests
             .Where(field => field.IsLiteral && field.Name.EndsWith("PredicateName", StringComparison.Ordinal))
             .Select(field => (string)field.GetRawConstantValue()!)
             .Should().BeEquivalentTo(["has", "is"], "studies, proposes and servedAfter are found through their roles");
+    }
+
+    [Fact]
+    public void The_composer_finds_is_by_the_name_the_platform_gives_it()
+    {
+        SubmissionFragmentComposer.IsPredicateName.Should().Be(PlatformPredicates.Is);
     }
 
     [Fact]

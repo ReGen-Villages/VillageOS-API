@@ -13,11 +13,14 @@ public sealed class ForageSteps : DagNodeService
 {
     public const string StepSetting = "step";
 
+    public const string RelationshipCallRefusal =
+        "Forage no longer runs a discovery on a relationship: discovery is the drawn pipeline, whose boxes call Forage's steps.";
+
     public const string ResolveRegion = "resolveRegion";
     public const string PlanCalls = "planCalls";
     public const string RecordResults = "recordResults";
     public const string ResolveWords = "resolveWords";
-    public const string StartAnalysis = "startAnalysis";
+    public const string MarkDiscovered = "markDiscovered";
     public const string OfferSource = "offerSource";
 
     private sealed record StepKind(string Name, string Title, IReadOnlyList<PortDescriptor> Ports);
@@ -30,12 +33,24 @@ public sealed class ForageSteps : DagNodeService
         new(RecordResults, "record results",
         [
             PortDescriptor.Input("resolved", "object"), PortDescriptor.Input("unresolved", "object"),
+            // Never read: wired from the box that has the subjects' histories judged, it keeps the results from being
+            // recorded, and the site from being stamped, before every subject is judged.
+            PortDescriptor.Input("judged", "object"),
             PortDescriptor.Output("resolved", "object"), PortDescriptor.Output("unresolved", "object"),
         ]),
         new(ResolveWords, "resolve words",
-            [PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"), PortDescriptor.Output("unknownWords", "object")]),
-        new(StartAnalysis, "start analysis",
-            [PortDescriptor.Input("site", "object", required: true), PortDescriptor.Output("started", "object"), PortDescriptor.Output("reason", "string")]),
+        [
+            PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"),
+            PortDescriptor.Output("unknownWords", "object"), PortDescriptor.Output("refusedWords", "object"),
+        ]),
+        new(MarkDiscovered, "mark discovered",
+        [
+            PortDescriptor.Input("site", "object"),
+            // Never read: wired from Resolve words' success alone, it is what keeps the box from running, and the
+            // site from being stamped, when Resolve words fails.
+            PortDescriptor.Input("written", "object", required: true),
+            PortDescriptor.Output("site", "object"), PortDescriptor.Output("study", "object"),
+        ]),
         new(OfferSource, "offer a source", [PortDescriptor.Input("source", "object", required: true), PortDescriptor.Output("outstanding", "object")]),
     ];
 
@@ -43,7 +58,6 @@ public sealed class ForageSteps : DagNodeService
     private readonly CoverageLedger _ledger;
     private readonly DivisionResolver _divisions;
     private readonly VocabularyEdgeWriter _vocabularyEdges;
-    private readonly AnalysisSpawner _analysis;
     private readonly int _daysPerSlice;
 
     public ForageSteps(
@@ -56,7 +70,6 @@ public sealed class ForageSteps : DagNodeService
         CoverageLedger ledger,
         DivisionResolver divisions,
         VocabularyEdgeWriter vocabularyEdges,
-        AnalysisSpawner analysis,
         int daysPerSlice)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
@@ -64,7 +77,6 @@ public sealed class ForageSteps : DagNodeService
         _ledger = ledger;
         _divisions = divisions;
         _vocabularyEdges = vocabularyEdges;
-        _analysis = analysis;
         _daysPerSlice = daysPerSlice;
     }
 
@@ -87,7 +99,7 @@ public sealed class ForageSteps : DagNodeService
             PlanCalls => PlanCallsAsync(context, cancellationToken),
             RecordResults => RecordResultsAsync(context, cancellationToken),
             ResolveWords => ResolveWordsAsync(context, cancellationToken),
-            StartAnalysis => StartAnalysisAsync(context, cancellationToken),
+            MarkDiscovered => MarkDiscoveredAsync(context, cancellationToken),
             OfferSource => OfferSourceAsync(context, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"A Forage box names its step in the '{StepSetting}' setting, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}."),
@@ -160,7 +172,15 @@ public sealed class ForageSteps : DagNodeService
         {
             ["written"] = Json(words.Written.Select(Relationship)),
             ["unknownWords"] = Json(words.Unknown),
+            ["refusedWords"] = Json(words.Refused.Select(refused => new
+            {
+                subjectId = refused.Edge.SubjectId, subject = refused.Edge.SubjectName, word = refused.Edge.Word, reason = refused.Reason,
+            })),
         };
+        if (words.Faulted.Count > 0)
+            throw new InvalidOperationException(
+                "The platform rejected the relationships for: "
+                + string.Join("; ", words.Faulted.Select(faulted => $"'{faulted.Edge.Word}' on {faulted.Edge.SubjectName}: {faulted.Reason}")) + ".");
         if (words.NotWritten.Count > 0)
             throw new FailureCanBeTriedAgainException(
                 "Could not write the relationships for: " + string.Join(", ", words.NotWritten.Select(edge => $"'{edge.Word}' on {edge.SubjectName}")) + ".",
@@ -168,18 +188,25 @@ public sealed class ForageSteps : DagNodeService
         return NodeResult.Ok(outputs);
     }
 
-    private async Task<NodeResult> StartAnalysisAsync(NodeContext context, CancellationToken cancellationToken)
+    // The study is read before the stamp, so a site with no one study is left awaiting rather than marked discovered.
+    private async Task<NodeResult> MarkDiscoveredAsync(NodeContext context, CancellationToken cancellationToken)
     {
         var siteId = ThingIdOn(context, "site");
-        var coverage = await SiteCoverageAsync(siteId, cancellationToken);
+        var study = (await SiteCoverageAsync(siteId, cancellationToken)).Studies switch
+        {
+            [var only] => only,
+            [] => throw new InvalidOperationException($"Site {siteId} has no study that studies it."),
+            var several => throw new InvalidOperationException(
+                $"Site {siteId} has {several.Count} studies that study it, so which one its analyses read is not clear."),
+        };
         if (!await _ledger.StampWorkedOutAsync(siteId, cancellationToken))
             throw new FailureCanBeTriedAgainException($"Could not stamp site {siteId} as worked out.");
 
-        var spawn = await _analysis.SpawnAsync(siteId, coverage.Analysis, cancellationToken);
-        var outputs = new Dictionary<string, object?> { ["started"] = Json(spawn.Running), ["reason"] = spawn.Reason };
-        if (spawn.Refused)
-            throw new FailureCanBeTriedAgainException(spawn.Reason!, outputs: outputs);
-        return NodeResult.Ok(outputs);
+        return NodeResult.Ok(new Dictionary<string, object?>
+        {
+            ["site"] = context.Input("site"),
+            ["study"] = Json(new { id = study.Id, name = study.Name }),
+        });
     }
 
     private async Task<NodeResult> OfferSourceAsync(NodeContext context, CancellationToken cancellationToken)

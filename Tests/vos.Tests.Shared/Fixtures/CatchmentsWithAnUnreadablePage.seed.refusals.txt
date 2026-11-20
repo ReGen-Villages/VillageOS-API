@@ -1,0 +1,1 @@
+Dashboard 'Reservoir levels': its 'specification' is not valid JSON

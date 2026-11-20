@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, X } from 'lucide-react';
 
-interface FilterControlsProperties {
+export interface FilterControlsProperties {
   search: string;
   onSearch: (search: string) => void;
   placeholder: string;

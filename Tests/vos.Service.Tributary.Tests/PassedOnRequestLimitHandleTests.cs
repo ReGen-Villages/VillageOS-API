@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,12 +41,89 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request),
             handleRequest: new { endpointName = "EP", subjectId },
             reason: "The broker had not accepted the readings within 28 of the 30 seconds");
+    }
+
+    // A slow reshape must not be reported as a broker that had not accepted the readings.
+    [Fact]
+    public async Task Handle_WhenTheDeadlinePassesWhileTheAnswerIsReshaped_AnswersThatTheReshapeHadNotFinished()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+        StalledHost? host = null;
+
+        await using (host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request =>
+            {
+                if (request.RequestUri!.Host == "api.test")
+                {
+                    host!.Clock.Advance(Deadline);
+                    return Json("""{"regime":"steady"}""");
+                }
+                return RouteEndpoint(request, thingId, props)
+                    ?? RouteRelationshipWrite(request)
+                    ?? RouteObservationWrite(request, subjectId);
+            }))
+        {
+            var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP", subjectId });
+
+            response.StatusCode.Should().Be(HttpStatusCode.GatewayTimeout);
+            (await response.Content.ReadAsStringAsync()).Should()
+                .Contain("Tributary had not finished reshaping the answer within 28 of the 30 seconds");
+        }
+    }
+
+    [Fact]
+    public async Task A_history_changed_step_the_broker_has_not_answered_by_the_deadline_fails_so_it_may_be_tried_again()
+    {
+        var site = Guid.NewGuid();
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: request => request.RequestUri!.AbsolutePath == $"/api/things/{site}/history/changed",
+            answers: _ => null);
+
+        var answer = host.Client.PostAsJsonAsync("/handle", new
+        {
+            runId = Guid.NewGuid(),
+            nodeId = Guid.NewGuid(),
+            inputs = new Dictionary<string, object?> { ["subject"] = site.ToString() },
+            @params = new Dictionary<string, object> { ["step"] = "historyChanged" },
+        });
+        await Settle.ForAsync(host.Stalled, "the step reaches the broker's history route");
+        host.Clock.Advance(Deadline);
+        await Settle.ForAsync(answer, "Tributary answers at its deadline");
+
+        var step = await (await answer).Content.ReadFromJsonAsync<JsonElement>();
+        step.GetProperty("result").GetString().Should().Be("fail");
+        step.GetProperty("error").GetString().Should().Contain($"had not judged the history of {site}");
+        step.TryGetProperty("retry", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheReadingsAreWritten_LogsHowLongTheReshapeAndTheWriteTook()
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request => request.RequestUri!.Host == "api.test"
+                ? Json("""{"regime":"steady"}""")
+                : RouteEndpoint(request, thingId, props)
+                  ?? RouteRelationshipWrite(request)
+                  ?? RouteObservationWrite(request, subjectId));
+
+        (await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP", subjectId })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        host.Log.Lines.Should().ContainSingle(line => line.Contains("EP") && line.Contains("reshaped in") && line.Contains("1 readings written in"));
     }
 
     [Fact]
@@ -56,9 +134,7 @@ public class PassedOnRequestLimitHandleTests
 
         await AssertAnsweredAtTheDeadlineAsync(
             stalls: request => request.RequestUri!.Host == "api.test",
-            answers: request => RouteFindThing(request, thingId, "EP")
-                ?? RouteEffectiveProperties(request, thingId, props)
-                ?? RouteKindsFromProperties(request, thingId, props),
+            answers: request => RouteEndpoint(request, thingId, props),
             handleRequest: new { endpointName = "EP" },
             reason: "The data source had not answered within 28 of the 30 seconds");
     }
@@ -108,9 +184,7 @@ public class PassedOnRequestLimitHandleTests
 
         await AssertAnsweredAtTheDeadlineAsync(
             stalls: request => request.RequestUri!.Host == "tokens.test",
-            answers: request => RouteFindThing(request, thingId, "EP")
-                ?? RouteEffectiveProperties(request, thingId, props)
-                ?? RouteKindsFromProperties(request, thingId, props),
+            answers: request => RouteEndpoint(request, thingId, props),
             handleRequest: new { endpointName = "EP" },
             reason: "The data source had not answered within 28 of the 30 seconds");
     }
@@ -164,9 +238,7 @@ public class PassedOnRequestLimitHandleTests
                 }
                 return request.RequestUri!.Host == "api.test"
                     ? Json("""{"regime":"steady"}""")
-                    : RouteFindThing(request, thingId, "EP")
-                      ?? RouteEffectiveProperties(request, thingId, props)
-                      ?? RouteKindsFromProperties(request, thingId, props)
+                    : RouteEndpoint(request, thingId, props)
                       ?? RouteRelationshipWrite(request);
             }))
         {
@@ -193,9 +265,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request));
         var warningsAtStartUp = host.LimitLog.Lines.Count;
 
@@ -242,9 +312,7 @@ public class PassedOnRequestLimitHandleTests
                         Content = new StringContent("""{"error":"slow down"}""")
                     };
                 }
-                return RouteFindThing(request, thingId, "EP")
-                    ?? RouteEffectiveProperties(request, thingId, props)
-                    ?? RouteKindsFromProperties(request, thingId, props);
+                return RouteEndpoint(request, thingId, props);
             }))
         {
             var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
@@ -306,9 +374,7 @@ public class PassedOnRequestLimitHandleTests
             stalls: request => IsObservationWrite(request, subjectId),
             answers: request => request.RequestUri!.Host == "api.test"
                 ? Json("""{"regime":"steady"}""")
-                : RouteFindThing(request, thingId, "EP")
-                  ?? RouteEffectiveProperties(request, thingId, props)
-                  ?? RouteKindsFromProperties(request, thingId, props)
+                : RouteEndpoint(request, thingId, props)
                   ?? RouteRelationshipWrite(request)
                   ?? RouteObservationWrite(request, subjectId),
             released: released.Task);
@@ -366,9 +432,7 @@ public class PassedOnRequestLimitHandleTests
         await factory.InitializeAsync();
         factory.HandlerCallback = request => request.RequestUri!.Host == "api.test"
             ? Json("""{"ok":true}""")
-            : RouteFindThing(request, thingId, "EP")
-              ?? RouteEffectiveProperties(request, thingId, props)
-              ?? RouteKindsFromProperties(request, thingId, props)
+            : RouteEndpoint(request, thingId, props)
               ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         await using var host = factory.WithWebHostBuilder(builder =>
         {

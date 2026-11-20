@@ -27,9 +27,9 @@ describe('declaredTypes', () => {
 describe('retypeThing', () => {
   it('removes the thing’s is-edges and creates one to the new archetype', async () => {
     const relationships = [
-      relationship('r1', 't', 'is', 'A'),        // the current type edge — remove
-      relationship('r2', 't', 'contains', 'X'),  // not an is-edge — keep
-      relationship('r3', 'other', 'is', 'A'),    // different subject — keep
+      relationship('r1', 't', 'is', 'A'),        // the current type, removed
+      relationship('r2', 't', 'contains', 'X'),  // not a type, kept
+      relationship('r3', 'other', 'is', 'A'),    // another subject, kept
     ];
 
     await retypeThing('t', 'B', 'is', relationships);

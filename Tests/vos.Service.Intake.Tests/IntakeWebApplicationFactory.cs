@@ -22,7 +22,7 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     // Base64 of Mycelium's public signing key. This service checks no inbound credential, so
-    // setting it changes nothing — which is what a test says out loud, because it is one of the settings
+    // setting it changes nothing — which a test states plainly, because it is one of the settings
     // every service is launched with and could easily be believed to close the public route.
     public string? VerificationKey { get; set; }
 

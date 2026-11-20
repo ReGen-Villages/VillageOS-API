@@ -1,8 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
-import type { EditorChoice } from '../../pipeline/serialize';
+import type { ChoiceInformation, EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
@@ -20,9 +19,14 @@ export interface PipelineNodeData {
   standsFor?: EndInformation;
   /** What really happens at this end today, where drawing it is not what makes it happen. */
   note?: string;
-  choices?: EditorChoice[];
+  choices?: ChoiceInformation[];
   chosen?: Record<string, string>;
   rule?: string;
+  waitsFor?: string;
+  follows?: string;
+  waitsAtMostMinutes?: number;
+  waitsForName?: string;
+  relating?: string;
   [key: string]: unknown;
 }
 
@@ -53,6 +57,8 @@ const NODE_KIND_LABEL_KEY = {
   tell: 'pipeline.nodeKind.tell',
   followOn: 'pipeline.nodeKind.followOn',
   stop: 'pipeline.nodeKind.stop',
+  wait: 'pipeline.nodeKind.wait',
+  relate: 'pipeline.nodeKind.relate',
 } as const satisfies Record<NodeKind, string>;
 
 /** A node on the pipeline canvas: one handle per port (inputs on the left, outputs on the right). A boundary
@@ -85,6 +91,16 @@ export function PipelineNodeView({ data }: NodeProps) {
         <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
           <span className="uppercase tracking-wide text-[9px] text-zinc-400">{t(END_KIND_LABEL_KEY[d.standsFor.kind])}</span>{' '}
           {d.standsFor.name}
+        </div>
+      )}
+      {d.kind === 'wait' && (
+        <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
+          {d.waitsForName ? t('pipeline.waitingFor', { state: d.waitsForName }) : t('pipeline.waitsForNothing')}
+        </div>
+      )}
+      {d.kind === 'relate' && d.relating && (
+        <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
+          {d.relating}
         </div>
       )}
       <div className="flex justify-between gap-4 py-2 text-xs">

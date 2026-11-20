@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import { Info, Expand, Unplug, Box, Copy, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { toast } from '../common/toastStore';
@@ -12,15 +13,7 @@ interface Props {
   onDeleteThing: (id: string, name: string) => void;
 }
 
-/**
- * Dropdown context menu shown on right-click of a graph node.
- *
- * Actions are context-aware: some items only appear when relevant
- * (e.g. "View in 3D" requires geometry + WebGL support).
- *
- * Rendered as a sibling to SigmaCanvas (outside SigmaContainer),
- * absolutely positioned within the graph page's relative container.
- */
+/** Rendered beside the Sigma canvas, outside its container, and positioned within the graph page. */
 export function NodeContextMenu({ things, relationships, onDeleteThing }: Props) {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.nodeContextMenuOpen);
@@ -31,31 +24,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const toggleNodeExpanded = useUiStore((s) => s.toggleNodeExpanded);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
   const menuReference = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, closeMenu]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
-        closeMenu();
-      }
-    };
-    const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick);
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [open, closeMenu]);
+  useClosesOnEscapeOrPressOutside(open, menuReference, closeMenu);
 
   const handleViewDetails = useCallback(() => {
     if (nodeId) selectNode(nodeId);
@@ -107,7 +76,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
       className="absolute z-50 min-w-[180px] py-1 bg-zinc-800/95 backdrop-blur border border-zinc-700 rounded-lg shadow-xl shadow-black/40"
       style={{ left: position.x, top: position.y }}
     >
-      {/* Node name header */}
       <div className="px-3 py-1.5 text-xs text-zinc-400 font-medium truncate border-b border-zinc-700/50 max-w-[220px]">
         {nodeName}
       </div>
@@ -122,7 +90,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
       )}
       <MenuItem icon={Copy} label={t('graph.contextMenu.copyId')} onClick={handleCopyId} />
 
-      {/* Divider before destructive action */}
       <div className="my-1 border-t border-zinc-700/50" />
       <MenuItem icon={Trash2} label={t('graph.contextMenu.delete')} onClick={handleDelete} danger />
     </div>

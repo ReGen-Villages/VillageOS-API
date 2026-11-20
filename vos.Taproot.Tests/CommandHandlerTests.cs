@@ -280,7 +280,6 @@ public class CommandHandlerTests
         var writer = new StringWriter();
         var handler = CreateHandler(reader, writer);
 
-        // Plant with no file should show usage (same as deserialize)
         await handler.HandleCommandAsync("plant", "");
 
         var output = writer.ToString();
@@ -296,7 +295,6 @@ public class CommandHandlerTests
         var modelJson = @"{""things"":[],""relationships"":[]}";
         _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync(modelJson);
 
-        // Seed with no file should output JSON to console (same as serialize)
         await handler.HandleCommandAsync("seed", "");
 
         var output = writer.ToString();
@@ -342,7 +340,6 @@ public class CommandHandlerTests
 
         await handler.RunAsync();
 
-        // Should complete without error
         Assert.Contains("VillageOS CLI", writer.ToString());
     }
 
@@ -488,7 +485,6 @@ public class CommandHandlerTests
 
         await handler.RunAsync();
 
-        // Should complete without "Unknown command" error
         Assert.DoesNotContain("Unknown command", writer.ToString());
     }
 
@@ -600,7 +596,6 @@ public class CommandHandlerTests
         var reader = new StringReader("");
         var writer = new StringWriter();
 
-        // This uses the default value (false)
         var handler = new CommandHandler(reader, writer, _myceliumMock.Object, MyceliumUrl);
 
         Assert.NotNull(handler);
@@ -663,7 +658,6 @@ public class CommandHandlerTests
 
         await handler.RunAsync();
 
-        // Should complete without error - whitespace lines are ignored
         Assert.Contains("VillageOS CLI", writer.ToString());
     }
 }

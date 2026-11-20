@@ -95,6 +95,17 @@ def test_bilinear_interpolates_between_cell_centres(degrees_grid):
     assert values(result) == pytest.approx([21, 21.5, 22], abs=0.1)
 
 
+def test_bilinear_at_the_edge_reads_the_edge_cell_for_the_cell_beyond_it(degrees_grid):
+    result = profile(degrees_grid, line((0.2, 7.5), (0.2, 6.5)), samples=2, resampling="bilinear")
+    assert values(result) == pytest.approx([20, 30])
+
+
+def test_bilinear_touching_a_nodata_cell_has_no_value(degrees_grid):
+    result = profile(degrees_grid, line((9.2, 0.8), (8.2, 0.8)), samples=2, resampling="bilinear")
+    assert values(result)[0] is None
+    assert values(result)[1] == pytest.approx(94.7)
+
+
 def test_a_sample_on_a_nodata_cell_has_no_value_and_says_why(degrees_grid):
     result = profile(degrees_grid, line((8.5, 0.5), (9.5, 0.5)), samples=3)
     assert values(result) == [98, None, None]

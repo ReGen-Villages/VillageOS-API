@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-// The option written with a ":suggestion" suffix silenced both the unused-parameter and the unread-assignment rules in every build.
+// The option written with a ":suggestion" suffix silences both the unused-parameter and the unread-assignment rules in every build.
 public class TheBuildReportsUnusedCodeTests
 {
     private static readonly string Root = RepositoryRoot.Find();

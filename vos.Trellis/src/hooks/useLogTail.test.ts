@@ -1,57 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { useLogTail } from './useLogTail';
 import { apiClient } from '../api/client';
-
-// Stands in for the browser's EventSource so a test can open, feed and break the stream.
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  closed = false;
-
-  private readonly listeners = new Map<string, ((event: MessageEvent) => void)[]>();
-
-  readonly url: string;
-
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(type: string, listener: (event: MessageEvent) => void) {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  }
-
-  close() {
-    this.closed = true;
-  }
-
-  emit(type: string, data: string) {
-    for (const listener of this.listeners.get(type) ?? [])
-      listener(new MessageEvent(type, { data }));
-  }
-
-  static latest(): FakeEventSource {
-    return FakeEventSource.instances[FakeEventSource.instances.length - 1];
-  }
-
-  static reset() {
-    FakeEventSource.instances = [];
-  }
-}
+import { FakeEventSource, openedStream } from '../testEventSource';
 
 // Under fake timers the token promise only settles when the queue is drained by hand.
 async function flushUntilOpened(): Promise<FakeEventSource> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
   });
-  return FakeEventSource.latest();
-}
-
-async function openedStream(): Promise<FakeEventSource> {
-  await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
   return FakeEventSource.latest();
 }
 
@@ -71,8 +28,8 @@ describe('useLogTail', () => {
     vi.useRealTimers();
   });
 
-  // EventSource cannot send an Authorization header, so the credential rides on the query string —
-  // where it is recorded, which is why it is the stream token and not the sign-in token behind it.
+  // EventSource cannot send an Authorization header, so the credential goes in the address, where it is
+  // recorded; that is why it is the stream token and not the sign-in token.
   it('opens the broker log with the tail length and a stream token', async () => {
     renderHook(() => useLogTail());
 

@@ -7,8 +7,8 @@ using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
-// DAG resolution + validation: build the executable DAG from the loaded graph and
-// validate it acyclic with type-compatible wires.
+// Building the PipelineDag from the loaded graph, and checking it has no cycle and that every wire joins
+// matching types.
 public class PipelineModelTests
 {
     [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.
@@ -171,14 +171,13 @@ public class PipelineModelTests
     }
 
     // The whole point of role Things: a model may call its archetypes anything, and a deployment that
-    // renames them used to leave this orchestrator starting cleanly and finding nothing.
+    // renames them would otherwise leave this orchestrator starting cleanly and finding nothing.
     [Fact]
     public void Build_WhenTheModelNamesEveryArchetypeSomethingElse_ResolvesTheSameDag()
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary(namePrefix: "Renamed");
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var prototype = fx.Thing("proto");
         fx.Rel(prototype, vocabulary.Is, vocabulary.Service);
@@ -240,7 +239,7 @@ public class PipelineModelTests
     }
 
     // One role left unbound is refused by name rather than being read as "no node plays that role", which
-    // is the silence this replaced.
+    // would fail without a word.
     [Fact]
     public void Build_WhenOneRoleIsUnbound_NamesOnlyThatRole()
     {
@@ -423,6 +422,64 @@ public class PipelineModelTests
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("wire", "fromPath")]
+    [InlineData("wire", "toPath")]
+    [InlineData("wire", "listTransform")]
+    [InlineData("wire", "itemTransform")]
+    [InlineData("start.subject", "portName")]
+    [InlineData("start.subject", "direction")]
+    [InlineData("start.subject", "type")]
+    [InlineData("Decide", "onItemError")]
+    [InlineData("Decide", "parameterBindings")]
+    [InlineData("Decide", "attempts")]
+    [InlineData("Decide", "pauseMinutes")]
+    [InlineData("Decide", "itemsAtOnce")]
+    [InlineData("Decide", "waitsAtMostMinutes")]
+    [InlineData("accept", "when")]
+    [InlineData("refuse", "when")]
+    public void Build_ReadsANameTheModelHoldsAsNullAsIfTheThingDidNotHoldIt(string holder, string name)
+    {
+        var (absent, absentId) = TestGraphs.DecisionPipeline();
+        var (held, heldId) = TestGraphs.DecisionPipeline();
+        GraphThing HolderIn(GraphFixture fixture) => holder == "wire"
+            ? fixture.Build().OutgoingTargets(fixture.Get("Start"), "has").Single(thing => thing.Name.Contains(" to "))
+            : fixture.Get(holder);
+        foreach (var fixture in new[] { absent, held })
+            ((Dictionary<string, JsonElement>)HolderIn(fixture).Properties).Remove(name);
+        held.Hold(HolderIn(held), name, null!);
+
+        Shape(PipelineDagBuilder.Build(held.Build(), heldId)).Should().Equal(Shape(PipelineDagBuilder.Build(absent.Build(), absentId)));
+    }
+
+    private static List<string> Shape(PipelineDag dag) =>
+    [
+        .. dag.Nodes.OrderBy(node => node.Name).Select(node => string.Join("|",
+            node.Name, node.Kind, node.Subdomain, node.OnItemError, node.ItemsAtOnce, node.Retries, node.Waits,
+            string.Join(",", node.ParameterBindings.OrderBy(binding => binding.Key).Select(binding => $"{binding.Key}={binding.Value}")),
+            string.Join(",", node.Ports.OrderBy(port => port.PortName).Select(port => $"{port.PortName}/{port.Direction}/{port.Type}")),
+            string.Join(",", node.DecisionPaths.OrderBy(path => path.Name).Select(path => $"{path.Name}:{path.When is not null}")))),
+        .. dag.Wires.Select(wire => $"{wire.From.Node.Name}.{wire.From.Port.PortName}>{wire.To.Node.Name}.{wire.To.Port.PortName}"
+            + $"|{wire.FromPath}|{wire.ToPath}|{wire.ListTransform}|{wire.ItemTransform}").Order(),
+    ];
+
+    [Fact]
+    public void Build_NamesAPortWhoseNameTheModelHoldsAsNullByItsThing_AndReadsANullDirectionAsIn()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var memo = fx.Thing("decide.memo", ("type", "any"));
+        fx.Hold(memo, "portName", null!);
+        fx.Hold(memo, "direction", null!);
+        fx.Rel(memo, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("Decide"), fx.Get("has"), memo);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var port = dag.Node(fx.Get("Decide").Id)!.Ports.Single(p => p.Id == memo.Id);
+        port.PortName.Should().Be("decide.memo");
+        port.IsInput.Should().BeTrue();
+    }
+
     [Fact]
     public void Build_ReadsTheChoicesTheNodeHolds_WithTheThingsEachComparesWith()
     {
@@ -551,6 +608,24 @@ public class PipelineModelTests
         PipelineDagBuilder.Build(countOnly.Fixture.Build(), countOnly.PipelineId).Node(countOnly.Echo.Id)!.Retries
             .Should().Be(new RetryPolicy(2, 1, 1, 0, 24 * 60));
         PipelineDagBuilder.Build(without.Fixture.Build(), without.PipelineId).Node(without.Echo.Id)!.Retries.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_ReadsHowManyItemsANodeHoldsAtOnce_AndNoLimitWithoutOne()
+    {
+        var limited = TestGraphs.RetryPipeline(policy: [(ModelNames.ItemsAtOnce, 2)]);
+        var unlimited = TestGraphs.RetryPipeline();
+
+        PipelineDagBuilder.Build(limited.Fixture.Build(), limited.PipelineId).Node(limited.Echo.Id)!.ItemsAtOnce.Should().Be(2);
+        PipelineDagBuilder.Build(unlimited.Fixture.Build(), unlimited.PipelineId).Node(unlimited.Echo.Id)!.ItemsAtOnce.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_RefusesANodeHoldingFewerThanOneItemAtOnce()
+    {
+        var none = TestGraphs.RetryPipeline(policy: [(ModelNames.ItemsAtOnce, 0)]);
+
+        PipelineDagBuilder.Build(none.Fixture.Build(), none.PipelineId).Problems.Should().ContainMatch("*'Echo'*holds 0 items at once*");
     }
 
     [Fact]

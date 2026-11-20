@@ -106,7 +106,7 @@ describe('buildGraph', () => {
     });
 
     it('skips edges with missing endpoints', () => {
-      const partialThings = [isPredicate, orchardZone, zone]; // missing sensor, temp, etc.
+      const partialThings = [isPredicate, orchardZone, zone]; // without the sensor and the other endpoints
       const graph = buildGraph(partialThings, relationships);
       expect(graph.size).toBe(1);
     });
@@ -448,10 +448,8 @@ describe('buildGraph', () => {
   });
 });
 
-// An IFC instance and the type it `is`-relates to both declare
-// ifcClass, so the instance's own class is stored as an override. Reading the
-// own bag alone found nothing, and every imported element fell through to the
-// hash palette instead of the curated class colours.
+// An IFC instance and its type both declare ifcClass, so the instance's own class is stored as an
+// override, and reading its own properties alone would fall back to the hash palette.
 describe('colouring by the classifying property', () => {
   const wallType = makeThing('t-wall', 'Basic Wall', { ifcClass: 'IfcWallType' });
   const owned = makeThing('i-owned', 'Wall-owns-its-class', { ifcClass: 'IfcWall' });

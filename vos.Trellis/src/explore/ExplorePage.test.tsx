@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../api/intakeApi', () => ({
   intakeApi: {
@@ -153,13 +153,11 @@ describe('the plot-first page', () => {
     ]);
     expect(document.site.population).toBeUndefined();
 
-    // The read rides the ticket the accepted submission handed back — nothing is retyped.
+    // The read uses the ticket the accepted submission handed back, so nothing is retyped.
     expect(vi.mocked(findingsApi.readWithTicket).mock.calls[0][2]).toBe('ticket-2');
     expect(screen.getByText('sub-ref-1')).toBeInTheDocument();
   });
 
-  // The report replaces the sections the person was working in, so a page left where they had scrolled
-  // to opens partway down it — past the figures it leads with, which reads as a report holding nothing.
   it('opens the report at the top of it', async () => {
     const scrolled = vi.fn();
     vi.stubGlobal('scrollTo', scrolled);
@@ -179,6 +177,80 @@ describe('the plot-first page', () => {
     expect(document.submissionId).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);
     expect(document.site.population).toBe(320);
     expect(ticket).toBe('ticket-3');
+  });
+});
+
+describe('a dial that cannot be read', () => {
+  const LONGER_THAN_A_DIAL_TAKES_TO_SETTLE = 1000;
+
+  function typeIntoDial(dial: string, typed: string): void {
+    const box = within(screen.getByText(dial).closest('label')!).getByRole('textbox');
+    fireEvent.change(box, { target: { value: typed } });
+  }
+
+  async function letTheDialSettle(): Promise<void> {
+    await act(async () => { vi.advanceTimersByTime(LONGER_THAN_A_DIAL_TAKES_TO_SETTLE); });
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    ['Residents', '12.5', 'Must be a whole number.'],
+    ['Residents', '-3', 'Cannot be negative.'],
+    ['Residents', 'abc', 'Not a number.'],
+    ['People per household', '-3', 'Cannot be negative.'],
+    ['People per household', 'abc', 'Not a number.'],
+  ])('says why %s of %s is not posted, and posts nothing while it shows', async (dial, typed, reason) => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial(dial, typed);
+    await letTheDialSettle();
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('posts the figure once it is mended', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('Residents', '12.5');
+    await letTheDialSettle();
+    typeIntoDial('Residents', '12');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[1][0].site.population).toBe(12);
+  });
+
+  it('posts a figure typed back after a refused one, though it had not settled before', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('Residents', '320');
+    typeIntoDial('Residents', 'abc');
+    await letTheDialSettle();
+    typeIntoDial('Residents', '320');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[1][0].site.population).toBe(320);
+  });
+
+  it('posts again once the field is cleared', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('People per household', '2.4');
+    await letTheDialSettle();
+    typeIntoDial('People per household', 'abc');
+    await letTheDialSettle();
+    typeIntoDial('People per household', '');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[2][0].site.householdSize).toBeUndefined();
   });
 });
 
@@ -281,14 +353,12 @@ describe('the history a chart asks for', () => {
     expect(ticket).toBe('ticket-3');
     expect(asked).toEqual({ property: 'temperature', windowSeconds: 31_536_000, steps: question.steps });
 
-    // The next read rides the ticket the reduction handed back.
+    // The next read uses the ticket the reduction handed back.
     fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
     await waitFor(() => expect(vi.mocked(findingsApi.readWithTicket).mock.calls.at(-1)![2]).toBe('ticket-4'));
   });
 });
 
-// After the report, the page asks for surveys: the bytes go to the intake service under the ticket the
-// page holds, each with the description typed beside it, and what the model holds is listed after.
 describe('the surveys asked for after the report', () => {
   const SOIL = { id: 'doc-1', fileName: 'soil.pdf', description: 'The soil test', contentType: 'application/pdf', sizeBytes: 4, sharedAt: '2026-09-18T10:00:00Z' };
   const WATER = { id: 'doc-2', fileName: 'water.csv', description: 'Well readings', contentType: 'text/csv', sizeBytes: 6, sharedAt: '2026-09-18T10:01:00Z' };
@@ -345,7 +415,7 @@ describe('the surveys asked for after the report', () => {
     expect(calls[0][1]).toBe('ticket-3');
     expect(calls[0][2].name).toBe('soil.pdf');
     expect(calls[0][3]).toBe('The soil test');
-    // One file after another, each riding the ticket the last one handed back.
+    // One file after another, each under the ticket the last one handed back.
     expect(calls[1][1]).toBe('ticket-after-soil.pdf');
     expect(calls[1][3]).toBe('Well readings');
 
@@ -355,7 +425,7 @@ describe('the surveys asked for after the report', () => {
     expect(within(listed).getByText('water.csv')).toBeInTheDocument();
     expect(within(listed).getByText('Well readings')).toBeInTheDocument();
 
-    // The next read rides the ticket the last share handed back.
+    // The next read uses the ticket the last share handed back.
     fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
     await waitFor(() => expect(vi.mocked(findingsApi.readWithTicket).mock.calls.at(-1)![2]).toBe('ticket-after-water.csv'));
   });
@@ -399,8 +469,6 @@ describe('the surveys asked for after the report', () => {
   });
 });
 
-// The closing view: the parcel on the imagery the model declares, with the sections the page declares
-// as tabs in a sheet along the bottom.
 describe('the overview over the land', () => {
   const TABS = [
     { title: 'Location', tab: 'location', layout: 'kpi-strip' as const, widgets: [] },

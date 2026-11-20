@@ -398,6 +398,27 @@ public class RetryTests
         return (retry, gateway, executor, runId);
     }
 
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_fan_out_whose_item_had_failed_with_that_items_own_error()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer(), perItem: true, policy: [("attempts", 3), ("pauseMinutes", 1)]);
+        var runId = Guid.NewGuid();
+        var readings = JsonSerializer.SerializeToElement(new[] { "North", "South", "East" });
+        var anHourAgo = new DateTimeOffset(2026, 10, 15, 11, 0, 0, TimeSpan.Zero);
+        gateway.Runs[runId] = (retry.PipelineId, JsonSerializer.SerializeToElement(new { seed = readings }));
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["seed"] = readings });
+        gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+        gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Failed, new Dictionary<string, JsonElement>(), Error: "north is dry",
+            Number: new ItemNumber(0, 3)));
+        gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
+            [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
+
+        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        gateway.Records[(runId, retry.Echo.Id)].Error.Should().Be("Fan-out failed: north is dry");
+    }
+
     private static List<string> ReadingsCalled(FakeGateway gateway)
     {
         lock (gateway.Called)

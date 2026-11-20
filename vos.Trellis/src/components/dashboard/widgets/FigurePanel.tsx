@@ -1,11 +1,5 @@
-/**
- * A figure opened up: the whole viewport given over to what one number is made of.
- *
- * The dashboard's one structural mark is a dotted rule under a figure the model derived; this is
- * what the rule opens. It shows the figure, the model's own words for what it names, and the Things
- * it was formed from — each row opening the detail card that already exists, so the breakdown
- * reaches the whole model without listing any of it itself.
- */
+/** What the dotted rule under a derived figure opens: the figure, the model's words for what it names, and the
+ *  Things it was formed from, each row opening the existing detail card rather than listing more itself. */
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';

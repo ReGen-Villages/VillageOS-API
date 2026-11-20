@@ -20,8 +20,8 @@ public enum SpawnKind
 // properties}, whose properties are the run's parameters. The body alone cannot say what the target starts —
 // PipelineStart reads that from the model — so it travels as it came, with the subject.
 // Detected by shape — pipelineId ⇒ http, else targetId ⇒ relationship.
-// Async: for an http spawn, {"async":true} asks Phloem to return the run id immediately and run the DAG in
-// the background (the editor animates over SSE) instead of blocking for the result. A relationship never
+// Async: for an http spawn, {"async":true} asks Phloem to return the run id immediately and run the pipeline
+// in the background (the editor animates it from the change stream) instead of blocking for the result. A relationship never
 // blocks for the result. {"rehearsal":true} on an http spawn asks for a rehearsal; the model never starts one.
 // {"startAgain": runId} and {"carryOn": runId} are a person's answer to a run a restart stopped; the broker's
 // endpoint route lets only a caller allowed to change data send them.

@@ -4,40 +4,7 @@ import { useRequestLog } from './useRequestLog';
 import { apiClient } from '../api/client';
 import * as requestLogApi from '../api/requestLogApi';
 import type { RequestLogEntry } from '../api/requestLogApi';
-
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  closed = false;
-
-  private readonly listeners = new Map<string, ((event: MessageEvent) => void)[]>();
-
-  readonly url: string;
-
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(type: string, listener: (event: MessageEvent) => void) {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  }
-
-  close() {
-    this.closed = true;
-  }
-
-  emit(type: string, data: string) {
-    for (const listener of this.listeners.get(type) ?? [])
-      listener(new MessageEvent(type, { data }));
-  }
-
-  static latest(): FakeEventSource {
-    return FakeEventSource.instances[FakeEventSource.instances.length - 1];
-  }
-}
+import { FakeEventSource, openedStream } from '../testEventSource';
 
 function entry(id: string, time: string): RequestLogEntry {
   return {
@@ -46,14 +13,9 @@ function entry(id: string, time: string): RequestLogEntry {
   };
 }
 
-async function openedStream(): Promise<FakeEventSource> {
-  await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
-  return FakeEventSource.latest();
-}
-
 describe('useRequestLog', () => {
   beforeEach(() => {
-    FakeEventSource.instances = [];
+    FakeEventSource.reset();
     vi.stubGlobal('EventSource', FakeEventSource);
     vi.spyOn(apiClient, 'mintStreamToken').mockResolvedValue('a-stream-token');
   });

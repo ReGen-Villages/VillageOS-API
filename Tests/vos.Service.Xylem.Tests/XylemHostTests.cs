@@ -43,7 +43,7 @@ public class XylemHostTests
 
         health.GetProperty("status").GetString().Should().Be("Healthy");
         health.GetProperty("service").GetString().Should().Be("Xylem");
-        stats.GetProperty("myceliumUrl").GetString().Should().Be(XylemWebApplicationFactory.MyceliumUrl);
+        stats.GetProperty("myceliumUrl").GetString().Should().Be(factory.MyceliumUrl);
     }
 
     [Fact]

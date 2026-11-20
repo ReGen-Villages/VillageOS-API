@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -43,8 +44,6 @@ public class SubmissionsCommandHandlerTests
         Edge(SubmissionsCommandHandler.DispositionPredicateRoleId, BindsId, ResolvedAsId);
 
     private static object[] Bindings() => [ProposedSiteBinding(), DispositionArchetypeBinding(), DispositionPredicateBinding()];
-
-    private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 
     private static JsonElement Json(object shape) =>
         JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(shape));
@@ -112,14 +111,6 @@ public class SubmissionsCommandHandlerTests
 
     private async Task Run(string arg) =>
         await new SubmissionsCommandHandler(arg, _writer, _mycelium.Object).ExecuteAsync();
-
-    [Fact]
-    public async Task With_no_mycelium_it_shows_what_it_can_do()
-    {
-        await new SubmissionsCommandHandler("list", _writer, client: null).ExecuteAsync();
-
-        Assert.Contains("Submission review commands:", _writer.ToString());
-    }
 
     [Fact]
     public async Task A_submission_nobody_has_decided_about_is_listed_as_waiting()

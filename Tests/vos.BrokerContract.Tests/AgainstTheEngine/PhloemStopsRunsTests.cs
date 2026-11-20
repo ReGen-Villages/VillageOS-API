@@ -18,7 +18,7 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
 
     public PhloemStopsRunsTests(TheEngine engine) => _engine = engine;
 
-    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> BindOnceAsync(Role role, Func<Task<Guid>> declare)
     {
@@ -33,7 +33,7 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
 
     private async Task<(Guid IsPredicate, Guid StopKind)> AModelThatStopsRunsAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         await BindOnceAsync(PipelineRoles.PipelineRun, () => _engine.DeclareAsync($"{PipelineRoles.PipelineRun.Word} bound", isArchetype: true));
         await BindOnceAsync(PipelineRoles.RunSubject, () => _engine.DeclareAsync($"{PipelineRoles.RunSubject.Word} bound"));
@@ -51,7 +51,7 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
             written.EnsureSuccessStatusCode();
             return id;
         });
-        return (await _engine.TheOnlyThingNamedAsync(ModelNames.Is), stopKind);
+        return (await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), stopKind);
     }
 
     [FactAgainstTheEngine]

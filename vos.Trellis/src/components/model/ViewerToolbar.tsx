@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 export type CameraMode = '3d' | 'plan';
 
-export interface ViewerToolbarProps {
+interface ViewerToolbarProps {
   cameraMode: CameraMode;
   onCameraModeChange: (m: CameraMode) => void;
   sectionEnabled: boolean;

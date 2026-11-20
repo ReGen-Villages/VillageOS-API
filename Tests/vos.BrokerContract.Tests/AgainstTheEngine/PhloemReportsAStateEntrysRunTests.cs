@@ -1,11 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -14,13 +10,14 @@ using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Tests.Shared;
 using Xunit;
+using static vos.BrokerContract.Tests.AgainstTheEngine.EngineArrangement;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>, IAsyncLifetime
 {
     private readonly TheEngine _engine;
-    private readonly OrchestratorStandIn _orchestrator = new();
+    private readonly ServiceStandIn _orchestrator = new();
 
     public PhloemReportsAStateEntrysRunTests(TheEngine engine) => _engine = engine;
 
@@ -79,8 +76,6 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
         private const string OutOfDate = "OutOfDate";
         private const string Criteria = $"{RainfallAge} > 30";
 
-        private static readonly Role RangeRole = new("range", RoleIdentity.Of("range"));
-        private static readonly Role JudgedThingRole = new("judgedThing", RoleIdentity.Of("judgedThing"));
         private static readonly Role TriggerRole = new("trigger", RoleIdentity.Of("trigger"));
         private static readonly Role StateTriggerRole = new("stateTrigger", RoleIdentity.Of("stateTrigger"));
         private static readonly Role CompletesWhenRole = new("completesWhen", RoleIdentity.Of("completesWhen"));
@@ -89,16 +84,16 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
 
         public MyceliumGateway Gateway(HttpMessageHandler? transport = null) => new(
             new PerCallHttpClientFactory(transport ?? _engine.Transport), NullLogger<MyceliumGateway>.Instance, TheEngine.Url,
-            new LaunchToken(_engine.AdminToken));
+            new ModelClock(), new LaunchToken(_engine.AdminToken));
 
         // The host is shared by the class, so the vocabulary is written once and each case arranges its own Catchment kind.
         public static async Task<StateEntryModel> ArrangeAsync(TheEngine engine, int orchestratorPort, bool drawsAWholePipeline)
         {
-            foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+            foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
                 await engine.DeclareOnceAsync(predicate);
             var vocabulary = new Vocabulary(engine);
             var firstCase = await engine.FindAsync($"{PipelineRoles.PipelineInput.Word} role") is null;
-            var isPredicate = await engine.TheOnlyThingNamedAsync(ModelNames.Is);
+            var isPredicate = await engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
             var has = await engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
             var connectionKind = await vocabulary.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
@@ -197,10 +192,10 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
             return new StateEntryModel(engine, catchmentKind);
         }
 
-        public async Task<StateEntryCall> EnterOutOfDateAsync(OrchestratorStandIn orchestrator)
+        public async Task<StateEntryCall> EnterOutOfDateAsync(ServiceStandIn orchestrator)
         {
             var catchment = await _engine.DeclareAsync($"Catchment 3 {Guid.NewGuid():N}");
-            await _engine.RelateAsync(catchment, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), _catchmentKind);
+            await _engine.RelateAsync(catchment, await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), _catchmentKind);
             (await _engine.Admin.PostAsJsonAsync($"/api/things/{catchment}/properties", new { Name = RainfallAge, Type = "vos.LongInteger", Value = 0L }))
                 .EnsureSuccessStatusCode();
             (await _engine.Admin.PostAsJsonAsync($"/api/things/{catchment}/ranges", new { Name = OutOfDate, Criteria }))
@@ -243,64 +238,15 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
                 value = inner;
             return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
         }
-
-        private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
     }
 
     private sealed class Vocabulary(TheEngine engine)
     {
         public async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
         {
-            if (await engine.FindAsync($"{role.Word} role") is not null)
-                return await engine.TheOnlyThingNamedAsync($"{name} · {role.Word}");
-            var played = await engine.DeclareAsync($"{name} · {role.Word}", isArchetype, properties);
-            await engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-            await engine.RelateAsync(role.Id, await engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
+            var played = await engine.DeclareOnceAsync($"{name} · {role.Word}", isArchetype, properties);
+            await engine.BindOnceAsync(role, played);
             return played;
-        }
-    }
-
-    // Keeps each body the engine sends, so a case starts its run from what was actually sent.
-    private sealed class OrchestratorStandIn : IAsyncDisposable
-    {
-        private readonly List<JsonElement> _calls = new();
-        private WebApplication? _app;
-
-        public int Port { get; } = FreeLoopbackPort();
-
-        public async Task StartAsync()
-        {
-            var builder = WebApplication.CreateSlimBuilder();
-            builder.Logging.ClearProviders();
-            _app = builder.Build();
-            _app.Urls.Add($"http://localhost:{Port}");
-            _app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
-            _app.MapPost("/handle", async (HttpRequest request) =>
-            {
-                var body = await JsonSerializer.DeserializeAsync<JsonElement>(request.Body);
-                lock (_calls) _calls.Add(body);
-                return Results.Ok(new { success = true, accepted = true });
-            });
-            await _app.StartAsync();
-        }
-
-        public JsonElement? CallAbout(Guid subjectId)
-        {
-            lock (_calls)
-                return _calls.Where(call => call.TryGetProperty("subjectId", out var subject) && subject.GetString() == subjectId.ToString())
-                    .Select(call => (JsonElement?)call).FirstOrDefault();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (_app is not null) await _app.DisposeAsync();
-        }
-
-        private static int FreeLoopbackPort()
-        {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
         }
     }
 

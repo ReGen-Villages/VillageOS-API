@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -21,8 +22,6 @@ public class ModelCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
     [Fact]
     public async Task Execute_NoArgs_ShowsUsage()
     {
@@ -32,14 +31,6 @@ public class ModelCommandHandlerTests
         Assert.Contains("Usage:", output);
         Assert.Contains("model list", output);
         Assert.Contains("model switch", output);
-    }
-
-    [Fact]
-    public async Task Execute_NullArg_ShowsUsage()
-    {
-        await ExecuteHandler(null!);
-
-        Assert.Contains("Usage:", _writer.ToString());
     }
 
     [Fact]
@@ -53,7 +44,6 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task Switch_NoArg_ShowsUsage()
     {
-        // "switch" alone (without modelId/name) doesn't match the `when tok.Length >= 2` pattern.
         await ExecuteHandler("switch");
 
         Assert.Contains("Usage:", _writer.ToString());
@@ -115,7 +105,7 @@ public class ModelCommandHandlerTests
         _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
         _myceliumMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
 
-        await ExecuteHandler("switch estate"); // case-insensitive
+        await ExecuteHandler("switch estate");
 
         Assert.Contains("Switched to model", _writer.ToString());
         _myceliumMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
@@ -135,7 +125,6 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task Switch_NameWithMissingId_NotFound()
     {
-        // Model in list has a Name match but a missing/invalid Id → FindModelByName returns null
         var json = "[{\"Name\":\"NoId\"}]";
         _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
 

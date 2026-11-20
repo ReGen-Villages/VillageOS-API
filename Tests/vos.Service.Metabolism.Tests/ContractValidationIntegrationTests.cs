@@ -6,12 +6,8 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-// Integration tests covering the contract-validation middleware on Metabolism's /handle
-// endpoint. Program.cs wires AddContractValidation + UseRequestContractValidation
-// + RequireContract<HandleRequest> into Program.cs. Tests use
-// WebApplicationFactory<Program> (same pattern as EndpointMapperTests).
-// Schema: handle-request-metabolism.schema.json — requires subjectId and
-// targetId (both non-empty strings); additionalProperties: false.
+// Metabolism's /handle checks its body against handle-request-metabolism.schema.json, which requires a
+// non-empty subjectId and targetId and allows no other field.
 public class ContractValidationIntegrationTests : IAsyncLifetime
 {
     private const string SchemaId = "https://villageos/contracts/handle-request-metabolism.schema.json";

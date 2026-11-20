@@ -1,4 +1,4 @@
-// Core domain model types — mirrors Mycelium PascalCase JSON serialization
+// The model's types, with field names in Pascal case because Mycelium writes its JSON that way.
 
 /**
  * Which kinds of write a property accepts, as the model declares it: a value a person asserts
@@ -53,7 +53,7 @@ export interface VosThing {
 /** How one computed value is worked out. One form is described and never both: `Expression` for a
  *  formula, or the reduction's fields. `Reads` names what it reads by the name you can look up on the
  *  Thing you already have — never parse `Expression` to recover them, since a second parser in a client
- *  drifts from the one the platform evaluates with. */
+ *  can disagree with the one the platform evaluates with. */
 export interface DerivedDefinition {
   Expression?: string;
   Function?: string;
@@ -130,11 +130,13 @@ export type HistoryFold =
   | 'hour' | 'day' | 'month' | 'year'
   | 'hourOfDay' | 'dayOfYear' | 'monthOfYear'
   | 'hourOfDay,dayOfYear' | 'monthOfYear,hourOfDay'
-  | 'all';
+  | 'all'
+  | 'value' | 'monthOfYear,value'
+  | 'cell' | 'monthOfYear,cell';
 
 export type HistoryFunction =
   | 'Min' | 'Max' | 'Average' | 'Sum' | 'Count' | 'Percentile' | 'ShareWithin'
-  | 'CountAtOrBelow' | 'CountAbove' | 'SumAbove' | 'SumBelow';
+  | 'CountAtOrBelow' | 'CountAbove' | 'SumAbove' | 'SumBelow' | 'CountAtOrAbove';
 
 /** One step of a history reduction: the first reads the samples, each later one the previous step's
  *  groups. `percentile` goes with `Percentile`, `from` and `to` (closed on both ends) with
@@ -148,14 +150,30 @@ export interface HistoryStep {
   threshold?: number;
 }
 
+/** Bins of one property's readings, counted from nought in steps of `width`; a reading at or above `upTo`
+ *  falls in the bin below it. */
+export interface HistoryBins {
+  width: number;
+  upTo?: number;
+}
+
+/** A second property of the same Thing, read at the same instants as the first, with its own bins. */
+export interface HistoryPairing {
+  property: string;
+  bins: HistoryBins;
+}
+
 /** POST /api/temporal/reduce: one property's observation history on one Thing, reduced by the steps
- *  in order. Calendar folds are taken in `utcOffsetSeconds`, zero when omitted. */
+ *  in order. Calendar folds are taken in `utcOffsetSeconds`, zero when omitted. A `cell` fold reads
+ *  `bins` and `pairedWith`, and keys each instant by the lower bounds of its two readings' bins. */
 export interface TemporalReduceQuery {
   thingId: string;
   property: string;
   windowSeconds: number;
   utcOffsetSeconds?: number;
   steps: HistoryStep[];
+  bins?: HistoryBins;
+  pairedWith?: HistoryPairing;
 }
 
 export interface TemporalReduceGroup {
@@ -172,6 +190,8 @@ export interface TemporalReduceResponse {
   /** Readings carrying nothing the reduction could read — so an answer with no groups says whether
    *  the window was empty or unreadable. */
   UnusableSamples: number;
+  /** A paired read's readings with no reading of the other property at the same instant. */
+  UnpairedSamples?: number;
 }
 
 export interface PropertyVersionsResponse {
@@ -233,7 +253,7 @@ export interface PropertyBindingDto {
  *  compared with each other all report nothing rather than a number a reader would take for one. */
 export interface CriteriaComparisonDto {
   PropertyName: string;
-  /** The operator as the criteria language writes it, e.g. ">=". */
+  /** The operator as the criteria language writes it, such as ">=". */
   Operator: string;
   Value: unknown;
 }
@@ -292,7 +312,6 @@ export interface RelationshipStates {
 }
 
 // Composite range summary, answered in one call rather than one fetch per range and state
-
 export interface RelationshipRangeSummary {
   RelationshipId: string;
   RelationshipName: string;

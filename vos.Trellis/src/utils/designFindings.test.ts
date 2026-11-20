@@ -67,6 +67,18 @@ describe('a widget', () => {
     expect(found.filter((each) => each.startsWith('refusal'))).toEqual([]);
   });
 
+  it('warns about a paired property the kind does not declare, as it does the first', () => {
+    const found = codes(page({
+      type: 'densityGrid', title: 'g', across: { label: 'Capacity' }, up: { label: 'Depth' },
+      cells: {
+        kind: 'history', property: 'capacity', windowSeconds: 86_400, steps: [{ fold: 'cell', function: 'Count' }],
+        bins: { width: 10 }, pairedWith: { property: 'depth', bins: { width: 1 } },
+      },
+    }));
+    expect(found).toContain('warning:namesAnUnknownProperty:depth');
+    expect(found).not.toContain('warning:namesAnUnknownProperty:capacity');
+  });
+
   it('holds a table to a row cap, to a sort key a column carries, and to search keys a row carries', () => {
     const rows = { kind: 'thingList' as const, archetype: 'Spring' };
     each('tableWithoutARowCap', page({ type: 'table', title: 't', columns: [], rows }));

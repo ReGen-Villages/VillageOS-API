@@ -1,4 +1,4 @@
-"""What the platform reads from Quadrat, pinned from the platform's side (docs/SERVICES.md §16.2).
+"""What the platform reads from Quadrat, checked from the platform's side (docs/SERVICES.md §16.2).
 
 test_app.py tests what Quadrat does. This file tests what the rest of the platform depends on Quadrat being: a
 manifest in the shape the editor and `declare_service.py` read, an answer in the shape Phloem parses, and a manifest

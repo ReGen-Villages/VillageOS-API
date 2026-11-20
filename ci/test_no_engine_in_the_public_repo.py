@@ -30,8 +30,8 @@ class AnImportItRefuses(unittest.TestCase):
     def test_one_written_as_a_static_using(self):
         self.assertEqual('vos.Core.Names', imports_an_engine_namespace('using static vos.Core.Names;'))
 
-    # The form the check this replaced could not see at all: an alias puts a name between `using` and
-    # the namespace, so a pattern anchored on `using` followed by the namespace never matched it.
+    # An alias puts a name between `using` and the namespace, so a pattern anchored on `using` followed
+    # by the namespace would not see this form at all.
     def test_one_written_as_an_alias(self):
         self.assertEqual('vos.Core.VosThing',
                          imports_an_engine_namespace('using Thing = vos.Core.VosThing;'))
@@ -42,7 +42,7 @@ class AnImportItRefuses(unittest.TestCase):
 
 class AnImportItAllows(unittest.TestCase):
     # The host a consumer is meant to compile against. Refusing it would refuse the supported way of
-    # testing against the platform, which is what this repository now does.
+    # testing against the platform, which is how this repository tests against it.
     def test_the_testing_host(self):
         self.assertIsNone(imports_an_engine_namespace('using vos.Mycelium.Testing;'))
 

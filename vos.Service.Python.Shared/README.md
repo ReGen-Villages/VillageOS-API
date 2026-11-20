@@ -1,6 +1,6 @@
 # vos.Service.Python.Shared — the managed-microservice contract, for Python
 
-The plumbing every Python VillageOS service needs, so a service writes its handler and nothing else. It is the
+The shared code every Python VillageOS service needs, so a service writes its handler and nothing else. It is the
 Python counterpart of the C# [`vos.Service.Auth`](../vos.Service.Auth) and
 [`vos.Service.Shared`](../vos.Service.Shared) libraries. The contract it implements is in
 [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md) and [docs/SERVICE_CONTRACT.md](../docs/SERVICE_CONTRACT.md).
@@ -46,7 +46,7 @@ node.mount(host)
 - **The answer.** `{"result": "success", "outputs": {...}, "error": null}`, or `{"result": "fail", "outputs": {},
   "error": "<message>"}`. Phloem reads `result` and fails any answer without it, so a service never writes the answer
   itself. Anything the operation raises is a `fail` answer carrying its message, never a server error.
-- **Graph references.** An input given as `{"ref": {"thingId": ..., "property": ...}}` is replaced by that
+- **References to a property.** An input given as `{"ref": {"thingId": ..., "property": ...}}` is replaced by that
   property's current value before the operation runs, as `DagNodeService` does. A reference that cannot be read, or to a
   property the Thing lacks, fails the run before the operation is called. Any other value, including a malformed
   `ref`, is a literal.

@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -12,8 +13,6 @@ public class CallCommandHandlerTests
     private readonly StringWriter _writer = new();
 
     private Task Execute(string arg) => new CallCommandHandler(arg, _writer, _myceliumMock.Object).ExecuteAsync();
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     [Theory]
     [InlineData("")]

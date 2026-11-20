@@ -7,23 +7,17 @@ import type { InheritedPropertySet, VosRelationship, VosThing } from '@tendril-u
  *  datetime field through its segments asks once rather than once a segment. */
 const MOMENT_SETTLES_FOR_MILLISECONDS = 400;
 
-/** The model as it stood at an instant, indexed the way the live model is — and nothing at all
- *  until that read lands, because the rows standing now are not the ones a moment was asked for.
- *  A moment carries no state: the rows a state holds are a live reading.
- *
- *  The read answers each Thing's own properties and the overrides it held, but not whether it
- *  declared itself a kind; the index needs that to tell a sub-kind from an instance, and the
- *  declaration cannot change after creation, so it is taken from the live index. */
+/** Nothing until the read arrives, because the rows standing now are not the moment asked for, and no
+ *  states, because those are a live reading. Whether a Thing is a kind comes from the live index, because
+ *  the read does not carry it, the index needs it, and it cannot change after creation. */
 export function useModelIndexAt(instant: string | undefined, live: ModelIndex): { index: ModelIndex | null; failed: boolean } {
   const [read, setRead] = useState<{ instant: string; things: VosThing[]; relationships: VosRelationship[] } | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
 
   useEffect(() => {
     if (!instant) return;
-    // The platform answers a moment with the whole model and nothing narrower — no timestamp on the
-    // read that takes a type and a property list — so one read is the static model at least, and a
-    // field spun through its minutes would ask for several. The instant is left to settle, and a
-    // read the next one supersedes is abandoned rather than left running.
+    // The platform answers an instant only with the whole model, so the instant is left to settle first,
+    // and a read that the next one replaces is cancelled.
     const asking = new AbortController();
     const settling = setTimeout(() => {
       modelApi.getAtTime(instant, asking.signal)

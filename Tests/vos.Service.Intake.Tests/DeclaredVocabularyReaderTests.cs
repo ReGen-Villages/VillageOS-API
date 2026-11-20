@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -188,15 +189,16 @@ public class DeclaredVocabularyReaderTests
 
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.CategorizedAs,
-            LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses, LandIntakeRoles.ReportedLevel,
-            LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace, LandIntakeRoles.PlaceNesting));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
+            LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
+            LandIntakeRoles.PlaceNesting));
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
-            SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
+            PlatformPredicates.Is, RoleBindings.BindsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
     }
 
@@ -224,6 +226,27 @@ public class DeclaredVocabularyReaderTests
             .NotContain("garden-demand", "Thing names are matched exactly, case included");
     }
 
+    [Fact]
+    public void A_model_declaring_soil_depths_reads_them_with_the_predicate_a_horizon_assesses_along()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("SoilDepth").Bound(LandIntakeRoles.SoilDepth, "SoilDepth")
+            .With("0-5cm").Relate("0-5cm", "is", "SoilDepth")
+            .With("5-15cm").Relate("5-15cm", "is", "SoilDepth");
+
+        var soilDepths = DeclaredVocabularyReader.Read(model.Build()).SoilDepths;
+
+        soilDepths.Should().NotBeNull();
+        soilDepths!.Terms.Select(term => term.Name).Should().BeEquivalentTo("0-5cm", "5-15cm");
+        soilDepths.Predicate.Id.Should().Be(model.Id("assesses"));
+    }
+
+    [Fact]
+    public void A_model_declaring_no_soil_depths_reads_none_rather_than_refusing()
+    {
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
+    }
+
     // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
     // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
     // word is already written and something has to say it means nothing.
@@ -243,6 +266,20 @@ public class DeclaredVocabularyReaderTests
         var model = DeclaredModel.Seeded();
         foreach (var (demand, _) in WillowBend.WaterDemandNames)
             model.ArchetypeStating(demand).Relate(demand, "is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands
+            .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
+    }
+
+    [Theory]
+    [InlineData("3")]
+    [InlineData(true)]
+    public void A_demand_stating_its_order_as_something_other_than_a_number_reads_as_served_first(object stated)
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, stated))
+                .Relate(demand, "is", "WaterDemandComponent");
 
         DeclaredVocabularyReader.Read(model.Build()).WaterDemands
             .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);

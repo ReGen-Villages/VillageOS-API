@@ -13,7 +13,7 @@ public sealed record FormOptions(
     IReadOnlyList<DeclaredTheme> Themes, IReadOnlyList<DeclaredLayerKind> LayerKinds,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording);
 
-public sealed record DeclaredLayerKind(string Name, string? Colour);
+public sealed record DeclaredLayerKind(string Name, string? Colour, IReadOnlyList<string> Themes);
 
 // A theme a section of the report may name, as the model declares it: the colour that faces
 // its tile, the icon the page draws on it, and its place in the grid. Each is absent where the model

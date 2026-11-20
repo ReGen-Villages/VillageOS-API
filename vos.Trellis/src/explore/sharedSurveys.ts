@@ -20,10 +20,10 @@ export interface SharedSurvey {
   sharedAt: string | null;
 }
 
-export type QueuedSurveyState = 'waiting' | 'sending' | 'shared' | 'refused';
+type QueuedSurveyState = 'waiting' | 'sending' | 'shared' | 'refused';
 
 export interface QueuedSurvey {
-  /** Of the page's own: two chosen files may share a name. */
+  /** The page's own key, because two chosen files may share a name. */
   readonly key: string;
   readonly file: File;
   readonly description: string;
@@ -33,7 +33,7 @@ export interface QueuedSurvey {
   readonly reason: string | null;
 }
 
-export function tooLarge(file: File): boolean {
+function tooLarge(file: File): boolean {
   return file.size > MAXIMUM_SURVEY_BYTES;
 }
 

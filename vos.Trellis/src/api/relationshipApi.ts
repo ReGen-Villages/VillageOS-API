@@ -42,9 +42,8 @@ export const relationshipApi = {
 
   setProperty: writeProperty,
 
-  // A relationship has no separate create route: the one call creates the property when it is
-  // absent and updates it when it is not. Named alongside thingApi.addProperty so a caller adding
-  // a property makes the same call whichever of the two it is holding.
+  // A relationship's one property route both creates and updates; named as thingApi's is, so a caller adds
+  // a property the same way to either.
   addProperty: writeProperty,
 
   deleteProperty: (id: string, name: string) =>
@@ -52,8 +51,7 @@ export const relationshipApi = {
       apiClient.del<{ message: string }>(`/api/relationships/${id}/properties/${encodeURIComponent(name)}`),
     ),
 
-  // Own and inherited resolved together, each carrying its declared type and where it came from —
-  // the same shape, served by the same handler, as the Thing route of the same name.
+  // Each value carries its declared type and where it came from, in the same shape as the Thing route.
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/relationships/${id}/properties`),
 };

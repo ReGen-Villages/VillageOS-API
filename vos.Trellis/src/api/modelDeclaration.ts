@@ -1,8 +1,5 @@
-/**
- * The three readings of a kind, off the model the console already holds: what its instances
- * declare, which links they carry, and which states it derives. They are what lets a table be
- * composed from the model's own words rather than typed blind.
- */
+/** Read off the model the console already holds, so a table is composed from the model's own words rather
+ *  than typed from memory. */
 import { IS_PREDICATE } from '@tendril-ui/tendril';
 import type { ModelIndex } from '@tendril-ui/tendril';
 import { thingIdsOfArchetype, thingsOfArchetype } from '@tendril-ui/tendril';
@@ -33,14 +30,12 @@ function isOffered(name: string): boolean {
   return !name.startsWith('__') && !NOT_OFFERED.has(name);
 }
 
-/** The archetype Thing a word names, or nothing where the word is not a kind. */
 function kindNamed(kind: string, modelIndex: ModelIndex) {
   const thing = modelIndex.byName.get(kind);
   return thing && modelIndex.archetypeIds.has(thing.Id) ? thing : undefined;
 }
 
-/** A kind's properties, nearest declaration first: its own, then each kind above it up the `is`
- *  chain. A name declared twice is offered once, by the nearest kind. */
+/** Nearest declaration first, up the `is` chain; a name declared twice is offered once, by the nearest kind. */
 export function propertiesOf(kind: string, modelIndex: ModelIndex): PropertyCandidate[] {
   const start = kindNamed(kind, modelIndex);
   if (!start) return [];
@@ -74,8 +69,8 @@ export function propertiesOf(kind: string, modelIndex: ModelIndex): PropertyCand
   return offered;
 }
 
-/** The links a kind's instances carry, grouped by predicate, direction and the kind reached, most
- *  common first. `is` types rather than relates, so it is never offered. */
+/** Grouped by predicate, direction and the kind reached, most common first. `is` types rather than
+ *  relates, so it is never offered. */
 export function edgesFrom(kind: string, modelIndex: ModelIndex): EdgeCandidate[] {
   if (!kindNamed(kind, modelIndex)) return [];
   const members = thingIdsOfArchetype(kind, modelIndex);
@@ -103,13 +98,12 @@ export function edgesFrom(kind: string, modelIndex: ModelIndex): EdgeCandidate[]
   );
 }
 
-/** One word for a link candidate, so a list of them can be chosen from by value. */
+/** So a list of them can be chosen from by value. */
 export function edgeKey(edge: Pick<EdgeCandidate, 'predicate' | 'direction' | 'reaches'>): string {
   return `${edge.predicate}|${edge.direction}|${edge.reaches}`;
 }
 
-/** Every kind with at least one instance, in name order — a table of a kind nothing is cannot
- *  show a row, so an empty kind is not offered. */
+/** Only kinds with an instance, because a table of a kind nothing is has no rows. */
 export function kindsOffered(modelIndex: ModelIndex): string[] {
   const offered: string[] = [];
   for (const id of modelIndex.archetypeIds) {
@@ -119,8 +113,7 @@ export function kindsOffered(modelIndex: ModelIndex): string[] {
   return offered.sort((a, b) => a.localeCompare(b));
 }
 
-/** The states a kind derives — its own and every one inherited from the kinds above it — as the
- *  platform reports them for the archetype, once each and in name order. */
+/** Its own states and every inherited one, as the platform reports them, once each and in name order. */
 export function statesOf(ranges: Pick<ThingRangesResponse, 'OwnRanges' | 'InheritedRanges'>): string[] {
   const names = new Set<string>(ranges.OwnRanges.map((range) => range.Name));
   const walk = (sets: InheritedRangeSetDto[]) => {
