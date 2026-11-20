@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace vos.Service.Auth;
 
-// Adds Mycelium-signed JWT auth to handler minimal-API apps. The key arrives as the VerificationKey
+// Adds checking of Mycelium-signed tokens to a handler's web app. The key arrives as the VerificationKey
 // setting from Mycelium at startup; it is the public half of Mycelium's signing pair.
 public static class HandlerAuthExtensions
 {

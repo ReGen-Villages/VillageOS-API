@@ -4,7 +4,7 @@ namespace vos.Service.Xylem.Services;
 // IFC is never held whole in memory and an over-cap upload is stopped early rather than fully buffered.
 public static class UploadSpooler
 {
-    // Copy src to path; returns bytes written, or -1 once
+    // Copies the upload to path; returns bytes written, or -1 once
     // the running total exceeds maxBytes (the copy stops at that point).
     public static async Task<long> SpoolAsync(Stream src, string path, long maxBytes, CancellationToken ct)
     {

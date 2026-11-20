@@ -34,7 +34,7 @@ public sealed class MetabolismSubscriptionService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Tests run against a synthetic Mycelium URL — don't open a real subscription.
+        // Tests give an address no Mycelium answers on, so no subscription is opened.
         if (_environment.IsEnvironment("Testing")) return Task.CompletedTask;
 
         _engine.RelationshipRegistered += OnRelationshipRegistered;

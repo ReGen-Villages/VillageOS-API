@@ -4,12 +4,13 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.ModelBridge.Services;
 
-// A generic bridge between a pipeline DAG and the model. It closes the gap that Phloem assembles a
-// node's inputs only from wires and run params — with no path to read a model property or write one back. With
-// mode = "read" it outputs the value of a Thing's property (GET the Thing's properties); with mode = "write"
-// it writes its value input onto a Thing's property (a Fact). So a compute node can read a derived property / anchor
-// param and write its result back, using ordinary node→node wires — no orchestrator change. The Thing id is baked into
-// the node params at seed-build time (deterministic under --name), so no runtime lookup is needed.
+// A step between a pipeline and the model. Phloem fills a step's inputs only from wires and run
+// parameters, with no way to read a model property or write one back. With mode = "read" this outputs the
+// value of a Thing's property (from the Thing's properties); with mode = "write" it writes its value input
+// onto a Thing's property as a Fact. So a compute step can read a derived property or an anchor parameter
+// and write its result back over ordinary wires between steps, with no change to Phloem. The Thing's id is
+// written into the step's parameters when the seed is built (the same under --name), so nothing is looked
+// up at run time.
 public sealed class ModelBridgeNode : DagNodeService
 {
     public ModelBridgeNode(IHttpClientFactory httpClientFactory, ILogger<ModelBridgeNode> logger,

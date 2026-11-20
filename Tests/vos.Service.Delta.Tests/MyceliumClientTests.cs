@@ -93,8 +93,8 @@ public class MyceliumClientTests
     [Fact]
     public async Task CreateThing_PropertiesObjectPresent_PopulatesEveryValueKind()
     {
-        // Exercises every JsonValueKind switch arm in TryParseThing's properties loop:
-        // String, Number(Int64), Number(Double), True, False, Null, default.
+        // One property of each kind of JSON value, so every case of TryParseThing's property reading is
+        // reached: string, whole number, decimal, true, false, null, and anything else.
         var id = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(_ => JsonResponse($$"""
         {
@@ -121,7 +121,7 @@ public class MyceliumClientTests
         result.Value.Properties["t"].Should().Be(true);
         result.Value.Properties["f"].Should().Be(false);
         result.Value.Properties["n"].Should().BeNull();
-        // Array arm falls through to default → GetRawText
+        // An array is none of the kinds above, so it is kept as its raw JSON text.
         result.Value.Properties["arr"].Should().Be("[1,2]");
     }
 
@@ -178,7 +178,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task CreateThingAsync_ResponseUnparseable_ReturnsNull()
     {
-        // 200 OK but the body isn't a JSON object → TryParseThing returns false.
+        // A 200 whose body is not a JSON object is no Thing, so TryParseThing returns false.
         var handler = new MockHttpMessageHandler(_ => JsonResponse("[1,2,3]"));
         (await CreateClient(handler).CreateThingAsync(new() { Name = "X" })).Should().BeNull();
     }

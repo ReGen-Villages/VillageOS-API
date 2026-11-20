@@ -6,8 +6,8 @@ namespace vos.Service.WaterReserve.Services;
 
 // The WaterReserve analysis as a pipeline node, and the only form left: population +
 // per-capita rate + stored volume in; emergency reserve, days-of-supply, and % annual consumption out.
-// A site analysis works all four out for itself, so nothing calls this for a study any more
-// — a pipeline run supplies the three inputs on wired ports and takes the answer back.
+// A site analysis works all four out for itself, so nothing calls this for a study — a pipeline run
+// supplies the three inputs on wired ports and takes the answer back.
 public sealed class WaterReserveNode : DagNodeService
 {
     public WaterReserveNode(IHttpClientFactory httpClientFactory, ILogger<WaterReserveNode> logger,

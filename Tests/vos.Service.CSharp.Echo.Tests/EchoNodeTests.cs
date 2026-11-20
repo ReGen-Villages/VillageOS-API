@@ -1,7 +1,3 @@
-// EchoNode is the reference pipeline DAG node: it copies its "message" input
-// to its "echo" output through the shared DagNodeService envelope. These tests pin that behaviour and
-// the advertised port manifest.
-
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;

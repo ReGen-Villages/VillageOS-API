@@ -4,8 +4,8 @@ using FluentAssertions;
 
 namespace vos.Service.Xylem.Tests;
 
-// Covers the ingest orchestration: validate, clear the model for new-model, run ModelIngest via
-// the runner, surface the counts — independent of the subprocess/HTTP details.
+// The ingest's own steps — check the request, clear the model for a new model, run ModelIngest through
+// the runner, report the counts — without a child process or HTTP.
 public class IngestHandlerTests : IDisposable
 {
     private sealed class FakeRunner : IModelIngestRunner

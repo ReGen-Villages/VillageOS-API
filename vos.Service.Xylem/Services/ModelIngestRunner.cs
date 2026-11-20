@@ -4,12 +4,12 @@ using vos.Service.Shared;
 
 namespace vos.Service.Xylem.Services;
 
-// Production runner: invokes the vos.Tools.ModelIngest tool as a subprocess
+// Production runner: runs the vos.Tools.ModelIngest tool as a child process
 //   dotnet <ModelIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis --result <path>
-// which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
-// Purely the subprocess; new-model model preparation is the handler's job. No unit test starts the tool
-// itself; the launch it builds, the guard, the reading of a child's output and of its result file and
-// the stopping of a child are tested, and the orchestration by IngestHandlerTests.
+// which parses (Xbim), classifies, and posts the graph to /api/model/fragment under stable ids, so a repeat
+// run changes nothing. Only the child process; preparing a new model is the handler's job. No unit test
+// starts the tool itself; the launch it builds, the guard, the reading of a child's output and of its
+// result file and the stopping of a child are tested, and what calls this is tested by IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
     // What the ingest tool writes to its --result file: what the broker created and updated across the
