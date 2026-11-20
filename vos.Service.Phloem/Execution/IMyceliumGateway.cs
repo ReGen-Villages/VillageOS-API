@@ -6,9 +6,9 @@ namespace vos.Service.Phloem.Execution;
 
 public sealed record NodeCallResult(int StatusCode, string Body);
 
-// Everything the executor needs from Mycelium, behind a seam so the orchestration logic is
-// unit-testable without HTTP. The HTTP implementation is MyceliumGateway; run-persistence calls are
-// best-effort (the executor never lets a persistence failure abort a run).
+// Everything the executor needs from Mycelium, behind an interface so the executor is tested without
+// HTTP. The HTTP implementation is MyceliumGateway. The executor treats most run-record writes as best
+// effort, but a run that cannot be created does not start and a wait that cannot be written fails.
 public interface IMyceliumGateway
 {
     Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken);

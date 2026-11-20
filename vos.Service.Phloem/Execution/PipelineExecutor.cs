@@ -8,10 +8,11 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.Phloem.Execution;
 
-// Runs a pipeline synchronously (spawn-and-wait): load the subgraph → build the DAG → validate (acyclic +
-// port types) → execute nodes in dependency order, calling each through Mycelium and routing each
-// node's outputs to its downstream inputs → return the full result. Independent nodes in a level run
-// concurrently (bounded). Run/NodeRun state is persisted best-effort for the live SSE view.
+// Runs a pipeline and waits for it: loads the subgraph, builds the graph of steps, checks it has no cycle
+// and that port types match, then runs the steps in dependency order, calling each through Mycelium and
+// routing each step's outputs to the inputs downstream, and returns the full result. Independent steps in
+// a level run at once, up to a bound. Run and node-run state is written for the console's live view; most
+// of those writes are best effort, but a run that cannot be recorded does not start.
 public sealed class PipelineExecutor
 {
     private static readonly IReadOnlyDictionary<string, JsonElement> NoOutputs =

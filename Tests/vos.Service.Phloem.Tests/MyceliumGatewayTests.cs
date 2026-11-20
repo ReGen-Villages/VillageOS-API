@@ -217,8 +217,8 @@ public class MyceliumGatewayTests
         }));
 
     // The stand-in above answers a write with 200 whatever its body. Two rules the real broker applies are
-    // applied here as well, because a stand-in that accepts anything is what let the writer's shape drift
-    // from the route's and left every run unrecorded: a property is written as a typed envelope,
+    // applied here as well, because a stand-in that accepts anything would let the writer's shape stop
+    // matching the route's and leave every run unrecorded: a property is written as a typed envelope,
     // and a property is set only on a Thing that already carries it.
     private sealed class BrokerApplyingItsWriteRules
     {
@@ -343,7 +343,7 @@ public class MyceliumGatewayTests
         onlyRule.TryGetProperty("predicate", out _).Should().BeFalse("a rule naming no predicate takes every predicate");
         onlyRule.TryGetProperty("predicateRole", out _).Should().BeFalse();
         // The only names on the selector are the built-in predicates: an archetype name asked for here
-        // is what stopped finding anything the moment a model renamed one.
+        // would stop finding anything the moment a model renamed one.
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
             .Should().BeEquivalentTo(["is", "has", "binds"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
@@ -739,7 +739,7 @@ public class MyceliumGatewayTests
     }
 
     // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
-    // body, so a run answered its caller and left nothing behind.
+    // body, so a run would answer its caller and leave nothing behind.
     [Fact]
     public async Task CreateRunAsync_WritesEveryPropertyAsATypedEnvelope()
     {

@@ -264,8 +264,8 @@ public sealed class GraphFixture
     public PipelineGraph Build() => new(_things, _rels);
 }
 
-// The canonical demo: Generate –carries(echo→message)→ Echo. Each node binds a Connection (subdomain)
-// → Service → shared EchoProto prototype with typed ports.
+// The canonical demo: Generate carries its echo output to Echo's message input. Each node binds a
+// Connection, by subdomain, which reaches a Service and the shared EchoProto prototype with typed ports.
 public static class TestGraphs
 {
     public static (GraphFixture Fixture, Guid PipelineId) DemoPipeline()

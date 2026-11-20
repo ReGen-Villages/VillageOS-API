@@ -83,7 +83,7 @@ try
         }
     }));
 
-    // Spawn-and-wait: { pipelineId, params? } -> run the DAG to completion -> return the result.
+    // Takes { pipelineId, params? }, runs the pipeline to its end, and answers with the result.
     var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, ILogger<Program> log) =>
     {
         var timings = new AnswerTimings();
@@ -148,7 +148,7 @@ try
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
-                // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
+                // The caller, such as a program, waits for the result.
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
