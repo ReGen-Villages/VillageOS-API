@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -65,6 +66,29 @@ public class ThePressToolsTests
 
         offered.GetProperty("choices").EnumerateArray().Select(choice => choice.GetProperty("key").GetString())
             .Should().BeEquivalentTo(["listed:0", Capped, "2ab3fd24-8196-5c5e-8007-7883d6bc293f", "listed:1", "listed:2"]);
+    }
+
+    [Fact]
+    public async Task The_choices_a_row_is_offered_on_a_page_read_for_one_Thing_are_read_on_that_Things_page()
+    {
+        var scopes = MyceliumAnsweringFromTheRecording.FirstPage.GetProperty("scopes");
+        var forOne = scopes[0].GetProperty("id").GetString()!;
+        var forAnother = scopes[1].GetProperty("id").GetString()!;
+        var selected = new ConcurrentQueue<string>();
+        var model = ModelTakingPresses();
+        await using var server = await StartAsync(MyceliumFor(() => "viewer", request =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/snapshots") selected.Enqueue(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            return model.Answer(request);
+        }));
+
+        var offered = Parsed(await server.Client.CallToolAsync("offered_choices", new Dictionary<string, object?>
+        {
+            ["page"] = "Catchments", ["widget"] = Springs, ["row"] = "Cold spring", ["scope"] = scopes[0].GetProperty("name").GetString(),
+        }));
+
+        offered.GetProperty("choices").GetArrayLength().Should().BePositive();
+        selected.Should().Contain(body => body.Contains(forOne) && !body.Contains(forAnother));
     }
 
     [Fact]

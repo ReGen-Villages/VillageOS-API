@@ -68,18 +68,8 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         {
             var reads = new MyceliumPageReads(await clients.ForAsync(model));
             var asked = language ?? DefaultLanguage;
-            var listed = await reader.ListPagesAsync(asked, reads, cancellation);
-            var found = OneNamed(page, listed, one => one.Id, one => one.Name, "page");
-            if (!found.Readable) throw new McpException($"The description of the page \"{found.Name}\" could not be read, so the page cannot be.");
-
-            IReadOnlyList<string?> scopeIds = [null];
-            if (scopes is { Length: > 0 })
-            {
-                var compared = await reader.ScopesOfAsync(found.Id, asked, reads, cancellation);
-                scopeIds = scopes.Select(scope => (string?)OneNamed(scope, compared, one => one.Id, one => one.Name, "Thing the page compares").Id).ToList();
-            }
-
-            var readings = await reader.ReadPageAsync(found.Id, scopeIds, asked, reads, cancellation);
+            var (pageId, scopeIds) = await PageAndScopesAsync(reader, page, scopes ?? [], asked, reads, cancellation);
+            var readings = await reader.ReadPageAsync(pageId, scopeIds, asked, reads, cancellation);
             return Answered(new JsonObject { ["readings"] = new JsonArray(readings.Select(reading => JsonNode.Parse(reading)).ToArray()) }, reads);
         });
 
@@ -122,6 +112,18 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         {
             throw new McpException(refused.Message);
         }
+    }
+
+    /// <summary>With no Thing named, the page is read across everything it compares.</summary>
+    internal static async Task<(string PageId, IReadOnlyList<string?> ScopeIds)> PageAndScopesAsync(
+        PageReader reader, string page, IReadOnlyList<string> scopes, string language, MyceliumPageReads reads, CancellationToken cancellation)
+    {
+        var found = OneNamed(page, await reader.ListPagesAsync(language, reads, cancellation), one => one.Id, one => one.Name, "page");
+        if (!found.Readable) throw new McpException($"The description of the page \"{found.Name}\" could not be read, so the page cannot be.");
+        if (scopes.Count == 0) return (found.Id, [null]);
+
+        var compared = await reader.ScopesOfAsync(found.Id, language, reads, cancellation);
+        return (found.Id, scopes.Select(scope => (string?)OneNamed(scope, compared, one => one.Id, one => one.Name, "Thing the page compares").Id).ToList());
     }
 
     internal static T OneNamed<T>(string asked, IReadOnlyList<T> among, Func<T, string> idOf, Func<T, string> nameOf, string what)

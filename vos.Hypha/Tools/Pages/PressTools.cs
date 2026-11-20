@@ -42,8 +42,8 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
         {
             var reads = new MyceliumPageReads(await clients.ForAsync(model));
             var asked = language ?? DefaultLanguage;
-            var (pageId, scopeId) = await PageAndScopeAsync(page, scope, asked, reads, cancellation);
-            var offered = await reader.OfferedChoicesAsync(pageId, widget, scopeId, row, asked, reads, cancellation);
+            var (pageId, scopeIds) = await PageTools.PageAndScopesAsync(reader, page, scope is null ? [] : [scope], asked, reads, cancellation);
+            var offered = await reader.OfferedChoicesAsync(pageId, widget, scopeIds[0], row, asked, reads, cancellation);
             return PageTools.Answered(JsonNode.Parse(offered)!.AsObject(), reads);
         });
 
@@ -77,9 +77,9 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
             var mycelium = await clients.ForAsync(model);
             var reads = new MyceliumPageReads(mycelium);
             var asked = language ?? DefaultLanguage;
-            var (pageId, scopeId) = await PageAndScopeAsync(page, scope, asked, reads, cancellation);
+            var (pageId, scopeIds) = await PageTools.PageAndScopesAsync(reader, page, scope is null ? [] : [scope], asked, reads, cancellation);
             var answersJson = JsonSerializer.Serialize(answers ?? []);
-            var composed = JsonNode.Parse(await reader.ComposePressAsync(pageId, widget, scopeId, row, choice, answersJson, asked, reads, cancellation))!.AsObject();
+            var composed = JsonNode.Parse(await reader.ComposePressAsync(pageId, widget, scopeIds[0], row, choice, answersJson, asked, reads, cancellation))!.AsObject();
             var shown = "This press makes these writes, in this order:\n" + composed.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 
             var refusal = MyceliumPageWrites.RefusalToSend(composed["writes"]!.AsArray());
@@ -115,15 +115,4 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
 
     private static JsonObject Unsent(JsonObject composed, string digest) =>
         new() { ["sent"] = false, ["composed"] = composed.DeepClone(), ["digest"] = digest };
-
-    private async Task<(string PageId, string? ScopeId)> PageAndScopeAsync(
-        string page, string? scope, string language, MyceliumPageReads reads, CancellationToken cancellation)
-    {
-        var found = PageTools.OneNamed(page, await reader.ListPagesAsync(language, reads, cancellation), one => one.Id, one => one.Name, "page");
-        if (!found.Readable) throw new McpException($"The description of the page \"{found.Name}\" could not be read, so the page cannot be.");
-        if (scope is null) return (found.Id, null);
-
-        var compared = await reader.ScopesOfAsync(found.Id, language, reads, cancellation);
-        return (found.Id, PageTools.OneNamed(scope, compared, one => one.Id, one => one.Name, "Thing the page compares").Id);
-    }
 }
