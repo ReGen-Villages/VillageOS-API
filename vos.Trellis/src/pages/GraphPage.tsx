@@ -27,12 +27,8 @@ import type { DeletableEntity } from './graphDeletions';
 import { deletePropertyOf } from './propertyDeletion';
 import { useSelectedThing } from '../hooks/useSelectedThing';
 
-// SigmaCanvas is lazy-loaded so the page commits (search bar,
-// type filter, top-right controls) BEFORE Sigma's mount-time work
-// (buildGraph + supervisor init + initial render of 30k+ nodes) starves the
-// main thread. The user can interact with the type filter immediately on cold
-// start, hide the heavy types they don't want, and the page reaches an
-// interactive state without ever rendering the full set.
+// Loaded lazily, so the search bar, type filter and controls appear before Sigma's start holds the main thread
+// on a very large model, and a person can hide heavy types without the whole set ever being drawn.
 const SigmaCanvas = lazy(() =>
   import('../components/graph/SigmaCanvas').then((m) => ({ default: m.SigmaCanvas })),
 );
@@ -59,9 +55,7 @@ export function GraphPage() {
   const statesVersion = useUiStore((s) => s.statesVersion);
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
 
-  // Drop instances of hidden types BEFORE search filtering and
-  // graph build, so render cost scales with visible-only counts: at 30k+ Things any
-  // per-frame render of the full set saturates the main thread.
+  // Hidden types go before search and graph building, so drawing costs only what is visible.
   const visible = useMemo(
     () => applyTypeFilter(things, relationships, hiddenTypeIds),
     [things, relationships, hiddenTypeIds],
@@ -79,11 +73,8 @@ export function GraphPage() {
     useUiStore.getState().clearPredicateIds();
   }, []);
 
-  // Defer Sigma mount one tick so the page chrome (search
-  // bar + type filter + top-right controls) commits and paints first. On a
-  // 30k-node model the synchronous SigmaCanvas mount blocks the main thread
-  // for several seconds; without this defer the user can never reach the
-  // type filter to hide types and recover perf on cold start.
+  // Mounted a moment later, so the controls paint first: on a very large model Sigma's start holds the main
+  // thread for seconds, and the type filter must be reachable before it.
   const [mountSigma, setMountSigma] = useState(false);
   useEffect(() => {
     const id = setTimeout(() => setMountSigma(true), 0);
@@ -143,8 +134,7 @@ export function GraphPage() {
     }
   };
 
-  // Import a fragment file ({ Name, Things, Relationships }) and upsert it into the live model.
-  // Idempotent; created Things/relationships animate in over SSE, so we only need to trigger a reload.
+  // Applying a fragment is safe to repeat, and what it creates arrives on the stream, so only a reload is asked for.
   const fragmentInputReference = useRef<HTMLInputElement>(null);
   const handleImportFragment = async (file: File) => {
     try {
@@ -183,11 +173,7 @@ export function GraphPage() {
         creatingThing={creatingThing} onCreateThing={handleCreateThing}
       />
 
-      {/* Top-right: graph-specific import-fragment action. Session chrome
-          (theme, switch model, log out) lives in the shared sidebar footer.
-          z-20 keeps this control surface above the filter cluster (z-10) so a
-          tall predicate list can never render over it (Bug: filter panel
-          obscured the control surface). */}
+      {/* Above the filter cluster, so a tall predicate list cannot cover it. */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         <input
           ref={fragmentInputReference}
@@ -209,20 +195,8 @@ export function GraphPage() {
         </button>
       </div>
 
-      {/* Filter cluster — bottom-right, vertically aligned
-          with the toolbar in the bottom-left (both at bottom-3). Type and
-          predicate filters live in one region because they're functionally
-          related (both control what shows in the graph).
-
-          Bug #5388: container shares its bounded height between the two
-          panels. Each panel scrolls its own list (flex-1 min-h-0) instead
-          of capping at a fixed 40vh, so neither panel can push the other's
-          header out of the viewport.
-
-          The max-h reserves the top band (~4rem) for the top-right control
-          surface so a tall predicate list can't grow up over the import-
-          fragment control. Paired with z-20 on that control surface as a
-          belt-and-suspenders guard. */}
+      {/* Each panel scrolls its own list, so neither pushes the other's header off screen, and the height
+          leaves a band at the top for the control surface. */}
       <div className="absolute bottom-3 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-4rem)]">
         <PredicateFilterPanel />
         <TypeFilterPanel />
@@ -238,17 +212,14 @@ export function GraphPage() {
         )}
       </ErrorBoundary>
 
-      {/* Radial predicate menu — positioned over the graph */}
       <RadialPredicateMenu />
 
-      {/* Node context menu — positioned over the graph */}
       <NodeContextMenu
         things={things}
         relationships={relationships}
         onDeleteThing={(id, name) => setDeleteConfirm({ type: 'thing', id, name })}
       />
 
-      {/* Detail panel — works in both 2D and 3D modes */}
       {detailThing && (
         <ResizablePanel>
           <NodeDetailPanel
@@ -303,9 +274,7 @@ export function GraphPage() {
   );
 }
 
-/** Lightweight placeholder shown while SigmaCanvas is loading or deferred.
- * Plain DOM — no canvas, no WebGL, no JS work — so the
- *  page chrome can paint and the user can interact with the type filter. */
+/** Plain elements and no canvas, so the page paints and the type filter can be used while Sigma loads. */
 function SigmaPlaceholder() {
   return (
     <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm pointer-events-none">

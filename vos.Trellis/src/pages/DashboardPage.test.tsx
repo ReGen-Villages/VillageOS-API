@@ -216,8 +216,6 @@ describe('DashboardPage engine figures when a range or definition is registered'
     expect(engineReads()).toBe(before + 1);
   });
 
-  // The read walks every range and definition the model holds, so one read per registration would
-  // cost a bulk registration the square of its size.
   it('answers a burst with one read at once and one when the window closes, not one for each', async () => {
     openDashboard();
     await settled();
