@@ -220,6 +220,19 @@ public class ThePressToolsTests
     }
 
     [Fact]
+    public async Task A_write_Mycelium_refuses_fails_the_press_and_nothing_after_it_is_sent()
+    {
+        var model = ModelTakingPresses(takingWrites: false);
+        await using var server = await StartAsync(MyceliumFor(() => "editor", model.Answer));
+
+        var answer = await server.Client.CallToolAsync("press", Pressing(Capped, preview: false, digest: await DigestOfAsync(server, Capped)));
+
+        answer.IsError.Should().BeTrue();
+        TextOf(answer).Should().Contain("nothing after the refused write was sent");
+        model.Writes.Select(write => write.Route).Should().Equal("POST /api/relationships");
+    }
+
+    [Fact]
     public async Task A_choice_that_asks_a_secret_is_refused_and_the_secret_is_neither_sent_nor_shown()
     {
         var choice = new JsonObject
@@ -350,10 +363,10 @@ public class ThePressToolsTests
         return JsonDocument.Parse(TextOf(result)).RootElement;
     }
 
-    private static RecordedModelTakingPresses ModelTakingPresses(bool bindsThePageRole = true, bool takingReports = true) =>
-        new(bindsThePageRole, takingReports);
+    private static RecordedModelTakingPresses ModelTakingPresses(bool bindsThePageRole = true, bool takingReports = true, bool takingWrites = true) =>
+        new(bindsThePageRole, takingReports, takingWrites);
 
-    private sealed class RecordedModelTakingPresses(bool bindsThePageRole, bool takingReports)
+    private sealed class RecordedModelTakingPresses(bool bindsThePageRole, bool takingReports, bool takingWrites)
     {
         public List<(string Route, string Body)> Writes { get; } = [];
         public List<string> Reports { get; } = [];
@@ -374,7 +387,9 @@ public class ThePressToolsTests
             if (path == "/api/relationships" && request.Method == HttpMethod.Post)
             {
                 Writes.Add(($"POST {path}", body));
-                return Json("""{"Id":"00000000-0000-4000-9000-000000009999"}""");
+                return takingWrites
+                    ? Json("""{"Id":"00000000-0000-4000-9000-000000009999"}""")
+                    : Json("""{"error":"This key may not relate these Things"}""", HttpStatusCode.Forbidden);
             }
             if (request.Method == HttpMethod.Put || (request.Method == HttpMethod.Post && path.StartsWith("/api/endpoints/", StringComparison.Ordinal)))
             {
