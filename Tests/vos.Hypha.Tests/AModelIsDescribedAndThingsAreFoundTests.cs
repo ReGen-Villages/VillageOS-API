@@ -224,15 +224,13 @@ public class AModelIsDescribedAndThingsAreFoundTests
         QueriesFor(server, "/api/things").Should().Equal("?name=North%20reservoir");
     }
 
-    [Theory]
-    [InlineData("names")]
-    [InlineData("properties")]
-    public async Task An_entry_holding_a_comma_is_refused_and_nothing_is_asked(string list)
+    [Fact]
+    public async Task A_property_holding_a_comma_is_refused_and_nothing_is_asked()
     {
         await using var server = await StartAsync(AModel(_ => Json("[]")));
 
         var refused = await server.Client.CallToolAsync(
-            "find_things", new Dictionary<string, object?> { [list] = new[] { "Spring, north" } });
+            "find_things", new Dictionary<string, object?> { ["properties"] = new[] { "Spring, north" } });
 
         refused.IsError.Should().BeTrue();
         TextOf(refused).Should().Contain("holds a comma");
@@ -262,21 +260,22 @@ public class AModelIsDescribedAndThingsAreFoundTests
     {
         await using var server = await StartAsync(AModel(_ => null));
 
-        await server.Client.CallToolAsync(
-            "find_things", new Dictionary<string, object?> { ["names"] = new[] { "../x?all=true" }, ["kind"] = "a/b" });
+        await server.Client.CallToolAsync("find_things", new Dictionary<string, object?> { ["within"] = "../x?all=true" });
+        await server.Client.CallToolAsync("find_things", new Dictionary<string, object?> { ["kind"] = "a/b" });
 
-        var asked = server.Mycelium.Requests.Single(request => request.RequestUri!.AbsolutePath == "/api/things").RequestUri!;
-        asked.AbsolutePath.Should().Be("/api/things");
-        asked.Query.Should().StartWith("?name=..%2Fx%3Fall%3Dtrue&type=a%2Fb&");
+        QueriesFor(server, "/api/things").Should().HaveCount(2)
+            .And.SatisfyRespectively(
+                container => container.Should().Be("?name=..%2Fx%3Fall%3Dtrue"),
+                kind => kind.Should().StartWith("?type=a%2Fb&"));
     }
 
     [Fact]
     public async Task What_the_platform_leaves_out_is_not_asked_for_another_way_and_is_not_named()
     {
-        await using var server = await StartAsync(AModel(_ => null));
+        await using var server = await StartAsync(AModel(request => request.RequestUri!.AbsolutePath == "/api/things" ? Json("[]") : null));
 
         var answer = await server.Client.CallToolAsync(
-            "find_things", new Dictionary<string, object?> { ["names"] = new[] { "A protected Thing" } });
+            "find_things", new Dictionary<string, object?> { ["name_contains"] = "A protected Thing" });
 
         Structured(answer).GetProperty("things").GetArrayLength().Should().Be(0);
         TextOf(answer).Should().NotContain("protected");
@@ -289,6 +288,18 @@ public class AModelIsDescribedAndThingsAreFoundTests
         await using var server = await StartAsync(AModel(_ => null));
 
         server.Client.ServerInstructions.Should().Be(ServerProgram.Instructions);
+    }
+
+    // The platform answers a lookup by one name with the Thing itself, not a list, and get_thing reads that answer.
+    [Fact]
+    public async Task Things_are_not_found_by_exact_names()
+    {
+        await using var server = await StartAsync(AModel(_ => null));
+
+        var found = (await server.Client.ListToolsAsync()).Single(tool => tool.Name == "find_things");
+
+        found.ProtocolTool.InputSchema.GetProperty("properties").TryGetProperty("names", out _).Should().BeFalse();
+        found.Description.Should().NotContain("exact names");
     }
 
     [Fact]
