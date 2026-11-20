@@ -5,11 +5,7 @@ import { useAuthentication } from '../../hooks/useAuthentication';
 import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
 
-/** The always-present chrome shared by every page: theme toggle, switch model,
- *  log out, and the language switcher. Lives in the sidebar footer so it is
- *  reachable from any route without each page re-implementing it. Lays the
- *  controls out in a row when the sidebar is expanded and stacks them when it
- *  collapses to icon width. */
+/** In the sidebar footer, so every page reaches these controls without its own copy of them. */
 export function SessionControls({ isCollapsed }: { isCollapsed: boolean }) {
   const { logout, switchModel } = useAuthentication();
   const { t } = useTranslation();

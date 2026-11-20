@@ -38,15 +38,13 @@ describe('BuildingDetail3D', () => {
     const { rerender, queryByTestId, getByText } = render(<BuildingDetail3D geometryValue={null} />);
     expect(getByText('The 3D geometry could not be read.')).toBeTruthy();
 
-    // The populated branch renders extra hooks, which once threw "Rendered more hooks than during the
-    // previous render".
+    // The populated branch renders more hooks, which throws "Rendered more hooks than during the previous
+    // render" if any of them sits below the early return.
     rerender(<BuildingDetail3D geometryValue="VALID" />);
     expect(queryByTestId('canvas')).toBeTruthy();
   });
 
-  // The user guide (Section 6.2) states this view does not pan — the element
-  // stays centered while orbiting. Guard the flag so the docs can't silently
-  // go stale if the OrbitControls configuration changes.
+  // The field guide says the 3D tab orbits and zooms but does not pan, so this keeps the guide true.
   it('disables panning', () => {
     render(<BuildingDetail3D geometryValue="VALID" />);
     expect(orbitControlsProps.enablePan).toBe(false);
