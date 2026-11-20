@@ -1076,25 +1076,33 @@ The **Pipelines** page in the console is the editor.
 
 ![The Pipelines page with a saved pipeline loaded: the catalysts and the roster on the left, the nodes wired on the canvas, the outputs and the services on the right, the parameters along the top](assets/trellis-pipelines.png)
 
-- **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
-  listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
-  each saying what it starts or what happens to it; the one connection left out is the orchestrator's
-  own, which a waiting node run is answered through to resume its run, because no run starts from it. A state
-  row says it starts its drawing only when
-  the orchestrator receives the state's entries; otherwise it names the drawing and the service that
-  receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection. A
-  state row watched through one connection also offers **Call settings**, which opens the settings of
-  that connection's calls (chapter 86a).
-  Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are
+- **The catalysts**, in the rail on the left, are everything in the model that sets a run off, in
+  four groups that are always shown: *Messages from outside*, *States the model enters*, *The clock*
+  and *Relationships written*. A state the clock re-checks carries its *every N s* tag, and a cadence
+  its *every N model min*. Each row has a handling cell on the right: the drawing that runs (green), the
+  service the catalyst is sent to (grey), or *nothing*. A relationship row for a connection used as a
+  predicate that names no connection along `notifies` reads *nothing*, with a tooltip saying the
+  platform calls nothing for it, and offers no start node. A predicate that names a connection along
+  `notifies` is one relationship row, and that connection has no row of its own. Three connections are
+  left out, because no run starts from them: the orchestrator's resumption connection, which a waiting
+  node run is answered through, its stop-request connection, and a connection an external system is
+  told through. A state row whose entries go to a service other than the orchestrator names that
+  service in its cell, keeps its drawing as the row's link, and offers **Handle with the
+  orchestrator**, which rebinds the state's connection. A state row watched through one connection
+  also offers **Call settings**, which opens the settings of that connection's calls (chapter 86a).
+  Clicking a row places a **start node** standing for it, and a row no run can start from offers none;
+  *By hand* places a start whose ports are
   filled from the run's parameters, except `subject`, which reaches the start as `{id, name}` read from
   the model, so a run whose subject names no Thing is refused. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
 - **The outputs**, in the rail on the right, offer the answer, the other pipelines, the external
-  systems told through a connection, and a stop. The answer places the **Output node**, where every
-  path ends, and the value wired into it becomes the run's published result. A pipeline row places a
-  **follow-on node**, a system row a **tell node**, and the stop row a **stop node** (chapter 42); each
-  is offered only where the model binds its kind. The **services** stand under the outputs: clicking
+  systems told through a connection, under *Steps the orchestrator runs* a wait box and a relate box,
+  and under *Stopping runs* a stop. The answer places the **Output node**, where every path ends, and
+  the value wired into it becomes the run's published result. A pipeline row places a **follow-on
+  node**, a system row a **tell node**, the two steps a **wait node** and a **relate node**, each with
+  its kind's ports, and the stop row a **stop node** (chapter 42); each is offered only where the model
+  binds its kind. The **services** stand under the outputs: clicking
   one drops a node bound to its connection, with the typed ports the service declares. Only a service
   that declares at least one port is listed, so the platform's own connections (the orchestrator,
   Tributary and Delta), which declare none, are not.
@@ -1120,10 +1128,24 @@ The **Pipelines** page in the console is the editor.
   that wire. An invalid expression is caught before the run.
 - **A tell or follow-on node** chooses what it stands for, and edits each value it passes on as one in
   and one out port. A **stop node** binds its in ports to run parameters.
+- **A wait node** chooses the state it waits for (every declared state, grouped by the kind it
+  judges), the predicate it then follows (those that relationships from Things of that kind run along,
+  or every predicate where there are none), and *Waits at most (minutes)*, a whole number of minutes,
+  empty for no limit.
+- **A relate node** chooses the predicate it stands for, from only the predicates the orchestrator
+  accepts, sorted by their names in the page language; the list says so when none qualifies. A
+  predicate is accepted when it names a connection along `notifies`, that connection binds a service,
+  and the connection names exactly one state its work is proven by. Under the choice, read-only, are
+  the state the node will wait for and the service it calls, and the node has *Waits at most
+  (minutes)* as a wait node does. On the canvas it reads *relates along <predicate>, then waits for
+  <state>*, or the orchestrator's reason for refusing it. A relate node loaded from an older drawing
+  that the orchestrator would refuse opens unchanged, shows the reason, and is saved back as it was.
 - **Parameters.** An unwired input can be bound to a run parameter by name; the parameters appear
   in a bar above the canvas where values are typed at run time.
-- **Validation** runs before every run: a required input neither wired nor bound, or a wire with a
-  loose end, disables Run and says why.
+- **Validation** runs before every run: a required input neither wired nor bound, a wire with a
+  loose end, a wait node with no state, a relate node with no predicate or one the orchestrator would
+  refuse (with the reason), a wait or relate node with nothing wired into its port, and a limit that is
+  not a whole number of minutes above zero each disable Run and say why.
 - **Save and undo.** Saving an opened pipeline updates it in place. Every edit is optimistic and
   can be undone; a save the server refuses rolls the canvas back to the last saved state.
 - **History** lists a pipeline's past runs; picking one replays each node's status onto the canvas.
@@ -1166,10 +1188,13 @@ Output node. A **wait node** calls no service: the run stands at *waiting* as so
 box, until the Thing on its port enters the state the box names, and then gives that Thing on. A wait
 node may follow a predicate from the Thing it waited for and give, on a second port, the Things it
 reaches, so "wait until decided" hands on the decision; a read that fails fails the node. A
-**relate node** starts a service the way the model does: it stands for a connection, relates the Thing
-reaching it along that connection to the connection's service unless it is related already, so the
-platform calls the service, and waits until the state the connection names for done holds. It then
-gives the Thing on, and says whether this run wrote the relationship.
+**relate node** starts a service the way the model does: it stands for a predicate, which names along
+`notifies` the connection the platform calls. It relates the Thing reaching it along that predicate to
+the connection's service unless it is related already, so the platform calls the service, and waits
+until the state that connection is proven by holds. It then gives the Thing on, and says whether this
+run wrote the relationship. A wait or relate node may carry `waitsAtMostMinutes`, a whole number of
+model minutes above zero; once that passes without the Thing entering the state, the node fails with a
+reason naming the Thing, the state and the minutes. With none, it waits without limit.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
 timeout, a server error from the broker — it is called again after a pause in model minutes. It is
@@ -1212,11 +1237,12 @@ with no list transform alone fills that node's list input; the item keeps its pl
 where the items were first spread out. An item transform reshapes each item on the way; one that
 fails fails that item without a call, and fails a node fed items that meet. A stop starts no more items.
 
-A pipeline can also be started **from the model**. A `runs` predicate naming a Phloem connection
-makes creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship. A relationship written along any other predicate naming a Phloem connection starts a
-pipeline whose start node stands for what the relationship reaches; the orchestrator reads the
-relationship by its identifier to find it. A **state connection** bound to Phloem starts a pipeline
+A pipeline can also be started **from the model**. A `runs` predicate that names a Phloem connection
+along `notifies` makes creating *X runs Pipeline* start it, so any service can start a pipeline by
+creating one relationship. A relationship written along any other predicate that names a Phloem
+connection starts first a pipeline whose start node stands for that predicate; otherwise it starts the
+one whose start node stands for what the relationship reaches. The orchestrator reads the relationship
+by its identifier to find it. A connection written along directly is no starting point of its own. A **state connection** bound to Phloem starts a pipeline
 drawn from it when a Thing enters the state, with the entering Thing as the run's `subject`: the name
 the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows
 by its from-path. The run relates to that Thing along the predicate the run-subject role binds, and
