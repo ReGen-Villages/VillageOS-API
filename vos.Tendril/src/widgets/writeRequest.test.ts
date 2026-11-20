@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { ActionWidget, FormWidget } from '../types/dashboard';
+import type { ActionChoice, ActionWidget, FormWidget } from '../types/dashboard';
 import type { ModelReads } from '../api/modelReads';
-import { actionRequest, complete, formRequest, nameOf, offeredChoices, pressOf, sendPress, type OfferedChoice, type PressWrite } from './writeRequest';
+import { complete, formRequest, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice, type PressWrite } from './writeRequest';
 
 const DECIDE: ActionWidget = {
   type: 'action',
@@ -39,9 +39,17 @@ const BOOK: FormWidget = {
 
 describe('what a press on a row sends', () => {
   const row = { id: 's1', name: 'SPRING-1', flow: 12 };
+  const ON_THE_PLATFORM: ActionWidget = { ...DECIDE, writes: { ...DECIDE.writes, via: '/api/springs/inspect' } };
+
+  function posted(widget: ActionWidget, choice: ActionChoice, entered: Entered): Record<string, unknown> {
+    const pressed = pressOf(widget, row, { key: 'pressed', choice }, entered, () => undefined);
+    const post = 'writes' in pressed ? pressed.writes[0] : undefined;
+    if (post?.write !== 'post') throw new Error('the press posted nothing');
+    return post.body;
+  }
 
   it('sends the row by name and a choice naming a Thing as the reason', () => {
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, 'inspections')).toEqual({
+    expect(posted(DECIDE, DECIDE.writes.choices[0], { inspector: 'Ada' })).toEqual({
       record: 'SPRING-1',
       reason: 'Cleared',
       inspector: 'Ada',
@@ -49,12 +57,12 @@ describe('what a press on a row sends', () => {
   });
 
   it('sends a route on the platform the row\'s id as well, and a forwarded endpoint names only', () => {
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, '/api/springs/inspect').recordId).toBe('s1');
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, 'inspections')).not.toHaveProperty('recordId');
+    expect(posted(ON_THE_PLATFORM, DECIDE.writes.choices[0], { inspector: 'Ada' }).recordId).toBe('s1');
+    expect(posted(DECIDE, DECIDE.writes.choices[0], { inspector: 'Ada' })).not.toHaveProperty('recordId');
   });
 
   it('sends a choice naming an act as the view', () => {
-    expect(actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada' }, 'inspections')).toEqual({
+    expect(posted(DECIDE, DECIDE.writes.choices[1], { inspector: 'Ada' })).toEqual({
       view: 'close',
       record: 'SPRING-1',
       inspector: 'Ada',
@@ -62,13 +70,13 @@ describe('what a press on a row sends', () => {
   });
 
   it('sends a number as a number and leaves an optional empty field out altogether', () => {
-    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[1], { inspector: 'Ada', litres: '40', note: '   ' }, 'inspections');
+    const body = posted(DECIDE, DECIDE.writes.choices[1], { inspector: 'Ada', litres: '40', note: '   ' });
     expect(body.litres).toBe(40);
     expect(body).not.toHaveProperty('note');
   });
 
   it('names nobody: no actor and no session travel in the body', () => {
-    const body = actionRequest(DECIDE, row, DECIDE.writes.choices[0], { inspector: 'Ada' }, '/api/springs/inspect');
+    const body = posted(ON_THE_PLATFORM, DECIDE.writes.choices[0], { inspector: 'Ada' });
     expect(Object.keys(body).sort()).toEqual(['inspector', 'reason', 'record', 'recordId']);
   });
 

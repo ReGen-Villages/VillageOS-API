@@ -40,7 +40,7 @@ export type NumberFormat =
 /** A step of a history reduction as the specification writes it. A parameter — a percentile, a band's bound, a
  *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
-export type BoundNumber = number | Binding;
+type BoundNumber = number | Binding;
 export interface HistoryStepBinding {
   fold: HistoryFold;
   function: HistoryFunction;
@@ -693,7 +693,7 @@ export interface DensityGridAxis {
 /** A shape drawn over a density grid, such as a comfort zone, or a line, such as a humidity curve.
  *  `shape` is a `value` binding onto a property holding a GeoJSON Polygon or LineString whose coordinates are in the
  *  chart's own units, across then up; a polygon is filled faintly and a line is not. */
-export interface DensityGridOutline {
+interface DensityGridOutline {
   label: string;
   colour: string;
   shape: Binding;
@@ -716,7 +716,7 @@ export interface DensityGridWidget {
 }
 
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
-export interface DepthProfilePart {
+interface DepthProfilePart {
   label: string;
   key: string;
   colour: string;
@@ -742,7 +742,7 @@ export interface DepthProfileWidget {
 
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
-export interface LineSeriesEntry {
+interface LineSeriesEntry {
   label: string;
   value: Binding;
 }
@@ -765,7 +765,7 @@ export interface LineSeriesWidget {
 /** Where the chart stands on Earth and in what clock, so it can draw when the sun rises and sets:
  *  each a binding onto the model's own figures. The offset is the one the platform folded the hours
  *  in; left unbound, the curves are drawn in universal time as the platform folds by default. */
-export interface SunPosition {
+interface SunPosition {
   latitude: Binding;
   longitude: Binding;
   utcOffsetSeconds?: Binding;
@@ -795,7 +795,7 @@ export interface HeatmapWidget {
 /** One class of a stacked share chart: what it is called, the colour the model gives it, and the
  *  binding whose groups are its share of each month — a `history` binding folded by `monthOfYear`
  *  with `ShareWithin` between the class's bounds, answering a fraction. */
-export interface StackedSharesClass {
+interface StackedSharesClass {
   label: string;
   /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
   colour: string | Binding;
@@ -858,7 +858,7 @@ export interface DivergingBarWidget {
 
 /** One series of a small-multiples panel: what it is called, the binding whose groups are its figure
  *  per month and hour — a `history` binding folded by `monthOfYear,hourOfDay` — and how it is written. */
-export interface SmallMultiplesSeries {
+interface SmallMultiplesSeries {
   label: string;
   value: Binding;
   unit?: string;
@@ -914,7 +914,7 @@ export interface ActionChoice {
 
 /** One choice for each Thing `from` returns, labelled by that Thing's wording; a press relates the
  *  row to it along `predicate`, so a decision added to the model is offered with no page edit. */
-export interface DrawnChoices {
+interface DrawnChoices {
   from: Binding;
   predicate: string;
 }

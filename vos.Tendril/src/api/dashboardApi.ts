@@ -55,7 +55,7 @@ import {
 
 export type Row = Record<string, unknown>;
 /** A value a `value` binding hands over whole: a geometry, a grid. */
-export type HeldObject = Record<string, unknown>;
+type HeldObject = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | HeldObject | null;
 
 export interface ModelIndex {
@@ -592,7 +592,7 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
 
 /** One input at the bottom of a derived figure. `heldBy` is the Thing whose value it is; an input a
  *  total reads is held by each member instead, and carries the members' kind and no single holder. */
-export interface FigureInput {
+interface FigureInput {
   figure: string;
   term: string;
   heldBy?: string;
@@ -605,7 +605,7 @@ export interface FigureInput {
 
 /** An input left out because nothing can say which way it moves the figure: the definition declares
  *  no direction for it, or two routes to it move the figure opposite ways. */
-export interface InputLeftOut {
+interface InputLeftOut {
   figure: string;
   term: string;
   memberKind?: string;

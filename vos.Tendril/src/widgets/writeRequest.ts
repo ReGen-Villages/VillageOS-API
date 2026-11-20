@@ -50,7 +50,7 @@ function withValues(body: Record<string, unknown>, fields: AskedValue[] | undefi
  *  A route on the platform is also sent the row's id, because names are not unique; an endpoint
  *  forwarded to a project's own service is sent names only, since such a service may refuse a field
  *  it does not know. */
-export function actionRequest(widget: ActionWidget, row: Row, choice: ActionChoice, entered: Entered, route: string): Record<string, unknown> {
+function actionRequest(widget: ActionWidget, row: Row, choice: ActionChoice, entered: Entered, route: string): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (choice.act) body.view = choice.act;
   body.record = nameOf(widget, row);
@@ -94,7 +94,7 @@ export function offeredChoices(widget: ActionWidget, drawn: Row[], wordsOf: (row
 }
 
 /** Where a press is posted, or nothing where it relates the row to a drawn Thing instead. */
-export function routeFor(widget: ActionWidget, offered: OfferedChoice): string | undefined {
+function routeFor(widget: ActionWidget, offered: OfferedChoice): string | undefined {
   if (offered.choice.via) return offered.choice.via;
   return offered.drawnId === undefined ? widget.writes.via : undefined;
 }

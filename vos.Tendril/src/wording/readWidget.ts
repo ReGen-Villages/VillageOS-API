@@ -9,7 +9,7 @@ interface Titled {
   title?: string;
 }
 
-export type WidgetReading =
+type WidgetReading =
   | (Titled & { type: 'kpi'; value: BindingResult; worded: string; unit?: string; origin: OriginLine[] })
   | (Titled & {
       type: 'verdict';
