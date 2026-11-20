@@ -24,7 +24,8 @@ python3 -m venv .venv
 
 A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}` and exits 2. Codes:
 `outside_raster`, `unreadable_raster`, `no_crs`, `unknown_resampling`, `unsupported_geometry`, `invalid_geometry`,
-`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`, `invalid_sampling`, `ambiguous_sampling`, `too_many_samples`.
+`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`, `invalid_sampling`, `ambiguous_sampling`, `too_many_samples`. A request that asks for observations (below) can also be refused as
+`invalid_thing`, `invalid_observations`, `unknown_statistic`, `not_a_reading` or `write_failed`.
 
 ## As a service
 
@@ -47,8 +48,8 @@ for that:
 | | |
 |---|---|
 | `service` | `Quadrat` |
-| `rehearses` | `true`: Quadrat writes nothing but its answer, so a rehearsal may call it |
-| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples` in; `result` out |
+| `rehearses` | `true`: a rehearsal reads and answers, and records nothing |
+| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples`, `thingId`, `observations` in; `result` and `written` out |
 | `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`, `profile`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` and `profile` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
 
 The settings arrive in `params`, not through ports. A node declared from the manifest carries every setting, empty
@@ -231,6 +232,34 @@ elevation profile, a transect or a cross-section needs.
   (`too_many_cells`). A line across a large raster at a fine resolution can need a big window: use a coarser raster or
   a shorter line.
 - Distances come from the line's own vertices, not from the raster, so they do not depend on its projection.
+
+## Recording the answer as observations
+
+A request that names a Thing and the properties to fill has its answer recorded on that Thing, as observations, through
+Mycelium's batch route (`POST /api/things/{id}/observations`), in the same call that reads. Nothing is written
+otherwise.
+
+| Input | |
+|---|---|
+| `thingId` | The Thing to record on (a GUID) |
+| `observations` | Each property to record, mapped to the statistic of the answer that fills it: `{"elevation_mean_m": "mean", "elevation_max_m": "max"}`. A statistic is a path through the answer, so `samples.0.value` is the first sample of a `profile` |
+
+Both are given, or neither. The answer still comes out on `result`; what was recorded comes out on `written`:
+`{"thingId", "accepted", "properties", "skipped"}`, or `{"accepted": 0}` when nothing was asked for.
+
+- **Refused before anything is read:** `thingId` that is not a GUID (`invalid_thing`), observations that are not a
+  non-empty map of names (`invalid_observations`), one of the two inputs without the other (`missing_input`).
+- **Refused after the read, with nothing recorded:** a statistic the answer does not have (`unknown_statistic`) or that
+  is not one value (`not_a_reading`, e.g. `unclassified`).
+- **Left out, not refused:** a statistic the answer holds as null (a nodata cell). Its property is listed in `skipped`.
+- **A rehearsal** records nothing and answers what it would record, with `"rehearsal": true`.
+- **A write Mycelium refuses** fails the node as `write_failed`, with the platform's status: a property that does not
+  accept observations is `405`, an unknown Thing or property `404`. Quadrat writes with its own credential (`ApiKey` or
+  `Token`), which needs permission to modify data.
+- **Quadrat names no property itself.** Which properties exist and which statistic fills each is the caller's, from the
+  pipeline's registration, so no source is named in code.
+- A node the pipeline retries after a transport failure records its observations again. Whether the platform keeps a
+  repeated reading is the platform's rule, not Quadrat's.
 
 ## Terrain tiles
 
