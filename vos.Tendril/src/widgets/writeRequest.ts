@@ -135,7 +135,7 @@ export function pressOf(
 
 /** Sends the writes a press composed, in order, and stops at the first one refused, so a refused
  *  press is never stamped. Answers what the endpoint said on taking a post, or the refusal. A page
- *  that cannot stamp leaves the stamp out, as it always has. */
+ *  that cannot stamp leaves the stamp out. */
 export async function sendPress(
   writes: PressWrite[],
   reads: ModelReads,
