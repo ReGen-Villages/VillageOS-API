@@ -44,7 +44,6 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task Switch_NoArg_ShowsUsage()
     {
-        // "switch" alone (without modelId/name) doesn't match the `when tok.Length >= 2` pattern.
         await ExecuteHandler("switch");
 
         Assert.Contains("Usage:", _writer.ToString());
@@ -106,7 +105,7 @@ public class ModelCommandHandlerTests
         _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
         _myceliumMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
 
-        await ExecuteHandler("switch estate"); // case-insensitive
+        await ExecuteHandler("switch estate");
 
         Assert.Contains("Switched to model", _writer.ToString());
         _myceliumMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
@@ -126,7 +125,6 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task Switch_NameWithMissingId_NotFound()
     {
-        // Model in list has a Name match but a missing/invalid Id → FindModelByName returns null
         var json = "[{\"Name\":\"NoId\"}]";
         _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
 

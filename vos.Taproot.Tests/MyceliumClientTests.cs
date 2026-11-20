@@ -20,8 +20,7 @@ public class MyceliumClientTests
     public void Ctor_TrimsTrailingSlashFromMyceliumUrl()
     {
         var (client, _) = NewClient(_ => Ok(), myceliumUrl: "https://localhost:7243///");
-        // Internal field is private; verify indirectly by issuing a request and inspecting the URL.
-        // The handler is built fresh inside the helper - we just need NewClient to not crash on trailing slashes.
+        // The trimmed address is private, so this shows only that trailing slashes do not stop the client being built.
         client.Should().NotBeNull();
     }
 
@@ -223,9 +222,6 @@ public class MyceliumClientTests
 
         await client.GetAllThingsAsync();
 
-        // After SetAuthHeaderAsync runs, the HttpClient's DefaultRequestHeaders is set;
-        // but per-request headers reflect the same Authorization. Easiest check:
-        // the captured request's Authorization header should be Bearer + ServiceToken.
         captured!.Headers.Authorization.Should().NotBeNull();
         captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
         captured.Headers.Authorization.Parameter.Should().Be(ServiceToken);
@@ -981,14 +977,11 @@ public class MyceliumClientTests
             return JsonResponse("[]");
         }, clock: () => now);
 
-        // Seed the cache first
         (await client.GetTokenAsync()).Should().Be(ServiceToken);
         handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/auth/token").Should().Be(1);
 
-        // Switch model - should swap the cached token
         await client.SwitchModelAsync(modelId);
 
-        // Next GetTokenAsync should return the new token from cache without re-hitting /api/auth/token
         (await client.GetTokenAsync()).Should().Be(newToken);
         handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/auth/token").Should().Be(1);
     }
@@ -1243,8 +1236,7 @@ public class MyceliumClientTests
         capturedBody.Value.GetProperty("Value").GetString().Should().Be("red");
     }
 
-    // Adding a property is POST on the same path; PUT answers 404 for one the
-    // Thing does not hold yet, and the short type names the guide lists were sent unmapped.
+    // Adding a property is a POST on the same path, because PUT answers 404 for one the Thing does not hold yet.
     [Fact]
     public async Task AddPropertyAsync_PostsTheTypedValueUnderThePlatformsTypeName()
     {

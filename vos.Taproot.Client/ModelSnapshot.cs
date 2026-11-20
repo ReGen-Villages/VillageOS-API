@@ -43,7 +43,7 @@ public static class ModelReading
         return named.Count == 1 ? named[0] : null;
     }
 
-    // The first Thing under each identifier, which is what searching the list found before.
+    // The first Thing under each identifier, as a search of the list would find it.
     public static IReadOnlyDictionary<Guid, JsonElement> ByIdentifier(JsonElement things)
     {
         var byIdentifier = new Dictionary<Guid, JsonElement>();

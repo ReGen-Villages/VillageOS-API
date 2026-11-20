@@ -89,7 +89,6 @@ public class TemporalCommandHandlerTests
         await ExecuteHandler("history not-a-guid status");
 
         var output = _writer.ToString();
-        // NameResolver returns "No things found. Cannot resolve name" when no things exist in the model
         Assert.Contains("Cannot resolve name", output);
     }
 
@@ -308,7 +307,6 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_ImplicitThingByGuid_CallsGetThingMutationsAsync()
     {
-        // When mutation type is not recognized but is a valid GUID, try as thing
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"Mutations\":[]}}");
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
@@ -331,8 +329,6 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Snapshot_NoTimestamp_PassesNullToMycelium()
     {
-        // Pins the contract that `snapshot` without a trailing timestamp arg routes
-        // through ParseOptionalTimestamp's null branch and calls GetModelAtTimeAsync(null).
         _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 

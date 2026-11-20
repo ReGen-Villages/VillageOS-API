@@ -76,7 +76,7 @@ public class StateCommandHandlerTests
         await ExecuteHandler("get nonexistent");
 
         var output = _writer.ToString();
-        Assert.DoesNotContain("Error:", output); // error path goes through resolveResult.ErrorMessage, not exception
+        Assert.DoesNotContain("Error:", output);
         _myceliumMock.Verify(b => b.GetStatesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
@@ -342,8 +342,6 @@ public class StateCommandHandlerTests
     [Fact]
     public async Task UnknownSubcommand_TreatedAsThingForGet()
     {
-        // The default branch in ExecuteSubcommandAsync re-routes the unknown subcommand
-        // as the first argument to HandleGetAsync (e.g. "state alice" → state get alice).
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllThingsAsync())
             .ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\",\"Name\":\"alice\"}}]"));
