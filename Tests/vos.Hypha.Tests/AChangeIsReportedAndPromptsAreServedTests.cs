@@ -71,6 +71,17 @@ public class AChangeIsReportedAndPromptsAreServedTests
         (await asking.Should().ThrowAsync<ModelContextProtocol.McpException>()).Which.Message.Should().Contain("no_such_prompt");
     }
 
+    [Fact]
+    public async Task A_prompt_its_source_does_not_hold_is_refused_by_name()
+    {
+        await using var server = await StartAsync(
+            MyceliumFor(() => "editor"), configure: services => services.AddSingleton<IPromptSource, APromptForAnEditor>());
+
+        var asking = () => server.Client.GetPromptAsync("no_such_prompt").AsTask();
+
+        (await asking.Should().ThrowAsync<ModelContextProtocol.McpException>()).Which.Message.Should().Contain("no_such_prompt");
+    }
+
     private sealed class APromptForAnEditor : IPromptSource
     {
         public Task<IReadOnlyList<Prompt>> ListAsync(Caller caller, CancellationToken cancellationToken) =>
