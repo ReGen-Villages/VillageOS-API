@@ -18,52 +18,8 @@ export interface ClusterMap {
   representatives: Map<number, string>;
 }
 
-/** Convert an accumulated counts map into a sorted PredicateStatistics array. */
-function buildPredicateStatisticsArray(
-  counts: Map<string, { name: string; count: number }>,
-  predicateColors: Record<string, string>,
-): PredicateStatistics[] {
-  return [...counts.entries()]
-    .map(([predicateId, { name, count }]) => ({
-      predicateId,
-      predicateName: name,
-      edgeCount: count,
-      color: resolvePredicateColor(name, predicateColors),
-    }))
-    .sort((a, b) => b.edgeCount - a.edgeCount);
-}
-
-/**
- * Count edges per predicate and return sorted (most-used first).
- * Colors are resolved via `resolvePredicateColor` — explicit overrides
- * from GUI_Settings take priority, with hash-based fallback.
- */
-export function computePredicateStatistics(
-  graph: Graph,
-  predicateColors: Record<string, string> = {},
-): PredicateStatistics[] {
-  const counts = new Map<string, { name: string; count: number }>();
-
-  graph.forEachEdge((_edge, attributes) => {
-    const predicateId = attributes.predicateId as string;
-    const label = attributes.label as string;
-    const existing = counts.get(predicateId);
-    if (existing) {
-      existing.count++;
-    } else {
-      counts.set(predicateId, { name: label || predicateId, count: 1 });
-    }
-  });
-
-  return buildPredicateStatisticsArray(counts, predicateColors);
-}
-
-/**
- * Count edges per predicate from the full model store data (unfiltered).
- * Unlike computePredicateStats which uses the Sigma graph (which may be
- * filtered by map-mode surface reduction), this operates on all relationships
- * so predicates like consumes/produces always appear in the radial menu.
- */
+/** Counted over the whole model rather than the drawn graph, which the map view thins, so every
+ *  predicate still appears in the radial menu. */
 export function computePredicateStatisticsFromModel(
   things: VosThing[],
   relationships: VosRelationship[],
@@ -83,7 +39,14 @@ export function computePredicateStatisticsFromModel(
     }
   }
 
-  return buildPredicateStatisticsArray(counts, predicateColors);
+  return [...counts.entries()]
+    .map(([predicateId, { name, count }]) => ({
+      predicateId,
+      predicateName: name,
+      edgeCount: count,
+      color: resolvePredicateColor(name, predicateColors),
+    }))
+    .sort((a, b) => b.edgeCount - a.edgeCount);
 }
 
 /**

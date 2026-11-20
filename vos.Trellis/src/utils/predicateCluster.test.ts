@@ -1,11 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import Graph from 'graphology';
+import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import {
-  computePredicateStatistics,
+  computePredicateStatisticsFromModel,
   computeClusters,
   pickClusterRepresentatives,
 } from './predicateCluster';
 import { resolvePredicateColor } from './colors';
+
+function thing(id: string, name: string): VosThing {
+  return { Id: id, Name: name, Properties: {} };
+}
+
+function relationship(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
+  return { Id: id, Name: '', SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
+}
+
+function makeModel(): { things: VosThing[]; relationships: VosRelationship[] } {
+  return {
+    things: [
+      thing('a', 'A'), thing('b', 'B'), thing('c', 'C'), thing('d', 'D'),
+      thing('p-has', 'has'), thing('p-monitors', 'monitors'), thing('p-is', 'is'),
+    ],
+    relationships: [
+      relationship('e1', 'a', 'p-has', 'b'),
+      relationship('e2', 'b', 'p-has', 'c'),
+      relationship('e3', 'a', 'p-monitors', 'd'),
+      relationship('e4', 'c', 'p-is', 'a'),
+    ],
+  };
+}
+
+function statisticsOf(predicateColors?: Record<string, string>) {
+  const { things, relationships } = makeModel();
+  return computePredicateStatisticsFromModel(things, relationships, predicateColors);
+}
 
 function makeGraph(): Graph {
   const graph = new Graph({ multi: true, type: 'directed' });
@@ -24,10 +53,9 @@ function makeGraph(): Graph {
   return graph;
 }
 
-describe('computePredicateStats', () => {
+describe('computePredicateStatisticsFromModel', () => {
   it('counts edges per predicate', () => {
-    const graph = makeGraph();
-    const statistics = computePredicateStatistics(graph);
+    const statistics = statisticsOf();
 
     const hasStatistics = statistics.find((s) => s.predicateId === 'p-has');
     expect(hasStatistics).toBeDefined();
@@ -39,16 +67,14 @@ describe('computePredicateStats', () => {
   });
 
   it('sorts by descending edge count', () => {
-    const graph = makeGraph();
-    const statistics = computePredicateStatistics(graph);
+    const statistics = statisticsOf();
 
     expect(statistics[0].predicateId).toBe('p-has');
     expect(statistics[0].edgeCount).toBe(2);
   });
 
   it('assigns colors via resolvePredicateColor (hash fallback)', () => {
-    const graph = makeGraph();
-    const statistics = computePredicateStatistics(graph);
+    const statistics = statisticsOf();
 
     const hasStatistics = statistics.find((s) => s.predicateName === 'has');
     expect(hasStatistics!.color).toBe(resolvePredicateColor('has', {}));
@@ -57,9 +83,7 @@ describe('computePredicateStats', () => {
   });
 
   it('uses explicit overrides when provided', () => {
-    const graph = makeGraph();
-    const overrides = { has: '#ff0000', monitors: '#00ff00' };
-    const statistics = computePredicateStatistics(graph, overrides);
+    const statistics = statisticsOf({ has: '#ff0000', monitors: '#00ff00' });
 
     const hasStatistics = statistics.find((s) => s.predicateName === 'has');
     expect(hasStatistics!.color).toBe('#ff0000');
@@ -68,26 +92,27 @@ describe('computePredicateStats', () => {
   });
 
   it('falls back to hash for predicates not in overrides', () => {
-    const graph = makeGraph();
-    const overrides = { has: '#ff0000' }; // monitors not overridden
-    const statistics = computePredicateStatistics(graph, overrides);
+    const statistics = statisticsOf({ has: '#ff0000' });
 
     const monitorsStatistics = statistics.find((s) => s.predicateName === 'monitors');
     expect(monitorsStatistics!.color).toBe(resolvePredicateColor('monitors', {}));
   });
 
-  it('uses edge label as predicate name', () => {
-    const graph = makeGraph();
-    const statistics = computePredicateStatistics(graph);
+  it('names each predicate by its Thing', () => {
+    const statistics = statisticsOf();
 
     const hasStatistics = statistics.find((s) => s.predicateId === 'p-has');
     expect(hasStatistics!.predicateName).toBe('has');
   });
 
-  it('returns empty array for graph with no edges', () => {
-    const graph = new Graph({ multi: true, type: 'directed' });
-    graph.addNode('x', {});
-    expect(computePredicateStatistics(graph)).toEqual([]);
+  it('returns empty array for a model with no relationships', () => {
+    expect(computePredicateStatisticsFromModel([thing('x', 'X')], [])).toEqual([]);
+  });
+
+  it('falls back to predicateId when the predicate Thing is not in the model', () => {
+    const statistics = computePredicateStatisticsFromModel([thing('a', 'A'), thing('b', 'B')], [relationship('e1', 'a', 'p-feed', 'b')]);
+    expect(statistics).toHaveLength(1);
+    expect(statistics[0].predicateName).toBe('p-feed');
   });
 });
 
@@ -191,19 +216,6 @@ describe('pickClusterRepresentatives', () => {
     const clusters = [new Set<string>()];
     const reps = pickClusterRepresentatives(graph, clusters);
     expect(reps.has(0)).toBe(false);
-  });
-});
-
-describe('computePredicateStats — edge cases', () => {
-  it('falls back to predicateId when edge label is missing', () => {
-    const graph = new Graph({ multi: true, type: 'directed' });
-    graph.addNode('a', {});
-    graph.addNode('b', {});
-    graph.addDirectedEdgeWithKey('e1', 'a', 'b', { predicateId: 'p-feed', label: '' });
-
-    const statistics = computePredicateStatistics(graph);
-    expect(statistics).toHaveLength(1);
-    expect(statistics[0].predicateName).toBe('p-feed');
   });
 });
 
