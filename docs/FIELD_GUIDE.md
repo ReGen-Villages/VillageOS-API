@@ -2809,8 +2809,8 @@ drawn by the same widgets.
 The widget kinds: a **kpi** figure with a unit, a target and a small trace, or a word its binding
 answers, such as a climate class, with no unit and no target judgement; **funnel**, **bullet**,
 **gantt**, **table**, **leaderboard**; **verdict** and **working** (chapter
-90); an **exception bar**; the six chart widgets (chapter 91); and the
-two widgets that write (chapter 93). A section may name a **theme** the model
+90); an **exception bar**; the chart widgets (chapter 91); and the
+widgets that write (chapter 93). A section may name a **theme** the model
 declares and be drawn as a tile, carry `facts: true` to be drawn beside the map, or name a `tab` of
 the closing view (chapter 94).
 
@@ -2869,6 +2869,7 @@ the entities instead. A reference matching neither resolves to nothing.
 | `stateCount`, `stateList` | How many Things hold a state, and which; narrowed by archetype, scope, an excluded state and a cap, all sent on the request so the server answers the question asked | One request per distinct question per refresh, shared across every widget asking it |
 | `thingList` | Every Thing of an archetype whatever state it is in, ordered by name as the page language orders names; a `limit` keeps the first rows in that order | Nothing: the loaded model |
 | `related`, `stateOf` | What a relationship says; which of several states a Thing holds | Nothing |
+| `value` | One Thing's property as it is held, reached through `thing` and `via` as `related` reaches it: a GeoJson value as its parsed geometry, an object as it is, a number or text as it is; nothing unless exactly one Thing is reached | Nothing, unless a walk step names a state |
 | `timeseries`, `latest`, `history` | The two temporal reductions (chapter 91) | One request per distinct question per refresh |
 | `verdict`, `working`, `origin` | A judged value as a sentence; a figure's formula and inputs; where a figure came from | One range read per judged Thing; nothing; nothing |
 | `service` | A model-side service's answer | One request per distinct question per refresh, shared while in flight and never replayed once settled, because the writing widgets post through the same port and a press answered from an earlier reply would record nothing and say it had |
@@ -2933,9 +2934,15 @@ an inbound one is refused; a refused question resolves to nothing rather than to
 steps: the first step folds the readings, each later one the previous step's groups. A fold is a
 calendar period (`hour`, `day`, `month`, `year`), a cycle laid over itself (`hourOfDay`,
 `dayOfYear`, `monthOfYear`, `hourOfDay,dayOfYear`, `monthOfYear,hourOfDay`) or `all`; a function is
-`Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile`, `ShareWithin` (`from`, `to`), `CountAtOrBelow`
-and `CountAbove` (`threshold`), `SumAbove` and `SumBelow` (`threshold`; degree days). A step after a
-cyclic fold may only fold by `all`. A parameter may itself be a binding — a study's setpoint read
+`Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile`, `ShareWithin` (`from`, `to`), `CountAtOrBelow`,
+`CountAbove` and `CountAtOrAbove` (`threshold`), `SumAbove` and `SumBelow` (`threshold`; degree days).
+A step after a cyclic fold may only fold by `all`. Two more pairs of folds key each reading by what it
+reads, count only, and come only first: `value` and `monthOfYear,value` key a reading by itself (a
+whole number as written, or a Thing's identifier in lower-case form), and `cell` and
+`monthOfYear,cell` key an instant by the bins its reading and a second property's reading fall in. A
+cell fold carries `bins: { width, upTo? }` and `pairedWith: { property, bins }`, and its keys are the
+two bins' lower bounds, such as `21,14`. A binding with `answer: 'coverage'` resolves the same
+question to one row, `{ samples, unpairedSamples, unusableSamples }`, asked once. A parameter may itself be a binding — a study's setpoint read
 across `studies`, a class Thing's bound — so a chart's thresholds are the model's; a bound parameter
 the model answers nothing for leaves the binding unanswered rather than asking with nought. The
 calendar is taken in the offset the scope entity states as `utcOffsetSeconds`.
@@ -2946,17 +2953,21 @@ calendar is taken in the offset the scope entity states as `utcOffsetSeconds`.
              { "fold": "monthOfYear", "function": "Average" } ] }
 ```
 
-The six chart widgets each draw `history` bindings and share what every chart carries: the window
-read off its bindings as the card's hint, a tooltip for the bar or point under the pointer or the
-keyboard focus, a legend, colours from the chart tokens validated for both themes, and a hidden
-table twin so nothing a chart shows can only be seen.
+The chart widgets each draw `history` bindings, or rows, and share what every chart carries: the
+window read off its bindings as the card's hint, a tooltip for the bar or point under the pointer or
+the keyboard focus, a legend, colours from the chart tokens validated for both themes, and a table of
+every value it draws, opened from its **Table** button, so nothing a chart shows can only be seen.
 
 | Widget | Draws |
 | --- | --- |
 | `rangeBar` | Twelve monthly bars and one annual bar, each stacked from seven statistics (`recordedHigh`, `designHigh`, `averageHigh`, `mean`, `averageLow`, `designLow`, `recordedLow`) on a diverging scale about the mean, against `bands` whose bounds are bindings; `floor` and `ceiling` fix the axis |
 | `lineSeries` | Several `series` on one calendar axis, one scale, up to eight; a series the platform answered nothing for is left out |
-| `heatmap` | Every hour of every day as one cell — the `hourOfDay,dayOfYear` fold — painted on a canvas because thousands of drawn rectangles would outweigh the page, with sunrise and sunset curves where `sun` binds the latitude, longitude and offset; no table twin, the keyboard walk stands in |
-| `stackedShares` | Twelve bars stacked from the `share` of each of the `classes` listed, each a `ShareWithin` per month, colours and bounds bound to the class Things; nothing is scaled to a hundred, so classes that do not sum to one draw a bar that stops short |
+| `boxPlot` | Twelve boxes, one a month, each from `boxLow` to `boxHigh` with the `median` across it and a line from `whiskerLow` to `whiskerHigh` (usually percentiles 5, 25, 50, 75 and 95), with an optional `annual` box beside them and `bands` behind |
+| `heatmap` | Every hour of every day as one cell — the `hourOfDay,dayOfYear` fold — or a column a month — the `monthOfYear,hourOfDay` fold — painted on a canvas because thousands of drawn rectangles would outweigh the page, with sunrise and sunset curves where `sun` binds the latitude, longitude and offset. Optional `classes` (a label, bounds from and to, a colour) paint each cell by the first class holding its value, the legend giving each class's share of the cells. Its table, on the day fold, is built only when asked for |
+| `stackedShares` | Twelve bars stacked from the `share` of each of the `classes` listed, each a `ShareWithin` per month, colours and bounds bound to the class Things; a class may bind an `annual` share, the same question folded by `all`, drawn as a column after December. Nothing is scaled to a hundred, so classes that do not sum to one draw a bar that stops short. Alternatively `counted` takes the classes from the model: `groups` is a row binding, one row per group Thing, with its order, label and colour under `orderKey`, `labelKey` and `colourKey`, and `wordingKey` optionally naming a column whose words in the page language label the group; `counts` is folded by `monthOfYear,value` and counted, `annual` by `value`; each share is a group's hours over the hours counted under a declared group, so these bars reach the top. With `counted`, `classes` is not read |
+| `polarShares` | A rose of the hours counted under each cell Thing: `counts` is a `history` binding folded by `value` (one rose) or `monthOfYear,value` (a rose a month, all on one scale) and counted; `cells` is a row binding, one row per cell Thing, whose `id` the counts are keyed by. Each cell sits in the sector its row's `bearingKey` names (degrees, nought north, clockwise) and stacks outward by `classOrderKey`, labelled and coloured by `classLabelKey` and `classColourKey`; `classWordingKey` optionally names a column holding the class Thing's wording, whose words in the page language label the class. A wedge's reach is its share of the hours counted under a declared cell |
+| `densityGrid` | The hours two readings of one Thing spent in each cell of their bins, shaded by each cell's share of the hours counted. `cells` is a `history` binding whose first step is `cell`, counted; `across` and `up` name the two properties and their units. `outlines` draw a GeoJSON Polygon (filled faintly) or LineString (unfilled) that a `value` binding reads in the chart's own units. `coverage` is the same binding with `answer: 'coverage'`, and a note says how many readings had no partner at their instant |
+| `depthProfile` | A `rows` binding drawn one row a layer, top down by `orderKey`, each named by `labelKey`; several `parts` stack across a row, and one part draws a bar from the floor |
 | `divergingBar` | Twelve months, `up` rising and `down` falling from one line on one scale — cooling and heating degree days — each side's `threshold` bound to the model's value for the legend |
 | `smallMultiples` | Twelve monthly panels, each `bars` by hour on one scale and a `line` through the hours on another, with a `band` behind the line; each scale shared across the panels |
 
