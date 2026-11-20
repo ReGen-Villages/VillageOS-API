@@ -35,7 +35,7 @@ const MAX_RELATED = 60;
  *  would issue a request per open window on every flush. */
 const REFRESH_THROTTLE_MILLISECONDS = 5000;
 
-export interface EntityDetail {
+interface EntityDetail {
   loading: boolean;
   root: VosThing | undefined;
   relations: ResolvedRelation[];

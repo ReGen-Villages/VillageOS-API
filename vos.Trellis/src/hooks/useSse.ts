@@ -39,7 +39,7 @@ export const SUBSCRIPTION_CHANGING = 'SubscriptionChanging';
 
 /** The kinds a handler can be registered for. A browser hands a page only the kinds it has attached
  *  a listener for, so registering for any other kind would never be called and nothing would say so. */
-export type StreamEventKind =
+type StreamEventKind =
   | typeof KNOWN_EVENTS[number]
   | typeof SUBSCRIPTION_OPENED
   | typeof SUBSCRIPTION_CHANGING;

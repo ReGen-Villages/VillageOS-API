@@ -19,7 +19,7 @@ export interface PanelWidthBounds {
 /** How much one arrow key moves the handle. Coarse enough to cross a panel in a few presses. */
 const KEYBOARD_STEP = 24;
 
-export interface PanelWidth {
+interface PanelWidth {
   width: number;
   isResizing: boolean;
   handleProperties: {

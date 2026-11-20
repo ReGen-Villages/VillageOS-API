@@ -14,13 +14,13 @@ import { MOUSE } from 'three';
  * the React render so OrbitControls re-receives this prop while a modifier
  * is held.
  */
-export interface KeyboardModifiers {
+interface KeyboardModifiers {
   shift: boolean;
   meta: boolean;
   ctrl: boolean;
 }
 
-export interface OrbitMouseButtons {
+interface OrbitMouseButtons {
   LEFT: number;
   MIDDLE: number;
   RIGHT: number;

@@ -1,6 +1,6 @@
 import type Graph from 'graphology';
 
-export interface ReconcileResult {
+interface ReconcileResult {
   nodesAdded: number;
   nodesRemoved: number;
   edgesAdded: number;

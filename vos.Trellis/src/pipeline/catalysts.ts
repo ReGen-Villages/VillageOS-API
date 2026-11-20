@@ -6,14 +6,14 @@ import { ROLE, type PipelineModel, type PipelineNamed, type CatalystConnection }
 
 /** The kinds of catalyst: a message arriving at an HTTP connection, a Thing entering a state, a cadence coming
  *  due, and a relationship written along a predicate. */
-export type CatalystKind = 'message' | 'state' | 'cadence' | 'relationship';
+type CatalystKind = 'message' | 'state' | 'cadence' | 'relationship';
 
 export type CatalystGroupName = 'messages' | 'states' | 'clock' | 'relationships';
 
 /** What the model does with a catalyst today: runs a drawing, calls a service, or nothing. A state the orchestrator
  *  receives with nothing drawn from it is refused each time, so nothing runs; a relationship along a connection that
  *  names no connection along notifies is called for by nothing. */
-export type CatalystHandling =
+type CatalystHandling =
   | { by: 'drawing'; name: string }
   | { by: 'service'; name: string }
   | { by: 'nothing'; refusedByTheOrchestrator?: true; namesNoConnectionAlong?: string };
@@ -49,7 +49,7 @@ export interface CatalystRow {
   offersOrchestrator: boolean;
 }
 
-export interface StateHandling {
+interface StateHandling {
   connectionId: string;
   /** The `has` relationship binding the connection to its service, which a hand-over retracts. */
   bindingId?: string;
@@ -178,7 +178,7 @@ export function catalystRail(model: PipelineModel): CatalystGroup[] {
   return (['messages', 'states', 'clock', 'relationships'] as const).map((name) => ({ name, rows: ordered(rows[name]) }));
 }
 
-export type OutputKind = 'answer' | 'pipeline' | 'externalSystem' | 'stop';
+type OutputKind = 'answer' | 'pipeline' | 'externalSystem' | 'stop';
 
 export interface OutputRow {
   id: string;

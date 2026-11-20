@@ -45,7 +45,7 @@ import type {
 } from '@tendril-ui/tendril';
 import { primarySubtag } from '@tendril-ui/tendril';
 
-export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
+type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 
 /** The strings a locale reads: the primary-subtag block overlaid with the exact-tag
  *  one, so a model that authors `ar` once serves both `ar-SA` and `ar-AE`, and an

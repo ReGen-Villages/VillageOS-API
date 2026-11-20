@@ -36,7 +36,7 @@ export function edgeTouchesNode(
  *   4. Predicate filter active   → 'show' iff this edge's predicate is selected, else 'hide'
  *   5. No filter active          → 'show' (every edge visible by default)
  */
-export type EdgeDisplay = 'show' | 'brighten' | 'hide';
+type EdgeDisplay = 'show' | 'brighten' | 'hide';
 
 export function decideEdgeDisplay(options: {
   endpointMatchesHover: boolean;

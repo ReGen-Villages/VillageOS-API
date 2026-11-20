@@ -48,7 +48,7 @@ export interface DeclaredBasemapSource {
  *  names. Its third, `custom`, is left out because it needs four decoding factors the model does not
  *  state, and drawing it under the default four is the guess the encoding is declared to avoid. */
 export const TERRAIN_ENCODINGS = ['terrarium', 'mapbox'] as const;
-export type TerrainEncoding = (typeof TERRAIN_ENCODINGS)[number];
+type TerrainEncoding = (typeof TERRAIN_ENCODINGS)[number];
 
 /** What a source says about drawing land rather than a diagram. Absent where the model declares none,
  *  which draws flat — the same map every deployment has today. */

@@ -16,7 +16,7 @@ export const REFUSAL_CODES = [
   'layerFileUnreadable', 'featuresUnreadable', 'featureNotInFile', 'documentNotShared',
 ] as const;
 
-export type RefusalCode = (typeof REFUSAL_CODES)[number];
+type RefusalCode = (typeof REFUSAL_CODES)[number];
 
 /** A refusal from the intake service, worded in the reader's language where the pages know its code. */
 class ServiceRefusal extends Error {

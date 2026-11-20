@@ -1,6 +1,6 @@
 import type { VosThing } from '@tendril-ui/tendril';
 
-export interface Position {
+interface Position {
   latitude: number;
   longitude: number;
 }

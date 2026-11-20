@@ -3,7 +3,7 @@ import type { LayoutSettings } from './guiSettings';
 /** Spread mode reduces gravity by this factor so the graph has room to open up. */
 export const FA2_SPREAD_GRAVITY_FACTOR = 0.1;
 
-export interface ResolvedFA2Settings {
+interface ResolvedFA2Settings {
   scalingRatio: number;
   gravity: number;
   barnesHutOptimize: boolean;

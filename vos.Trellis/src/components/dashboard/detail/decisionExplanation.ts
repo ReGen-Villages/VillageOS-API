@@ -51,7 +51,7 @@ export interface NamedThing {
 
 /** The four properties a constraint names and the unit they are compared in. A constraint naming none
  *  of them is a measure the model does not hold, and the consideration carries the number instead. */
-export interface Constraint {
+interface Constraint {
   measureSubjectProperty?: string;
   measureCandidateProperty?: string;
   limitSubjectProperty?: string;
@@ -265,7 +265,7 @@ export function decisionsOn(thingId: string, modelIndex: ModelIndex): DecisionEx
 }
 
 /** One Thing to be read as it stood at one instant. */
-export interface InstantRead {
+interface InstantRead {
   thingId: string;
   instant: string;
 }

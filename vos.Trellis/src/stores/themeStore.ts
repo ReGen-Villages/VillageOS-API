@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const THEME_KEY = 'vos-theme-override';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-export type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark';
 
 interface ThemeState {
   theme: Theme;

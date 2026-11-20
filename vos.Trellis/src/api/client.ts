@@ -1,4 +1,3 @@
-import type { ModelSummary } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
@@ -31,15 +30,6 @@ class ApiClient {
 
   setAuthenticationRequiredCallback(callback: () => void) {
     this.onAuthenticationRequired = callback;
-  }
-
-  async fetchModels(): Promise<ModelSummary[]> {
-    const response = await fetch(`${BASE_URL}/api/models`, {
-      headers: await this.headers(),
-      credentials: 'include',
-    });
-    if (!response.ok) throw new ApiError(response.status, await response.text());
-    return response.json();
   }
 
   private applyTokenResponse(data: { token: string; user: AuthenticatedUser; model?: { Id: string; Name: string } }) {

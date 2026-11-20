@@ -12,7 +12,7 @@ export interface StartupProgress {
 
 /** A page the platform declares for the signed-in caller: a dashboard specification about the
  *  platform itself rather than about a model, drawn exactly as a model's own `Dashboard` Thing. */
-export interface DeclaredPage {
+interface DeclaredPage {
   name: string;
   specification: unknown;
 }
@@ -28,8 +28,6 @@ export const myceliumApi = {
     return res.json();
   },
   getServices: () => apiClient.get<RegisteredService[]>('/api/mycelium/services'),
-
-  getService: (id: string) => apiClient.get<RegisteredService>(`/api/mycelium/services/${id}`),
 
   startService: (id: string) =>
     apiClient.action(`start service ${id}`, () => apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/start`)),

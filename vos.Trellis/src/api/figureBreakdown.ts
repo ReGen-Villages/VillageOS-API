@@ -28,7 +28,7 @@ import {
 
 /** How the rows became the figure. `read` is the one that reduces nothing: the figure is a value a
  *  Thing already carries, and the row behind it is that Thing. */
-export type Reduction = 'count' | 'sum' | 'average' | 'min' | 'max' | 'read';
+type Reduction = 'count' | 'sum' | 'average' | 'min' | 'max' | 'read';
 
 /** The model's own words for what a figure names, carried to the reader as the model wrote them. */
 export interface FigureTerms {

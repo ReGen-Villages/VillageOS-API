@@ -26,7 +26,7 @@ export interface ValidationEdge {
   targetHandle: string;
 }
 
-export type ValidationIssue =
+type ValidationIssue =
   | { kind: 'unbound-required-input'; nodeId: string; port: string; message: string }
   | {
       kind: 'wait-without-state' | 'wait-without-thing' | 'wait-limit-not-whole-minutes'
@@ -44,7 +44,7 @@ export type ValidationIssue =
       message: string;
     };
 
-export type EndIssue =
+type EndIssue =
   | { kind: 'start-cannot-start'; nodeId: string; named: string; message: string }
   | { kind: 'end-cannot-end'; nodeId: string; named: string; message: string };
 

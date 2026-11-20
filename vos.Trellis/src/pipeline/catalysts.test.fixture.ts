@@ -5,7 +5,7 @@ import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 /** A model holding one of every catalyst and every output the Pipelines page reads. Every archetype
  *  and predicate is named something the console has never heard of and says what it is through the role
  *  Thing that binds it, so a fixture that resolves at all proves nothing is found by name. */
-export interface CatalystFixture {
+interface CatalystFixture {
   model: PipelineModel;
   things: VosThing[];
   relationships: VosRelationship[];

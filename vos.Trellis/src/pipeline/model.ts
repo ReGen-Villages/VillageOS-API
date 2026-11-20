@@ -116,9 +116,9 @@ export const RELATE_REFUSALS = [
   'standsForAConnection', 'namesNoConnection', 'connectionBindsNoService', 'connectionNamesNoState', 'connectionNamesTwoStates',
 ] as const;
 
-export type RelateRefusal = (typeof RELATE_REFUSALS)[number];
+type RelateRefusal = (typeof RELATE_REFUSALS)[number];
 
-export type RelateReading =
+type RelateReading =
   | { accepted: true; connectionId: string; serviceId: string; stateId: string }
   | { accepted: false; refusal: RelateRefusal; connectionId?: string };
 
@@ -137,7 +137,7 @@ export interface PipelineNamed {
 }
 
 /** How a connection is reached, told by the role its trigger plays. Empty where its trigger plays none of them. */
-export type TriggerKind = 'http' | 'graph' | 'state' | '';
+type TriggerKind = 'http' | 'graph' | 'state' | '';
 
 const TRIGGER_KIND_ROLE: Record<Exclude<TriggerKind, ''>, string> = {
   http: ROLE.HttpTrigger,
@@ -153,13 +153,13 @@ const END_KIND_OF_TRIGGER: Record<TriggerKind, EndKind | undefined> = {
 };
 
 /** A kind of message an external system sends or is told, and the HTTP connection it arrives at where one is declared. */
-export interface MessageKindInformation {
+interface MessageKindInformation {
   id: string;
   name: string;
   arrivesAtConnectionId?: string;
 }
 
-export interface ExternalSystemInformation {
+interface ExternalSystemInformation {
   id: string;
   name: string;
   sends: MessageKindInformation[];
@@ -219,7 +219,7 @@ export function wireTextFrom<Value>(valueOf: (field: WireTextField) => Value): R
   return Object.fromEntries(WIRE_TEXT_FIELDS.map((field) => [field, valueOf(field)])) as Record<WireTextField, Value>;
 }
 
-export interface WireRead extends Record<WireTextField, string> {
+interface WireRead extends Record<WireTextField, string> {
   wireId: string;
   targetId: string;
   outPortId: string;
@@ -227,7 +227,7 @@ export interface WireRead extends Record<WireTextField, string> {
   takenOn: RelationshipAndTarget[];
 }
 
-export interface RelationshipAndTarget {
+interface RelationshipAndTarget {
   relationshipId: string;
   thingId: string;
 }
@@ -817,7 +817,7 @@ export function wireEnds(
   return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
 }
 
-export type ConnectionVerdict =
+type ConnectionVerdict =
   | { kind: 'accept' }
   | { kind: 'ignore' }
   | { kind: 'incompatible'; from: string; to: string };

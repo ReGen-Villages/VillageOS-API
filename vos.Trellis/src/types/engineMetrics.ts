@@ -2,7 +2,7 @@
  *  reactive engines. Counts and a deterministic footprint estimate; reading one never evaluates a
  *  range or a reduction. */
 
-export interface RangeEngineMetrics {
+interface RangeEngineMetrics {
   RegisteredRanges: number;
   RangesWithBindings: number;
   PropertyDependencyEdges: number;
@@ -12,7 +12,7 @@ export interface RangeEngineMetrics {
   EstimatedBytes: number;
 }
 
-export interface DerivedPropertyEngineMetrics {
+interface DerivedPropertyEngineMetrics {
   ThingsOwningDerivedProperties: number;
   Definitions: number;
   MemberEdges: number;

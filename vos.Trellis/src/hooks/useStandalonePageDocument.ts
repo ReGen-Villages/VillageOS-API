@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { directionFor } from '../i18n/languages';
 import { attachThemeMediaListener, useThemeStore } from '../stores/themeStore';
 
-export type StandalonePageTitle = 'publicForm.title' | 'explore.title' | 'publicFindings.title';
+type StandalonePageTitle = 'publicForm.title' | 'explore.title' | 'publicFindings.title';
 
 /**
  * Sets up the document for a page served on its own rather than inside the signed-in application:

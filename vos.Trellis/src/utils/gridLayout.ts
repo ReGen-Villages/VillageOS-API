@@ -159,7 +159,7 @@ export function placementsOf(section: DashboardSection): Placement[] {
   return placed;
 }
 
-export interface SectionGrid {
+interface SectionGrid {
   gridTemplateColumns: string;
   gridAutoRows?: string;
   /** One style per widget, in the section's own order. */

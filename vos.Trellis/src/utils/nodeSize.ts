@@ -4,7 +4,7 @@
 
 import { LAYOUT_DEFAULTS } from './guiSettings';
 
-export interface NodeSizeOptions {
+interface NodeSizeOptions {
   min: number;
   max: number;
   slope: number;

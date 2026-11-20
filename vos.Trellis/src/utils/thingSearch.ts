@@ -11,7 +11,7 @@ export const THING_SEARCH_SKIP_KEYS = new Set([
 /** Max own properties shown inline per result row. */
 export const PREVIEW_PROPERTIES = 4;
 
-export interface ThingMatch {
+interface ThingMatch {
   id: string;
   name: string;
   /** Relevance tier: 0 = exact, 1 = prefix, 2 = substring, 3 = ID match. Lower is better. */
@@ -24,7 +24,7 @@ export interface ThingMatch {
   previewProperties: Array<{ key: string; value: unknown }>;
 }
 
-export interface ThingSearchIndex {
+interface ThingSearchIndex {
   /** Maps subject ID → type name from the first "is" relationship found. */
   isSubjectToTypeName: Map<string, string>;
   /** Maps thing ID → number of relationships where it appears as subject or target. */

@@ -35,7 +35,7 @@ export function editorForType(type: string): EditorKind {
 
 /** Named as literals so a caller can pass one straight to the translator, which only accepts keys
  *  the English base defines. */
-export type RejectionKey =
+type RejectionKey =
   | 'panels.properties.rejected.wholeNumber'
   | 'panels.properties.rejected.number'
   | 'panels.properties.rejected.dateTime'
