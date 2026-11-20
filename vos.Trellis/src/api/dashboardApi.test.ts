@@ -28,9 +28,8 @@ import { stateApi } from './stateApi';
 import { apiClient } from './client';
 import { rangeApi } from './rangeApi';
 import { temporalApi } from './temporalApi';
-// The real one, over the mocked modules above: the resolver reaches these four through the port, so a
-// stub port here would prove nothing about what the running application asks the broker — and the
-// sharing a refresh generation does now belongs to this object rather than to the context.
+// The real one, over the mocked modules above: a stub would prove nothing about what the running
+// application asks the broker, and the sharing within a refresh lives in this object.
 import { brokerModelReads } from './brokerModelReads';
 import { PAGE_ROLE_ID } from '@tendril-ui/tendril';
 import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
@@ -47,9 +46,8 @@ import {
   type Row,
 } from '@tendril-ui/tendril';
 
-/** These fixtures are bare graphs, so stamp the declaration a real model carries the way
- *  `vos.SeedValidate --fix` does — on every Thing something `is`. A type with no members cannot be
- *  found that way, so the test covering that case declares it by hand. */
+/** Stamps the declaration a real model carries, as `vos.SeedValidate --fix` does, on every Thing something
+ *  `is`. A type with no members is not found that way, so its test declares it by hand. */
 function declared(things: VosThing[], relationships: VosRelationship[]): VosThing[] {
   const isId = things.find((x) => x.Name === 'is')?.Id;
   const targets = new Set(
@@ -123,8 +121,8 @@ describe('discovery', () => {
     expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // A specification authored wrong is still addressable, so its author can be told what is
-  // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
+  // A wrongly written specification is still listed, so its author can be told what is wrong, and it
+  // sorts by name like any other rather than to the end.
   it('lists a Dashboard Thing whose specification could not be read, carrying no specification', () => {
     const { things, relationships } = model();
     things.push({ Id: 'dash2', Name: 'Half a specification', Properties: { specification: '{ "title": "Ops"' } });
@@ -148,7 +146,6 @@ describe('discovery', () => {
   });
 });
 
-/** A model publishing dashboards under the given Thing names, and nothing else. */
 function dashboardModel(names: string[]): { things: VosThing[]; relationships: VosRelationship[] } {
   const specification = JSON.stringify({ title: 'T', sections: [] });
   const things: VosThing[] = [
@@ -231,8 +228,7 @@ describe('dashboard order and addresses', () => {
   });
 });
 
-// Archetypes are subtyped (Resident is Party, GardenPlot is Location),
-// so membership must be transitive over the is-chain and count instances only.
+// Archetypes are subtyped, so membership follows the `is` chain and counts instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
   const relationship = (SubjectId: string, TargetId: string): VosRelationship => ({
@@ -253,7 +249,7 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const index = buildModelIndex(declared(chainThings, chainRelationships), chainRelationships);
 
   it('includes instances under a sub-archetype and excludes the sub-archetype node', () => {
-    expect(thingIdsOfArchetype('Party', index)).toEqual(new Set(['c1'])); // ROWAN, not the Resident type node
+    expect(thingIdsOfArchetype('Party', index)).toEqual(new Set(['c1']));
   });
 
   it('resolves a directly-typed instance', () => {
@@ -275,11 +271,9 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
       declared([t('is', 'is'), t('A', 'A'), t('B', 'B')], cycleRelationships),
       cycleRelationships,
     );
-    expect(thingIdsOfArchetype('A', cyc)).toEqual(new Set()); // no instances, no infinite loop
+    expect(thingIdsOfArchetype('A', cyc)).toEqual(new Set());
   });
 
-  // The case the old `is`-target guess got wrong: a type nothing is yet was returned as a row of
-  // its own, permanently for a type declared before the thing it describes exists.
   it('excludes a declared archetype that has no members', () => {
     const rosterThings = [
       t('is', 'is'), t('Machine', 'Machine'),
@@ -337,8 +331,7 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
-  // Under lazy inheritance an overridden value lives in InheritedOverrides, not Properties, so a
-  // binding has to read effective properties.
+  // An overridden value lives in InheritedOverrides, not Properties, so a binding reads effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
       Id: 'vil3',
@@ -400,8 +393,7 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  // A State can contain Things of several archetypes (Orders
-  // and their OrderLines). `archetype` narrows the count/list to one archetype.
+  // A state can hold Things of several archetypes, such as orders and their lines.
   describe('archetype narrowing', () => {
     // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
     function orderContext(): ResolveContext {
@@ -421,8 +413,8 @@ describe('resolveBinding', () => {
       };
     }
 
-    // Answers the way the endpoint does, so these read as the narrowing arriving rather than as the
-    // browser discarding what it asked for.
+    // Answers as the endpoint does, so these show the narrowing arriving rather than the browser
+    // discarding what it asked for.
     beforeEach(() => {
       vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state, narrowing) => {
         const Things = narrowing?.type === 'Order'
@@ -451,10 +443,8 @@ describe('resolveBinding', () => {
     });
   });
 
-  // A scope predicate can nest: the scope entity `contains` mid-level Things that in turn
-  // contain the leaves a widget counts. A one-hop walk reached the mid level but never the
-  // leaves under it, so every leaf-scoped widget counted 0. A scope predicate can also link
-  // its members directly, which is the depth-1 case of the same walk.
+  // A scope can nest, so the walk goes past the first step, or every widget counting the bottom level
+  // reads nought; a direct link is the one-step case of the same walk.
   describe('scope narrowing', () => {
     // root1 contains mid1 contains {leaf1, leaf2}; root2 contains mid2 contains leaf3.
     // root1 links direct1; root2 links direct2. Leaves are two hops from their root.
@@ -489,7 +479,7 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         scopeContext('root1'),
       );
-      // mid1 and the two leaves under it — leaf3 hangs off root2.
+      // leaf3 is under root2.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
 
@@ -510,8 +500,7 @@ describe('resolveBinding', () => {
       expect(v).toBe(2);
     });
 
-    // A cycle is a data error, but the walk must terminate rather than hang the dashboard —
-    // and looping back must not smuggle the scope entity into its own scope.
+    // A cycle is a data error, and must not hang the dashboard.
     it('terminates on a cyclic scope graph without counting the scope entity itself', async () => {
       const context = scopeContext('root1');
       const cycle = { Id: 'leaf1-contains-root1', Name: 'leaf1 contains root1',
@@ -524,14 +513,12 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         context,
       );
-      // root1 is the scope, not a member of it, however many relationships lead back to it.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
   });
 
-  // The list-shaped bindings could only reach the members of one derived state
-  // or the compare entities. A roster wants every Thing of an archetype whatever condition each
-  // is in — a healthy idle machine is in no state at all, so no stateList ever reaches it.
+  // A roster lists every Thing of an archetype, because a healthy idle machine is in no state and no
+  // state list reaches it.
   describe('thingList', () => {
     // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- PMP-1 directly.
     // SITE-1 contains RBT-1 and PMP-1; SITE-2 contains RBT-2.
@@ -572,8 +559,8 @@ describe('resolveBinding', () => {
       expect(rows.find((r) => r.name === 'PMP-1')).toMatchObject({ id: 'pmp1', duty_cycle: 0.88 });
     });
 
-    // A childless archetype answers `is` exactly like an instance, so a service-side lister has
-    // to filter it out by convention; the index tells the two apart structurally instead.
+    // An archetype with nothing under it answers `is` exactly as an instance does; the index tells them
+    // apart by structure, not by convention.
     it('returns instances only — a sub-archetype is descended into, never listed', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
       expect(rows.map((r) => r.id)).not.toContain('arch-robot');
@@ -587,8 +574,7 @@ describe('resolveBinding', () => {
       expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
     });
 
-    // Order is by name so a capped list is the same list every time, not whatever order the
-    // archetype walk happened to produce.
+    // By name, so a capped list is the same list every time.
     it('caps the row count at limit, taking the first by name', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', limit: 2 }, fleetContext(null));
       expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
@@ -627,9 +613,6 @@ describe('resolveBinding', () => {
     });
   });
 
-  // A row carried only what the row's own Thing stores, so a column whose value
-  // sits on a relationship (the archetype a Thing is, where it stands, what an open command points at)
-  // or in the platform's derived condition could not be expressed at all.
   describe('columns an edge or a derived state answers', () => {
     // Machine <- Robot <- RBT-1, RBT-2. RBT-1 is at LOC-A and operates_in ZN-1; RBT-2 is at LOC-B.
     // MOVE-1 targets RBT-1 and references LOC-C and ZN-1; MOVE-0 targets RBT-1 and references LOC-D.
@@ -695,8 +678,7 @@ describe('resolveBinding', () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, fleet('rbt1'))).toBe('LOC-A');
       });
 
-      // The is-relationship answers what kind of machine this is — the sub-archetype it was typed with,
-      // which is the word an operator reads, not the parent archetype the roster was listed by.
+      // The sub-archetype a Thing was typed with is the word an operator reads.
       it('names the archetype a Thing is, not the archetype it was listed under', async () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'is' }] }, fleet('rbt1'))).toBe('Robot');
       });
@@ -705,8 +687,8 @@ describe('resolveBinding', () => {
         expect(await resolveBinding(DESTINATION_OF_OPEN_COMMAND, fleet('rbt1'))).toBe('LOC-C');
       });
 
-      // Without the state filter the walk reaches every command ever issued to the machine, so
-      // the cell would name a destination that was reached and left long ago.
+      // Without the state filter the walk reaches every command ever issued, and names a destination
+      // reached and left long ago.
       it('keeps only the neighbour still in the given state', async () => {
         const everyCommand: Binding = {
           kind: 'related',
@@ -733,8 +715,7 @@ describe('resolveBinding', () => {
         expect(await resolveBinding(zoneOfCommand, fleet(null))).toBe('ZN-1');
       });
 
-      // Alphabetical rather than relationship order, so a cell naming several Things reads the
-      // same on every refresh.
+      // Alphabetical, so a cell naming several Things reads the same on every refresh.
       it('joins several matches in a stable order, starting from a Thing named in the binding', async () => {
         const references: Binding = { kind: 'related', thing: 'MOVE-1', via: [{ predicate: 'references' }] };
         expect(await resolveBinding(references, fleet(null))).toBe('LOC-C, ZN-1');
@@ -750,8 +731,8 @@ describe('resolveBinding', () => {
         expect(await resolveBinding(bays, fleet('rbt2'))).toBeNull();
       });
 
-      // A relationship can name an id the loaded model has no Thing for; the cell drops it rather
-      // than showing a gap among the names.
+      // A relationship can name an identifier the loaded model has no Thing for; the cell drops it rather
+      // than show a gap among the names.
       it('skips an edge pointing at a Thing the model does not hold', async () => {
         const context = fleet('rbt1');
         context.index = buildModelIndex(
@@ -799,8 +780,8 @@ describe('resolveBinding', () => {
       });
     });
 
-    // Every widget resolves its own bindings, so the same state wanted by a funnel stage and a
-    // table's column used to be two requests per refresh.
+    // Every widget resolves its own bindings, so a funnel stage and a table column wanting one state
+    // would otherwise ask for it twice a refresh.
     describe('state reads shared across a refresh generation', () => {
       it('asks once for a state that several bindings of one generation want', async () => {
         const context: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
@@ -812,8 +793,6 @@ describe('resolveBinding', () => {
         expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
       });
 
-      // A shared read must not share a failure: one hiccup would otherwise stick to every later
-      // reader of the generation, with nothing to retry it.
       it('retries a state read that failed instead of sharing the failure', async () => {
         const context: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         vi.mocked(stateApi.getThingsInState)
@@ -846,8 +825,6 @@ describe('resolveBinding', () => {
         });
       });
 
-      // The values used to pass through a number coercion, which emptied every column carrying
-      // a name or a status word.
       it('keeps a text value as text', async () => {
         const rows = await rowsOf(roster, fleet(null));
         expect(rows.every((r) => typeof r.current_location === 'string')).toBe(true);
@@ -865,8 +842,7 @@ describe('resolveBinding', () => {
         expect(rows.map((r) => r.nested)).toEqual([null, null]);
       });
 
-      // The trap a per-row binding sets: one request per row per refresh. State reads are shared
-      // across the rows of one resolution, so the count follows the listed states, not the roster.
+      // A binding on every row would otherwise ask once per row per refresh.
       it('asks each state once for the whole table, not once per row', async () => {
         await rowsOf(
           {
@@ -896,8 +872,7 @@ describe('resolveBinding', () => {
     });
   });
 
-  // A utilization is a ratio of sums over the scope's members, which no single aggregate op
-  // yields: averaging per-location ratios weights a nearly-empty plot the same as a full one.
+  // A ratio of sums, because averaging each location's ratio weighs a nearly empty plot the same as a full one.
   describe('ratio', () => {
     // V-A contains 2 locations (80 of 200 filled); V-B contains 1 (90 of 100).
     function siteContext(scopeId: string | null): ResolveContext {
@@ -943,7 +918,7 @@ describe('resolveBinding', () => {
     it('sums across every Thing before dividing when scope is All', async () => {
       const v = await resolveBinding(utilization, siteContext(null));
       expect(v).toBeCloseTo(170 / 300);
-      expect(v).not.toBeCloseTo((0.4 + 0.9) / 2); // not the average of per-site ratios
+      expect(v).not.toBeCloseTo((0.4 + 0.9) / 2);
     });
 
     it('resolves to null rather than Infinity when the denominator is zero', async () => {
@@ -954,7 +929,7 @@ describe('resolveBinding', () => {
       expect(v).toBeNull();
     });
 
-    // An absent property resolves to NaN, which must read as "no value" rather than propagate.
+    // A missing property resolves to NaN, which must read as no value rather than spread into the result.
     it('resolves to null when a side is not numeric', async () => {
       const v = await resolveBinding(
         {
@@ -1011,17 +986,15 @@ describe('resolveBinding', () => {
     });
 
     it('restricts matching to the given keys', () => {
-      // "1" appears in name (THING-1001) but searchKeys limits to grouping, so no match.
+      // "1" is in a name, and the name is not a search key here.
       expect(filterRows(rows, '1', ['grouping'])).toEqual([]);
       expect(filterRows(rows, 'bet', ['grouping']).map((r) => r.id)).toEqual(['a2']);
     });
   });
 });
 
-// A numeric binding took a number from a text property whenever the text happened to
-// read like one, so an identifier stored as text — an order number, a door number, a part code —
-// was summed and ranked as though it were a measurement. The platform already answers the question
-// the parse was guessing at: a text property arrives as text, every numeric type as a number.
+// An identifier stored as text, such as a door number, must not be summed or ranked as a measurement;
+// the platform already sends a text property as text and every numeric type as a number.
 describe('a text property is not a number', () => {
   // GATE-3 stores its door number as text; GATE-7 has a real reading.
   function gateContext(): ResolveContext {
@@ -1142,8 +1115,8 @@ describe('service bindings carry the selected scope', () => {
   });
 });
 
-// The target a balance is judged against comes from the range that judges it, never from the specification:
-// a view restating 14 days says the wrong thing the day the range moves.
+// The target comes from the range that judges the balance, never from the specification, which would be
+// wrong the day the range moves.
 describe('verdict binding', () => {
   const ENERGY_STATES = [
     { state: 'EnergyNetPositive', reads: '{value} of assumed consumption — meets the {target} target' },
@@ -1163,7 +1136,7 @@ describe('verdict binding', () => {
     range('EnergyNotAssessed', 'percentOfConsumption IS UNKNOWN', []),
   ];
 
-  /** The judge-ranges sit on the SiteStudy archetype, so every study reads them as inherited. */
+  /** The ranges sit on the SiteStudy archetype, so every study reads them as inherited. */
   function rangesResponse(ranges: RangeDto[]): ThingRangesResponse {
     return {
       ThingId: 'study1',
@@ -1280,8 +1253,8 @@ describe('verdict binding', () => {
     expect(rows[0].target).toBe(90);
   });
 
-  // The verdict is the model's answer and the target only decorates it, so losing the range read
-  // must not cost the reader the verdict as well.
+  // The verdict is the model's answer and the target only goes with it, so a failed range read must not
+  // cost the reader the verdict as well.
   it('still reads every verdict when the range read fails outright', async () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockRejectedValue(new Error('broker unreachable'));
@@ -1328,7 +1301,7 @@ describe('verdict binding', () => {
     expect(rows[0]).toMatchObject({ state: 'EnergyShortOfTarget', target: null, value: null });
   });
 
-  // A results page reads several balances of one study, whose judge-ranges all sit on its archetype.
+  // A results page reads several balances of one study, whose ranges all sit on its archetype.
   it('asks for one study\'s ranges once however many balances a refresh reads', async () => {
     holding('EnergyShortOfTarget');
     const shared: ResolveContext = {
@@ -1351,9 +1324,8 @@ describe('verdict binding', () => {
   });
 
   describe('a study the scope reaches rather than the scope itself', () => {
-    /** A page scoped to the site, which is where a per-submission view has to be scoped: the
-     *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
-     *  sit on the study one relationship away. */
+    /** Scoped to the site, as a page per submission must be: the programmes and hazards it lists are
+     *  related to the site, and the ranges judging its balances sit on the study one relationship away. */
     function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
       const things: VosThing[] = [
         { Id: 'is', Name: 'is', Properties: {} },
@@ -1401,8 +1373,7 @@ describe('verdict binding', () => {
       }]);
     });
 
-    // The site is the one holding the state here, so a walk that quietly fell back to where it
-    // started would report a verdict instead of nothing.
+    // The site holds the state here, so a walk that fell back to where it started would report a verdict.
     it('reports nothing when the walk reaches no Thing', async () => {
       membersOf('EnergyShortOfTarget', 'site1');
 
@@ -1465,8 +1436,8 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
   });
 });
 
-// The platform narrows a state answer on the server, so the bindings stop reading every
-// Thing in a state and discarding most of it in the browser.
+// The platform narrows a state's answer itself, so the browser does not read every Thing in a state and
+// discard most of them.
 describe('state bindings ask the server to narrow', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -1515,8 +1486,8 @@ describe('state bindings ask the server to narrow', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ type: 'Building' }));
   });
 
-  // The server walks the containment; counting its answer again here would be the same walk twice,
-  // and the second one would disagree the moment the browser index lagged the model.
+  // The server walks the containment, so counting again here would walk it twice, and the second walk
+  // would disagree whenever the browser's copy of the model is behind.
   it('sends an outgoing scope as a container and shows the number that arrives', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(1));
     const count = await resolveBinding(
@@ -1540,8 +1511,7 @@ describe('state bindings ask the server to narrow', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ within: 'site1' }));
   });
 
-  // The endpoint walks outward from a container only, so a scope pointing the other way has no
-  // server expression and keeps its local walk.
+  // The endpoint walks outward from a container only, so a scope pointing inward is still walked here.
   it('keeps an inbound scope narrowing here', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }]));
     const count = await resolveBinding(
@@ -1587,8 +1557,6 @@ describe('state bindings ask the server to narrow', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ limit: 1 }));
   });
 
-  // Sharing by state name alone would hand one widget the answer to another widget's question —
-  // a wrong number on screen with nothing to say it went wrong.
   it('gives two widgets narrowing one state differently their own answers', async () => {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state: string, narrowing?: { type?: string }) =>
       counted(narrowing?.type === 'Building' ? 1 : 2),
@@ -1603,9 +1571,8 @@ describe('state bindings ask the server to narrow', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
   });
 
-  // The columns a table draws are named on the binding, so the platform can send the row complete.
-  // A value it resolved up the `is` chain arrives like an owned one — the platform's own tests hold
-  // it to that, and this holds the client to laying out whatever came back.
+  // The binding names its columns so the platform can send each row complete. A value inherited up the
+  // `is` chain arrives like an owned one, which the platform's own tests check; this checks the layout.
   it('asks for the columns its rows carry, and lays out what comes back', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
       StateName: 'flagged',
@@ -1646,8 +1613,8 @@ describe('state bindings ask the server to narrow', () => {
     expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1' });
   });
 
-  // A computed column is derived from the row's own Thing by walking relationships, which is a question the
-  // state endpoint does not answer — so it still resolves here, beside the columns that arrived.
+  // A computed column walks relationships from the row's Thing, which the state endpoint does not
+  // answer, so it still resolves here.
   it('derives a computed column beside the columns that arrived', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
       StateName: 'flagged',
@@ -1758,8 +1725,7 @@ describe('state bindings ask the server to narrow', () => {
   });
 });
 
-// The series a dashboard draws is the platform's bucketed reduction, asked for at the
-// granularity the widget wants.
+// A dashboard's series is the platform's reduction into time buckets, at the bucket size the widget asks for.
 describe('timeseries reads the platform bucketed aggregate', () => {
   const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
 
@@ -1841,8 +1807,8 @@ describe('timeseries reads the platform bucketed aggregate', () => {
     expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].within).toBeUndefined();
   });
 
-  // The endpoint walks outward from a container only. Answering as though the scope had been
-  // applied would put another site numbers on this site page.
+  // The endpoint walks outward from a container only, and answering as though the scope had been
+  // applied would put another site's numbers on this site's page.
   it('refuses an inbound scope rather than ignoring it', async () => {
     const value = await resolveBinding(
       { ...trace, scope: { viaPredicate: 'feeds', direction: 'in' } } as Binding,
@@ -1912,10 +1878,9 @@ describe('the working behind a figure', () => {
     ]);
   });
 
-  // A reduction's inputs are named and its formula is not: putting a function over a set into words
-  // would be the client saying what a figure means. A reduction reads its input off each member, so
-  // the row names the archetype those members are of and carries no value — the Thing computing the
-  // figure does not hold one, and a value read off it would be some other property of the same name.
+  // The formula is not named, because putting a function over a set into words would be the client saying
+  // what a figure means. The row names the members' archetype and no value, because the computing Thing
+  // holds none, and a value read off it would be another property of the same name.
   it('names a reduction\'s inputs, the archetype they are read off, and no formula', async () => {
     const context = study(
       { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
@@ -1926,9 +1891,7 @@ describe('the working behind a figure', () => {
     ]);
   });
 
-  // The reduced name belongs to the members, so a property of that name on the Thing computing the
-  // figure is a different property. Reporting it would put a number under the input that never went
-  // into it, and a reader has no way to tell that from the input's real value.
+  // A reader could not tell that number from the input's real value.
   it('does not report a same-named property of the computing Thing as a reduction\'s input', async () => {
     const context = study(
       { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
@@ -1941,10 +1904,9 @@ describe('the working behind a figure', () => {
   });
 });
 
-// A balance that falls short names what would have to change to close the gap. The
-// levers come out of the model twice over — the definition says which way each input moves the
-// result, and the held state's own comparison says which way the result must move to leave it —
-// so changing the formula in the compute service changes the levers with no client change.
+// A shortfall names what would close the gap. The definition says which way each input moves the result,
+// and the held state's comparison says which way the result must move, so a formula change in the compute
+// service changes the levers with no client change.
 describe('levers under a shortfall', () => {
   const SHORT_WITH_LEVERS = [
     { state: 'EnergyNetPositive', reads: 'clear' },
@@ -1969,7 +1931,7 @@ describe('levers under a shortfall', () => {
     };
   }
 
-  // The energy chain the shipped analysis declares, cut down: the judged percentage stands on the
+  // The energy chain the analysis template declares, cut down: the judged percentage stands on the
   // total, the total on a reduction and a plain input, and the consumption divides.
   const DEFINITIONS = {
     percentOfConsumption: {
@@ -2229,7 +2191,7 @@ describe('levers under a shortfall', () => {
   });
 
   // A wrong direction under a shortfall deepens the gap, so a term the definition declares no
-  // direction for is offered nothing rather than a guess — and its subtree with it.
+  // direction for is offered nothing rather than a guess, and neither is anything under it.
   it('drops a term whose direction the definition does not settle', async () => {
     holding('EnergyShortOfTarget');
 
@@ -2350,8 +2312,8 @@ describe('origin binding', () => {
     unknown: 'origin not recorded',
   };
 
-  /** A site whose archetype declares which of its properties are asserted and which are fetched,
-   *  with a data source hanging off it and a boundary the parcel says how it was obtained. */
+  /** A site whose archetype declares which properties are asserted and which fetched, with a data source
+   *  related to it and a parcel whose boundary says how it was obtained. */
   function siteContext(alsoReaching: string[] = []): ResolveContext {
     const things: VosThing[] = [
       { Id: 'is', Name: 'is', Properties: {} },
@@ -2488,9 +2450,8 @@ function seriesContext(): ResolveContext {
   return { index: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
 }
 
-// A point covering several buckets, and the tile that reads the newest one. The platform
-// reduces onto a fixed grid; a specification that wants an hourly figure plotted every quarter hour asks for
-// quarter-hour buckets and says how many of them each point covers.
+// The platform reduces into fixed buckets, so a specification wanting an hourly figure plotted every quarter
+// hour asks for quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
   const trace: Binding = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
@@ -2556,7 +2517,7 @@ describe('a series whose points cover several buckets', () => {
 });
 
 // The tile above a line reads the line's newest point, so the two ask the platform one question and
-// the figure cannot drift from the shape beneath it.
+// cannot disagree.
 describe('the newest point of a series', () => {
   const series = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
@@ -2597,8 +2558,8 @@ describe('the newest point of a series', () => {
   });
 });
 
-// The history reduction is the platform's, over one property's observation series on the page's own
-// scope entity; the client folds nothing.
+// The history reduction is the platform's, over one property's readings on the page's scope entity; the
+// client computes none of it.
 describe('history reads the platform reduction over a property series', () => {
   const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 
