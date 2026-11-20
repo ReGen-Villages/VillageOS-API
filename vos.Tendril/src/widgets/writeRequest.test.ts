@@ -80,7 +80,7 @@ describe('what a press on a row sends', () => {
 
 describe('what a form sends', () => {
   it('sends the act as the view, every filled field, and the names chosen for a field taking several', () => {
-    expect(formRequest(BOOK, { spring: 'SPRING-1', catchments: ['CATCH-1', 'CATCH-2'], litres: '12.5' })).toEqual({
+    expect(formRequest(BOOK, { spring: 'SPRING-1', catchments: ['CATCH-1', 'CATCH-2'], litres: '12.5' }, BOOK.writes.act)).toEqual({
       view: 'book',
       spring: 'SPRING-1',
       catchments: ['CATCH-1', 'CATCH-2'],

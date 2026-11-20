@@ -163,6 +163,6 @@ export async function sendPress(
 /** The request a form makes: the act by name and every field a person filled. `act` names which
  *  of the form's two acts is being made — the press it writes under, or the read its preview
  *  offers, which asks the same fields the same way. */
-export function formRequest(widget: FormWidget, entered: Entered, act: string = widget.writes.act): Record<string, unknown> {
+export function formRequest(widget: FormWidget, entered: Entered, act: string): Record<string, unknown> {
   return withValues({ view: act }, widget.fields, entered);
 }
