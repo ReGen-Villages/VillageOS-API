@@ -23,7 +23,7 @@ export interface SharedSurvey {
 type QueuedSurveyState = 'waiting' | 'sending' | 'shared' | 'refused';
 
 export interface QueuedSurvey {
-  /** Of the page's own: two chosen files may share a name. */
+  /** The page's own key, because two chosen files may share a name. */
   readonly key: string;
   readonly file: File;
   readonly description: string;

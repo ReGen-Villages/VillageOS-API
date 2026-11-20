@@ -1,6 +1,6 @@
 /**
  * The plot-first way into land intake, beside the guided form and from the same build: start at a map,
- * click your land, and land on the report — where the programme, the population and the household size
+ * click the land, and arrive at the report, where the programme, the population and the household size
  * are dials whose change re-posts the same submission and re-reads the findings.
  *
  * The page holds no credential and reaches only the intake service, like the guided form; the
@@ -68,7 +68,7 @@ const PLOT_ZOOM = 16;
 const POLLS_AFTER_SUBMIT = 4;
 const POLL_GAP_MILLISECONDS = 8_000;
 
-/** One re-post per pause in the turning, not one per pixel of slider travel. */
+/** One re-post each time a slider stops moving, not one per pixel it travels. */
 const DIAL_SETTLE_MILLISECONDS = 800;
 
 const WIDE = 720;
@@ -225,8 +225,8 @@ export function ExplorePage() {
     };
   }, [session, readFindings]);
 
-  // The dials: a settled change re-posts the same document under the same identifier — the fragment
-  // upserts, every figure recomputes, and the re-read shows what the model now says. What counts as a
+  // A settled change re-posts the same document under the same identifier, so the fragment is written over
+  // what it wrote before, every figure is worked out again, and the re-read shows what the model now says. What counts as a
   // change is the dialled values spelled out, so a render that moved nothing posts nothing.
   const dialled = JSON.stringify(
     [state.population, state.householdSize, state.shares, state.reportedHazards]);
@@ -420,8 +420,8 @@ function PlotStep({
 }
 
 /** The map with the fact cards in a column beside it — beneath it on a phone, where a column would
- *  leave the map too narrow to click a corner on. The map stretches to the column, so a fifth card
- *  does not leave a gap under it. */
+ *  leave the map too narrow to click a corner on. The map stretches to the column, so a long column
+ *  of cards does not leave a gap under it. */
 function BesideTheMap({ facts, children }: { facts: ReactNode; children: ReactNode }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
@@ -796,7 +796,7 @@ function ReportMap({
 
 /** The model's own dashboard, drawn as the tile design draws it: the sections naming a theme as tiles,
  *  the section marked as the facts beside the map, and everything else as the list the findings page
- *  draws. A specification naming neither renders exactly as it did. */
+ *  draws. A specification naming neither renders as the findings page renders it. */
 function Drawn({
   findings,
   options,
