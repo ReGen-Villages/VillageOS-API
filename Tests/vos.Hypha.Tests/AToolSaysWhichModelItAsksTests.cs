@@ -110,6 +110,18 @@ public class AToolSaysWhichModelItAsksTests
     }
 
     [Fact]
+    public async Task A_model_given_as_a_number_is_judged_as_the_keys_own_model()
+    {
+        await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
+
+        var refused = await server.Client.CallToolAsync(
+            "sample_bound", new Dictionary<string, object?> { [ModelClients.Parameter] = 7 });
+
+        refused.IsError.Should().BeTrue();
+        TextOf(refused).Should().Be(ToolListing.NotAvailable);
+    }
+
+    [Fact]
     public async Task Each_model_is_asked_once_what_it_binds_however_calls_for_different_models_alternate()
     {
         await using var server = await StartAsync(TwoModels, toolTypes: typeof(ToolsThatTakeAModel));
