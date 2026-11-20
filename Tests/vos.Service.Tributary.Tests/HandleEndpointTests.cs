@@ -9,7 +9,6 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Tests for the /handle endpoint in vos.Service.Tributary/Program.cs.
 // Each test wires up a per-scenario HandlerCallback on the factory so Mycelium calls
 // (FindThingByNameAsync, GetEffectivePropertiesAsync, CreateThing, CreateRelationship,
 // SubmitObservations) AND the outbound endpoint call all resolve through the same handler.
@@ -37,7 +36,7 @@ public class HandleEndpointTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            // Mycelium GET /api/things?name=Unknown returns empty (non-object root → null thing)
+            // Mycelium GET /api/things?name=Unknown returns empty, and a root that is not an object reads as no Thing
             if (req.RequestUri!.AbsolutePath == "/api/things")
                 return Json("null");
             return new HttpResponseMessage(HttpStatusCode.NotFound);

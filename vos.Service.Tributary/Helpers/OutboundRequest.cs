@@ -94,7 +94,7 @@ public static class OutboundRequest
             foreach (var (name, value) in headers)
             {
                 // Request vs content headers are partitioned by HttpClient; TryAddWithoutValidation on
-                // the request headers silently rejects content headers (e.g. Content-Type), so a stray
+                // the request headers silently rejects content headers such as Content-Type, so a stray
                 // content header in the map is dropped rather than throwing.
                 request.Headers.TryAddWithoutValidation(name, value);
             }

@@ -66,7 +66,7 @@ public sealed class TributaryStep : DagNodeService
         }
         : null;
 
-    // A box naming no step is fetched only until the drawings name every step (Story 8508 removes it).
+    // A box naming no step is fetched only until the drawings name every step, when that case goes.
     protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken) =>
         (context.Param(StepSetting) is { ValueKind: JsonValueKind.String } step ? step.GetString() : null) switch
         {

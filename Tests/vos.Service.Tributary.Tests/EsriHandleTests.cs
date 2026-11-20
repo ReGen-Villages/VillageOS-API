@@ -12,7 +12,7 @@ namespace vos.Service.Tributary.Tests;
 // carries no source-specific assumptions). The mycelium calls, the token-endpoint call, and the
 // outbound data call all resolve through one MockHttpMessageHandler set per scenario.
 //
-// Effective-property keys are namespaced (e.g. "Esri.tokenUrl") to mirror Mycelium's template-merged
+// Effective-property keys are namespaced (such as "Esri.tokenUrl") to mirror Mycelium's template-merged
 // shape; EffectivePropertyResolver suffix-matches them to the lookups the handler performs.
 public class EsriHandleTests
 {
@@ -121,7 +121,7 @@ public class EsriHandleTests
     public async Task Handle_TokenExchange_HeaderAttach_AddsBearerAuthorizationHeader()
     {
         // tokenHeader/tokenScheme move the credential off the query string and into a header — the
-        // attach point is config, so the same code serves bearer-header auth (e.g. OAuth2).
+        // attach point is config, so the same code serves bearer-header auth, such as OAuth2.
         var thingId = Guid.NewGuid();
         var props = """
         {
