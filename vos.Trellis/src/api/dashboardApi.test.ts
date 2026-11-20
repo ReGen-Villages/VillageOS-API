@@ -393,7 +393,7 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  // A state can hold Things of several archetypes, such as orders and their lines.
+  // A state can hold Things of several archetypes.
   describe('archetype narrowing', () => {
     // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
     function orderContext(): ResolveContext {

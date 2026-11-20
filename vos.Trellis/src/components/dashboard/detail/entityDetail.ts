@@ -45,7 +45,7 @@ function selectProperties(thing: VosThing, which: RelationSpecification['propert
 }
 
 /** The configured order is the display order; within a group, by the related Thing's name, so it stays put. Each
- *  path guards against looping back, as a phase containing the project that references it would. */
+ *  path guards against looping back, as a site containing the building that refers to it would. */
 export function resolveRelations(
   rootId: string,
   index: ModelIndex,

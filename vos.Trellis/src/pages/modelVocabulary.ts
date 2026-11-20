@@ -1,5 +1,5 @@
 /** Every page finding something through a role reads it here, so a binding means one thing everywhere. Nothing
- *  here names an archetype, so a model that renames one keeps answering and a project's own term is offered
+ *  here names an archetype, so a model that renames one keeps answering and a deployment's own term is offered
  *  without a change here. */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
