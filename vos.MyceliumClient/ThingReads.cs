@@ -54,9 +54,7 @@ public static class ThingReads
             thing.IsTrue("IsArchetype"),
             inheritsFrom,
             held.EnumerateObject().Select(property => HeldOf(property, sourceNames)).ToList(),
-            current.TryGetProperty("CurrentStates", out var named)
-                ? named.EnumerateArray().Select(state => state.GetString() ?? "").ToList()
-                : []);
+            current.GetProperty("CurrentStates").EnumerateArray().Select(state => state.GetString()!).ToList());
     }
 
     private static InheritedSource SourceOf(JsonElement source) => new(
