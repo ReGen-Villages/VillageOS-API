@@ -92,6 +92,23 @@ public class AModelIsDescribedAndThingsAreFoundTests
     }
 
     [Fact]
+    public async Task A_report_that_declares_nothing_describes_no_names()
+    {
+        await using var server = await StartAsync(AModel(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/model/declarations" => Json("{}"),
+            "/api/properties/types" => Json("[]"),
+            _ => null,
+        }));
+
+        var described = Structured(await server.Client.CallToolAsync(
+            "describe_model", new Dictionary<string, object?> { ["include_readers"] = true }));
+
+        foreach (var field in new[] { "id", "name", "kinds", "predicates", "propertyNames", "readersSearched" })
+            Holds(described, field).Should().BeFalse(field);
+    }
+
+    [Fact]
     public async Task A_model_the_platform_cannot_describe_yet_is_refused_in_words()
     {
         await using var server = await StartAsync(AModel(_ => null));
