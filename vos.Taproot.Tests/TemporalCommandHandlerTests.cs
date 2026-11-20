@@ -15,9 +15,9 @@ public class TemporalCommandHandlerTests
         _myceliumMock = new Mock<MyceliumClient>("http://localhost:5000");
     }
 
-    private async Task ExecuteHandler(string arg, MyceliumClient? client = null)
+    private async Task ExecuteHandler(string arg)
     {
-        var handler = new TemporalCommandHandler(arg, _writer, client);
+        var handler = new TemporalCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -51,7 +51,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("snapshot now", _myceliumMock.Object);
+        await ExecuteHandler("snapshot now");
 
         var output = _writer.ToString();
         Assert.Contains("Timestamp", output);
@@ -65,7 +65,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelAtTimeAsync(It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("snapshot 2026-01-15T12:00:00Z", _myceliumMock.Object);
+        await ExecuteHandler("snapshot 2026-01-15T12:00:00Z");
 
         _myceliumMock.Verify(b => b.GetModelAtTimeAsync(It.Is<DateTime?>(d => d.HasValue)), Times.Once);
     }
@@ -78,7 +78,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetPropertyVersionsAsync(thingId, "status", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"history {thingId} status", _myceliumMock.Object);
+        await ExecuteHandler($"history {thingId} status");
 
         _myceliumMock.Verify(b => b.GetPropertyVersionsAsync(thingId, "status", null, null), Times.Once);
     }
@@ -86,7 +86,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_History_InvalidThingId_ShowsError()
     {
-        await ExecuteHandler("history not-a-guid status", _myceliumMock.Object);
+        await ExecuteHandler("history not-a-guid status");
 
         var output = _writer.ToString();
         // NameResolver returns "No things found. Cannot resolve name" when no things exist in the model
@@ -96,7 +96,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_History_MissingArgs_ShowsUsage()
     {
-        await ExecuteHandler("history", _myceliumMock.Object);
+        await ExecuteHandler("history");
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -110,7 +110,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
+        await ExecuteHandler($"at {thingId} now");
 
         _myceliumMock.Verify(b => b.GetThingAtTimeAsync(thingId, null), Times.Once);
     }
@@ -123,7 +123,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"at {thingId} 2026-01-15T12:00:00Z", _myceliumMock.Object);
+        await ExecuteHandler($"at {thingId} 2026-01-15T12:00:00Z");
 
         _myceliumMock.Verify(b => b.GetThingAtTimeAsync(thingId, It.Is<DateTime?>(d => d.HasValue)), Times.Once);
     }
@@ -135,7 +135,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ReturnsAsync((JsonElement?)null);
 
-        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
+        await ExecuteHandler($"at {thingId} now");
 
         var output = _writer.ToString();
         Assert.Contains("Thing not found", output);
@@ -148,7 +148,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ThrowsAsync(new HttpRequestException("Connection failed"));
 
-        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
+        await ExecuteHandler($"at {thingId} now");
 
         var output = _writer.ToString();
         Assert.Contains("Error:", output);
@@ -157,7 +157,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_Snapshot_InvalidTimestamp_ShowsError()
     {
-        await ExecuteHandler("snapshot not-a-timestamp", _myceliumMock.Object);
+        await ExecuteHandler("snapshot not-a-timestamp");
 
         var output = _writer.ToString();
         Assert.Contains("Invalid timestamp", output);
@@ -166,7 +166,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_UnknownSubcommand_ShowsHelp()
     {
-        await ExecuteHandler("unknown", _myceliumMock.Object);
+        await ExecuteHandler("unknown");
 
         var output = _writer.ToString();
         Assert.Contains("Temporal query commands:", output);
@@ -179,7 +179,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelMutationsAsync(null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations", _myceliumMock.Object);
+        await ExecuteHandler("mutations");
 
         _myceliumMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
     }
@@ -191,7 +191,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelMutationsAsync(null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations model", _myceliumMock.Object);
+        await ExecuteHandler("mutations model");
 
         _myceliumMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
     }
@@ -203,7 +203,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelMutationsAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations model 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _myceliumMock.Object);
+        await ExecuteHandler("mutations model 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z");
 
         _myceliumMock.Verify(b => b.GetModelMutationsAsync(
             It.Is<DateTime?>(d => d.HasValue),
@@ -218,7 +218,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations thing {thingId}", _myceliumMock.Object);
+        await ExecuteHandler($"mutations thing {thingId}");
 
         _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
     }
@@ -231,7 +231,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations thing {thingId} 2026-01-01T00:00:00Z", _myceliumMock.Object);
+        await ExecuteHandler($"mutations thing {thingId} 2026-01-01T00:00:00Z");
 
         _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, It.Is<DateTime?>(d => d.HasValue), null), Times.Once);
     }
@@ -239,7 +239,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_ThingMissingName_ShowsUsage()
     {
-        await ExecuteHandler("mutations thing", _myceliumMock.Object);
+        await ExecuteHandler("mutations thing");
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -253,7 +253,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations relationship {relId}", _myceliumMock.Object);
+        await ExecuteHandler($"mutations relationship {relId}");
 
         _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
     }
@@ -266,7 +266,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations rel {relId}", _myceliumMock.Object);
+        await ExecuteHandler($"mutations rel {relId}");
 
         _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
     }
@@ -279,7 +279,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations rel {relId} 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _myceliumMock.Object);
+        await ExecuteHandler($"mutations rel {relId} 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z");
 
         _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(
             relId,
@@ -290,7 +290,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_RelMissingId_ShowsUsage()
     {
-        await ExecuteHandler("mutations rel", _myceliumMock.Object);
+        await ExecuteHandler("mutations rel");
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -299,7 +299,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_RelInvalidGuid_ShowsError()
     {
-        await ExecuteHandler("mutations rel not-a-guid", _myceliumMock.Object);
+        await ExecuteHandler("mutations rel not-a-guid");
 
         var output = _writer.ToString();
         Assert.Contains("Invalid relationship ID", output);
@@ -314,7 +314,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations {thingId}", _myceliumMock.Object);
+        await ExecuteHandler($"mutations {thingId}");
 
         _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
     }
@@ -322,7 +322,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_ImplicitThingNotFound_ShowsError()
     {
-        await ExecuteHandler("mutations SomeUnknownThing", _myceliumMock.Object);
+        await ExecuteHandler("mutations SomeUnknownThing");
 
         var output = _writer.ToString();
         Assert.Contains("Cannot resolve name", output);
@@ -336,7 +336,7 @@ public class TemporalCommandHandlerTests
         _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
-        await ExecuteHandler("snapshot", _myceliumMock.Object);
+        await ExecuteHandler("snapshot");
 
         _myceliumMock.Verify(b => b.GetModelAtTimeAsync(null), Times.AtLeastOnce);
     }
