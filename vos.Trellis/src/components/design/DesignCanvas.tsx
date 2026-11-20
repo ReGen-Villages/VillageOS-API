@@ -28,10 +28,6 @@ const WIDTH_BEFORE_MEASURED = 1200;
  *  card keep working under the pointer. */
 const DRAG_HANDLE = 'design-handle';
 
-/**
- * The page as it is designed: every section a grid its widgets are moved and resized on, each widget
- * drawing live off the model, and the place a new widget is dropped.
- */
 export function DesignCanvas({ specification, selection, dragging, context, onSelect, onPlacements, onDrop, onAddSection }: Props) {
   const { t } = useTranslation();
   return (
