@@ -20,7 +20,7 @@ public class ServicesPresentTheirApiKeyTests
 
         var withoutTheKey =
             from entryPoint in ServiceEntryPoints.Under(root)
-            let source = File.ReadAllText(entryPoint)
+            let source = ServiceEntryPoints.SourceOf(root, entryPoint)
             from clientType in clientTypes
             from construction in ConstructionsOf(clientType, source)
             where !construction.Contains("apiKey") && !construction.Contains("ApiKey")
