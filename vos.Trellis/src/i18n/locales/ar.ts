@@ -7,8 +7,8 @@ import type { Resources } from './en';
  * through i18next's `ar-XX → ar` language fallback, and any key absent here
  * falls back further to the English base locale.
  *
- * Arabic pluralisation has six CLDR categories, so every counted phrase carries
- * all of them (English needs only one/other). The extra suffixes sit outside the
+ * Arabic has six plural forms where English has two, so every counted phrase carries
+ * all of them. The extra suffixes sit outside the
  * base `Resources` shape, hence the widened annotation below.
  */
 

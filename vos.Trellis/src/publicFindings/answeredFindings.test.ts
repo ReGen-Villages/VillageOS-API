@@ -5,8 +5,8 @@ import { findingsFrom, type FindingsAnswer } from './answeredFindings';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 
 /**
- * What the intake service answers, read as the resolver reads it. The four questions a loaded model
- * cannot answer are the whole reason this file exists, so each is asked here the way a widget asks it.
+ * What the intake service answers, read as the resolver reads it. The questions a loaded model
+ * cannot answer are why this file exists, so each is asked here the way a widget asks it.
  */
 const SITE = 'aaaaaaaa-0000-0000-0000-000000000001';
 const STUDY = 'aaaaaaaa-0000-0000-0000-000000000002';
@@ -124,8 +124,6 @@ describe('the findings a submitter is answered with', () => {
     expect(rows).toEqual([]);
   });
 
-  // The history reduction is the one read the page makes after the document arrived — through the intake
-  // service, under the ticket the page holds — so whoever builds the findings supplies it.
   it('reduces a property series through whatever the page hands it', async () => {
     const reduce = vi.fn().mockResolvedValue({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 });
     const { reads } = findingsFrom(answered(), reduce);
@@ -138,8 +136,6 @@ describe('the findings a submitter is answered with', () => {
     expect(reduce).toHaveBeenCalledWith(question);
   });
 
-  // Nothing is how a figure the analysis has not computed reads, and a question this page cannot ask is
-  // not that — so the two it never asks refuse rather than resolving to nothing.
   it('refuses the two questions a submitter\'s page cannot ask', async () => {
     const { reads } = findingsFrom(answered(), reduceNothing);
 
