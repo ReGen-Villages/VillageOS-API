@@ -3114,8 +3114,9 @@ is still submitted by its name.
 
 ### 94. Tiles, and what a page is sent
 A section may name a **theme** the model declares — a Thing under the archetype the `theme` role binds,
-carrying `colour`, `icon` and `order` — and a page that draws themes then draws the section as a
-tile: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
+carrying `colour`, `icon`, `order` and `wording` — and a page that draws themes then draws the section
+as a tile, named by the section's own title where the page gives one, then by the theme's words in the
+page language, then by the theme's name: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
 as the gallery a click opens, and a muted *not assessed* tile for a section with no widgets. A
 section carrying `facts: true` draws its kpi widgets as cards beside the map on the explore page,
 each with its origin line in place of a tick, and leaves the report; the page draws three cards of
@@ -3191,7 +3192,7 @@ runs it during a play and keeps the file with its readings.
 | **Binding** | On a range: a property with bounds and an optional guard, for deviation reporting. On a page: where a widget's value comes from |
 | **Call record** | The durable note of one service call, with its state, that the platform drives to completion |
 | **Checkpoint** | A saved picture of a model's structure that bounds how much of the record a restart replays |
-| **Connection** | A Thing that routes to a service: through a predicate, a request address or a state |
+| **Connection** | A Thing that routes to a service: named by a predicate along `notifies`, reached at a request address, or watching a state |
 | **Criterion** | A condition in the small language ranges, guards, conditions and formulas share |
 | **Dashboard** | A page the model publishes as data; the console draws it |
 | **Derived value** | A property computed by a total over related Things or a formula over a Thing's own values |
@@ -3236,7 +3237,7 @@ runs it during a play and keeps the file with its readings.
 | Quantifiers over related Things | `ANY` (default), `ALL`, `NONE` | `ALL [feeds].quantity > 0` |
 | Totals over related Things | `MIN`, `MAX`, `SUM`, `AVG`, `COUNT` over `[path.Kind].property`, on the left of a comparison | `SUM [<-is.SolarArray].area > 5000` |
 | A trailing window | `OVER instant LAST seconds` after a total | `COUNT [feeds] OVER flowed_at LAST 900 > 20` |
-| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product, and scaling the whole term takes brackets | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
+| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product. A parameter ends at the next `BY`, `FROM` or `TO`, a comparison or a closing bracket, so scaling the whole term takes brackets: `(HISTORY … TO comfortHighCelsius) * 100` | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
 | The clock | `elapsed(x)` in seconds, `Now()` | `elapsed(lastInspected) > 86400` |
 | The smaller of two figures | `min(a, b)`; unknown when either is | `min(harvestM3PerYear, demandM3PerYear)` |
 | The first figure with a number | `firstKnown(a, b, …)`, in the order written; an unknown, a text or a path reaching several Things is passed over, and zero is an answer | `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` |
@@ -3347,9 +3348,8 @@ on its own study. Where no source for the value is recorded, the table says so.
 | `peoplePowered` | `totalGenerationMwhPerYear × 1,000 ÷ energyPerPersonKwhPerYear` | Reads no population, so a submission carrying only a boundary still gets an answer |
 
 **Verdict.** Net positive at 100% or more, short of target below it, not assessed while unknown. A
-site that generates at least what it uses is net positive by definition. This verdict is the one figure
-still written by a service, the energy balance, because a verdict is a yes or no where a formula gives
-a number.
+site that generates at least what it uses is net positive by definition. Three ranges on the study
+judge `percentOfConsumption`, so no service writes the verdict.
 
 ### Water
 
@@ -3365,7 +3365,8 @@ a number.
 
 **Each demand on the harvest works out its own share.** Each demand states its `servingOrder`:
 drinking water 1, irrigation 2. Both the demands and their order are declared in the model, not
-written into a service.
+written into a service. A demand whose `servingOrder` is not a whole number, such as text or `true`,
+counts as stating no order and is served first; demands with the same order are served by name.
 
 | Figure (each demand) | How it is worked out | Why |
 | --- | --- | --- |
