@@ -1,4 +1,5 @@
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -63,17 +64,17 @@ public static class PositionLookupReader
     public static SubscriptionSelector PlotsSelector() => new()
     {
         Ids = RoleBindings.Identifiers(PlotsInViewLookupRole),
-        Names = [RoleBindings.BindsPredicateName, SubmissionFragmentComposer.IsPredicateName],
+        Names = [RoleBindings.BindsPredicateName, PlatformPredicates.Is],
         BoundTypes = RoleBindings.Identifiers(PlotsInViewLookupRole),
         Traverse = [RoleBindings.FollowBindings],
-        Relationships = [new RelationshipRule { Predicate = SubmissionFragmentComposer.IsPredicateName }],
+        Relationships = [new RelationshipRule { Predicate = PlatformPredicates.Is }],
     };
 
     public static IReadOnlyList<DeclaredPlotsLookup> PlotsInViewLookups(SnapshotDocument snapshot)
     {
         if (snapshot.Bound(PlotsInViewLookupRole).SingleOrDefault(thing => thing.IsArchetype) is not { } kind) return [];
         var isPredicate = snapshot.Things
-            .Where(thing => string.Equals(thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+            .Where(thing => string.Equals(thing.Name, PlatformPredicates.Is, StringComparison.Ordinal))
             .Select(thing => thing.Id).ToHashSet();
         var members = snapshot.Relationships
             .Where(edge => edge.TargetId == kind.Id && isPredicate.Contains(edge.PredicateId))

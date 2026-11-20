@@ -1,4 +1,5 @@
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -18,7 +19,7 @@ public static class SiteLayerReader
             LandIntakeRoles.OfLayerKind, LandIntakeRoles.SourcedFrom),
         Names =
         [
-            SubmissionFragmentComposer.IsPredicateName, SubmissionFragmentComposer.HasPredicateName,
+            PlatformPredicates.Is, SubmissionFragmentComposer.HasPredicateName,
             RoleBindings.BindsPredicateName,
         ],
         BoundTypes = RoleBindings.Identifiers(LandIntakeRoles.SiteLayerKind),

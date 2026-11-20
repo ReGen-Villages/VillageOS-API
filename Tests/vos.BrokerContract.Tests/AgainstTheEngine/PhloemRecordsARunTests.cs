@@ -35,7 +35,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     // by name — so the arrangement would break the thing it exists to set up.
     private async Task<Guid> AModelThatBindsItsRunRolesAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
         await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);

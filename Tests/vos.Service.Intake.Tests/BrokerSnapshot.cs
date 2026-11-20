@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -225,7 +226,7 @@ public sealed class BrokerSnapshot
     public static BrokerSnapshot WithTwoSubmissions(string submissionId = WillowBend.SubmissionId)
     {
         var snapshot = new BrokerSnapshot()
-            .Thing(IsPredicate, SubmissionFragmentComposer.IsPredicateName)
+            .Thing(IsPredicate, PlatformPredicates.Is)
             .Thing(HasPredicate, SubmissionFragmentComposer.HasPredicateName)
             .Thing(StudiesPredicate, "studies")
             .Thing(ObtainedByPredicate, "obtainedBy")

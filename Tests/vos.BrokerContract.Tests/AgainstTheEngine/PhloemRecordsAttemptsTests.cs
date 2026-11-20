@@ -21,7 +21,7 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
 
     private async Task<(MyceliumGateway Gateway, Guid RunId, Guid NodeId)> ANodeRunThatTriedAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
         await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);

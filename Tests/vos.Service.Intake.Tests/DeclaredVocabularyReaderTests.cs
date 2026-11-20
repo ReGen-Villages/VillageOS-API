@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -197,7 +198,7 @@ public class DeclaredVocabularyReaderTests
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
-            SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
+            PlatformPredicates.Is, RoleBindings.BindsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
     }
 

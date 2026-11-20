@@ -21,7 +21,7 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task A_run_another_runs_end_started_reaches_that_run_along_the_predicate_the_startingRun_role_binds()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
         var startedBy = await _engine.PlayingAsync(PipelineRoles.StartingRun, "startedBy");
@@ -43,7 +43,7 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task A_run_a_person_started_again_reaches_the_run_it_repeats_along_the_predicate_the_repeatedRun_role_binds()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
         var repeats = await _engine.PlayingAsync(PipelineRoles.RepeatedRun, "repeats");

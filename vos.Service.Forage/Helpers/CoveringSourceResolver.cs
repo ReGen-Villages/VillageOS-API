@@ -79,7 +79,6 @@ public static class CoveringSourceResolver
     public const string SourcedFromPredicate = "sourcedFrom";
     public const string StudiesPredicate = "studies";
     public const string HasPredicate = "has";
-    public const string IsPredicateName = PlatformPredicates.Is;
 
     // The archetype every site `is`, bound by the platform's site role so that a walk reaching Places
     // and sites alike can tell the two apart — and so that a service call naming a source is told from one
@@ -114,7 +113,7 @@ public static class CoveringSourceResolver
     private static readonly string[] PredicatesRead =
     [
         IsInPredicate, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
-        AssessesPredicate, StudiesPredicate, HasPredicate, IsPredicateName,
+        AssessesPredicate, StudiesPredicate, HasPredicate, PlatformPredicates.Is,
         AppliesToPredicate, SourcedFromPredicate,
     ];
 
@@ -248,7 +247,7 @@ public static class CoveringSourceResolver
         // covered Place holds relationships this read never follows.
         Relationships = Outgoing(
             RoleBindings.BindsPredicateName, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
-            IsInPredicate, IsPredicateName, HasPredicate, AppliesToPredicate, SourcedFromPredicate),
+            IsInPredicate, PlatformPredicates.Is, HasPredicate, AppliesToPredicate, SourcedFromPredicate),
     };
 
     // The source, with a call for every subject the sites under the Places it covers would be called
@@ -264,7 +263,7 @@ public static class CoveringSourceResolver
         if (EndpointOf(snapshot, namesById, thingsById, sourceId) is not { } endpoint) return [];
 
         var covered = snapshot.Relationships
-            .Where(edge => edge.SubjectId == sourceId && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, CoversPredicate))
+            .Where(edge => edge.SubjectId == sourceId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, CoversPredicate))
             .Select(edge => edge.TargetId);
         var within = NestedWithin(snapshot, namesById, covered);
 
@@ -298,7 +297,7 @@ public static class CoveringSourceResolver
             foreach (var edge in snapshot.Relationships)
             {
                 if (edge.TargetId != current) continue;
-                if (!SnapshotWalk.IsPredicate(namesById,edge.PredicateId, IsInPredicate)) continue;
+                if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
                 if (within.Add(edge.SubjectId)) frontier.Enqueue(edge.SubjectId);
             }
         }
@@ -325,7 +324,7 @@ public static class CoveringSourceResolver
         var recorded = new List<RecordedCoverage>();
         foreach (var edge in snapshot.Relationships)
         {
-            if (!SnapshotWalk.IsPredicate(namesById,edge.PredicateId, AppliesToPredicate)) continue;
+            if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, AppliesToPredicate)) continue;
             if (SourceOf(snapshot, namesById, edge.SubjectId) is not { } sourceId) continue;
 
             thingsById.TryGetValue(edge.SubjectId, out var coverage);
@@ -350,7 +349,7 @@ public static class CoveringSourceResolver
         Guid? Predicate(string name) => snapshot.Things
             .FirstOrDefault(thing => string.Equals(thing.Name, name, StringComparison.Ordinal))?.Id;
 
-        if (Predicate(IsPredicateName) is not { } isPredicate) return null;
+        if (Predicate(PlatformPredicates.Is) is not { } isPredicate) return null;
         if (Predicate(AppliesToPredicate) is not { } appliesTo) return null;
         if (Predicate(SourcedFromPredicate) is not { } sourcedFrom) return null;
 
@@ -405,7 +404,7 @@ public static class CoveringSourceResolver
         var places = new List<CodedPlace>();
         foreach (var edge in snapshot.Relationships)
         {
-            if (edge.TargetId != archetype.Id || !SnapshotWalk.IsPredicate(namesById,edge.PredicateId, IsPredicateName)) continue;
+            if (edge.TargetId != archetype.Id || !SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is)) continue;
 
             var values = StatedValues.Of(snapshot, edge.SubjectId);
             if (!values.TryGetValue(codeProperty, out var code)) continue;
@@ -464,7 +463,7 @@ public static class CoveringSourceResolver
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid coverageId)
     {
         foreach (var edge in snapshot.Relationships)
-            if (edge.SubjectId == coverageId && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, SourcedFromPredicate))
+            if (edge.SubjectId == coverageId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, SourcedFromPredicate))
                 return edge.TargetId;
 
         return null;
@@ -489,7 +488,7 @@ public static class CoveringSourceResolver
 
         foreach (var edge in snapshot.Relationships)
         {
-            if (!SnapshotWalk.IsPredicate(namesById,edge.PredicateId, CoversPredicate)) continue;
+            if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, CoversPredicate)) continue;
             if (!places.Contains(edge.TargetId)) continue;
             if (!alreadyTaken.Add(edge.SubjectId)) continue;
             if (!thingsById.TryGetValue(edge.SubjectId, out var source)) continue;
@@ -577,7 +576,7 @@ public static class CoveringSourceResolver
     {
         var declared = snapshot.Relationships
             .Where(edge => edge.SubjectId == sourceId
-                && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, ResolvesOntoPredicate))
+                && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, ResolvesOntoPredicate))
             .Select(edge => edge.TargetId)
             .ToList();
 
@@ -591,7 +590,7 @@ public static class CoveringSourceResolver
             .ToList();
 
         var owned = snapshot.Relationships
-            .Where(edge => edge.SubjectId == siteId && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, HasPredicate))
+            .Where(edge => edge.SubjectId == siteId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, HasPredicate))
             .Select(edge => edge.TargetId)
             .ToHashSet();
 
@@ -609,7 +608,7 @@ public static class CoveringSourceResolver
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid subjectId) =>
         snapshot.Relationships
             .Where(edge => edge.SubjectId == subjectId
-                && !SnapshotWalk.IsPredicate(namesById,edge.PredicateId, IsPredicateName))
+                && !SnapshotWalk.IsPredicate(namesById, edge.PredicateId, PlatformPredicates.Is))
             .Select(edge => edge.TargetId)
             .ToList();
 
@@ -659,7 +658,7 @@ public static class CoveringSourceResolver
     {
         var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
         return snapshot.Relationships
-            .Where(edge => edge.TargetId == siteId && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, StudiesPredicate))
+            .Where(edge => edge.TargetId == siteId && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, StudiesPredicate))
             .Select(edge => edge.SubjectId)
             .Distinct()
             .Order()
@@ -692,7 +691,7 @@ public static class CoveringSourceResolver
                 foreach (var edge in snapshot.Relationships)
                 {
                     if (edge.SubjectId != current) continue;
-                    if (!SnapshotWalk.IsPredicate(namesById,edge.PredicateId, IsInPredicate)) continue;
+                    if (!SnapshotWalk.IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
                     if (seen.Add(edge.TargetId))
                         next.Add(edge.TargetId);
                 }
@@ -712,7 +711,7 @@ public static class CoveringSourceResolver
     {
         foreach (var edge in snapshot.Relationships)
             if (edge.SubjectId == dataSourceId
-                && SnapshotWalk.IsPredicate(namesById,edge.PredicateId, ResolvedByPredicate)
+                && SnapshotWalk.IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)
                 && thingsById.TryGetValue(edge.TargetId, out var endpoint))
                 return endpoint;
 

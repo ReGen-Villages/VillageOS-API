@@ -134,7 +134,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
         }
 
         Guid TheOneThatIs(string kind) => Guid.Parse(Resolve(fragment["Relationships"]!.AsArray()
-            .Single(relationship => relationship!["Name"]!.GetValue<string>() == ModelNames.Is
+            .Single(relationship => relationship!["Name"]!.GetValue<string>() == PlatformPredicates.Is
                 && relationship["Target"]!.GetValue<string>() == $"{{{{model:{kind}}}}}")!["Subject"]!.GetValue<string>()));
         return new SavedDrawing(TheOneThatIs("arch-pipeline"), TheOneThatIs("arch-wait"), TheOneThatIs("arch-relate"), TheOneThatIs("arch-output"));
     }
@@ -142,9 +142,9 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
     // Declared by the administrator, as the platform's seed would be; only the page's own save is an editor's.
     private async Task<IReadOnlyDictionary<string, Guid>> TheModelTheDrawingNamesAsync()
     {
-        foreach (var builtIn in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var builtIn in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(builtIn);
-        var @is = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var @is = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var model = new Dictionary<string, Guid> { ["is"] = @is, ["has"] = has };
 

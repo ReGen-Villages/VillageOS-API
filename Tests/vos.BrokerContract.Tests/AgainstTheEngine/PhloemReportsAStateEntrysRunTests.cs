@@ -89,11 +89,11 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
         // The host is shared by the class, so the vocabulary is written once and each case arranges its own Catchment kind.
         public static async Task<StateEntryModel> ArrangeAsync(TheEngine engine, int orchestratorPort, bool drawsAWholePipeline)
         {
-            foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+            foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
                 await engine.DeclareOnceAsync(predicate);
             var vocabulary = new Vocabulary(engine);
             var firstCase = await engine.FindAsync($"{PipelineRoles.PipelineInput.Word} role") is null;
-            var isPredicate = await engine.TheOnlyThingNamedAsync(ModelNames.Is);
+            var isPredicate = await engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
             var has = await engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
             var connectionKind = await vocabulary.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
@@ -195,7 +195,7 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
         public async Task<StateEntryCall> EnterOutOfDateAsync(ServiceStandIn orchestrator)
         {
             var catchment = await _engine.DeclareAsync($"Catchment 3 {Guid.NewGuid():N}");
-            await _engine.RelateAsync(catchment, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), _catchmentKind);
+            await _engine.RelateAsync(catchment, await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), _catchmentKind);
             (await _engine.Admin.PostAsJsonAsync($"/api/things/{catchment}/properties", new { Name = RainfallAge, Type = "vos.LongInteger", Value = 0L }))
                 .EnsureSuccessStatusCode();
             (await _engine.Admin.PostAsJsonAsync($"/api/things/{catchment}/ranges", new { Name = OutOfDate, Criteria }))

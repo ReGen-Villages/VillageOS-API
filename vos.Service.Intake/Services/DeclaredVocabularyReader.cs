@@ -1,4 +1,5 @@
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -46,7 +47,7 @@ public static class DeclaredVocabularyReader
     public static SubscriptionSelector Selector() => new()
     {
         Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles]),
-        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
@@ -80,7 +81,7 @@ public static class DeclaredVocabularyReader
 
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+                thing.Name, PlatformPredicates.Is, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
         var under = snapshot.Relationships
@@ -188,7 +189,7 @@ public static class DeclaredVocabularyReader
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
+                thing.Name, PlatformPredicates.Is, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
 

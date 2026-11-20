@@ -24,7 +24,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
     private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false, bool portsOnAPrototype = false)
     {
         var firstDrawing = await _engine.FindAsync("carries") is null;
-        var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
+        var @is = await _engine.DeclareOnceAsync(PlatformPredicates.Is);
         var has = await _engine.DeclareOnceAsync(ModelNames.Has);
         await _engine.DeclareOnceAsync(ModelNames.Binds);
         var pipelineArchetype = await _engine.PlayingAsync(PipelineRoles.Pipeline, "Pipeline", isArchetype: true);

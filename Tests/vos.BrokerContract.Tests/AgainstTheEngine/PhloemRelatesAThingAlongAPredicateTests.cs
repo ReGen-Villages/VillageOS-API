@@ -132,7 +132,7 @@ public sealed class PhloemRelatesAThingAlongAPredicateTests : IClassFixture<TheE
     private async Task<Guid> AStudyAsync(Drawing drawing)
     {
         var study = await _engine.DeclareAsync($"Study {Guid.NewGuid():N}");
-        await _engine.RelateAsync(study, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), drawing.StudyKind);
+        await _engine.RelateAsync(study, await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), drawing.StudyKind);
         (await _engine.Admin.PostAsJsonAsync($"/api/things/{study}/ranges", new { Name = WorkedOut, Criteria = $"{WorkedOutAt} IS KNOWN" }))
             .EnsureSuccessStatusCode();
         return study;
@@ -142,9 +142,9 @@ public sealed class PhloemRelatesAThingAlongAPredicateTests : IClassFixture<TheE
     // because each case has a service listening on a port of its own.
     private async Task<Drawing> DrawAsync(bool errorPortCarriesOnSuccess = false)
     {
-        foreach (var builtIn in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var builtIn in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(builtIn);
-        var @is = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var @is = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var firstCase = await _engine.FindAsync("PipelineRelate") is null;
 

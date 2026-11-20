@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Model;
@@ -129,7 +130,7 @@ public sealed class PipelineGraph
 
     private bool IsBeneath(GraphThing thing, Guid archetypeId, HashSet<Guid> seen)
     {
-        foreach (var parent in OutgoingTargets(thing, ModelNames.Is))
+        foreach (var parent in OutgoingTargets(thing, PlatformPredicates.Is))
         {
             if (!seen.Add(parent.Id)) continue;
             if (parent.Id == archetypeId) return true;

@@ -1,3 +1,4 @@
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -24,7 +25,7 @@ public static class SharedDocumentReader
     public static SubscriptionSelector DeclarationSelector() => new()
     {
         Ids = RoleBindings.Identifiers(ArchetypeRole, PredicateRole),
-        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
     };
@@ -36,7 +37,7 @@ public static class SharedDocumentReader
         var archetype = snapshot.Bound(ArchetypeRole).FirstOrDefault();
         var predicate = snapshot.Bound(PredicateRole).FirstOrDefault();
         var isPredicate = snapshot.Things.FirstOrDefault(thing =>
-            string.Equals(thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal));
+            string.Equals(thing.Name, PlatformPredicates.Is, StringComparison.Ordinal));
         if (archetype is null || predicate is null || isPredicate is null) return null;
         return new SharedDocumentDeclarations(
             archetype.Id, archetype.Name ?? string.Empty, predicate.Id, predicate.Name ?? string.Empty, isPredicate.Id);

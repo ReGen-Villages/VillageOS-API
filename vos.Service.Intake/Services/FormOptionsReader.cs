@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -46,7 +47,7 @@ public static class FormOptionsReader
     {
         Ids = RoleBindings.Identifiers(
             [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource]),
-        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
         Traverse = [RoleBindings.FollowBindings, PositionLookupReader.FollowFallbacks],

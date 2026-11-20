@@ -19,7 +19,7 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
 
     private async Task<MyceliumGateway> AGatewayAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         var kindPeriods = new Dictionary<string, object?>
         {
