@@ -1,24 +1,26 @@
 # Authoring a VillageOS managed microservice
 
-A **managed microservice** is an external handler that Mycelium (the VillageOS gateway) launches as a daemon and calls when a relationship using the service's predicate is created. The entire contract is **HTTP + a single JWT signed on the P-256 elliptic curve** — so a handler can be written in *any* language with an HTTP server and a mainstream cryptography library.
+A **managed microservice** is an external handler that Mycelium (the VillageOS gateway) launches as a daemon and calls when a relationship using the service's predicate is created. The entire contract is **HTTP and a single JWT, a signed JSON Web Token, signed on the P-256 elliptic curve** — so a handler can be written in *any* language with an HTTP server and a mainstream cryptography library.
 
 This document is the language-agnostic contract. Working reference implementations live alongside it:
 
 | Language | Project | Style | Verified |
 |----------|---------|-------|----------|
 | C# / .NET | [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) | ASP.NET minimal API (canonical) | ✓ build + tests |
-| Go | [`vos.Service.Go.Echo`](../vos.Service.Go.Echo) | standard library, zero deps | ✓ build + tests |
-| Node / TypeScript | [`vos.Service.Node.Echo`](../vos.Service.Node.Echo) | built-ins, zero runtime deps | ✓ typecheck + tests |
+| Go | [`vos.Service.Go.Echo`](../vos.Service.Go.Echo) | standard library, no dependencies | ✓ `go test` |
+| Node / TypeScript | [`vos.Service.Node.Echo`](../vos.Service.Node.Echo) | built-ins, no runtime dependencies | ✓ compile + tests |
 | Python | [`vos.Service.Python.Echo`](../vos.Service.Python.Echo) | FastAPI, on [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) | ✓ pytest |
-| Rust | [`vos.Service.Rust.Echo`](../vos.Service.Rust.Echo) | Axum | ✓ build + tests + clippy |
+| Rust | [`vos.Service.Rust.Echo`](../vos.Service.Rust.Echo) | Axum | ✓ `cargo test` |
+
+The last column is what the repository's build runs for each.
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
-A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Service.Auth` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Service.Auth` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
 
 ## A note on `is`
 
-`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never sends either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never sends either to an external handler**. A relationship reaches an external service only when its predicate names a connection along the predicate the `notifiedConnection` role binds (`notifies` in the shared site template), and that connection has the service. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Things and relations, not strings
 
@@ -66,7 +68,7 @@ sequenceDiagram
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
     M->>S: GET /health (polled) → Healthy
     M->>S: SIGTERM / POST /shutdown
-    Note over M,S: the liveness monitor removes a registration whose service stopped answering
+    Note over M,S: the liveness monitor removes a registration after repeated failed health checks, unless Mycelium supervises the service
 ```
 
 ## CLI arguments
@@ -76,7 +78,7 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | Flag | Required | Meaning |
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
-| `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
+| `--myceliumUrl` | ✓ | Base URL of Mycelium, such as `https://localhost:7243` |
 | `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
 | `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
 | `--logDirectory` | | The folder to write your log file in. Without it, the C# host writes four folders above its build output |
@@ -95,7 +97,7 @@ child's environment, not in its arguments. Xylem hands the IFC ingest tool its `
 | Setting | Meaning |
 |---------|---------|
 | `Token` | Pre-minted service JWT for outbound calls. It lasts 24 hours; a service that runs longer swaps it at `POST /api/auth/service-token` before it expires |
-| `ApiKey` | For a service Mycelium does not launch, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. Give `Token` or `ApiKey`, not both: a service given the two refuses to start. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
+| `ApiKey` | For a service Mycelium does not launch, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. Give `Token` or `ApiKey`, not both: a C# or Go service given the two refuses to start, and the Node, Python and Rust examples use the key and leave the token unused. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
 | `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
 `VerificationKey` checks a signature and cannot produce one. Mycelium keeps the private half and
@@ -204,7 +206,7 @@ quoting in your own log. It is new on every delivery. On an endpoint call the be
 the caller: `vos:caller`, and for a person `vos:caller_account` and `vos:caller_application_roles` (a
 list); an anonymous call names nobody. Check the token's signature before trusting them.
 
-**The same relationship can be delivered more than once.** Delivery is at-least-once: when Mycelium
+**The same relationship can be delivered more than once.** When Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
 after a break is sent what it missed while it was away. Each delivery is a separate call to your
 `/handle`, and nothing in the payload says whether it is the first. `relationshipId` is the same on
@@ -233,8 +235,9 @@ this guards against a burst of repeats, not against every repeat there will ever
 after that window, or after the handler restarts, runs the work a second time. A record of what
 completed that survives either belongs on the relation itself.
 
-**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n>, "processId": <pid> }` —
-`processId` is what lets the platform measure a service it did not start itself; the shared host answers it for you.
+**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "processId": <pid> }`, and anything else you
+want to show, such as `requestsProcessed` — `processId` is what lets the platform measure a service it did not start
+itself; the shared C# host answers these three for you.
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
 
@@ -263,7 +266,7 @@ When a `VerificationKey` is supplied, validate the Bearer JWT on `/handle` and `
 
 1. **Key** = `base64decode(VerificationKey)` → an elliptic-curve **public** key on the P-256 curve, in its SubjectPublicKeyInfo encoding. Most libraries read that directly; some want it wrapped in the `-----BEGIN PUBLIC KEY-----` envelope first.
 2. **Algorithm** = ES256, and **name it**. Tell your library that ES256 is the only algorithm you accept rather than letting it honour whatever the token's header claims. See the warning below.
-3. **Token claims** — check `iss` against the `--issuer` flag and `aud` against the `--audience` flag, and check `exp`/`nbf`, allowing **30 seconds** clock skew.
+3. **Token claims** — check `iss` against the `--issuer` flag and `aud` against the `--audience` flag, and check `exp`/`nbf`, allowing **30 seconds** of clock difference.
 
 The header also carries `kid`, the name of the key that signed the token. A handler holds one key and can ignore it; it is there so Mycelium can accept a token signed by a previous key while a new one takes over.
 
@@ -284,7 +287,8 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 
 - Deregistering on shutdown is optional. A service may delete the registration it made itself at
   `DELETE /api/mycelium/services/{handlerId}`, and another service's is refused with `403`; without
-  it, the broker's liveness monitor removes a registration whose service has stopped answering.
+  it, the broker's liveness monitor removes a registration after repeated failed health checks, unless
+  the broker supervises the service.
 - Keep `/health` fast and dependency-free — Mycelium uses it to decide a daemon started successfully.
 
 ## Authoring checklist
@@ -295,7 +299,7 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Get a token (the `Token` setting, or an `ApiKey` exchanged at `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Swap the `Token` at `POST /api/auth/service-token` before it expires (C# services: `builder.Services.AddLaunchToken`)
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
-- [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
+- [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30 seconds of clock difference)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
 - [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
 - [ ] Recognise a repeat delivery by its `relationshipId` and do the work only once
