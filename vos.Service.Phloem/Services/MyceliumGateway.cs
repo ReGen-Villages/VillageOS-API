@@ -1011,7 +1011,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     }
 
     // A stable id per (run, node) so a node's NodeRun is one Thing across its running→terminal
-    // transitions — required for the SSE animation to see property changes, not duplicate creates.
+    // transitions — required for the live animation to see property changes, not duplicate creates.
     private static Guid DeterministicGuid(Guid runId, Guid nodeId)
     {
         Span<byte> buffer = stackalloc byte[32];

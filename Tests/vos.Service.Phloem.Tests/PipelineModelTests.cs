@@ -7,8 +7,8 @@ using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
-// DAG resolution + validation: build the executable DAG from the loaded graph and
-// validate it acyclic with type-compatible wires.
+// Building the PipelineDag from the loaded graph, and checking it has no cycle and that every wire joins
+// matching types.
 public class PipelineModelTests
 {
     [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.

@@ -134,8 +134,8 @@ try
         switch (trigger.Kind)
         {
             case SpawnKind.Http when trigger.Async:
-                // Async spawn — return the run id immediately and run the DAG in the background so the editor
-                // animates over SSE rather than blocking. A detached token lets the run outlive the request.
+                // Async spawn — return the run id immediately and run the pipeline in the background so the
+                // editor animates it from the change stream rather than blocking. A detached token lets the run outlive the request.
                 var asyncRunId = Guid.NewGuid();
                 var asyncPipelineId = trigger.PipelineId;
                 var asyncParameters = trigger.Parameters;
@@ -174,7 +174,8 @@ try
             case SpawnKind.Relationship:
                 // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —
                 // fires while Mycelium waits ~15s, so the pipeline is resolved and the run acknowledged before
-                // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
+                // the pipeline runs in the background. The result lands on the PipelineRun, which the editor
+                // animates from the change stream. A
                 // detached token lets it outlive the request. A start that fits no pipeline, or fits two equally,
                 // is refused with 400: the broker records that as refused rather than failed, and nothing retries it.
                 var start = await timings.TimeAsync("finding the pipeline it starts",

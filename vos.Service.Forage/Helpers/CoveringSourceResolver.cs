@@ -165,8 +165,8 @@ public static class CoveringSourceResolver
     private const string AttemptsProperty = "attempts";
 
     // One read, so the coverage and the study come from the same snapshot.
-    // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
-    // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
+    // Traverse rules compose over the set built so far, so `isIn` must come first — as with the endpoint
+    // kinds, rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
     {
         Ids = [siteId, .. RoleBindings.Identifiers(SiteReadRoles)],

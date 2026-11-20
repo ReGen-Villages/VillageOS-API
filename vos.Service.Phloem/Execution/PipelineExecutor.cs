@@ -43,8 +43,9 @@ public sealed class PipelineExecutor
         _reports = new CallReporter(gateway, logger);
     }
 
-    // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
-    // SSE); when null a fresh id is minted (synchronous spawn / a relationship the broker sends).
+    // runId: Pre-generated run id for a run started in the background (the editor already holds it to
+    // animate the run from the change stream); when null a fresh id is minted (a run the caller waits for,
+    // or a relationship the broker sends).
     // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
     // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
@@ -799,7 +800,8 @@ public sealed class PipelineExecutor
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
 
         // The pipeline's published result: the Output boundary node's collected inputs. Persisted on the
-        // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
+        // PipelineRun Thing (so it reaches the change stream and can be read at a past instant) and returned
+        // to the caller.
         JsonElement? runResult = null;
         if (success && results[outputNode.NodeId].Status is RunStatus.Succeeded or RunStatus.Rehearsed)
         {

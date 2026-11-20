@@ -59,7 +59,8 @@ public class SpawnTriggerTests
     [Fact]
     public void Resolve_HttpBodyWithAsync_IsAsyncHttpSpawn()
     {
-        // The editor's Run uses an async spawn so it gets the run id up front and animates over SSE.
+        // The editor's Run uses an async spawn so it gets the run id up front and animates the run from the
+        // change stream.
         var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), @async = true });
         var t = SpawnTrigger.Resolve(Json(body));
 
