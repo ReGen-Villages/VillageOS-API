@@ -27,7 +27,7 @@ const CALL_ERROR = '__CallLastError';
 
 export const CALL_STATES = ['Pending', 'Sent', 'Received', 'Completed', 'Failed', 'Refused', 'Blocked'] as const;
 
-type CallState =(typeof CALL_STATES)[number];
+type CallState = (typeof CALL_STATES)[number];
 
 export function isCallState(word: string): word is CallState {
   return (CALL_STATES as readonly string[]).includes(word);
