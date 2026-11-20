@@ -64,8 +64,7 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  // The ticket the read bought outlives the form: a chart on the page reduces a property's history
-  // through the service under it.
+  // The read's ticket is kept after the form is done, because each chart reduces a property's history under it.
   const ticket = useRef<string | null>(null);
   const reduceThroughTheService = useCallback(
     (query: TemporalReduceQuery) => reduceUnderTicket(query, submissionId.trim(), ticket, t('publicFindings.noTicket')),

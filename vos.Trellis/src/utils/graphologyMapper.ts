@@ -139,9 +139,7 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // A missing classifying value falls back to the hash palette keyed by the `is`-target type name,
-      // so a model without a class table still renders distinctly. An imported instance stores its own
-      // class as an override because its type declares the same name, so the own bag alone is empty here.
+      // An imported instance holds its class as an override, because its type declares the same property.
       const classifyingValue = storedTextOf(t, classifyingProperty);
       if (classifyingValue) {
         color = resolveClassColor(classifyingProperty, classifyingValue);

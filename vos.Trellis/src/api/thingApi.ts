@@ -93,7 +93,7 @@ export const thingApi = {
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),
 
-  // Each Thing's own and inherited properties, its own winning, keyed by Thing id.
+  // Each Thing's own and inherited properties keyed by Thing id, where a Thing's own value replaces the one it inherits.
   //
   // `ids` narrows it to a named set. Leaving it out reads every thing, which on a large model
   // is more than the model load itself — only a surface that genuinely works across the whole model,

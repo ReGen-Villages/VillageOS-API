@@ -1,7 +1,3 @@
-/**
- * The frame the charts by month and the line chart draw in: a plot of fixed height with room for the
- * value axis on the left and the month or year labels below.
- */
 import { linearScale, niceTicks, type Scale } from './chartScale';
 
 export const TOP_GUTTER = 8;

@@ -191,7 +191,7 @@ export async function intakeRequest(
   return response;
 }
 
-/** The service hands a fresh ticket back on every accepted act; the one held stands where it hands none. */
+/** The service sends a new ticket with each request it accepts; when it sends none, the held ticket is still good. */
 export function renewedTicket(response: Response, held: string): string {
   return response.headers.get(TICKET_HEADER) ?? held;
 }

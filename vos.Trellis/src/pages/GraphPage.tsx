@@ -70,8 +70,6 @@ export function GraphPage() {
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
   const detailThing = useSelectedThing(selectedNodeId, thingMap);
 
-  // It follows the selection, so it is not state: nothing to hold that the selection and the
-  // loaded model do not already say.
   const detailRelationship = useMemo(
     () => (selectedEdgeId ? relationships.find((r) => r.Id === selectedEdgeId) ?? null : null),
     [selectedEdgeId, relationships],
