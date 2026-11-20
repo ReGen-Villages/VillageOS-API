@@ -44,7 +44,6 @@ function bound(settings: VosThing): { things: VosThing[]; relationships: VosRela
   return { things: [binds, role, settings], relationships: [makeRelationship(role.Id, binds.Id, settings.Id)] };
 }
 
-/** Build the bound settings Thing + GUI instance + is relationship. */
 function buildGuiFixture(
   typeProperties: Record<string, unknown>,
   instanceProperties: Record<string, unknown> = {},
@@ -326,9 +325,6 @@ describe('extractAllGuiSettings: the predicate colours', () => {
   });
 });
 
-// How many decimal places a number shows belongs to the model being looked at, not to the client
-// looking at it — a model of geometry, a model of money and a model of readings each want a
-// different one, and only the model knows which it is.
 describe('extractNumberDisplaySettings', () => {
   it('shows five places for both when no GUI_Settings type exists', () => {
     expect(extractNumberDisplaySettings([makeThing('SomeOtherThing')], [])).toEqual(NUMBER_DISPLAY_DEFAULTS);
@@ -362,9 +358,6 @@ describe('extractNumberDisplaySettings', () => {
     });
   });
 
-  // A count of places has to be a whole number no smaller than zero, and toFixed rejects anything
-  // past twenty. A setting outside that says nothing usable, so the default stands rather than the
-  // panel throwing on a number somebody typed into the model.
   it('falls back on a value that cannot be a count of places', () => {
     for (const stated of [-1, 2.5, 21, NaN, '3', null, true]) {
       const { things, relationships } = buildGuiFixture({ FloatingPointDisplayPrecision: stated });
