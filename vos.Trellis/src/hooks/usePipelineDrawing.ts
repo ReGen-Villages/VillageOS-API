@@ -253,7 +253,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
-    commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
+    commitBaseline({ nodes: loadedNodes, edges: loadedEdges });
     return true;
   }, [model, connections, setNodes, setEdges, commitBaseline]);
 
@@ -265,7 +265,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setEditingPipelineId(null);
     setThingIdByCanvasId({});
     setError(null);
-    commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
+    commitBaseline({ nodes: [], edges: [] });
   }, [setNodes, setEdges, commitBaseline, setError, t]);
 
   const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {

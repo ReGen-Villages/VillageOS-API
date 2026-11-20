@@ -42,13 +42,10 @@ function putInStore(covered: CoveredObjects): void {
 }
 
 /**
- * Keep every Thing of `kindIds` in the subscription and the store while the kinds are named, and take
- * them away again when they are not — all but the Things `stillReferenced` answers, which the page
- * goes on showing: a Thing a choice compares with is held by that relationship once saved, and until
- * then by the drawing alone.
- *
- * The addition is made again each time the subscription reopens, because a reopened subscription
- * starts from the page's own declaration and its snapshot replaces the store.
+ * The Things of `kindIds` are taken away when the kinds are no longer named, except those `stillReferenced`
+ * answers: a Thing a choice compares with is held by that relationship once saved, and by the drawing until
+ * then. The addition is made again each time the subscription reopens, because a reopened one starts from
+ * the page's own declaration and its snapshot replaces the store.
  */
 export function useWiderList(kindIds: string[] | null, stillReferenced: () => Set<string>): void {
   const { on } = useSse();
