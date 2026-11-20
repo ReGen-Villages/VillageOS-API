@@ -202,6 +202,18 @@ public class AThingAndOnePropertyAreReadTests
     }
 
     [Fact]
+    public async Task A_property_of_a_Thing_no_Thing_is_named_as_is_refused_and_no_property_is_asked_for()
+    {
+        await using var server = await StartAsync(AModel(AnUpperSpring));
+
+        var refused = await ReadPropertyAsync(server, "flow", thing: "Lower spring");
+
+        refused.IsError.Should().BeTrue();
+        TextOf(refused).Should().Contain("Lower spring");
+        AskedOf(server).Should().Equal("/api/things?name=Lower%20spring");
+    }
+
+    [Fact]
     public async Task A_property_of_a_relationship_is_read_by_its_path()
     {
         var asked = $"/api/relationships/{Feeds}/properties/by-path/since";
