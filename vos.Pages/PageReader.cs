@@ -7,11 +7,9 @@ using Microsoft.ClearScript.V8;
 
 namespace vos.Pages;
 
-/// <summary>
-/// Lists and reads a model's pages with the binding reader the console uses, run in a JavaScript engine
-/// inside this process. Safe to call from several threads: the engine lets one caller in at a time, and
-/// a read that is waiting on <see cref="IPageReads"/> lets the others run. Nothing is kept between calls.
-/// </summary>
+// Lists and reads a model's pages with the binding reader the console uses, run in a JavaScript engine
+// inside this process. Safe to call from several threads: the engine lets one caller in at a time, and
+// a read that is waiting on IPageReads lets the others run. Nothing is kept between calls.
 public sealed class PageReader : IDisposable
 {
     private const string BundleResource = "vos.Pages.reader.bundle.js";
@@ -47,7 +45,7 @@ public sealed class PageReader : IDisposable
         }
     }
 
-    /// <summary>The Things a page compares, each of which it can be read for, in the language's name order.</summary>
+    // The Things a page compares, each of which it can be read for, in the language's name order.
     public async Task<IReadOnlyList<PageScope>> ScopesOfAsync(string pageId, string language, IPageReads reads, CancellationToken cancellation)
     {
         var page = await HoldAsync(await PageSelectorAsync(pageId, [], reads, cancellation), reads, cancellation);
@@ -62,11 +60,9 @@ public sealed class PageReader : IDisposable
         }
     }
 
-    /// <summary>
-    /// One page read for each of the given scopes, in the order given, each as JSON. A null scope reads the
-    /// page across every Thing it compares. The page's Things are fetched and indexed once for all of them.
-    /// Names the page lists are ordered as the language orders them.
-    /// </summary>
+    // One page read for each of the given scopes, in the order given, each as JSON. A null scope reads the
+    // page across every Thing it compares. The page's Things are fetched and indexed once for all of them.
+    // Names the page lists are ordered as the language orders them.
     public async Task<IReadOnlyList<string>> ReadPageAsync(
         string pageId, IReadOnlyList<string?> scopeIds, string language, IPageReads reads, CancellationToken cancellation)
     {

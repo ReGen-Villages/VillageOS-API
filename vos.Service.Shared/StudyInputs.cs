@@ -6,20 +6,20 @@ namespace vos.Service.Shared;
 // The numeric inputs a reactive handler reads off one study's effective properties, bound to the
 // service doing the reading so every refusal and every wait can name itself and the input.
 //
-// A handler reads several inputs, and the platform can now answer a property with no value at all — a
+// A handler reads several inputs, and the platform can answer a property with no value at all — a
 // derived property whose member type resolves to nothing withholds its number rather than reporting zero. A refusal
 // that says only "not numeric" leaves an operator to guess which of them it meant.
 //
-// Shared rather than copied into each handler: this pair sat in two services, identical but for the
-// name in the message, which is how one gets fixed and the other is left as it was.
+// Shared rather than copied into each handler, because copies identical but for the name in the message
+// get fixed one at a time.
 public readonly struct StudyInputs(JsonElement properties, string serviceName)
 {
     // One input's value, refused by name when the study does not carry it or it is not a number.
     //
     // The route answers a study's own properties under their bare name and every inherited one
-    // under a key qualified by the set it came from — SiteStudy.perCapitaConsumptionM3. Since the
-    // shared archetype took over the assumptions, that is where nearly every input now lives, so a name
-    // is resolved against the last segment of a key as well as the whole of it. An own value wins, as it
+    // under a key qualified by the set it came from — SiteStudy.perCapitaConsumptionM3. Nearly every
+    // input lives on the shared archetype, so a name is resolved against the last segment of a key as
+    // well as the whole of it. An own value wins, as it
     // does in the model; two inherited ones under one leaf name are refused rather than guessed at.
     public double Number(string name) => Carried(name) switch
     {

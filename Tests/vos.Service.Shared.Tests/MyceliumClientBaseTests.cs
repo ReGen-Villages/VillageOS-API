@@ -247,7 +247,6 @@ public class MyceliumClientBaseTests
     {
         var (client, _) = BuildClient(req =>
         {
-            // Token leg returns success; registration leg returns failure.
             return req.RequestUri!.AbsolutePath == "/api/mycelium/register"
                 ? new HttpResponseMessage(HttpStatusCode.BadRequest)
                 : new HttpResponseMessage(HttpStatusCode.OK);

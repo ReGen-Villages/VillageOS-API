@@ -5,8 +5,8 @@ namespace vos.Service.Shared.Subscriptions;
 
 public sealed record SseFrame(string? Id, string? EventType, string Data);
 
-// Minimal SSE wire parser (W3C event-stream). A mid-stream read failure ends the enumeration
-// cleanly so the caller can reconnect; only caller cancellation propagates.
+// Reads the server-sent events format. A read that fails part way through ends the events cleanly so
+// the caller can reconnect; only the caller's cancellation is thrown.
 public static class SseEventReader
 {
     public static async IAsyncEnumerable<SseFrame> ReadAsync(
@@ -26,7 +26,7 @@ public static class SseEventReader
             }
             catch (Exception) when (!ct.IsCancellationRequested)
             {
-                yield break; // network drop / closed stream — let the caller reconnect
+                yield break; // the connection dropped or closed, and the caller reconnects
             }
 
             if (line is null) yield break;
@@ -41,7 +41,7 @@ public static class SseEventReader
                 continue;
             }
 
-            if (line[0] == ':') continue; // comment / heartbeat
+            if (line[0] == ':') continue; // a comment, which the broker sends to keep the connection open
 
             var (field, value) = SplitField(line);
             switch (field)
@@ -63,7 +63,7 @@ public static class SseEventReader
         if (colon < 0) return (line, "");
         var field = line[..colon];
         var value = line[(colon + 1)..];
-        if (value.StartsWith(' ')) value = value[1..]; // SSE spec: strip one leading space after the colon
+        if (value.StartsWith(' ')) value = value[1..]; // the format drops one space after the colon
         return (field, value);
     }
 }

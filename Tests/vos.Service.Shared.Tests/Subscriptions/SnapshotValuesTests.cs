@@ -5,11 +5,9 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests.Subscriptions;
 
-// Reading a snapshot the way Mycelium sends one.
-//
 // Every other test of a snapshot reader builds the records in memory, which asserts nothing about
 // the names the payload arrives under. These deserialize the payload instead, so a member that binds to
-// nothing fails here rather than on a running broker — which is how a value every submitted site states
+// nothing fails here rather than on a running broker, where a value every submitted site states would
 // read as absent to every service while reading back perfectly well over the REST routes.
 //
 // The payload below is what SnapshotBuilder produces for a Thing that wrote a value for a

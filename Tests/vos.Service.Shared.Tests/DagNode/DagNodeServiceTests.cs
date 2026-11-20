@@ -1,6 +1,3 @@
-// Contract tests for DagNodeService: envelope detection, literal- and
-// reference-input resolution, the failure-not-500 contract, and the advertised port manifest.
-
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -23,7 +20,7 @@ public class DagNodeServiceTests
     [Theory]
     [InlineData("""{"runId":"5628da90-0000-0000-0000-0000000000aa","nodeId":"5628da90-0000-0000-0000-0000000000bb"}""", true)]
     [InlineData("""{"runId":"5628da90-0000-0000-0000-0000000000aa"}""", false)]   // nodeId missing
-    [InlineData("""{"message":"hi"}""", false)]                                     // legacy /handle body
+    [InlineData("""{"message":"hi"}""", false)]                                     // a /handle body that is not a step call
     public void IsNodeEnvelope_RequiresRunIdAndNodeId(string json, bool expected)
     {
         var root = JsonDocument.Parse(json).RootElement;
@@ -174,7 +171,6 @@ public class DagNodeServiceTests
     private static HttpResponseMessage Json(HttpStatusCode code, string json) =>
         new(code) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-    // Minimal node: echoes its "message" input to an "echo" output.
     private sealed class EchoNode : DagNodeService
     {
         private readonly Exception? _failure;

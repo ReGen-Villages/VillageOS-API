@@ -3,8 +3,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Shared.Configuration;
 
-// The settings every service needs to start: the port it listens on, where the broker is, the token
-// for calling the broker, and the key for checking what the broker sends back.
 // A limit left null means the platform did not say, so the service may set any limit of its own or none.
 public record ServiceLaunchSettings(
     int Port,

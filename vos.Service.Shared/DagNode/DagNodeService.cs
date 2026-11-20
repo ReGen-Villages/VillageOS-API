@@ -4,11 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.DagNode;
 
-// Base a microservice inherits to act as a node in a pipeline DAG. It maps the uniform
-// orchestrator envelope {runId,nodeId,params,inputs} → {result,outputs,error,decision} onto the
-// subclass's ExecuteNodeAsync, resolving any graph-reference inputs first. The envelope is
-// additive: a service detects a node invocation with IsNodeEnvelope and routes it
-// here, leaving its existing graph/http /handle behaviour untouched. Ports backs the
+// The base a service inherits to act as a step in a pipeline. It maps Phloem's request
+// {runId,nodeId,params,inputs} and answer {result,outputs,error,decision} onto the subclass's
+// ExecuteNodeAsync, resolving any reference inputs first. A service detects a step call with
+// IsNodeEnvelope and routes it here, leaving its other /handle behaviour untouched. Ports backs the
 // optional /manifest endpoint and the Trellis palette.
 public abstract class DagNodeService : MyceliumClientBase
 {
@@ -24,8 +23,7 @@ public abstract class DagNodeService : MyceliumClientBase
     // and FailureCanBeTriedAgainException for one the orchestrator may try again.
     protected abstract Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken);
 
-    // True iff root is a DAG-node invocation (carries both runId and
-    // nodeId) rather than a legacy graph/http /handle body.
+    // True when root is a step call, carrying both runId and nodeId, rather than another /handle body.
     public static bool IsNodeEnvelope(JsonElement root) =>
         root.ValueKind == JsonValueKind.Object
         && root.TryGetProperty("runId", out _)
@@ -78,7 +76,7 @@ public abstract class DagNodeService : MyceliumClientBase
         return new NodeRequest(runId, nodeId, @params, inputs);
     }
 
-    // Replace any {"ref":{"thingId","property"}} input with the live graph value; pass literals through.
+    // Replace any {"ref":{"thingId","property"}} input with the Thing's current value; pass literals through.
     private async Task<IReadOnlyDictionary<string, JsonElement>> ResolveInputsAsync(
         IReadOnlyDictionary<string, JsonElement> inputs, CancellationToken cancellationToken)
     {
