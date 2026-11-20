@@ -30,6 +30,5 @@ public static class ThingSearch
         return new FoundThings(atMost is { } most ? matching.Take(most).ToList() : matching, matching.Count);
     }
 
-    private static string Text(JsonElement thing, string field) =>
-        thing.TryGetProperty(field, out var value) ? value.GetString() ?? "" : "";
+    private static string Text(JsonElement thing, string field) => thing.GetProperty(field).GetString()!;
 }

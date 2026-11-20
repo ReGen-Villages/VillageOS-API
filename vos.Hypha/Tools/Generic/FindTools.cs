@@ -82,6 +82,5 @@ public sealed class FindTools(ModelClients clients)
         return string.Join(',', entries);
     }
 
-    private static string Text(JsonElement thing, string field) =>
-        thing.TryGetProperty(field, out var value) ? value.GetString() ?? "" : "";
+    private static string Text(JsonElement thing, string field) => thing.GetProperty(field).GetString()!;
 }
