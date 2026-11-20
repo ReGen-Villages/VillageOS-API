@@ -120,8 +120,7 @@ describe('reconcileGraph', () => {
     for (let i = 0; i < 50; i++) current.addNode(`n${i}`, node(`n${i}`));
     for (let i = 1; i < 50; i++) current.addDirectedEdgeWithKey(`e${i}`, 'n0', `n${i}`, { size: 1 });
 
-    // Sigma re-indexes the whole graph on every drop event, so an event count
-    // that scales with graph size is the freeze the type filter's "None" hit.
+    // Sigma re-indexes the whole graph on every drop event, so drops that grow with the graph freeze the page.
     let dropEvents = 0;
     current.on('nodeDropped', () => { dropEvents++; });
     current.on('edgeDropped', () => { dropEvents++; });
