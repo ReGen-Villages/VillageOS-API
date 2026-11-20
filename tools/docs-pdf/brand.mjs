@@ -7,8 +7,8 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The ReGen palette. `regen` is the mark's own colour; everything else is mixed toward it, so a
- * page reads as one family rather than as a grey document with a teal accent dropped on it.
+ * The ReGen palette. `regen` is the mark's own colour, and every other colour is mixed toward it, so
+ * the colours on a page belong together rather than leaving one teal accent on a grey page.
  */
 export const palette = {
   regen: '#37c2aa',
@@ -28,8 +28,8 @@ export const palette = {
   amber: '#bf8620',
 };
 
-/** A woff2 inlined, so a rendered guide carries its own typography and cannot be re-set by a
- *  machine that happens to lack a face. */
+/** A web font file embedded in the page, so a rendered guide carries its own fonts and looks the
+ *  same on a machine that does not have them. */
 function face(family, file, weightRange) {
   const data = readFileSync(require.resolve(file)).toString('base64');
   return `@font-face{font-family:"${family}";font-style:normal;font-display:block;` +
@@ -45,10 +45,8 @@ function fonts() {
 }
 
 /**
- * The ReGen mark, traced from the brand's own artwork: a circle quartered by two diameters, each
- * quarter holding one of the things a village is made of — shelter, wind and weather, the network
- * that connects them, and what grows. `regen-mark.svg` is that trace, and replacing the file is how
- * the mark is changed; nothing here draws it.
+ * The ReGen mark, traced from the brand's own artwork into `regen-mark.svg`. Replacing that file
+ * changes the mark, because nothing here draws it.
  */
 const artwork = readFileSync(join(here, 'regen-mark.svg'), 'utf8').trim();
 
@@ -58,7 +56,7 @@ export function mark(colour = palette.regen, cls = '') {
     .replace('class="mark"', `class="mark ${cls}"`);
 }
 
-/** What mermaid draws with, so a diagram belongs to the same document as the prose around it. */
+/** The fonts and colours mermaid draws with, so a diagram matches the text around it. */
 export function mermaidTheme() {
   return {
     theme: 'base',

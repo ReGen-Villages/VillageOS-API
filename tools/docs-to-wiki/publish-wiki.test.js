@@ -16,7 +16,7 @@ test('a generated file name maps back to its wiki page path', () => {
 });
 
 // The generator names files from page paths and the publisher reads them back; a disagreement
-// would publish to the wrong page or orphan the old one.
+// would publish to the wrong page or leave the old one behind.
 test('the mapping is the exact inverse of the generator naming', () => {
   for (const page of ['/Home', '/Project Guide', '/Services/Relationship Services', '/API-Reference', '/Land Intake']) {
     assert.equal(pagePathOf(pageFileName(page)), page);
@@ -46,8 +46,6 @@ test('a wiki whose pages are not all generated keeps the ones the manifest does 
   assert.deepEqual(pagesToRemove(['/', '/Home', '/Guide', '/Written by hand'], ['/Guide'], false), []);
 });
 
-// Raw bytes were sent and every publish stopped at the first image with
-// "The input is not a valid Base-64 string".
 test('an attachment body is base64, and decodes back to the original bytes', () => {
   const bytes = Buffer.from(Array.from({ length: 256 }, (_, value) => value));
   const body = attachmentBody(bytes);
@@ -67,9 +65,8 @@ test('a page tree flattens to every path it contains', () => {
   assert.deepEqual(flattenPages(tree), ['/', '/Home', '/Services', '/Services/Delta']);
 });
 
-// Every develop build failed here. The step expected an attachment that is already on
-// the wiki to answer 409; the wiki answers 500 with this body, so the one case the step was written
-// to tolerate was the one it died on. Verbatim from the failing run.
+// The wiki answers an attachment that is already there with 500 and this body, copied from a real
+// run, rather than with 409.
 const ALREADY_THERE = JSON.stringify({
   $id: '1',
   innerException: null,

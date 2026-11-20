@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""A minimal, standard-library Mycelium HTTP client for the simulator.
+"""A small Mycelium HTTP client for the simulator, written with Python's standard library only.
 
-Every route here is a real Mycelium endpoint (the VillageOS gateway). The client is deliberately
-small and dependency-free so the simulator drops into any environment with a stock Python. It is
-domain-agnostic — it knows Things, Relationships, Facts, quantity adjustments, and subscriptions,
-nothing about any particular model.
+Every route here is a real Mycelium route. The client needs no packages installed, so the simulator
+runs wherever Python does. It knows Things, relationships, Facts, quantity adjustments and
+subscriptions, and nothing about any particular model.
 
 Reference: docs/SERVICE_CONTRACT.md.
 """
@@ -31,12 +30,11 @@ API_KEY_VARIABLE = "VOS_API_KEY"
 
 
 def stable_id(*parts) -> str:
-    """A deterministic Thing id (UUIDv5) derived from a stable action key. The same ``parts`` always
-    yield the same id — how a resumable driver stays idempotent: ``POST /api/things`` honours a
-    client-supplied ``Id`` (``dto.Id ?? Guid.NewGuid()``), so keying a created Thing to
-    ``stable_id(...)`` means a re-run POSTs the id that already exists rather than minting a duplicate.
-    Re-creating an existing id is *rejected* (not merged), which is intended: the resume checkpoint
-    skips committed actions, and the deterministic id makes any straggler fail loud rather than fork."""
+    """A Thing id (a version 5 identifier) derived from a stable action key, so the same ``parts``
+    always give the same id. ``POST /api/things`` keeps an ``Id`` the caller supplies, so a run started
+    again posts the id that already exists rather than creating a copy. Creating an existing id again is
+    refused rather than merged, on purpose: the resume journal skips the actions already done, and an
+    action repeated after a crash fails with an error rather than adding a second Thing."""
     return str(uuid.uuid5(_ID_NAMESPACE, "/".join(str(part) for part in parts)))
 
 
@@ -74,17 +72,17 @@ class MyceliumClient:
         self._api_key = api_key or environment.get(API_KEY_VARIABLE)
         self._model_id = model_id
         self.timeout = timeout
-        # Skip TLS verification for a local Mycelium's self-signed dev cert. Off by default; enable via
-        # insecure=True (the --insecure flag) or the VOS_TLS_NOVERIFY env var. None = default verification.
+        # The certificate check is skipped only for a local Mycelium with a self-signed certificate, when
+        # insecure=True (the --insecure flag) or VOS_TLS_NOVERIFY is set; None keeps the normal check.
         self._ssl = (ssl._create_unverified_context()
                      if insecure or environment.get("VOS_TLS_NOVERIFY") else None)
 
     def token(self) -> str:
-        """Return the bearer JWT, minting one from the API key if only that was supplied.
+        """Return the bearer token, fetching one with the API key if only that was supplied.
 
-        The mint is ``POST /api/auth/token`` with the key in the **``X-API-Key`` header** (not a body)
-        and an optional ``?modelId=`` for a multi-model host; it returns ``{ "token": <jwt> }``. A
-        ready editor/admin JWT skips the mint entirely."""
+        The token is fetched with ``POST /api/auth/token``, the key in the **``X-API-Key`` header** (not
+        the body) and an optional ``?modelId=`` for a host holding several models; it answers
+        ``{ "token": <token> }``. An editor or admin token given directly is used as it is."""
         if self._token:
             return self._token
         if not self._api_key:
@@ -114,8 +112,8 @@ class MyceliumClient:
                 raw = resp.read().decode()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
-            # A cached JWT expires mid-run (its `exp` passes); re-mint once from the API key and retry so
-            # a long scenario survives instead of dying with 401 on the first write past the token's TTL.
+            # A kept token expires during a long run, so a new one is fetched with the API key and the call
+            # tried once more, rather than the run stopping with 401 at its first write after expiry.
             if e.code == 401 and authed and self._api_key and _retry:
                 self._token = None
                 return self._json(method, path, body, headers, address, _retry=False)
@@ -123,8 +121,8 @@ class MyceliumClient:
 
     def post(self, path, body=None, headers=None, address=None):
         """A post to a route outside the write API, on this host or on ``address`` — a service served
-        beside the broker. It takes the same request path as every write, so a post here is re-minted
-        and retried when the token expires mid-run. The bearer rides only to this client's own address:
+        beside the broker. It takes the same request path as every write, so a post here fetches a new
+        token and is tried again when the token expires. The token is sent only to this client's own address:
         another service is never handed the broker's credential, and a caller that needs one there puts
         it in ``headers``."""
         return self._json("POST", path, body, headers=headers, address=address)
@@ -195,20 +193,18 @@ class MyceliumClient:
         return answer.get("Id") or answer.get("id")
 
     def load_model(self, document):
-        """Bulk-load a {Things, Relationships} document in one shot (POST /api/model)."""
+        """Load a {Things, Relationships} document in one call (POST /api/model)."""
         return self._json("POST", "/api/model", document)
 
     def apply_fragment(self, things, relationships, name="simulator fragment"):
-        """Upsert a partial-model fragment ``{Name, Things, Relationships}`` in one shot via
-        ``POST /api/model/fragment``.
+        """Apply a fragment ``{Name, Things, Relationships}`` in one call to ``POST /api/model/fragment``.
 
-        This is how the simulator honours lazy inheritance (I1: a Thing may not *own* a property name
-        it inherits) **server-side**: the endpoint creates each Thing bare, establishes its ``is``
-        edges, and materializes any inherited value as an override itself — so the client no longer
-        choreographs bare-create-then-override. It is an upsert and idempotent: re-posting the same
-        fragment neither duplicates Things/Relationships nor errors. ``things`` are dicts already in
-        ThingDto shape (``Id``, ``Name``, typed ``Properties``); ``relationships`` are dicts in RelDto
-        shape (``Name``, ``Subject``, ``Predicate``, ``Target``, optional ``Id``)."""
+        A Thing may not hold a property of its own under a name it inherits, so the route creates each
+        Thing bare, adds its ``is`` relationships, and then stores any inherited value as an override.
+        It adds what is missing and updates what is there, so posting the same fragment again neither
+        duplicates anything nor fails. ``things`` are dicts in ThingDto shape (``Id``, ``Name``, typed
+        ``Properties``); ``relationships`` are dicts in RelDto shape (``Name``, ``Subject``,
+        ``Predicate``, ``Target``, optional ``Id``)."""
         return self._json("POST", "/api/model/fragment",
                           {"Name": name, "Things": things, "Relationships": relationships})
 
@@ -239,16 +235,16 @@ class MyceliumClient:
         return self._json("POST", "/api/auth/stream-token", None).get("token", "")
 
     def stream_url(self, subscription_id, last=0):
-        """A browser-usable SSE URL that carries auth in the query string, since EventSource cannot
-        set the Authorization header — a stream token rides as ``?access_token=`` and resume as
-        ``&lastEventId=``. This is exactly what Trellis's useSse hook builds."""
+        """An event-stream address a browser can open, carrying its credential in the query, because a
+        browser's EventSource cannot set the Authorization header: a stream token goes in
+        ``?access_token=`` and the point to resume from in ``&lastEventId=``, as Trellis's useSse hook builds it."""
         query = {"access_token": self.stream_token()}
         if last:
             query["lastEventId"] = last
         return f"{self.url}/api/subscriptions/{subscription_id}/stream?{urlencode(query)}"
 
     def follow(self, subscription_id, last=0, token_in_query=False):
-        """Yield (kind, data, event_id) SSE change events; resume via Last-Event-ID."""
+        """Yield (kind, data, event_id) for each change event the stream sends, resuming from ``last``."""
         if token_in_query:
             req = urllib.request.Request(self.stream_url(subscription_id, last))
         else:

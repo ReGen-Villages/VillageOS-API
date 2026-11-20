@@ -85,7 +85,7 @@ public class MyceliumClientTests
     }
 
     // ConsoleOptions treats a whitespace VOS_API_KEY as no key at all, so the client has to agree:
-    // otherwise the CLI sends the blank key and the operator gets a rejection from the server
+    // otherwise the command line sends the blank key and the operator gets a rejection from the server
     // instead of being told the variable is empty.
     [Fact]
     public async Task Ctor_WhitespaceApiKeyInEnvironment_GetTokenThrowsNamingVosApiKey()

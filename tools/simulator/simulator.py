@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
-"""simulator — replay a timeline of graph changes against a live Mycelium in (accelerated) real time.
+"""simulator — play a timeline of model changes against a live Mycelium, at real time or faster.
 
-A *timeline* is a deterministic, offset-ordered list of `Action`s: each is one intent — create a
-Thing, create a Relationship, post a Fact, adjust a quantity, delete a Thing, post to a route outside
-the write API — carrying the simulated-second `offset` at which it comes due. The simulator sleeps to
-each offset (scaled by `--speed`), routes quantity deltas through a `BalanceLedger` so no balance is
-ever driven negative, and POSTs via the Mycelium client. The platform stamps every write `CommittedAt = UtcNow` (no
-backdating), so anything POSTed now is genuinely now and flows reactor → range re-eval → status
-change → SSE — the change animates in Trellis as if a real user or external system had acted.
+A *timeline* is a list of `Action`s in the order of their offsets, the same on every run: each is one
+change — create a Thing, create a relationship, post a Fact, adjust a quantity, delete a Thing, post to
+a route outside the write API — carrying the `offset`, in simulated seconds, at which it is due. The
+simulator waits for each offset (scaled by `--speed`), sends quantity changes through a
+`BalanceLedger` so no balance ever goes negative, and posts through the Mycelium client. The platform
+stamps every write with the time it commits it, so a post is recorded as happening now, and ranges,
+states and the event stream react as they would to a real person or system.
 
-This is domain-agnostic: it plays whatever timeline it is handed. A domain (a building model, a
-fleet, a supply chain, a game world) produces its own timeline of `Action`s — as a library (build
-in-process, call `Simulator.run`) or as a `--timeline` JSONL file — and the simulator paces it.
-Nothing here knows about any particular model.
+It plays whatever timeline it is handed and knows nothing about any particular model. A caller builds
+its own timeline of `Action`s, either in its own process (calling `Simulator.run`) or as a
+`--timeline` file of one JSON action per line, and the simulator paces it.
 
-Idempotent on resume with no platform change: every created Thing is keyed to `stable_id(...)` and a
-`Checkpoint` journals the committed prefix, so a re-run skips what it already did and a straggler
-duplicate fails loud rather than forking. Structural writes need an editor/admin token
-(ModifyData / WritePropertyFact); a service-role token is refused (403).
+A run can be started again safely: every created Thing is keyed to `stable_id(...)` and a `Checkpoint`
+records how far the run got, so a second run skips what the first did, and an action repeated after a
+crash fails with an error rather than adding a copy. Changes to Things and relationships need an editor
+or admin token (ModifyData, WritePropertyFact); a service's token is refused (403).
 
-Usage (as a CLI, playing a serialized timeline):
-  export VOS_TOKEN=<editor/admin JWT>        # or VOS_API_KEY=<key> and a token is minted from it
+Usage, playing a timeline from a file:
+  export VOS_TOKEN=<editor or admin token>   # or VOS_API_KEY=<key>, and a token is fetched with it
   python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
       --speed 120 [--seed-first] [--follow] [--checkpoint run.ckpt] [--dry-run]
 """
@@ -44,12 +43,12 @@ from mycelium import MyceliumClient, typed_properties        # noqa: E402
 
 @dataclass
 class Action:
-    """One paced intent. ``op`` ∈ {apply_fragment, create_thing, create_rel, set_fact, set_observation,
-    increment, decrement, ledger_set, delete_thing, http_post}; ``args`` is op-specific; ``key`` is a
-    human-readable natural key carried for logging, for reading a serialized timeline (the checkpoint
-    keys on the action's index, not this) and for a later action to read what an ``http_post``
-    answered; ``seq`` breaks ties so equal-offset actions keep emission order — a Thing is always
-    created before the relationship that references it."""
+    """One paced change. ``op`` is one of apply_fragment, create_thing, create_rel, set_fact,
+    set_observation, increment, decrement, ledger_set, delete_thing and http_post; ``args`` depends on
+    ``op``; ``key`` is a readable name kept for the log, for a person reading a saved timeline (the
+    checkpoint counts actions by index, not by this) and for a later action to read what an
+    ``http_post`` answered; ``seq`` keeps actions at the same offset in the order they were made, so a
+    Thing is always created before a relationship to it."""
     offset: float
     seq: int
     actor: str
@@ -59,8 +58,9 @@ class Action:
 
     @property
     def is_setup(self) -> bool:
-        """Standing-world actions applied before the paced clock (optionally bulk-loaded via
-        POST /api/model). Distinguished by actor, not offset: a paced action may also sit at offset 0."""
+        """The actions that set the world up before the paced clock starts (loaded in one call through
+        POST /api/model when asked). Told apart by actor, not offset, because a paced action may also sit at
+        offset 0."""
         return self.actor == "setup"
 
     def to_dict(self):
@@ -73,8 +73,8 @@ class Action:
 
 
 BATCHED_OPS = frozenset({"create_thing", "create_rel"})
-"""The only ops a standing-world batch — a coalesced fragment or a ``--seed-first`` seed document —
-can carry."""
+"""The only ops a setup batch — the combined setup fragment or a ``--seed-first`` seed document — can
+carry."""
 
 PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 """Where an ``http_post`` writes a value it ``reads`` from an earlier post's answer: ``{{name}}``
@@ -106,10 +106,10 @@ def write_timeline(path, actions):
 
 
 class BalanceLedger:
-    """The simulator's authoritative view of each Thing's quantity balance, so it never asks Mycelium
-    to go negative. One lock per balance → adjustments to one Thing are ordered even if the pacer runs
-    actors in parallel. A 400 from decrement *inside* the lock means the ledger and Mycelium diverged
-    (a lost write, a double-run) and fails loud."""
+    """The simulator's own record of each Thing's quantity balance, so it never asks Mycelium to go
+    negative. Each balance has its own lock, so changes to one Thing stay in order even when actors run
+    at the same time. A 400 from a decrement inside the lock means the ledger and Mycelium disagree
+    (a lost write, or a run played twice), and the run stops with that error."""
 
     def __init__(self, client):
         self._client = client
@@ -117,8 +117,8 @@ class BalanceLedger:
         self._locks = collections.defaultdict(threading.Lock)
 
     def set(self, thing_id, amount):
-        """Record a starting balance without a write — for a pre-stocked standing world, so the first
-        consume resolves against the right absolute quantity."""
+        """Record a starting balance without a write, for a world set up already stocked, so the first
+        consume is judged against the right quantity."""
         with self._locks[thing_id]:
             self._balance[thing_id] = amount
 
@@ -137,7 +137,7 @@ class BalanceLedger:
             have = self._balance.get(thing_id, 0)
             take = min(amount, have)
             if take > 0:
-                self._client.decrement(thing_id, prop, take)   # a 400 here is a real divergence bug
+                self._client.decrement(thing_id, prop, take)   # A 400 here means the ledger and Mycelium disagree.
                 self._balance[thing_id] = have - take
             return take
 
@@ -146,10 +146,10 @@ class BalanceLedger:
 
 
 class Checkpoint:
-    """Append-only resume journal keyed by action *index* into the deterministic timeline. The same
-    timeline → the same ordered actions → a stable index, so resume skips exactly the committed prefix.
-    Deterministic Thing ids are the belt-and-braces for the single in-flight action a crash could
-    straddle. Compact: one integer grows, not a per-action set."""
+    """A journal, only ever added to, of how far a run got, counted by the action's index in the
+    timeline. The same timeline always gives the same actions in the same order, so a resumed run skips
+    exactly the actions already done. Derived Thing ids cover the one action a crash could leave half
+    done. One number is kept, not a set of actions."""
 
     def __init__(self, path):
         self.path = path
@@ -196,12 +196,9 @@ class Simulator:
         if op == "ledger_set":
             self.ledger.set(a["thing_id"], a["amount"])
         elif op == "apply_fragment":
-            # The main path: a partial-model upsert that resolves lazy inheritance (I1) server-side.
-            # Idempotent, so it is not wrapped in _guard_duplicate (re-posting is a no-op, not a 409).
+            # Not wrapped in _guard_duplicate, because posting a fragment again changes nothing rather than answering 409.
             self.client.apply_fragment(a["things"], a["relationships"], a.get("name", "simulator fragment"))
         elif op == "create_thing":
-            # Fallback granular path (the main path coalesces creates into apply_fragment). Its own
-            # properties go in the create; an `is` subject's collision is now the server's problem.
             self._guard_duplicate(lambda: self.client.create_typed_thing(
                 a["name"], a.get("properties"), thing_id=a["thing_id"]))
         elif op == "create_rel":
@@ -258,8 +255,8 @@ class Simulator:
         return str(values[name])
 
     def _guard_duplicate(self, call):
-        """Re-creating an id or edge that already exists is the expected shape of a resumed/replayed
-        action; treat it as a no-op unless strict. Everything else propagates."""
+        """Creating an id or relationship that already exists is what a resumed or replayed action does,
+        so it is skipped unless strict. Every other error is raised."""
         try:
             call()
         except RuntimeError as err:
@@ -270,7 +267,7 @@ class Simulator:
             raise
 
     def _run_setup(self, setup):
-        for action in setup:                       # ledger_set first so balances exist before writes
+        for action in setup:                       # Balances are set before any write that changes them.
             if action.op == "ledger_set":
                 self.ledger.set(action.args["thing_id"], action.args["amount"])
         writes = [x for x in setup if x.op != "ledger_set"]
@@ -307,27 +304,23 @@ class Simulator:
                 raise ValueError(f"{action.op!r} cannot travel in a seed document")
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
-    # ── coalescing: fold creates (+ their creation-time relationships) into fragments ────
     def _coalesce(self, actions):
-        """Pure function of the already-sorted input: fold ``create_thing`` (and its creation-time
-        ``create_rel`` edges) into ``apply_fragment`` upserts, so each Thing and its ``is`` edges reach
-        the server in one partial-model batch and the server resolves lazy inheritance (I1) itself.
+        """Folds each ``create_thing``, and the ``create_rel`` actions made with it, into one
+        ``apply_fragment``, so a Thing and its ``is`` relationships reach the server in one batch and the
+        server stores what the Thing inherits as overrides.
 
-        Determinism is the contract: the same sorted timeline always yields the same coalesced list, so
-        ``run``'s checkpoint indices (``len(setup) + local``) are stable across runs. Overall
-        ``(offset, seq)`` order is preserved, so pacing is unchanged — a paced fragment sits at its
-        ``create_thing``'s offset and fires at that instance's moment.
+        It reads only the sorted input, so the same timeline always gives the same list, and ``run``'s
+        checkpoint indices (``len(setup) + local``) mean the same on every run. ``(offset, seq)`` order is
+        kept, so pacing is unchanged: a paced fragment sits at its ``create_thing``'s offset.
 
-        Setup is coalesced into ONE standing-world fragment *unless* ``--seed-first`` (which bulk-loads
-        the granular setup via ``POST /api/model`` and needs create_thing/create_rel left intact). A
-        setup action the fragment cannot carry survives as it stands, ordered after the fragment so it
-        lands on a Thing that already exists — the paced path's catch-all, applied to both halves."""
+        Setup becomes one fragment, unless ``--seed-first`` loads it through ``POST /api/model``, which
+        needs the separate create_thing and create_rel actions. A setup action no fragment can carry is
+        kept as it is and ordered after the fragment, so it lands on a Thing that already exists."""
         setup = [x for x in actions if x.is_setup]
         paced = [x for x in actions if not x.is_setup]
 
-        # ── SETUP → a single standing-world fragment (ledger_set actions stay, and precede it). ──
         if self.seed_first:
-            setup_out = list(setup)                    # leave granular for the seed-document bulk load
+            setup_out = list(setup)
         else:
             setup_out = [x for x in setup if x.op == "ledger_set"]
             things = [_fragment_thing(x.args) for x in setup if x.op == "create_thing"]
@@ -340,16 +333,12 @@ class Simulator:
             setup_out.extend(x for x in setup
                              if x.op != "ledger_set" and x.op not in BATCHED_OPS)
 
-        # ── PACED → each create_thing folds its same-offset creation-time relationships into one fragment. ──
-        # A create_rel is a creation-time relationship of C iff it shares C's offset and its subject is C.
-        # Such relationships travel with C; a later-offset relationship on an already-existing Thing stays granular.
-        # Creation position of every Thing, so a forward-referencing relationship (target created in a LATER
-        # fragment) is not folded into its subject's fragment — where it would apply before the target
-        # exists (400 "target does not resolve"). It stays granular and applies via create_relationship
-        # once both endpoints exist.
+        # A create_rel travels with the create_thing whose offset it shares and whose Thing is its subject.
+        # One whose target is created later stays a separate action, because in its subject's fragment it
+        # would be applied before the target exists and refused with 400 "target does not resolve".
         created_at = {x.args["thing_id"]: (x.offset, x.seq) for x in actions if x.op == "create_thing"}
 
-        edges = collections.defaultdict(list)          # (offset, subject_id) → [paced index]
+        edges = collections.defaultdict(list)          # (offset, subject_id) -> [paced index]
         for i, x in enumerate(paced):
             if x.op == "create_rel":
                 edges[(x.offset, x.args.get("subject_id"))].append(i)
@@ -362,22 +351,21 @@ class Simulator:
                 for j in edges.get((x.offset, x.args["thing_id"]), []):
                     target_at = created_at.get(paced[j].args.get("target_id"))
                     if target_at is not None and target_at > here:
-                        continue                       # forward reference — leave granular
+                        continue
                     rels.append(_fragment_rel(paced[j].args))
                     consumed.add(j)
                 paced_out.append(Action(x.offset, x.seq, x.actor, "apply_fragment",
                                         {"things": [_fragment_thing(x.args)], "relationships": rels,
                                          "name": x.args.get("name") or "fragment"}, x.key))
             elif x.op == "create_rel" and i in consumed:
-                continue                               # folded into its subject's fragment
+                continue
             else:
                 paced_out.append(x)
         return setup_out + paced_out
 
     def run(self, actions):
         actions = sorted(actions, key=lambda a: (a.offset, a.seq))
-        # Coalesce BEFORE splitting/indexing: a pure function of the sorted input, so checkpoint
-        # indices stay stable across runs (see _coalesce).
+        # Folded before the actions are split and counted, so a checkpoint's index means the same on every run.
         actions = self._coalesce(actions)
         setup = [x for x in actions if x.is_setup]
         paced = [x for x in actions if not x.is_setup]
@@ -390,7 +378,7 @@ class Simulator:
 
         if len(setup) - 1 > self.checkpoint.applied:
             self._run_setup(setup)
-        else:                                      # already committed; still seed the ledger
+        else:                                      # Setup was done by an earlier run, but the ledger still needs its balances.
             for action in setup:
                 if action.op == "ledger_set":
                     self.ledger.set(action.args["thing_id"], action.args["amount"])
@@ -429,9 +417,9 @@ class Simulator:
 
 
 def follow_until(client, predicate, timeout=60.0, selector=None):
-    """Subscribe (all changes by default), follow the SSE stream, and return the first event for which
-    predicate(kind, data) is true, or None on timeout. Handy for a smoke assertion that a change
-    appears within N seconds of the action that caused it."""
+    """Subscribe (to every change by default), follow the event stream, and return the first event for
+    which predicate(kind, data) is true, or None when the time runs out, so a check can wait for a change
+    to follow the action that caused it."""
     subscription = client.subscribe(selector or {"all": True})
     subscription_id = subscription.get("subscriptionId")
     deadline = time.monotonic() + timeout

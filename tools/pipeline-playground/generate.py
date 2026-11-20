@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Generate example DAGs + services for the Trellis Pipeline page and drop them into any model.
+"""Generate example pipelines and services for the Trellis Pipeline page and add them to any model.
 
-The content lives in `catalog.py`; this file turns it into VOS Things + Relationships in the seed JSON
-shape (mirrors vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json) and either writes a standalone
+The content lives in `catalog.py`; this file turns it into Things and relationships in the seed JSON
+shape (as in vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json) and either writes a standalone
 seed fragment or merges it into an existing seed in place.
 
     # standalone fragment (load on its own, or inspect the shape)
     python3 generate.py --out PipelinePlayground.seed.json
 
-    # drop the playground into any model seed (idempotent; keeps a .bak)
+    # add the playground to any model seed (running it again changes nothing; keeps a .bak)
     python3 generate.py --into ../../path/to/Some.seed.json
 
-    # ...with per-model ids so the same DAGs in two seeds don't collide in one broker
+    # ...with per-model ids, so the same pipelines in two seeds can load into one broker
     python3 generate.py --into ../../path/to/Some.seed.json --namespace SomeModel
 
     # take it back out again
     python3 generate.py --into ../../path/to/Some.seed.json --remove
 
-Idempotent by construction: every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the
-same Things instead of forking duplicates. When merging, the target's own vocabulary is reused rather than
+Every id is a version 5 identifier derived from a stable key, so running it again replaces the same
+Things rather than adding copies. When merging, the target's own vocabulary is reused rather than
 doubled: the built-in `is`/`has`/`of`/`binds` predicates are matched by name, and each archetype or predicate
 playing a role by what the target's role Thing binds — so a model that renamed one keeps its own.
 """
@@ -34,10 +34,10 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS, CADENCES
 
-# Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
-# used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
-# (uuid5 of NAME under this root), so the same DAGs merged into two different model seeds get disjoint ids
-# and can coexist in one broker rather than colliding.
+# Shared with tools/simulator, so both derive the same ids. With no --namespace this root is used
+# directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
+# (uuid5 of NAME under this root), so the same pipelines merged into two model seeds get different ids
+# and can load into one broker together.
 _ROOT_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
 _id_namespace = _ROOT_NAMESPACE
 _TAG = "pipeline-playground"
@@ -124,12 +124,12 @@ TRIGGER_ROLE = {
 
 
 def set_namespace(name):
-    """Rebind the id namespace to a per-model root so merged DAG ids are distinct per seed. An empty or
-    absent name restores the shared root (the standalone identity)."""
+    """Rebind the id namespace to a per-model root so merged pipeline ids differ per seed. An empty or
+    absent name restores the shared root that the standalone fragment uses."""
     global _id_namespace
     _id_namespace = uuid.uuid5(_ROOT_NAMESPACE, name) if name else _ROOT_NAMESPACE
 
-# Canvas grid → pixel coordinates for a node's x/y (the Pipeline page round-trips these).
+# Turn a node's grid cell into the pixel x and y the Pipeline page reads back and saves.
 _COL_WIDTH = 260
 _ROW_HEIGHT = 150
 _ORIGIN = 60
@@ -149,13 +149,13 @@ def typed(value, type_info):
 
 
 class Kit:
-    """Accumulates the playground's Things and Relationships, keyed by deterministic id so the build is
-    idempotent. `shared` holds the generic vocabulary (is/has/of/binds + the pipeline archetypes) that is matched
-    against a target model's own at merge time rather than blindly duplicated."""
+    """Gathers the playground's Things and relationships, keyed by derived id so building again gives the
+    same set. `shared` holds the generic vocabulary (is, has, of, binds and the pipeline archetypes), which
+    is matched against a target model's own when merging rather than copied."""
 
     def __init__(self):
         self.things = {}          # id -> Thing dict
-        self.rels = {}            # dedup key -> Relationship dict
+        self.rels = {}            # key that tells duplicates apart -> Relationship dict
         self.shared = set()       # ids of the vocabulary reconciled against a target model
         self.role_of = {}         # id of a Thing playing a role -> the role's id (how a target's copy is found)
         self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all

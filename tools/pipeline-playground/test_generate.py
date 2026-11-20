@@ -1,7 +1,7 @@
-"""Spec for the playground generator's id derivation and for the roles its archetypes and predicates play.
---namespace makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no
-namespace) keeps the shared standalone identity; merge reconciles the built-in predicates against a target by
-name and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
+"""The playground generator's ids and the roles its archetypes and predicates play. --namespace gives the
+same pipelines different ids per model, so two seeds can load into one broker; with no namespace the
+standalone fragment keeps its shared ids; a merge matches the built-in predicates against a target by name
+and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
 own.
 """
 import unittest
