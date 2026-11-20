@@ -44,7 +44,6 @@ struct Config {
     held_token: Arc<tokio::sync::Mutex<Option<HeldToken>>>,
     /// Base64 of Mycelium's public signing key, for checking inbound requests.
     verification_key: Option<String>,
-    #[allow(dead_code)]
     issuer: String,
     /// This service's own name. A token addressed to anything else is refused.
     audience: String,
@@ -355,10 +354,6 @@ struct SedimentReading {
 #[serde(rename_all = "camelCase")]
 struct SedimentResult {
     batch_id: String,
-    #[allow(dead_code)]
-    series: i64,
-    #[allow(dead_code)]
-    buckets: i64,
     samples: i64,
 }
 
@@ -493,7 +488,7 @@ struct Selector {
     all: Option<bool>,
 }
 
-// Mycelium answers each Thing and relationship with capitalised field names.
+// Mycelium answers each Thing with capitalised field names.
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct SnapThing {
@@ -502,16 +497,9 @@ struct SnapThing {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct SnapRel {
-    #[allow(dead_code)]
-    id: String,
-}
-
-#[derive(Deserialize)]
 struct Snapshot {
     things: Vec<SnapThing>,
-    relationships: Vec<SnapRel>,
+    relationships: Vec<serde::de::IgnoredAny>,
 }
 
 fn names_of(snapshot: &Snapshot) -> Vec<String> {
