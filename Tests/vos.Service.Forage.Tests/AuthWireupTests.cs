@@ -11,27 +11,14 @@ using Xunit;
 namespace vos.Service.Forage.Tests;
 
 // Forage is launched with a verification key in production; no other test starts it so.
-public class AuthWireupTests
+public class AuthWireupTests : AuthWiringTests<ForageWebApplicationFactory, Program>
 {
-    private const string Issuer = "VillageOS";
-    private const string Audience = "forage-handler";
+    protected override string Audience => "forage-handler";
 
-    private static readonly MyceliumSigner Mycelium = new();
-
-    private static ForageWebApplicationFactory Keyed() =>
-        new() { VerificationKey = Mycelium.VerificationKey, Issuer = Issuer, Audience = Audience };
-
-    [Fact]
-    public async Task A_keyed_Forage_refuses_a_call_with_no_token()
-    {
-        await using var factory = Keyed();
-        await factory.InitializeAsync();
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid() });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
+    protected override IReadOnlyList<(string Route, object? Body)> GuardedRoutes =>
+    [
+        ("/handle", new { subjectId = Guid.NewGuid() }),
+    ];
 
     [Fact]
     public async Task A_keyed_Forage_answers_a_call_signed_by_its_launch_key()

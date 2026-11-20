@@ -4,7 +4,7 @@ import numpy
 from pyproj import Geod
 from rasterio.windows import Window
 
-from .point import RESAMPLINGS
+from .point import RESAMPLINGS, bilinear
 from .refusal import Refusal
 from .source import from_wgs84, open_raster
 
@@ -145,7 +145,8 @@ def _read(dataset, places, resampling, max_cells):
         if resampling == "nearest":
             value = _cell(cells, int(row) - first_row, int(column) - first_column)
         else:
-            value = _bilinear(cells, dataset, row, column, first_row, first_column)
+            value = bilinear(row, column, dataset.height, dataset.width,
+                             lambda r, c: _cell(cells, r - first_row, c - first_column))
         found.append((value, None) if value is not None else (None, "nodata"))
     return found
 
@@ -153,21 +154,3 @@ def _read(dataset, places, resampling, max_cells):
 def _cell(cells, row, column):
     cell = cells[row, column]
     return None if cell is numpy.ma.masked else float(cell)
-
-
-def _bilinear(cells, dataset, row, column, first_row, first_column):
-    # A cell's value belongs to its centre, half a cell in from the corner the transform measures to, as `point` reads it.
-    row_from_centre, column_from_centre = row - 0.5, column - 0.5
-    top, left = math.floor(row_from_centre), math.floor(column_from_centre)
-    down, right = row_from_centre - top, column_from_centre - left
-    total = 0.0
-    for r, weight_r in ((top, 1 - down), (top + 1, down)):
-        for c, weight_c in ((left, 1 - right), (left + 1, right)):
-            weight = weight_r * weight_c
-            if weight == 0:
-                continue
-            cell = _cell(cells, min(max(r, 0), dataset.height - 1) - first_row, min(max(c, 0), dataset.width - 1) - first_column)
-            if cell is None:
-                return None
-            total += cell * weight
-    return total

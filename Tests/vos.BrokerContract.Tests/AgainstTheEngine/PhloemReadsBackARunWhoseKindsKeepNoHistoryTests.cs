@@ -36,7 +36,7 @@ public class PhloemReadsBackARunWhoseKindsKeepNoHistoryTests : IClassFixture<The
 
     private async Task<Guid> AModelWhoseRunKindsKeepNoHistoryAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
         foreach (var (role, kind, names) in Kinds)

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -197,7 +198,7 @@ public class DeclaredVocabularyReaderTests
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
-            SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
+            PlatformPredicates.Is, RoleBindings.BindsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
     }
 
@@ -265,6 +266,20 @@ public class DeclaredVocabularyReaderTests
         var model = DeclaredModel.Seeded();
         foreach (var (demand, _) in WillowBend.WaterDemandNames)
             model.ArchetypeStating(demand).Relate(demand, "is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands
+            .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
+    }
+
+    [Theory]
+    [InlineData("3")]
+    [InlineData(true)]
+    public void A_demand_stating_its_order_as_something_other_than_a_number_reads_as_served_first(object stated)
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, stated))
+                .Relate(demand, "is", "WaterDemandComponent");
 
         DeclaredVocabularyReader.Read(model.Build()).WaterDemands
             .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);

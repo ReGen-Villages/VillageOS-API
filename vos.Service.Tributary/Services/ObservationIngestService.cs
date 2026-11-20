@@ -261,7 +261,7 @@ public class ObservationIngestService
 
             if (_predicateId == null)
             {
-                var isPredicate = await _myceliumClient.FindThingByNameAsync("is", cancellationToken);
+                var isPredicate = await _myceliumClient.FindThingByNameAsync(PlatformPredicates.Is, cancellationToken);
                 var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName, cancellationToken);
                 if (!await _myceliumClient.ApplyFragmentAsync(
                         ObservedEdges.CreationFragment(isPredicate?.Id, binds?.Id, _predicateRootId), cancellationToken))

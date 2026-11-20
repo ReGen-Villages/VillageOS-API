@@ -16,6 +16,7 @@ public sealed class PageReader : IDisposable
 {
     private const string BundleResource = "vos.Pages.reader.bundle.js";
     private const double BytesInAMebibyte = 1024 * 1024;
+    private const int EngineMemoryCeilingMebibytes = 128;
 
     private static readonly JsonSerializerOptions s_listingOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -26,7 +27,7 @@ public sealed class PageReader : IDisposable
     {
         options ??= new PageReaderOptions();
         _engine = new V8ScriptEngine(
-            new V8RuntimeConstraints { MaxOldSpaceSize = options.EngineMemoryCeilingMebibytes },
+            new V8RuntimeConstraints { MaxOldSpaceSize = EngineMemoryCeilingMebibytes },
             V8ScriptEngineFlags.EnableTaskPromiseConversion);
         _engine.Execute(ReadBundle());
         if (options.Warned is { } warned) _engine.Script.pageReader.tellWarningsTo(warned);

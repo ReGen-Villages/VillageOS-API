@@ -364,7 +364,7 @@ public class MyceliumGatewayTests
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
-            .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
+            .Should().Equal(ModelNames.Has, PlatformPredicates.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.NotifiedConnection.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
@@ -1053,7 +1053,7 @@ public class MyceliumGatewayTests
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
         (await creating.Should().ThrowAsync<InvalidOperationException>())
-            .WithMessage($"*{ModelNames.Is}*");
+            .WithMessage($"*{PlatformPredicates.Is}*");
     }
 
     [Fact]
@@ -1367,7 +1367,7 @@ public class MyceliumGatewayTests
                     Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role", new { }),
                     Thing(about, "about", new { }),
                     Thing(runArchetype, "PipelineRun", new { }),
-                    Thing(isPredicate, ModelNames.Is, new { }),
+                    Thing(isPredicate, PlatformPredicates.Is, new { }),
                 },
                 relationships = new[]
                 {

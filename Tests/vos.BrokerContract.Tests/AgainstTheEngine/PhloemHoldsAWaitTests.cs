@@ -33,9 +33,9 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     // Every case arranges this and the host is shared by the class, so the vocabulary is written once.
     private async Task<Village> AVillageWithAPlotToWaitForAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        var isPredicate = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var isPredicate = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
         await _engine.BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));

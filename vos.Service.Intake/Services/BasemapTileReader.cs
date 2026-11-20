@@ -1,4 +1,3 @@
-using System.Text.Json;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -32,9 +31,5 @@ public static class BasemapTileReader
             .FirstOrDefault();
 
     private static TimeSpan? CacheLife(SnapshotThing thing) =>
-        thing.StatedValue(CacheLifeProperty) is { } stated
-        && stated.Value.ValueKind == JsonValueKind.Number
-        && stated.Value.TryGetDouble(out var seconds) && seconds > 0
-            ? TimeSpan.FromSeconds(seconds)
-            : null;
+        thing.StatedNumber(CacheLifeProperty) is { } seconds && seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
 }

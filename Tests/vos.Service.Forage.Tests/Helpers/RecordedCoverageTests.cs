@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
@@ -124,7 +125,7 @@ public class RecordedCoverageTests
     private static ModelBuilder WholeVocabulary()
     {
         var model = new ModelBuilder();
-        model.Id(CoveringSourceResolver.IsPredicateName);
+        model.Id(PlatformPredicates.Is);
         model.Id(CoveringSourceResolver.AppliesToPredicate);
         model.Id(CoveringSourceResolver.SourcedFromPredicate);
         return model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
@@ -149,7 +150,7 @@ public class RecordedCoverageTests
 
         var vocabulary = CoveringSourceResolver.CoverageVocabularyIn(model.Build())!;
 
-        vocabulary.Is.Should().Be(model.Id(CoveringSourceResolver.IsPredicateName));
+        vocabulary.Is.Should().Be(model.Id(PlatformPredicates.Is));
         vocabulary.AppliesTo.Should().Be(model.Id(CoveringSourceResolver.AppliesToPredicate));
         vocabulary.SourcedFrom.Should().Be(model.Id(CoveringSourceResolver.SourcedFromPredicate));
     }
@@ -165,7 +166,7 @@ public class RecordedCoverageTests
     // Refused whole rather than in part: a Thing minted and then left unrelated reaches neither its
     // subject nor its source, and no later run can tell it from one that was never minted at all.
     [Theory]
-    [InlineData(CoveringSourceResolver.IsPredicateName)]
+    [InlineData(PlatformPredicates.Is)]
     [InlineData(CoveringSourceResolver.AppliesToPredicate)]
     [InlineData(CoveringSourceResolver.SourcedFromPredicate)]
     public void AModelMissingAnyEdgeAMintWritesIsRefused(string missing)
@@ -173,7 +174,7 @@ public class RecordedCoverageTests
         var model = new ModelBuilder();
         foreach (var predicate in new[]
                  {
-                     CoveringSourceResolver.IsPredicateName,
+                     PlatformPredicates.Is,
                      CoveringSourceResolver.AppliesToPredicate,
                      CoveringSourceResolver.SourcedFromPredicate,
                  })
@@ -184,7 +185,7 @@ public class RecordedCoverageTests
     }
 
     [Theory]
-    [InlineData(CoveringSourceResolver.IsPredicateName)]
+    [InlineData(PlatformPredicates.Is)]
     [InlineData(CoveringSourceResolver.AppliesToPredicate)]
     [InlineData(CoveringSourceResolver.SourcedFromPredicate)]
     public void AnEdgeNamedInAnotherCaseIsNotTheEdgeAMintWrites(string recased)
@@ -192,7 +193,7 @@ public class RecordedCoverageTests
         var model = new ModelBuilder();
         foreach (var predicate in new[]
                  {
-                     CoveringSourceResolver.IsPredicateName,
+                     PlatformPredicates.Is,
                      CoveringSourceResolver.AppliesToPredicate,
                      CoveringSourceResolver.SourcedFromPredicate,
                  })

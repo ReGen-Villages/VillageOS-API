@@ -325,10 +325,8 @@ internal static class IntakeEndpoints
                         new Refusal(RefusalCode.SubmissionTooLarge, "The submission is larger than this service takes."),
                         statusCode: StatusCodes.Status413PayloadTooLarge));
 
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
 
             using var reader = new StreamReader(context.Request.Body);
             var document = await reader.ReadToEndAsync(context.RequestAborted);
@@ -392,10 +390,8 @@ internal static class IntakeEndpoints
             SubmissionTicket tickets,
             ILogger<SubmissionFindingsService> logger) =>
         {
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
 
             var asked = await ReadAsync<FindingsAsked>(context);
             if (asked?.EmailAddress is not { } emailAddress || asked.SubmissionId is not { } submissionId)
@@ -449,10 +445,8 @@ internal static class IntakeEndpoints
             SubmissionTicket tickets,
             ILogger<SubmissionFindingsService> logger) =>
         {
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
 
             JsonElement question;
             try
@@ -530,10 +524,8 @@ internal static class IntakeEndpoints
             string submissionId, HttpContext context, SharedDocumentService documents, SubmissionTicket tickets,
             ILogger<SharedDocumentService> logger) =>
         {
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
             if (!context.Request.HasFormContentType)
                 return Refused(context, "the body was not a form",
                     Results.BadRequest(new Refusal(RefusalCode.FileNotAForm, "A file is sent as a form: 'file' and, beside it, 'description'.")));
@@ -608,10 +600,8 @@ internal static class IntakeEndpoints
             string submissionId, HttpContext context, SharedDocumentService documents, SubmissionTicket tickets,
             ILogger<SharedDocumentService> logger) =>
         {
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
             try
             {
                 var listed = await documents.ListAsync(
@@ -638,10 +628,8 @@ internal static class IntakeEndpoints
             string submissionId, Guid documentId, HttpContext context, SharedDocumentService documents,
             SubmissionTicket tickets, ILogger<SharedDocumentService> logger) =>
         {
-            var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
-            if (tickets.WhyRefused(presented) is { } notFromAForm)
-                return Refused(context, "the ticket was not accepted",
-                    Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
+            if (TicketRefusal(context, tickets, out var presented) is { } refused)
+                return refused;
             try
             {
                 var removed = await documents.RemoveAsync(
@@ -679,6 +667,14 @@ internal static class IntakeEndpoints
     {
         LogRefusal(context, reason);
         return answer;
+    }
+
+    private static IResult? TicketRefusal(HttpContext context, SubmissionTicket tickets, out string presented)
+    {
+        presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+        return tickets.WhyRefused(presented) is { } notFromAForm
+            ? Refused(context, "the ticket was not accepted", Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden))
+            : null;
     }
 
     // The two verification bodies are an address and a code. Anything that does not read as one is nothing

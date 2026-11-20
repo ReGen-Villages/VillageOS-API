@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared;
 using vos.Service.Forage.Services;
 using vos.Service.Forage.Steps;
 using vos.Service.Shared.Roles;
@@ -464,7 +465,7 @@ public class CoveringSourceResolverTests
         foreach (var thing in owned)
         {
             model.Relate("WillowBend", CoveringSourceResolver.HasPredicate, thing)
-                 .Relate(thing, CoveringSourceResolver.IsPredicateName, archetype);
+                 .Relate(thing, PlatformPredicates.Is, archetype);
         }
 
         return model;
@@ -547,7 +548,7 @@ public class CoveringSourceResolverTests
         // Another site's assessment is of the same archetype. Calling about it would write a reading
         // onto a Thing this run was never called for.
         var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment");
-        model.Relate("elsewhere assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment");
+        model.Relate("elsewhere assessment", PlatformPredicates.Is, "HazardAssessment");
 
         var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
 
@@ -572,8 +573,8 @@ public class CoveringSourceResolverTests
     {
         var model = ResolvingOnto("HazardPortal", "HazardAssessment")
             .Relate("WillowBend", CoveringSourceResolver.HasPredicate, "flood assessment")
-            .Relate("flood assessment", CoveringSourceResolver.IsPredicateName, "ProjectAssessment")
-            .Relate("ProjectAssessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment");
+            .Relate("flood assessment", PlatformPredicates.Is, "ProjectAssessment")
+            .Relate("ProjectAssessment", PlatformPredicates.Is, "HazardAssessment");
         model.Archetype("ProjectAssessment");
 
         var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
@@ -751,7 +752,7 @@ public class CoveringSourceResolverTests
             CoveringSourceResolver.AssessesPredicate,
             CoveringSourceResolver.StudiesPredicate,
             CoveringSourceResolver.HasPredicate,
-            CoveringSourceResolver.IsPredicateName,
+            PlatformPredicates.Is,
         });
     }
 

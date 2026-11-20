@@ -34,7 +34,7 @@ public sealed class ModelBridgeNode : DagNodeService
 
         return mode switch
         {
-            "read" => NodeResult.Ok(("value", await ReadAsync(thingId, property, cancellationToken))),
+            "read" => NodeResult.Ok(("value", Unwrap(await ReadPropertyAsync(thingId, property, cancellationToken)))),
             "write" => await WriteAsync(thingId, property, context, cancellationToken),
             _ => throw new InvalidOperationException($"Unknown ModelBridge mode '{mode}' (expected 'read' or 'write')."),
         };
@@ -47,23 +47,6 @@ public sealed class ModelBridgeNode : DagNodeService
         if (raw.ValueKind == JsonValueKind.String && Guid.TryParse(raw.GetString(), out var parsed)) return parsed;
         if (raw.TryGetGuid(out var g)) return g;
         throw new InvalidOperationException("ModelBridge 'thingId' param is not a valid GUID.");
-    }
-
-    private async Task<object?> ReadAsync(Guid thingId, string property, CancellationToken cancellationToken)
-    {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException(
-                $"ModelBridge read {thingId}.{property} failed ({(int)response.StatusCode} {response.StatusCode})");
-
-        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        if (root.ValueKind == JsonValueKind.Object)
-            foreach (var prop in root.EnumerateObject())
-                if (string.Equals(prop.Name, property, StringComparison.OrdinalIgnoreCase))
-                    return ExtractValue(prop.Value);
-
-        throw new KeyNotFoundException($"Property '{property}' not found on thing {thingId}");
     }
 
     private async Task<NodeResult> WriteAsync(Guid thingId, string property, NodeContext context, CancellationToken cancellationToken)
@@ -79,16 +62,6 @@ public sealed class ModelBridgeNode : DagNodeService
                 $"ModelBridge write {thingId}.{property} failed ({(int)response.StatusCode} {response.StatusCode})");
 
         return NodeResult.Ok(("value", Unwrap(value)));
-    }
-
-    // The route returns each property as { "Value": <v>, ... } (case-insensitive key).
-    private static object? ExtractValue(JsonElement propertyEnvelope)
-    {
-        if (propertyEnvelope.ValueKind == JsonValueKind.Object)
-            foreach (var field in propertyEnvelope.EnumerateObject())
-                if (string.Equals(field.Name, "Value", StringComparison.OrdinalIgnoreCase))
-                    return Unwrap(field.Value);
-        return Unwrap(propertyEnvelope);
     }
 
     private static object? Unwrap(JsonElement value) =>

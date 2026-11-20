@@ -25,7 +25,7 @@ public class PhloemRecordsAnAttemptAndAMessageWhoseKindsDeclareTheirPropertiesTe
 
     private async Task<Guid> ARunWhoseKindsDeclareTheirPropertiesAsync(MyceliumGateway gateway)
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
         await _engine.PlayingAsync(PipelineRoles.PipelineRun, "RunKind", isArchetype: true, Declaring(ModelNames.Status));

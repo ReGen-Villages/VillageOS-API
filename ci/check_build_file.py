@@ -88,24 +88,25 @@ def indentation(line):
     return len(line) - len(line.lstrip())
 
 
-def step_condition(build_file_text, display_name):
-    """The condition line of a named step, '' when it has none, None when there is no such step.
+def step_line(lines, display_name):
+    """The index of the line naming a step, None when there is no such step."""
+    return next((index for index, line in enumerate(lines) if "displayName: '%s'" % display_name in line), None)
+
+
+def step_condition(lines, start):
+    """The condition line of the step named at `start`, '' when it has none.
 
     A step ends at the first line sitting left of its display name — the next step's own marker, or
     whatever follows the job. A list nested deeper inside the step is part of it.
     """
-    lines = build_file_text.splitlines()
-    for index, line in enumerate(lines):
-        if "displayName: '%s'" % display_name in line:
-            for following in lines[index + 1:]:
-                if not following.strip():
-                    continue
-                if indentation(following) < indentation(line):
-                    break
-                if following.strip().startswith('condition:'):
-                    return following
-            return ''
-    return None
+    for following in lines[start + 1:]:
+        if not following.strip():
+            continue
+        if indentation(following) < indentation(lines[start]):
+            break
+        if following.strip().startswith('condition:'):
+            return following
+    return ''
 
 
 def jobs(build_file_text):
@@ -168,23 +169,24 @@ def problems(build_file_text):
                 'The build file names "%s", and a release is handed over as an archive of the '
                 'running platform rather than as libraries on a feed' % marker)
 
+    lines = build_file_text.splitlines()
+    checked_too_late = []
     for step in PUBLISHING_STEPS:
-        condition = step_condition(build_file_text, step)
-        if condition is None:
+        start = step_line(lines, step)
+        if start is None:
             found.append('The build has no step named "%s", so nothing publishes it' % step)
-        elif not condition:
+            continue
+        condition = step_condition(lines, start)
+        if not condition:
             found.append('"%s" has no condition, so it publishes from every branch' % step)
         elif DEVELOP not in condition or MAIN in condition:
             found.append(
                 '"%s" must run on develop only; its condition reads %s' % (step, condition.strip()))
-
-    lines = build_file_text.splitlines()
-    for step in PUBLISHING_STEPS:
-        start = next((index for index, line in enumerate(lines) if "displayName: '%s'" % step in line), None)
-        if start is not None and any(line.strip() in RUNS_AFTER_A_FAILURE for line in lines[start + 1:]):
-            found.append(
+        if any(line.strip() in RUNS_AFTER_A_FAILURE for line in lines[start + 1:]):
+            checked_too_late.append(
                 '"%s" runs before a step that runs after a failure, so what that step checks is found '
                 'only once the publish is done' % step)
+    found.extend(checked_too_late)
 
     declared_jobs = jobs(build_file_text)
     if not declared_jobs:

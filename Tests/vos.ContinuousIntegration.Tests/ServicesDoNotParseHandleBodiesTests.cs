@@ -17,7 +17,7 @@ public class ServicesDoNotParseHandleBodiesTests
         var root = RepositoryRoot.Find();
 
         var parsing = ServiceEntryPoints.Under(root)
-            .Where(entryPoint => Unqualified(File.ReadAllText(entryPoint))
+            .Where(entryPoint => Unqualified(ServiceEntryPoints.SourceOf(root, entryPoint))
                 .Contains(ParsingTheBodyIntoAnElement, StringComparison.Ordinal))
             .Select(entryPoint => Path.GetRelativePath(root, entryPoint))
             .ToList();

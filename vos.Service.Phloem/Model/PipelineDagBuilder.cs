@@ -50,7 +50,7 @@ public static class PipelineDagBuilder
         {
             if (!nodesById.TryGetValue(nodeThing.Id, out var from)) continue;
 
-            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, ModelNames.Is))
+            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, PlatformPredicates.Is))
                 .Select(reached => reached.Id).ToHashSet();
             foreach (var targetId in graph.TargetIdsFrom(nodeThing).Distinct())
                 if (!heldOrKind.Contains(targetId) && nodesById.TryGetValue(targetId, out var to))
@@ -467,7 +467,7 @@ public static class PipelineDagBuilder
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
             yield return current;
-            foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
+            foreach (var parent in graph.OutgoingTargets(current, PlatformPredicates.Is))
                 stack.Push(parent);
         }
     }

@@ -22,13 +22,13 @@ public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
     private async Task<Guid> MemberAsync(string name, Guid archetype)
     {
         var member = await _engine.DeclareAsync(name);
-        await _engine.RelateAsync(member, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), archetype);
+        await _engine.RelateAsync(member, await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), archetype);
         return member;
     }
 
     private async Task<Guid> PublishedAsync(string name, params Guid[] standsFor)
     {
-        var isPredicate = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var isPredicate = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var pipeline = await _engine.DeclareAsync(name, properties: new Dictionary<string, object?> { [ModelNames.Published] = true });
         await _engine.RelateAsync(pipeline, isPredicate, await _engine.TheOnlyThingNamedAsync("Pipeline"));
@@ -42,7 +42,7 @@ public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
 
     private async Task<Arrivals> AConnectionWithAStandardAndAWaterBoardPipelineAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
         await _engine.BindOnceAsync(PipelineRoles.Pipeline, await _engine.DeclareOnceAsync("Pipeline", isArchetype: true));
         await _engine.BindOnceAsync(PipelineRoles.PipelineInput, await _engine.DeclareOnceAsync("PipelineInput", isArchetype: true));

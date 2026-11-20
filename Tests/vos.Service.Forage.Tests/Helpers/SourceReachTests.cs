@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
@@ -19,7 +20,7 @@ public class SourceReachTests
         new ModelBuilder().Archetype("Site").Bound(CoveringSourceResolver.SiteRole, "Site");
 
     private static ModelBuilder SiteIn(ModelBuilder model, string site, string place) =>
-        model.Relate(site, CoveringSourceResolver.IsPredicateName, "Site")
+        model.Relate(site, PlatformPredicates.Is, "Site")
              .Relate(site, CoveringSourceResolver.IsInPredicate, place);
 
     // A source is callable only through its registration, so every scenario below wires both.
@@ -89,8 +90,8 @@ public class SourceReachTests
     public void Reach_ASiteThroughAnIntermediateType_IsStillASite()
     {
         var model = SourceCovering(
-            Model().Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "CoastalSite")
-                   .Relate("CoastalSite", CoveringSourceResolver.IsPredicateName, "Site")
+            Model().Relate("WillowBend", PlatformPredicates.Is, "CoastalSite")
+                   .Relate("CoastalSite", PlatformPredicates.Is, "Site")
                    .Archetype("CoastalSite")
                    .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"),
             "NationalFloodPortal", "Portugal");
@@ -120,9 +121,9 @@ public class SourceReachTests
             .Relate("HazardPortal", CoveringSourceResolver.ResolvesOntoPredicate, "HazardAssessment")
             .Archetype("HazardAssessment")
             .Relate("WillowBend", CoveringSourceResolver.HasPredicate, "flood assessment")
-            .Relate("flood assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment")
+            .Relate("flood assessment", PlatformPredicates.Is, "HazardAssessment")
             .Relate("Oakhollow", CoveringSourceResolver.HasPredicate, "wildfire assessment")
-            .Relate("wildfire assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment")
+            .Relate("wildfire assessment", PlatformPredicates.Is, "HazardAssessment")
             .Relate("Oakhollow", CoveringSourceResolver.HasPredicate, "a parcel");
 
         SubjectsOf(Reach(model, "HazardPortal")).Should().Equal("wildfire assessment", "flood assessment");
@@ -167,7 +168,7 @@ public class SourceReachTests
     {
         var model = SourceCovering(
             new ModelBuilder().Archetype("Site")
-                .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site")
+                .Relate("WillowBend", PlatformPredicates.Is, "Site")
                 .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"),
             "NationalFloodPortal", "Portugal");
 
@@ -221,7 +222,7 @@ public class SourceReachTests
             CoveringSourceResolver.ResolvedByPredicate,
             CoveringSourceResolver.ResolvesOntoPredicate,
             CoveringSourceResolver.HasPredicate,
-            CoveringSourceResolver.IsPredicateName,
+            PlatformPredicates.Is,
             CoveringSourceResolver.AppliesToPredicate,
             CoveringSourceResolver.SourcedFromPredicate,
         });
@@ -240,7 +241,7 @@ public class SourceReachTests
             CoveringSourceResolver.ResolvedByPredicate,
             CoveringSourceResolver.ResolvesOntoPredicate,
             CoveringSourceResolver.IsInPredicate,
-            CoveringSourceResolver.IsPredicateName,
+            PlatformPredicates.Is,
             CoveringSourceResolver.HasPredicate,
             CoveringSourceResolver.AppliesToPredicate,
             CoveringSourceResolver.SourcedFromPredicate,

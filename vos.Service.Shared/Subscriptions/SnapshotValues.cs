@@ -20,6 +20,17 @@ public static class SnapshotValues
     public static SnapshotProperty? StatedValue(this SnapshotThing thing, string name) =>
         StatedIn(thing.Properties, thing.InheritedOverrides, name);
 
+    public static string? StatedText(this SnapshotThing thing, string name) =>
+        thing.StatedValue(name) is { Value.ValueKind: JsonValueKind.String } stated ? stated.Value.GetString() : null;
+
+    public static double? StatedNumber(this SnapshotThing thing, string name) =>
+        thing.StatedValue(name) is { Value.ValueKind: JsonValueKind.Number } stated ? stated.Value.GetDouble() : null;
+
+    public static long? StatedWholeNumber(this SnapshotThing thing, string name) =>
+        thing.StatedValue(name) is { Value.ValueKind: JsonValueKind.Number } stated && stated.Value.TryGetInt64(out var whole)
+            ? whole
+            : null;
+
     // Whether the Thing itself carries a mark. Asked of what it states rather than of what the
     // `is` chain resolves, because a mark is an ordinary property and so is inherited: a resolving reader
     // would answer with every member of the archetype as well as the archetype, leaving nothing to select

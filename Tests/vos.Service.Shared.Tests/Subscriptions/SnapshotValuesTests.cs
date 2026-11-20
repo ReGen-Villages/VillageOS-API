@@ -197,4 +197,54 @@ public class SnapshotValuesTests
         thing.StatedValue("measuredAreaHectares")!.Value.GetDouble().Should().Be(1);
         thing.ValuesStated().Should().ContainSingle().Which.Value.Value.GetDouble().Should().Be(1);
     }
+
+    [Theory]
+    [InlineData("\"north field\"", "north field")]
+    [InlineData("\"\"", "")]
+    [InlineData("12", null)]
+    [InlineData("true", null)]
+    [InlineData("null", null)]
+    public void A_stated_text_is_read_only_from_a_string(string json, string? expected)
+    {
+        Stating("name", json).StatedText("name").Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("12.5", 12.5)]
+    [InlineData("12", 12.0)]
+    [InlineData("\"12\"", null)]
+    [InlineData("true", null)]
+    [InlineData("null", null)]
+    public void A_stated_number_is_read_only_from_a_number(string json, double? expected)
+    {
+        Stating("figure", json).StatedNumber("figure").Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("3", 3L)]
+    [InlineData("-3", -3L)]
+    [InlineData("3.5", null)]
+    [InlineData("1e20", null)]
+    [InlineData("\"3\"", null)]
+    [InlineData("true", null)]
+    [InlineData("null", null)]
+    public void A_stated_whole_number_is_read_only_from_a_whole_number(string json, long? expected)
+    {
+        Stating("count", json).StatedWholeNumber("count").Should().Be(expected);
+    }
+
+    [Fact]
+    public void A_name_the_thing_does_not_state_reads_as_nothing_of_every_kind()
+    {
+        var thing = Stating("other", "1");
+
+        thing.StatedText("name").Should().BeNull();
+        thing.StatedNumber("name").Should().BeNull();
+        thing.StatedWholeNumber("name").Should().BeNull();
+    }
+
+    private static SnapshotThing Stating(string name, string json) =>
+        new(Guid.NewGuid(), "Willow Bend Parcel-01", false,
+            new Dictionary<string, SnapshotProperty> { [name] = new(JsonDocument.Parse(json).RootElement, null, null) },
+            null, [], []);
 }

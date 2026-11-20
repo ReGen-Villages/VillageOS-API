@@ -18,7 +18,7 @@ public class ServicesWriteNoLogFileWhenToldTests
 
         var problems =
             from entryPoint in entryPoints
-            let calls = LoggingSetUp.Matches(File.ReadAllText(entryPoint))
+            let calls = LoggingSetUp.Matches(ServiceEntryPoints.SourceOf(root, entryPoint))
             let name = Path.GetRelativePath(root, entryPoint)
             where calls.Count != 1 || !Regex.IsMatch(calls[0].Groups["arguments"].Value, @"writeToFile:\s*[\w.]*\bLogToFile\b")
             select calls.Count != 1
