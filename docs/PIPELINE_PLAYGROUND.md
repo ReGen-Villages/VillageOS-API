@@ -32,16 +32,27 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 
 ## The Pipelines page in 60 seconds
 
-- **Catalysts (left)** — what starts a run, by kind: a state a Thing enters, a kind of message an external
-  system sends, a cadence, a request. Click one to place a start node standing for it; **By hand** places a start
-  filled from the run's parameters. A state row whose entries go to a service other than the
-  orchestrator names the drawing and that service, and offers **Handle with the orchestrator**, which
-  rebinds the state's connection so entering the state starts the drawing. A state row watched through
-  one connection also offers **Call settings**, the settings of that connection's calls.
+- **Catalysts (left)** — what starts a run, in four groups that are always shown: **Messages from
+  outside**, **States the model enters**, **The clock** and **Relationships written**. A state the clock
+  re-checks carries its *every N s* tag, and a cadence its *every N model min*. Click a row to place a start
+  node standing for it; **By hand** places a start filled from the run's parameters. A row no run can start
+  from offers no start node.
+  - Each row has a handling cell on the right: the drawing that runs (green), the service the catalyst is
+    sent to (grey), or *nothing*. A relationship row for a connection used as a predicate that names no
+    connection along `notifies` reads *nothing*, with the tooltip "the platform calls nothing for it: it
+    names no connection along notifies".
+  - A predicate that names a connection along `notifies` is one relationship row, and the connection it
+    names has no row of its own. The orchestrator's resumption and stop-request connections, and a
+    connection an external system is told through, are left off, because no run starts from them.
+  - A state row whose entries go to a service other than the orchestrator names that service in its cell,
+    links its drawing, and offers **Handle with the orchestrator**, which rebinds the state's connection
+    so entering the state starts the drawing. A state row watched through one connection also offers
+    **Call settings**, the settings of that connection's calls.
 - **Roster (left, beside the catalysts)** — the model's pipelines. Click one to open it.
 - **Outputs (right)** — the answer, which places the Output node; the other pipelines, each placing a
-  follow-on node; the external systems told through a connection, each placing a tell node; and a stop
-  node. Each is offered only where the model binds its kind.
+  follow-on node; the external systems told through a connection, each placing a tell node; under
+  *Steps the orchestrator runs*, a wait box and a relate box; and under *Stopping runs*, a stop node. Each
+  is offered only where the model binds its kind.
 - **Services (right, beneath)** — each entry is a service that declares at least one port, which you can
   drop as a node. Click one to add it to the canvas.
 - **Wire ports** — drag from a node's output handle (right) to another node's input handle (left). Wires are
@@ -56,6 +67,15 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
   on, its field paths, an item transform (sees one item, which goes on by itself) and a list transform
   (sees every item at once). A tell or follow-on node chooses what it stands for and edits each value it
   passes on as one in and one out port; a stop node binds its in ports to run parameters.
+  - A wait box chooses the state it waits for (every declared state, grouped by the kind it judges), the
+    predicate it then follows (those that relationships from Things of that kind run along, or every
+    predicate where there are none), and **Waits at most (minutes)**, a whole number of minutes, empty for
+    no limit.
+  - A relate box chooses the predicate it stands for. The list holds only the predicates the orchestrator
+    accepts, sorted by their names in the page language, and says so when none qualifies. A predicate is
+    accepted when it names a connection along `notifies`, that connection binds a service, and the
+    connection names exactly one state its work is proven by. Under the choice, read-only, are the state
+    the box will wait for and the service it calls. It has **Waits at most (minutes)** as the wait box does.
 
 Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the-canvas).
 
@@ -106,7 +126,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | Pipeline | What it shows |
 |----------|---------------|
 | **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
-| **Daily Report** | A tell node, *The office is told*, stands for the `Reporting office`, an external system, and tells it the report; it passes the report on to the Output node, *Reported*. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. |
+| **Daily Report** | A tell node, *The office is told*, stands for the `Reporting office`, an external system, and tells it the report; it passes the report on to the Output node, *Reported*. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, which the catalyst rail leaves off because no run starts from it; a run writes a sent message the server delivers to it once. |
 
 ### A drawing that branches
 
@@ -118,7 +138,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 
 | Pipeline | What it shows |
 |----------|---------------|
-| **Hourly Tally** | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. A cadence is a catalyst of its own: the orchestrator starts the drawing for each hour due, with the instant as `due`. |
+| **Hourly Tally** | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. A cadence is a catalyst of its own: the orchestrator starts the drawing for each hour due, with the instant as `due`. The rail lists it under *The clock*, handled by Hourly Tally, and places a start with the `due` port. |
 
 ### Runs that start or stop other runs
 
