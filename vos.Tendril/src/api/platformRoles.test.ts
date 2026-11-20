@@ -33,6 +33,16 @@ describe('thingBoundBy', () => {
     expect(thingBoundBy(DISPLAY_SETTINGS_ROLE_ID, [binds, role, namesake], [])).toBeUndefined();
   });
 
+  it('answers nothing where the role binds two Things, rather than whichever binding came first', () => {
+    const other = thing('other-settings', 'how another model is drawn');
+    const relationships = [
+      relationship('b1', role.Id, binds.Id, settings.Id),
+      relationship('b2', role.Id, binds.Id, other.Id),
+    ];
+
+    expect(thingBoundBy(DISPLAY_SETTINGS_ROLE_ID, [binds, role, settings, other], relationships)).toBeUndefined();
+  });
+
   it('answers nothing where the set carries no binds predicate', () => {
     const relationships = [relationship('b1', role.Id, 'binds', settings.Id)];
 

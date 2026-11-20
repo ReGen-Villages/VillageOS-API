@@ -55,7 +55,7 @@ import {
 
 export type Row = Record<string, unknown>;
 /** A value a `value` binding hands over whole: a geometry, a grid. */
-export type HeldObject = Record<string, unknown>;
+type HeldObject = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | HeldObject | null;
 
 export interface ModelIndex {
@@ -276,15 +276,10 @@ export function thingsOfArchetypeBoundBy(roleId: string, index: ModelIndex): Vos
   return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
 }
 
-/** The Thing a role binds, or undefined where the model binds nothing under it. */
+/** The Thing a role binds, or undefined where the model binds nothing under it or more than one Thing. */
 export function thingIdBoundBy(roleId: string, index: ModelIndex): string | undefined {
-  return boundBy(roleId, index)[0];
-}
-
-/** The instances beneath the archetype a role binds, transitively, as `thingsOfArchetype` answers for a name. */
-function thingsBoundAndBeneath(roleId: string, index: ModelIndex): VosThing[] {
-  const archetypeId = thingIdBoundBy(roleId, index);
-  return archetypeId ? thingsWithIds(instancesBelow([archetypeId], index), index) : [];
+  const bound = boundBy(roleId, index);
+  return bound.length === 1 ? bound[0] : undefined;
 }
 
 function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
@@ -314,7 +309,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex, language: string 
   // Every page Thing is listed, including one whose specification did not read. A specification is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
-  const found = thingsBoundAndBeneath(PAGE_ROLE_ID, index).map((thing) => ({
+  const found = thingsOfArchetypeBoundBy(PAGE_ROLE_ID, index).map((thing) => ({
     thing,
     specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
@@ -597,7 +592,7 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
 
 /** One input at the bottom of a derived figure. `heldBy` is the Thing whose value it is; an input a
  *  total reads is held by each member instead, and carries the members' kind and no single holder. */
-export interface FigureInput {
+interface FigureInput {
   figure: string;
   term: string;
   heldBy?: string;
@@ -610,7 +605,7 @@ export interface FigureInput {
 
 /** An input left out because nothing can say which way it moves the figure: the definition declares
  *  no direction for it, or two routes to it move the figure opposite ways. */
-export interface InputLeftOut {
+interface InputLeftOut {
   figure: string;
   term: string;
   memberKind?: string;
