@@ -1964,16 +1964,16 @@ Predicates (1):
 A Thing made, related, listed and removed again, as the console printed it:
 
 ```text
-> create thing Orchard-Test
-Created Thing: Orchard-Test
-> create relation Orchard-Test feeds CommunityCenter
-Created Relationship: Orchard-Test --[feeds]--> CommunityCenter
-> find relationships Orchard-Test
-Relationships for thing 'Orchard-Test':
+> create thing Catchment-Test
+Created Thing: Catchment-Test
+> create relation Catchment-Test feeds CommunityCenter
+Created Relationship: Catchment-Test --[feeds]--> CommunityCenter
+> find relationships Catchment-Test
+Relationships for thing 'Catchment-Test':
   As Subject (1):
-    Orchard-Test --[feeds]--> CommunityCenter
-> delete thing Orchard-Test
-Deleted thing Orchard-Test
+    Catchment-Test --[feeds]--> CommunityCenter
+> delete thing Catchment-Test
+Deleted thing Catchment-Test
 ```
 
 `query property biomeType Temperate` lists every Thing with that value; `query stats` gives the
@@ -2033,7 +2033,7 @@ A range declared and the Thing's states read back, as the console printed it —
 the comparison the criterion makes, which is what a page's verdict sentence reads its target from:
 
 ```text
-> range create Orchard-Test enough-trees trees>=100
+> range create Catchment-Test enough-trees trees>=100
 {
   "Name": "enough-trees",
   "Criteria": "trees>=100",
@@ -2041,9 +2041,9 @@ the comparison the criterion makes, which is what a page's verdict sentence read
   "Bindings": [],
   "Comparisons": [ { "PropertyName": "trees", "Operator": ">=", "Value": 100 } ]
 }
-> state Orchard-Test
+> state Catchment-Test
 {
-  "ObjectName": "Orchard-Test",
+  "ObjectName": "Catchment-Test",
   "CurrentStates": [],
   "RangeEvaluations": [ { "RangeName": "enough-trees", "IsActive": false, "Criteria": "trees>=100" } ]
 }
@@ -2089,15 +2089,15 @@ measuring one run means reading before and after it.
 ```text
 > list services
 Microservices (2):
-  balancesEnergy [Running]
-    Endpoint: http://localhost:5610
+  consumes connection [Running]
+    Endpoint: http://localhost:5620
     Health: Healthy
-  EnergyBalance [Stopped]
-    Endpoint: http://localhost:5610
-    Health: Healthy
+  WaterReserve [Stopped]
+    Endpoint: http://localhost:5630
+    Health: Unknown
 
-> start service EnergyBalance
-> stop service EnergyBalance
+> start service WaterReserve
+> stop service WaterReserve
 ```
 
 `list handlers` shows every connection bound to a service with the executable, run mode and trigger
@@ -2121,8 +2121,8 @@ Fragment applied from changes.json: 3 thing(s) created, 1 updated, 2 relationshi
 Ingested building.ifc: 1240 thing(s) created, 0 updated, 3180 relationship(s) created.
 ```
 
-A fragment file is `{ "Name", "Things": [ … ], "Relationships": [ … ] }`. Applying it is
-idempotent — re-applying neither duplicates nor errors — and the server resolves inheritance, so a
+A fragment file is `{ "Name", "Things": [ … ], "Relationships": [ … ] }`. Applying it again
+neither duplicates nor errors, and the server resolves inheritance, so a
 Thing may carry a value for a name it will inherit. An exported model carries each Thing's own
 properties and its overrides keyed by the kind each overrides; loading one restores inheritance
 without re-running any service. `ingest` uploads a building model to the Xylem service, merging by
@@ -2352,7 +2352,7 @@ aside first.
 | **By hand** (chapter 19) | The model is small, or you are learning what a seed is |
 | **The demonstration generator** in the private repository's tools: a regenerative village with homes, energy, water, waste and transport, and a consumption simulation wired to the energy pool | A demonstration, or the pattern to copy for a generator of your own |
 | **The building-model importer**: reads a building model in the Industry Foundation Classes format and writes a seed holding its spatial hierarchy, every element, type objects, materials and quantities, and optionally the render file the 3D viewer draws | A project that starts from a building model |
-| **The importer with templates**: the same seed with the site analysis merged in — kinds matched onto elements by their class or name, the study with its assumptions, formulas and judge-ranges, the compute connection, the page | A site to be analysed |
+| **The importer with templates**: the same seed with the site analysis merged in — kinds matched onto elements by their class or name, the study with its assumptions, formulas and judge-ranges, the connections the platform's own services are reached through, the page | A site to be analysed |
 | **A template-only import**: the templates as a seed with no building model | A model whose facts arrive from submissions rather than a building model |
 | **Export from a running model**: `serialize` in Taproot, or save in the console's seed library | Snapshotting a model you edited by hand, or moving one between servers |
 | **The pipeline playground generator** in the public repository's tools | Exercising the pipeline editor |
