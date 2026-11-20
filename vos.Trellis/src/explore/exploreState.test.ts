@@ -135,4 +135,18 @@ describe('the document an exploration posts', () => {
     const document = documentFrom({ ...described, reportedHazards: { 'river-flood': 'high' } });
     expect(document.hazards).toEqual([{ hazardType: 'river-flood', reportedLevel: 'high' }]);
   });
+
+  it('never rounds a population typed with a decimal point', () => {
+    expect(documentFrom({ ...described, population: '12.5' }).site.population).toBeUndefined();
+  });
+
+  it('posts no parcel from fewer than three corners, which enclose no land', () => {
+    expect(documentFrom({ ...described, boundary: aRing.slice(0, 1) }).parcel).toBeUndefined();
+    expect(documentFrom({ ...described, boundary: aRing.slice(0, 2) }).parcel).toBeUndefined();
+  });
+
+  it('posts a corner carrying any field beyond its coordinates as its coordinates alone', () => {
+    const carryingAStandInField = aRing.map((corner) => ({ ...corner, standIn: 'any other field' }));
+    expect(documentFrom({ ...described, boundary: carryingAStandInField }).parcel?.boundary).toEqual(aRing);
+  });
 });

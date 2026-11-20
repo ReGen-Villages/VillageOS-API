@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../api/intakeApi', () => ({
   intakeApi: {
@@ -179,6 +179,66 @@ describe('the plot-first page', () => {
     expect(document.submissionId).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);
     expect(document.site.population).toBe(320);
     expect(ticket).toBe('ticket-3');
+  });
+});
+
+describe('a dial that cannot be read', () => {
+  const LONGER_THAN_A_DIAL_TAKES_TO_SETTLE = 1000;
+
+  function typeIntoDial(dial: string, typed: string): void {
+    const box = within(screen.getByText(dial).closest('label')!).getByRole('textbox');
+    fireEvent.change(box, { target: { value: typed } });
+  }
+
+  async function letTheDialSettle(): Promise<void> {
+    await act(async () => { vi.advanceTimersByTime(LONGER_THAN_A_DIAL_TAKES_TO_SETTLE); });
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    ['Residents', '12.5', 'Must be a whole number.'],
+    ['Residents', '-3', 'Cannot be negative.'],
+    ['Residents', 'abc', 'Not a number.'],
+    ['People per household', '-3', 'Cannot be negative.'],
+    ['People per household', 'abc', 'Not a number.'],
+  ])('says why %s of %s is not posted, and posts nothing while it shows', async (dial, typed, reason) => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial(dial, typed);
+    await letTheDialSettle();
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('posts the figure once it is mended', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('Residents', '12.5');
+    await letTheDialSettle();
+    typeIntoDial('Residents', '12');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[1][0].site.population).toBe(12);
+  });
+
+  it('posts again once the field is cleared', async () => {
+    await reachTheReport();
+    vi.useFakeTimers();
+
+    typeIntoDial('People per household', '2.4');
+    await letTheDialSettle();
+    typeIntoDial('People per household', 'abc');
+    await letTheDialSettle();
+    typeIntoDial('People per household', '');
+    await letTheDialSettle();
+
+    expect(intakeApi.submitWithTicket).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(intakeApi.submitWithTicket).mock.calls[2][0].site.householdSize).toBeUndefined();
   });
 });
 
