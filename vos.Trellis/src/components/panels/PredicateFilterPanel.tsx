@@ -4,21 +4,8 @@ import { FilterPanel, FilterRow } from './FilterPanel';
 import { useUiStore } from '../../stores/uiStore';
 import type { PredicateStatistics } from '../../utils/predicateCluster';
 
-/**
- * Predicate filter panel, sibling to TypeFilterPanel.
- *
- * Checkbox semantics mirror the type filter exactly:
- *   - Checked = predicate's edges are visible.
- *   - Unchecked = predicate's edges are hidden.
- *   - Default state on a fresh model is all-checked (everything visible).
- *   - All button = clear hidden set (all edges visible).
- *   - None button = add every predicate to the hidden set (no edges visible).
- *
- * Driven by `hiddenPredicateIds` in uiStore. Independent from
- * `activePredicateIds` which still drives clustering via the radial menu —
- * different intent. NodeReducer.edgeReducer hides any edge whose
- * predicateId is in `hiddenPredicateIds`.
- */
+/** Works as the type filter does. `hiddenPredicateIds` is kept apart from `activePredicateIds`, which drives
+ *  clustering from the radial menu for a different purpose. */
 export function PredicateFilterPanel() {
   const { t } = useTranslation();
   const predicateStatistics = useUiStore((s) => s.predicateStatistics);

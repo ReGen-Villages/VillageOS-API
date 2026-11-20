@@ -1,6 +1,3 @@
-// Contract tests for the three write-kind helpers on MyceliumClientBase: wire shape, success codes,
-// the StatusCode-carrying failure, and that the embedded schemas accept the real payloads (Throw mode).
-
 using System.Net;
 using System.Text;
 using System.Text.Json;

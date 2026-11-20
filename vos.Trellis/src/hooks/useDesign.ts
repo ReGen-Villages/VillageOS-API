@@ -3,7 +3,7 @@ import type { DashboardDescriptor, DashboardSpecification } from '@tendril-ui/te
 import { isKeptPage, newPage, openedForDesign } from '../utils/designSpec';
 import type { DesignSelection } from '../utils/designEdits';
 
-/** Where the page being designed came from: a Thing the model holds, or nothing yet. */
+/** `id` is null until the page is kept in the model. */
 interface DesignSource {
   id: string | null;
   name: string;
@@ -18,11 +18,8 @@ interface Design {
   dirty: boolean;
 }
 
-/**
- * The page being designed: the specification as it is edited, where it came from, and what is
- * selected on it. The workbench holding this is keyed on the page it opened, so opening another page
- * starts afresh rather than carrying edits across.
- */
+/** The workbench holding this is keyed on the page it opened, so opening another page starts afresh
+ *  rather than carrying edits across. */
 export function useDesign(initial: { opened?: DashboardDescriptor & { specification: DashboardSpecification }; started?: string }) {
   const [design, setDesign] = useState<Design>(() =>
     initial.opened

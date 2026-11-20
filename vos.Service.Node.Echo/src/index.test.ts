@@ -1,5 +1,4 @@
-// Tests for the pure helpers (arg parsing + inbound JWT validation) using Node's
-// built-in test runner — no extra dependencies. Run via `npm test`.
+// Node's built-in test runner, so the tests need no extra dependency. Run with `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";

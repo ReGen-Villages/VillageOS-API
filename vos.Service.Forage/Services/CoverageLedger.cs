@@ -11,15 +11,15 @@ public sealed record OutstandingCall(CoveringSource Source, SourceCall Call, Gui
 
 // What the model already records about a run's calls, and what each call came to.
 //
-// A site was discovered exactly once ever while the state that starts a run counted `observed`
-// relationships: nothing removes one, so the first source to answer ended the occupancy for every source. The
-// coverage Things replace that count, and this is what fills them — so a partial failure leaves exactly
-// the calls that failed outstanding, and a source added to the catalogue later reaches a site already
-// discovered.
+// Counting `observed` relationships to decide whether a site needs a run would discover a site exactly
+// once ever: nothing removes one, so the first source to answer would end the occupancy for every source.
+// The coverage Things are counted instead, and this is what fills them — so a partial failure leaves
+// exactly the calls that failed outstanding, and a source added to the catalogue later reaches a site
+// already discovered.
 public sealed class CoverageLedger
 {
     // Fields a run writes onto a coverage. They are the run's report, per call and durable, rather than
-    // the response body the broker discarded and the log line it became.
+    // a response body the broker discards and a log line.
     private const string ResolvedAtProperty = "resolvedAt";
     private const string LastAttemptAtProperty = "lastAttemptAt";
     private const string AttemptsProperty = "attempts";

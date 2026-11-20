@@ -31,15 +31,9 @@ import { TranslationsPanel } from '../components/design/TranslationsPanel';
 
 const DESIGN_PATH = '/design';
 
-/**
- * Designing a page.
- *
- * A page is laid out on a grid from the palette every seeded page was drawn with, and kept as the
- * same Dashboard Thing a seeded page is. The pages the model holds stand on the left; the one opened
- * is edited on the canvas between the palette and the properties of whatever is selected. A seeded
- * page is opened as a copy and never written over; a page the console kept is edited in place. The
- * workbench is keyed on the page it opened, so opening another starts afresh.
- */
+/** A page is kept as the same Dashboard Thing a seeded page is. A seeded page opens as a copy and is never
+ *  written over; a page the console kept is edited in place. The workbench is keyed on the page it opened, so
+ *  opening another starts afresh. */
 export function DesignPage() {
   const { t, i18n } = useTranslation();
   const { dashboardKey } = useParams();

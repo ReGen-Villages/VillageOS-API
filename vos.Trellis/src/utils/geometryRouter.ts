@@ -1,29 +1,12 @@
-/**
- * Geometry parser for inline IFC mesh data carried on VosThing properties.
- *
- * The legacy .NET IFC importer tessellated geometry server-side and stored
- * it as an IfcGeometry property: { positions, indices, normals, height,
- * localCenter }. The Mycelium sends it as
- * { typeInfo: "vos.IfcGeometry", value: {...} } which is unwrapped by
- * propertyMapper to just the IFC mesh data object.
- *
- * Newer models ingested via vos.Tools.ModelIngest do NOT carry inline
- * geometry — their geometry lives in the .frag artifact rendered by
- * BimFragmentsViewer. This parser remains only for the Graph page's
- * BuildingDetail3D tab, which displays a single element's inline mesh
- * when one is present.
- *
- * Coordinates arrive in Three.js convention (y-up) — no swizzle needed.
- */
+/** Older models carry ready-made meshes in an IfcGeometry property; models from vos.Tools.ModelIngest keep
+ *  their geometry in the .frag file instead, so this serves only the Graph page's BuildingDetail3D tab.
+ *  The value arrives already taken out of its type wrapper, and its coordinates already have y up, as
+ *  three.js expects. */
 
-/**
- * Three.js-compatible mesh data.
- * Coordinates are in local meters with y-up (Three.js convention).
- */
 export interface SolidMeshData {
   /** Flat vertex positions [x,y,z, ...] — x=east, y=up, z=south (local meters). */
   positions: Float32Array;
-  /** Triangle indices (3 per triangle). */
+  /** Three per triangle. */
   indices: Uint16Array;
   /** Flat face normals (one per vertex, duplicated for flat shading). */
   normals: Float32Array;
@@ -54,10 +37,6 @@ function isIfcMeshData(data: unknown): data is IfcMeshData {
   );
 }
 
-/**
- * Convert a pre-tessellated IFC mesh value into SolidMeshData, or null if
- * the value doesn't look like IFC mesh data or carries no geometry.
- */
 export function parseSolidMesh(geometryValue: unknown): SolidMeshData | null {
   if (!isIfcMeshData(geometryValue)) return null;
   if (geometryValue.positions.length === 0 || geometryValue.indices.length === 0) return null;

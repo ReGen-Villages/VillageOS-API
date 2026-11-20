@@ -25,13 +25,13 @@ public class JsonataTransformTests
         JsonataTransform.Validate("{\"name\": firstName & \" \" & lastName}").Should().BeNull();
     }
 
-    [Fact] // A syntax error is reported, not thrown to the caller
+    [Fact]
     public void Validate_returns_the_error_for_an_invalid_expression()
     {
         JsonataTransform.Validate("this is ( not valid").Should().NotBeNullOrEmpty();
     }
 
-    [Fact] // The expression reshapes the input value
+    [Fact]
     public void Eval_reshapes_a_json_value()
     {
         var transform = new JsonataTransform("{\"name\": firstName & \" \" & lastName}");
@@ -76,8 +76,8 @@ public class JsonataTransformTests
         act.Should().Throw<Exception>();
     }
 
-    // The fault this guards: a model's transform stamped a value with the instant on the machine running
-    // the service, so a run anchored years back wrote this year onto values the model holds.
+    // A transform stamping a value with the instant on the machine running the service would write this
+    // year onto values the model holds in a run anchored years back.
     [Fact]
     public void The_current_instant_is_read_from_the_clock_the_caller_stamps_with()
     {

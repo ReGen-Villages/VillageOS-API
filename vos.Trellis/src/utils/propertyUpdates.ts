@@ -1,6 +1,5 @@
 import type { InheritedPropertySet, VosThing, VosRelationship } from '@tendril-ui/tendril';
 
-/** Return a new VosThing with one property merged/overwritten. */
 export function applyThingPropertyUpdate(
   thing: VosThing,
   propertyPath: string,
@@ -9,7 +8,6 @@ export function applyThingPropertyUpdate(
   return { ...thing, Properties: { ...thing.Properties, [propertyPath]: newValue } };
 }
 
-/** Return a new VosRelationship with one property merged/overwritten. */
 export function applyRelationshipPropertyUpdate(
   relationship: VosRelationship,
   propertyName: string,
@@ -57,21 +55,14 @@ function setWithout(set: InheritedPropertySet, name: string): InheritedPropertyS
   return remaining;
 }
 
-/** Return a new VosRelationship without the named property. */
 export function applyRelationshipPropertyRemoval(relationship: VosRelationship, propertyName: string): VosRelationship {
   if (!(propertyName in relationship.Properties)) return relationship;
   const { [propertyName]: _removed, ...remaining } = relationship.Properties;
   return { ...relationship, Properties: remaining };
 }
 
-/**
- * Whether a relationship is on screen, so a live change to it is worth applying.
- *
- * Two ways it can be: it is the relationship the user opened, or it hangs off the node they opened and
- * shows in that node's relationship list. Selecting a relationship clears the node selection and the
- * reverse, so both have to be asked — a node-only test drops every change to the very relationship whose
- * panel is in front of the user.
- */
+/** On screen means opened itself, or listed under the opened node. Selecting a relationship clears the node
+ *  selection and the other way round, so both are asked. */
 export function isVisibleRelationship(
   relationshipId: string,
   selectedNodeId: string | null,

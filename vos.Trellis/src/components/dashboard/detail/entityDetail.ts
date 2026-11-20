@@ -1,8 +1,4 @@
-/**
- * Pure helpers for the generic entity-detail window. No React, no I/O — the hook
- * (useEntityDetail) fetches; these shape the results. Kept model-agnostic: predicate
- * names, archetypes, and property keys arrive via the {@link DetailSpec}, never hardcoded.
- */
+/** Names no predicate, archetype or property key; each arrives in the {@link DetailSpec}. */
 import type { ModelIndex } from '@tendril-ui/tendril';
 import { effectiveProperties } from '@tendril-ui/tendril';
 import type { RelationSpecification } from '@tendril-ui/tendril';
@@ -48,12 +44,8 @@ function selectProperties(thing: VosThing, which: RelationSpecification['propert
   return which.filter((key) => key in props).map((key) => [key, props[key]] as const);
 }
 
-/**
- * Resolve the configured relations against the model, following each {@link RelationSpec} from the
- * root Thing outward. Array order is preserved (it is the display order); within a group the relationships
- * are sorted by the related Thing's name for stability. Cycle-guarded per path so a relation that
- * loops back (a project references a phase, the phase contains the project) can't recurse forever.
- */
+/** The configured order is the display order; within a group, by the related Thing's name, so it stays put. Each
+ *  path guards against looping back, as a site containing the building that refers to it would. */
 export function resolveRelations(
   rootId: string,
   index: ModelIndex,
@@ -119,10 +111,7 @@ export interface StateChange {
   exited: string[];
 }
 
-/**
- * The root Thing's derived-state changes, oldest first. Transitions that neither enter nor exit a
- * state (a property write that didn't move a boundary) are dropped — only actual state moves show.
- */
+/** A transition that neither enters nor leaves a state, a property write that crossed no boundary, is dropped. */
 export function buildStateChanges(transitions: StateTransition[]): StateChange[] {
   return transitions
     .filter((t) => t.Entered.length || t.Exited.length)

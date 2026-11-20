@@ -4,10 +4,8 @@ import { PredicateFilterPanel } from './PredicateFilterPanel';
 import { useUiStore } from '../../stores/uiStore';
 import { stubScreenWidth } from '../../testScreenWidth';
 
-/**
- * A fixed height cap on the list pushed the panel header off-screen on tall lists and trapped
- * scrolling inside the inner list, so the panel takes its share of the parent flex container instead.
- */
+/** The panel takes its share of the parent column, because a fixed height pushed its header off screen on a
+ *  long list and trapped scrolling inside it. */
 describe('PredicateFilterPanel layout', () => {
   beforeEach(() => {
     useUiStore.setState({

@@ -1,12 +1,5 @@
-/**
- * Generic, model-agnostic basemap contract.
- *
- * Trellis ships the map; the model supplies what it draws. A model declares one
- * or more Things of archetype `BasemapSource`, each carrying the address of a
- * vector style or a raster tile template plus the attribution its licence
- * requires. No provider is named in this file or anywhere else in the client —
- * changing which imagery a deployment shows is a change to the model.
- */
+/** No provider is named anywhere in the client, so changing which imagery a deployment shows is a change to
+ *  the model, which declares each source with its address and the credit its licence requires. */
 
 /** Address of a vector style document the map loads whole. */
 export const BASEMAP_STYLE_URL_PROPERTY = 'styleUrl';
@@ -43,15 +36,13 @@ export interface DeclaredBasemapSource {
   buildingSourceLayer?: string | null;
 }
 
-/** The schemes a map can read a height under: the style specification's own vocabulary, not the
- *  model's, so it belongs here rather than in a Thing — the same standing as the building-model type
- *  names. Its third, `custom`, is left out because it needs four decoding factors the model does not
- *  state, and drawing it under the default four is the guess the encoding is declared to avoid. */
+/** The map style specification's own words, not the model's, so they belong here, as building-model type
+ *  names do. `custom` is left out, because it needs decoding factors the model does not state, and the
+ *  defaults would be the guess the encoding is declared to avoid. */
 export const TERRAIN_ENCODINGS = ['terrarium', 'mapbox'] as const;
 type TerrainEncoding = (typeof TERRAIN_ENCODINGS)[number];
 
-/** What a source says about drawing land rather than a diagram. Absent where the model declares none,
- *  which draws flat — the same map every deployment has today. */
+/** Absent where the model declares none, which draws the ground flat. */
 export interface RaisedGround {
   /** Present where the source states an elevation pyramid and a scheme a map can read it under;
    *  without both, a height cannot be read off a tile and no terrain is raised. */

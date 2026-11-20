@@ -8,12 +8,10 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const RECONNECT_DELAYS_MILLISECONDS = [1000, 2000, 5000, 10000, 30000];
 
 /**
- * Follows one of the broker's event streams and hands each message of `event` to `onMessage`.
- *
- * EventSource cannot set an Authorization header, so each open carries a stream token minted for it.
- * The stream reopens after an error, or after a silence longer than the heartbeat allows, waiting longer
- * after each failed try, and closes when the view goes. `path` and `onMessage` are read once, when the view mounts: the pages
- * key these views by what they follow, so following something else remounts the view.
+ * EventSource cannot set an Authorization header, so each open carries a token made for it. The stream
+ * reopens after an error, or after a silence longer than the heartbeat allows, waiting longer after each
+ * failed try. `path` and `onMessage` are read once, because the pages key these views by what they follow,
+ * so following something else mounts a new view.
  */
 export function useBrokerStream(path: string, event: string, onMessage: (data: string) => void): ConnectionState {
   const [state, setState] = useState<ConnectionState>('connecting');

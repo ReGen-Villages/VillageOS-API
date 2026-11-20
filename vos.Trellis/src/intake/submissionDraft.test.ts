@@ -361,9 +361,6 @@ describe('the document that is posted', () => {
     expect(readyToSubmit(filled({ boundary: CORNERS, emailAddress: '  ' }))).toBe(false);
   });
 
-  // The analysis divides the parcel's area, so a submission with no boundary is refused by the service
-  // and would be assessed on nothing even if it were not. Drawing corners is not what is asked: the
-  // parcel step offers a square generated from the stated area, which satisfies this.
   it('cannot be submitted until it says which land it is about', () => {
     expect(readyToSubmit(filled({ boundary: [] }))).toBe(false);
     expect(readyToSubmit(filled({ boundary: CORNERS.slice(0, 2) }))).toBe(false);
@@ -483,8 +480,6 @@ describe('moving between steps', () => {
 });
 
 describe('what a submitter reports of a hazard', () => {
-  // Every hazard is offered and every one starts unreported: marking what you have seen is a different
-  // act from nominating hazards from memory, and a blank row is an answer — not something they saw.
   it('reports a level against the hazard it is about', () => {
     const draft = withHazardReported(emptyDraft('sub-0009'), 'river-flood', 'high');
 
@@ -493,8 +488,6 @@ describe('what a submitter reports of a hazard', () => {
       .toEqual([{ hazardType: 'river-flood', reportedLevel: 'high' }]);
   });
 
-  // A mis-click has to be takeable back, so clearing a row is saying nothing again rather than saying
-  // something else.
   it('takes a report back when the level is cleared', () => {
     const reported = withHazardReported(emptyDraft('sub-0010'), 'landslide', 'low');
 

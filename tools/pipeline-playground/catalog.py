@@ -1,17 +1,18 @@
-"""The playground content: the service catalog and the example pipelines (DAGs).
+"""The playground content: the service catalog and the example pipelines.
 
-This is data, not machinery — `generate.py` turns it into VOS Things + Relationships. Add a service to
-`SERVICES` or a DAG to `PIPELINES` and it appears in the Trellis Pipeline page (services in the palette,
-pipelines in the Load dropdown) the next time the generator runs.
+This is data only: `generate.py` turns it into Things and relationships. Add a service to `SERVICES` or
+a pipeline to `PIPELINES` and it appears on the Trellis Pipeline page (services in the palette,
+pipelines in the Load list) the next time the generator runs.
 
-Port `type` is a wire-compatibility tag: an empty type or "any" is a wildcard, so "any" ports connect to
-anything. A port with `collection` true drives fan-out on the Pipeline page (one run item per element).
+A port's `type` says which wires it accepts: an empty type or "any" accepts every wire. A port with
+`collection` true makes the Pipeline page run its node once for each item of a list wired into it.
 """
 
 # Each service becomes a palette entry: a PlatformServiceConnection (carrying the Subdomain a run calls
-# to) bound to a Service that declares the ports. `subdomain` values match real Managed Microservices where
-# one exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
-# Run against a live platform; the rest are call-only stand-ins that still exercise the editor end to end.
+# to) bound to a Service that declares the ports. `subdomain` values match real services where one
+# exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
+# run against a live platform; the rest are stand-ins that only answer calls, so the editor can still be
+# tried end to end.
 # Every service rehearses except the real ones nobody has yet checked to write nothing, marked "rehearses": False.
 #
 # port tuple = (portName, direction, type, required, collection)
@@ -211,8 +212,8 @@ PIPELINES = [
         ],
     },
 
-    # 6. A wider diamond: one source fans to two transforms that merge, then a report — exercises canvas layout
-    #    and multi-input merge in one DAG.
+    # 6. A wider diamond: one source feeds two transforms that merge, then a report, so one pipeline tries
+    #    the canvas layout and a merge of several inputs.
     {
         "name": "Diamond Fan",
         "nodes": [
@@ -280,7 +281,7 @@ PIPELINES = [
     },
 
     # 10. Capstone: a source supplies one wired input, two others are param-bound, two analyses run in parallel,
-    #     merge into a report, and end at a sink — sources + wires + params + merge + sink in one DAG.
+    #     merge into a report, and end at a sink: sources, wires, parameters, a merge and a sink in one pipeline.
     {
         "name": "Site Analysis (Combined)",
         "nodes": [

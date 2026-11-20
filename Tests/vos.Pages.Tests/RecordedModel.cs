@@ -2,11 +2,9 @@ using System.Text.Json;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// What a running Mycelium answered for the shared test seed, read back from the recording: the Things
-/// each selector reached, the answer of each read a page made, and each page as the reader resolved it
-/// in Node. A question the recording holds no answer for fails the test that asked it.
-/// </summary>
+// What a running Mycelium answered for the shared test seed, read back from the recording: the Things
+// each selector reached, the answer of each read a page made, and each page as the reader resolved it
+// in Node. A question the recording holds no answer for fails the test that asked it.
 internal sealed class RecordedModel : IPageReads
 {
     private readonly JsonElement _recording;
@@ -67,6 +65,6 @@ internal sealed class RecordedPage(JsonElement page)
         .Select(scope => new PageScope(scope.GetProperty("id").GetString()!, scope.GetProperty("name").GetString()!))
         .ToList();
 
-    /// <summary>The page as Node resolved it for one scope, or for none.</summary>
+    // The page as Node resolved it for one scope, or for none.
     public JsonElement AnswerFor(string? scopeId) => page.GetProperty("answers").GetProperty(scopeId ?? "");
 }

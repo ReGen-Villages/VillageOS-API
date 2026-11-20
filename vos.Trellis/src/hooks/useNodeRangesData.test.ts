@@ -57,7 +57,7 @@ describe('useNodeRangesData', () => {
       rerender({ version: 2 });
       await act(() => Promise.resolve());
 
-      // Should still be exactly 1 fetch — snapshot hasn't changed
+      // The snapshot has not changed.
       expect(mockGetSummary).toHaveBeenCalledTimes(1);
     });
 

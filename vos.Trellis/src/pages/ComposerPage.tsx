@@ -18,14 +18,9 @@ import { formatPropertyValue } from '../utils/formatters';
 import { columnKey, hopsOf, pageOf, tableOf, unresolvedNames } from '../utils/composer';
 
 /**
- * Composing a table from a kind of Thing.
- *
- * Everything offered here is read off the model the console holds — the properties a kind
- * declares, the links its instances carry, the states it derives — so a person chooses from the
- * model's own words and never types a name blind. What the choices become is the same roster
- * binding a seeded page carries, drawn by the same table, so the search and the card a row opens
- * come with it — and kept, when asked, as the same Dashboard Thing a seeded page is, so it stands
- * in the sidebar for everyone who opens the console.
+ * Everything offered is read off the model the console holds, so a person chooses from the model's own words
+ * rather than typing a name. The choices become the roster binding a seeded page carries, drawn by the same
+ * table with its search and row card, and kept as the same Dashboard Thing, so it shows in everyone's sidebar.
  */
 
 const OPERATORS: PropertyFilter['operator'][] =['=', '!=', '>', '>=', '<', '<='];
@@ -79,9 +74,8 @@ export function ComposerPage() {
   const statesOf = useStatesByKind(modelIndex);
   const states = statesOf(kind) ?? NO_STATES;
 
-  /** A moment carries no state, so choosing one takes the state choices off the composition rather
-   *  than leaving columns nothing can answer — the sort with them when it named the column that
-   *  went. */
+  /** A moment carries no state, so choosing one takes the state choices off rather than leave columns nothing
+   *  can answer, and the sort with them where it named a column that went. */
   const chooseMoment = (chosen: string) => {
     setMoment(chosen);
     if (!instantOf(chosen)) return;

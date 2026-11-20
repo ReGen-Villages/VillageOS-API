@@ -72,7 +72,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
     const widget: BulletWidget = {
       type: 'bullet',
       rows: [
-        // A misconfigured/legacy row: default max=1 with a band that runs to 2.0.
+        // A row written wrongly: the default max of 1 with a band that runs to 2.0.
         { label: 'Water — resilience', value: bind('daysOfSupply', 0), target: 1, band: [1, 2] },
       ],
     };

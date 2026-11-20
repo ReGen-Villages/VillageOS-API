@@ -1,17 +1,11 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { NOTIFIED_CONNECTION_ROLE_ID, PREDICATE_ROLE_ID, statedProperties, wordingIn, wordsInLanguage } from '@tendril-ui/tendril';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
-// ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
-// `is`, `has`, `of` and `binds` are the platform's own built-in predicates and are matched by name. Which Thing
-// plays which role is not a name at all: each role is a Thing the model declares under a fixed identifier, and
-// it binds the Thing playing it along `binds` — the same contract Phloem reads, so a model may call every
-// archetype and predicate below whatever suits it.
+// Reads the graph as Phloem does. `is`, `has`, `of` and `binds` are the platform's own predicates and are
+// matched by name; every other role is a Thing under a fixed identifier that binds what plays it along `binds`,
+// so a model may name its archetypes and predicates as it likes.
 
-/** Each role's identifier is the standard version 5 identifier of the role's word, so every model declares the
- *  same role Thing. Archetypes first; then the predicates the platform calls services on, what an external system
- *  sends and is told, where a kind of message arrives, what a boundary node stands for, and which pipeline a
- *  connection's trigger starts. */
+/** Each identifier is the version 5 identifier of the role's word, so every model declares the same role Thing. */
 export const ROLE = {
   Pipeline: 'f8bc9986-6eef-54d9-9940-4aca2497109b',
   PipelineNode: 'f273f058-e3d6-5a20-aa37-34638ce64735',
@@ -608,7 +602,7 @@ export class PipelineModel {
   }
 
   /** Does this Thing `is`, directly or through its `is`-chain, what the role binds? The walk starts above the
-   *  Thing, so an archetype never plays its own role (memoised: pure over the graph). */
+   *  Thing, so an archetype never plays its own role. Remembered, because the graph does not change within a build. */
   isOf(thingId: string, roleId: string): boolean {
     const key = `${thingId} ${roleId}`;
     const cached = this.roleCache.get(key);
@@ -727,28 +721,26 @@ export class PipelineModel {
     return this.things.find((t) => t.Name === name)?.Id;
   }
 
-  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
-   * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
-   * node's aggregate record (no `index`) drives the ring; per-item fan-out records are counted separately. */
+  /** Phloem records each node's progress on a node-run Thing the run `has`. Only the node's whole record, the one
+   *  with no `index`, drives its status ring; the records per item are counted in nodeRunProgress. */
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       const stated = this.stated(nodeRun.Id);
-      if (stated.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
+      if (stated.index !== undefined) continue; // a record per item, counted in nodeRunProgress
       const nodeId = stated.nodeId;
       if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(stated.status ?? '');
     }
     return out;
   }
 
-  /** Fan-out progress per node, from the per-item records (those carrying an `index`): how many of the items that
-   * reached the node have finished, and how many items there were where they were spread out. Items can go on to
-   * different nodes, so a node's own count is the records it has, not the first count. Empty for non-fan-out nodes. */
+  /** From the records per item, which carry an `index`. Items can go on to different nodes, so a node's count is
+   *  the records it has, not the first count. Empty for a node that does not spread items out. */
   nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
     const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       const stated = this.stated(nodeRun.Id);
-      if (stated.index === undefined) continue; // aggregate record
+      if (stated.index === undefined) continue; // the node's whole record
       const nodeId = stated.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
@@ -765,7 +757,7 @@ export class PipelineModel {
     return typeof s === 'string' ? s : undefined;
   }
 
-  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel. */
+  /** Finished and running runs, each a Thing `of` the pipeline, newest first. */
   runsOf(pipelineId: string): RunInformation[] {
     const runs: RunInformation[] = [];
     for (const t of this.things) {

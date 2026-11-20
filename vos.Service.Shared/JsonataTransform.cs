@@ -6,7 +6,7 @@ using Jsonata.Net.Native.Json;
 namespace vos.Service.Shared;
 
 // The single JSONata engine wiring for the platform: Tributary reshapes endpoint responses,
-// Phloem reshapes values on a pipeline wire — both go through this one wrapper rather than each newing up the
+// Phloem reshapes values on a pipeline wire — both go through this one wrapper rather than each making its own
 // engine. A JSONata expression compiles once (the ctor throws on a syntax error) and is evaluated many times.
 public sealed class JsonataTransform
 {

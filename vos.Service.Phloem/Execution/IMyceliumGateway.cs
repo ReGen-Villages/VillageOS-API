@@ -6,9 +6,9 @@ namespace vos.Service.Phloem.Execution;
 
 public sealed record NodeCallResult(int StatusCode, string Body);
 
-// Everything the executor needs from Mycelium, behind a seam so the orchestration logic is
-// unit-testable without HTTP. The HTTP implementation is MyceliumGateway; run-persistence calls are
-// best-effort (the executor never lets a persistence failure abort a run).
+// Everything the executor needs from Mycelium, behind an interface so the executor is tested without
+// HTTP. The HTTP implementation is MyceliumGateway. The executor treats most run-record writes as best
+// effort, but a run that cannot be created does not start and a wait that cannot be written fails.
 public interface IMyceliumGateway
 {
     Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken);
@@ -48,7 +48,7 @@ public interface IMyceliumGateway
         Guid? callRecordId = null);
 
     // Upsert a NodeRun Thing and set its status — running before its service is called, then the terminal
-    // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
+    // status — on one Thing per key (deterministic id) so the live view sees a property change, not duplicate
     // Things. With index null this is the node's aggregate NodeRun (drives the
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status
     // carries the outputs, which a resumed run reads back from the model. A waiting status writes the watch's two
@@ -79,7 +79,7 @@ public interface IMyceliumGateway
     Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken cancellationToken);
 
     // Store the pipeline's published result (the Output boundary node's collected inputs) on the
-    // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.
+    // PipelineRun Thing, so it persists in the model and reaches the change stream like any other property.
     Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
 
     // Whether a relationship the broker sends was written along the connection the runStopping role binds.

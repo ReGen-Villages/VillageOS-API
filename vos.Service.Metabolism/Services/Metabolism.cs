@@ -24,10 +24,10 @@ public class Metabolism
     }
 
     // Raised when a relationship gains a simulation via a /handle request — the
-    // subscription coordinator adds it to the SSE membership so its changes are streamed.
+    // subscription service adds it to what the subscription follows so its changes are streamed.
     public event Action<SimulationConfig>? RelationshipRegistered;
 
-    // Raised when a simulation is cancelled — the coordinator drops it from membership.
+    // Raised when a simulation is cancelled — the subscription service stops following it.
     public event Action<SimulationConfig>? RelationshipCancelled;
 
     public SimulationEntry Register(SimulationConfig config, HeldModelToken token)
@@ -104,8 +104,8 @@ public class Metabolism
         }
         else
         {
-            // Stagger initial ticks to avoid thundering herd on startup.
-            // Each simulation waits (order * 200ms) + random jitter before first tick.
+            // First ticks are staggered so simulations started together do not all write at once:
+            // each waits (order * 200ms) plus a random amount before its first tick.
             var staggerMs = (order * 200) + Random.Shared.Next(0, 500);
             _logger.LogDebug("Simulation {RelId}: staggering initial tick by {Ms}ms", config.RelationshipId, staggerMs);
             await Task.Delay(staggerMs, ct);
@@ -158,7 +158,7 @@ public class Metabolism
 
     public virtual void UpdateProperty(string relationshipId, string propertyName, object? newValue)
     {
-        // Lock so rapid sequential changes (e.g. quantity then frequencySeconds) don't race —
+        // Lock so rapid sequential changes (such as quantity then frequencySeconds) don't race —
         // without this, both threads read the same old config and the first change is lost.
         lock (_updateLock)
         {

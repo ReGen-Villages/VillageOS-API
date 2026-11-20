@@ -3,7 +3,7 @@ import { askedOfTheBroker, statesRead } from '@tendril-ui/tendril';
 import { BINDING_FIELDS } from './bindingVocabulary';
 import type { Binding } from '@tendril-ui/tendril';
 
-/** One binding of every kind the vocabulary declares, each reading a state where its kind can. */
+/** Each reads a state where its kind can. */
 const ONE_OF_EACH: Record<Binding['kind'], Binding> = {
   const: { kind: 'const', value: 1 },
   property: { kind: 'property', thing: '$scope', property: 'area' },

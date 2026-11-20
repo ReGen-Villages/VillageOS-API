@@ -701,8 +701,8 @@ public class MyceliumClientTests
         (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
     }
 
-    // Bug 7873: on a loaded build agent the broker answered a relationship write in up to fifteen seconds,
-    // and a client that gave it ten reported the source as failed while the write went on to land.
+    // On a loaded build agent the broker can take up to fifteen seconds to answer a relationship write, and a
+    // client that gave it ten would report the source as failed while the write went on to land.
     [Theory]
     [InlineData("FindThingByNameAsync")]
     [InlineData("CreateThingAsync")]

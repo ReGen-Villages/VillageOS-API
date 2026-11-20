@@ -2,10 +2,8 @@ using System.Text.Json;
 
 namespace vos.Pages;
 
-/// <summary>
-/// The object the bundle asks its reads of. The bundle names the read and gives its arguments as a JSON
-/// list, and gets the answer back as JSON through a promise.
-/// </summary>
+// The object the bundle asks its reads of. The bundle names the read and gives its arguments as a JSON
+// list, and gets the answer back as JSON through a promise.
 public sealed class ReadsForTheEngine(IPageReads reads, CancellationToken cancellation)
 {
     private const string NoAnswer = "null";

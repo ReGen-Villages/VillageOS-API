@@ -47,7 +47,7 @@ def client(config):
 
 @pytest.fixture
 def signing(config, pair):
-    """Enable JWT auth against a stand-in for Mycelium's key pair; yields the private half."""
+    """Turn on token checking against a stand-in for Mycelium's key pair; yields the private half."""
     config.verification_key = verification_key_of(pair)
     config.issuer = "VillageOS"
     config.audience = THIS_HANDLER

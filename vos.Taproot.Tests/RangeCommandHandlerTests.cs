@@ -121,7 +121,6 @@ public class RangeCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse("{\"Name\":\"nominal\"}");
-        // Using criteria without spaces for simplicity in testing
         _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>=20", "temp", It.IsAny<object>()))
             .ReturnsAsync(mockResponse.RootElement);
 
@@ -345,7 +344,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        // Unknown option should be ignored
         await ExecuteHandler($"create {thingId} nominal temp>0 --unknown value");
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);
@@ -359,7 +357,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        // Option without value at end should be ignored (index + 1 >= args.Length)
         await ExecuteHandler($"create {thingId} nominal temp>0 --property");
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);
@@ -373,7 +370,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        // Non-numeric bounds-min should be ignored
         await ExecuteHandler($"create {thingId} nominal temp>0 --bounds-min not-a-number");
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);
@@ -387,7 +383,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        // Non-numeric bounds-max should be ignored
         await ExecuteHandler($"create {thingId} nominal temp>0 --bounds-max abc");
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);

@@ -1,11 +1,7 @@
 /**
- * What a property's declared type means for editing it: which control to offer, and whether the
- * text in that control is something the type can actually hold.
- *
- * The platform converts an incoming value to the property's stored type and rejects what it cannot
- * convert, and that stays the authority. Checking here is not to make that check redundant — it is
- * to catch the mistake at the keystroke, where the user can still see what they typed, rather than
- * after a round trip as a message detached from the field that caused it.
+ * The platform converts a value to the property's stored type and refuses what it cannot convert, and its
+ * check is the one that counts. This one catches the mistake at the keystroke, where the person can still
+ * see what they typed, rather than as a message after a round trip, away from the field that caused it.
  */
 
 export type EditorKind = 'checkbox' | 'dateTime' | 'wholeNumber' | 'number' | 'text' | 'readOnly';
@@ -57,8 +53,7 @@ export function rejectionKeyForType(text: string, type: string): RejectionKey | 
 
   switch (editorForType(type)) {
     case 'wholeNumber':
-      // Rejecting a fraction is not tidiness: the platform would convert it and drop the fractional
-      // part, which is exactly the quiet wrong answer this work exists to remove.
+      // A fraction is refused because the platform would convert it and drop the fractional part without a word.
       return WHOLE_NUMBER.test(trimmed) && Number.isFinite(Number(trimmed))
         ? null
         : 'panels.properties.rejected.wholeNumber';

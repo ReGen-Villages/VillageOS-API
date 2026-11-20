@@ -226,9 +226,6 @@ public class DeclaredVocabularyReaderTests
             .NotContain("garden-demand", "Thing names are matched exactly, case included");
     }
 
-    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
-    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
-    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_soil_depths_reads_them_with_the_predicate_a_horizon_assesses_along()
     {
@@ -250,6 +247,9 @@ public class DeclaredVocabularyReaderTests
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
     }
 
+    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
+    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
+    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_no_water_demands_reads_none_rather_than_refusing()
     {

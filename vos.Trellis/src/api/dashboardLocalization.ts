@@ -1,16 +1,8 @@
 /**
- * Render-time localization of a model-supplied {@link DashboardSpec}.
- *
- * A model author keeps writing the specification in one base language and adds a single
- * `translations` block: `{ [locale]: { [baseString]: translatedString } }`.
- * `localizeSpecification` returns a copy of the specification with every human-facing label
- * replaced by its translation in the active locale, falling back to the base
- * text whenever the locale — or a given string within it — is absent.
- *
- * Only display strings are translated. Everything a binding resolves against —
- * state names, archetypes, property keys, predicate names, row keys, endpoints,
- * colours, formats — is model vocabulary and passes through untouched, so a
- * label that happens to match a binding value can never corrupt resolution.
+ * A model writes its specification in one language and adds a `translations` block,
+ * `{ [locale]: { [baseString]: translatedString } }`; a missing locale or string falls back to the base text.
+ * Only display strings are translated. Everything a binding resolves against is model vocabulary and passes
+ * through untouched, so a label that matches a binding value can never change what it resolves to.
  */
 import type {
   Binding,
@@ -47,9 +39,8 @@ import { primarySubtag } from '@tendril-ui/tendril';
 
 type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 
-/** The strings a locale reads: the primary-subtag block overlaid with the exact-tag
- *  one, so a model that authors `ar` once serves both `ar-SA` and `ar-AE`, and an
- *  `ar-AE` block need only carry the words that differ. */
+/** The language's block with the exact locale's laid over it, so `ar` written once serves `ar-SA` and
+ *  `ar-AE`, and an `ar-AE` block carries only the words that differ. */
 function translationsFor(specification: DashboardSpecification, locale: string): Record<string, string> | undefined {
   const regional = specification.translations?.[locale];
   const language = specification.translations?.[primarySubtag(locale)];
@@ -69,10 +60,8 @@ function localizeColumns(columns: TableColumn[] | undefined, tr: SpecificationTr
   return columns?.map((column) => ({ ...column, label: tr(column.label) }));
 }
 
-/** A verdict's and an origin's wording are the display strings the vocabulary keeps on a binding, so
- *  they are translated where every other binding value is not. What sits beside each stays as the
- *  model wrote it: a state name is resolved against the platform's derived states, and an origin is
- *  one of the four the model's declarations answer with. */
+/** A verdict's and an origin's wording are the only display strings a binding keeps, so they alone are
+ *  translated. The state name and origin beside them stay as written, because the platform resolves them. */
 function localizeWording(binding: Binding | undefined, tr: SpecificationTranslator): Binding | undefined {
   if (binding?.kind === 'verdict') {
     return {
@@ -158,9 +147,8 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       return w;
     }
     case 'working': {
-      // The label and the unit are the specification's words. The formula and the input names are not — they are
-      // the model's own property names, and a translation of one would name a property the model does
-      // not have.
+      // The label and unit are the specification's words; the formula and input names are the model's property
+      // names, and a translated one would name a property the model does not have.
       const w: WorkingWidget = {
         ...widget,
         title: tr(widget.title),
@@ -354,9 +342,8 @@ export function localizeSpecification(specification: DashboardSpecification, loc
   return localizeWith(specification, makeSpecificationTranslator(specification, locale));
 }
 
-/** Every display string the localiser would translate, once each, in the order it walks them —
- *  the same walk, with a translator that records instead of translating, so a string the localiser
- *  reads is never one a translations panel forgot to offer. */
+/** The localiser's own walk with a translator that records, so a translations panel never misses a
+ *  string the localiser reads. */
 export function displayStringsOf(specification: DashboardSpecification): string[] {
   const seen: string[] = [];
   const recording = (<T extends string | undefined>(text: T): T => {

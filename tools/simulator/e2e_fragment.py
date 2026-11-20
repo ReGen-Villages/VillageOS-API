@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""End-to-end check: drive the (fragment-emitting) simulator against a LIVE Mycelium and prove that
-`POST /api/model/fragment` resolves lazy inheritance (invariant I1) server-side.
+"""End-to-end check: play the simulator against a live Mycelium and show that
+`POST /api/model/fragment` stores a value a Thing gives for an inherited name as an override.
 
-It replays a tiny timeline through :class:`simulator.Simulator` — an archetype ``A`` that owns
-``code`` (string) + ``capacity`` (decimal), then an instance ``X`` that carries its OWN values for
-those names and ``is A``. The simulator coalesces ``X``'s create + its ``is`` edge into a single
-``apply_fragment`` (``POST /api/model/fragment``); the server creates ``X`` bare, establishes the
-edge, and materializes ``X``'s values as OVERRIDES. Sending ``X`` with own ``code``/``capacity``
-BEFORE the edge would trip I1 on the granular path — the whole point is that it does not here.
+A Thing may not hold a property of its own under a name it inherits. The timeline played here has
+an archetype ``A`` that declares ``code`` (text) and ``capacity`` (decimal), then an instance ``X``
+that gives its own values for those names and ``is A``. The simulator sends ``X`` and its ``is``
+relationship as one ``apply_fragment``; the server creates ``X`` bare, adds the relationship, and
+stores ``X``'s values as overrides. Sent as separate creates, ``X``'s own values would arrive before
+the relationship and be refused.
 
 Asserts, reading ``X`` back:
-  * the replay raised no 400 (no I1),
-  * ``X``'s own ``Properties`` does NOT contain ``code``/``capacity`` (they are not owned),
+  * the run was refused nothing,
+  * ``X``'s own ``Properties`` does not contain ``code`` or ``capacity``,
   * both appear under ``InheritedProperties`` as overrides, with ``capacity`` still ``250.5``
-    (decimal not truncated).
-Then it deletes the two test Things. Ids are deterministic (``stable_id``), so the endpoint's upsert
-makes re-runs idempotent even if a prior run did not clean up.
+    (the decimal not cut to a whole number).
+Then it deletes the two test Things. Ids are derived (``stable_id``) and the route updates what is
+already there, so the check can run again even if an earlier run did not clean up.
 
 Usage:
-  export VOS_TOKEN=<editor/admin JWT>        # or VOS_API_KEY=<key> and a token is minted from it
+  export VOS_TOKEN=<editor or admin token>   # or VOS_API_KEY=<key>, and a token is fetched with it
   python3 e2e_fragment.py --url http://localhost:50000 [--model-id <id>]
-  # --is-predicate <guid>   pin the built-in `is` predicate Thing id (auto-resolved from the model otherwise)
+  # --is-predicate <id>   the built-in `is` predicate's Thing id (otherwise looked up in the model)
 
 Exit code 0 = all checks passed, 1 = a check failed or the run errored.
 """
@@ -75,9 +75,8 @@ def main(argv) -> int:
     A = M.stable_id(tag, "archetype-A")
     X = M.stable_id(tag, "instance-X")
 
-    # ── timeline: archetype A (setup) + paced instance X that `is` A ──
-    # X carries its OWN code/capacity AND its is-relationship at the same paced offset, so the simulator folds
-    # them into ONE apply_fragment. The server must turn those into overrides (not owned) — no I1.
+    # X carries its own code and capacity and its `is` relationship at one offset, so the simulator sends
+    # them as one apply_fragment, and the server must store the values as overrides.
     timeline = [
         S.Action(0, 0, "setup", "create_thing",
                  {"name": "E2E-Archetype", "thing_id": A,

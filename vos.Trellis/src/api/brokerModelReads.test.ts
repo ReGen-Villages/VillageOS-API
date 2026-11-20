@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ThingRangesResponse, ThingsInStateResponse } from '@tendril-ui/tendril';
 
-// Only the calls are stubbed. The request builder these share by lives in stateQuery and is left
-// alone: the shared-request key is the path a narrowed read asks for, so a stubbed builder would
-// prove sharing that the running client does not do.
+// Only the calls are stubbed: the sharing key is the path stateQuery builds, so a stubbed builder would
+// prove sharing the running client does not do.
 vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
 vi.mock('./rangeApi', () => ({ rangeApi: { getAll: vi.fn() } }));
@@ -30,10 +29,7 @@ describe('what one refresh generation asks the broker', () => {
     vi.mocked(apiClient.post).mockReset().mockResolvedValue({ reservoirs: 3 });
   });
 
-  // A table and the figure beside it read the same list from the same service, and a service
-  // answers each by walking what it holds — so asking twice a refresh doubles that walk for one
-  // answer. The question is the endpoint and what is sent to it, never the path picked out of the
-  // answer: two widgets reading different parts of one reply are still one question.
+  // A service reads all it holds to answer, so two widgets reading different parts of one reply still ask once.
   it('asks a service one question once, however many widgets ask it', async () => {
     const reads = brokerModelReads();
 
@@ -94,8 +90,6 @@ describe('what one refresh generation asks the broker', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
   });
 
-  // Two widgets narrowing one state differently must not be handed each other's answer, which would
-  // put a wrong number on screen with nothing to say so.
   it('asks again when the same state is narrowed differently', async () => {
     const reads = brokerModelReads();
 
@@ -105,8 +99,6 @@ describe('what one refresh generation asks the broker', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
   });
 
-  // One broker hiccup would otherwise stick to every later reader of this generation, with nothing
-  // to retry it until the next refresh.
   it('drops a failed state read rather than sharing it', async () => {
     const reads = brokerModelReads();
     vi.mocked(stateApi.getThingsInState).mockRejectedValueOnce(new Error('broker unreachable'));
@@ -116,8 +108,7 @@ describe('what one refresh generation asks the broker', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
   });
 
-  // A study's judge-ranges sit on its archetype, so several verdict rows on one page ask about one
-  // Thing and would otherwise each fetch the same answer.
+  // A study's ranges sit on its archetype, so several verdict rows on one page ask about one Thing.
   it('asks for one Thing\'s ranges once', async () => {
     const reads = brokerModelReads();
 
@@ -134,8 +125,6 @@ describe('what one refresh generation asks the broker', () => {
     await expect(reads.thingRanges('study1')).resolves.toBeNull();
   });
 
-  // Each generation is discarded when the model moves on. A map outliving one would serve a
-  // membership the model has since moved past.
   it('shares nothing with the generation before it', async () => {
     await brokerModelReads().thingsInState('flagged');
     await brokerModelReads().thingsInState('flagged');

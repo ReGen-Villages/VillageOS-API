@@ -57,16 +57,12 @@ describe('a widget asking for binding vocabulary this build cannot answer', () =
     expect(screen.getByText(/smoothing/)).toBeInTheDocument();
   });
 
-  // The figure is the defect: a widget drawn from a question only half understood shows a number in
-  // the right units and the wrong size, which reads as an answer rather than as a gap.
   it('does not draw the widget it refused', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { kind: 'runningTotal', property: 'volume' } });
 
     expect(screen.queryByText('Throughput')).toBeNull();
   });
 
-  // A specification can leave the word out as easily as misspell it, and the notice is a translated sentence
-  // either way — so the gap where the word would be is filled in the reader's own language.
   it('says the kind was not given where the specification names none', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { property: 'volume' } });
 

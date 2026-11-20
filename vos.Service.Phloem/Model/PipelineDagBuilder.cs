@@ -128,8 +128,9 @@ public static class PipelineDagBuilder
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
     {
-        // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
-        // are an Input source (params → outputs) or an Output sink (inputs → run result).
+        // Boundary nodes bind no Connection or Service: they declare their own ports (each a Port they
+        // `has`) and are an Input source, turning run parameters into outputs, or an Output sink, turning
+        // inputs into the run's result.
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))

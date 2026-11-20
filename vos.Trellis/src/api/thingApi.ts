@@ -4,17 +4,16 @@ import type { VosTypeName } from '../utils/constants';
 import { unwrapThing } from '@tendril-ui/tendril';
 
 export const thingApi = {
-  // `properties` narrows what each Thing carries to the names the model declared it is drawn
-  // with. Undefined asks for everything, which is what a model that declares nothing wants — its
-  // properties may be the live values a dashboard is watching, and deferring those helps nobody.
+  // `properties` narrows each Thing to the names the model says it is drawn with. Undefined asks for
+  // everything, which a model that declares nothing wants, because its properties may be live values a
+  // dashboard is showing.
   getAll: async (properties?: readonly string[]) => {
     const query = properties?.length ? `?properties=${encodeURIComponent(properties.join(','))}` : '';
     const things = await apiClient.get<VosThing[]>(`/api/things${query}`);
     return things.map(unwrapThing);
   },
 
-  /** The one Thing a role binds, or null when the model binds nothing under it — a model with nothing to
-   *  say is answered with a 404, which is an answer rather than a failure. */
+  /** A 404 means the model binds nothing under the role, which is an answer rather than a failure. */
   getBoundBy: async (roleId: string) => {
     try {
       const thing = await apiClient.get<VosThing>(`/api/things?boundBy=${roleId}`);
@@ -30,10 +29,9 @@ export const thingApi = {
     return unwrapThing(thing);
   },
 
-  /** The Thing as it stood at one instant: the values it held then and nothing worked out from what
-   *  the model holds now. Null where the platform answers nothing for that instant — the Thing did not
-   *  exist yet, or the past it would take to answer has been reclaimed. A Thing retracted since then
-   *  still answers, because this route resolves before the active filter. */
+  /** The values it held then, with nothing worked out from the model now. Null where the Thing did not yet
+   *  exist or that past has been reclaimed. A Thing retracted since still answers, because this route
+   *  resolves before the filter that hides retracted Things. */
   getAtInstant: async (id: string, instant: string, signal?: AbortSignal) => {
     try {
       const thing = await apiClient.get<VosThing>(
@@ -59,8 +57,8 @@ export const thingApi = {
   remove: (id: string) =>
     apiClient.action(`delete Thing ${id}`, () => apiClient.del<{ message: string }>(`/api/things/${id}`)),
 
-  // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
-  // persists a NameSet Fact, so the change streams over SSE and is temporally reconstructable.
+  // Keeps the Thing's identifier and relationships, unlike deleting and creating it again; the broker records
+  // the rename, so it reaches every page and a past read still finds the old name.
   rename: async (id: string, name: string) => {
     const thing = await apiClient.action(`rename Thing ${id} to "${name}"`, () =>
       apiClient.put<VosThing>(`/api/things/${id}/name`, { Name: name }),
@@ -68,9 +66,8 @@ export const thingApi = {
     return unwrapThing(thing);
   },
 
-  // Update only: the platform answers "Property does not exist on the thing" when the property is
-  // absent, and keeps the type the property already has whatever `type` says. Use addProperty to
-  // create one — that is the call whose `type` decides what the property will hold.
+  // Updates only: the platform refuses a property that does not exist, and keeps the type it already has
+  // whatever `type` says. addProperty creates one, and its `type` decides what the property holds.
   setProperty: async (id: string, name: string, type: VosTypeName, value: unknown) => {
     const thing = await apiClient.action(`set property "${name}" on Thing ${id}`, () =>
       apiClient.put<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value }),
@@ -93,11 +90,8 @@ export const thingApi = {
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),
 
-  // Each Thing's own and inherited properties keyed by Thing id, where a Thing's own value replaces the one it inherits.
-  //
-  // `ids` narrows it to a named set. Leaving it out reads every thing, which on a large model
-  // is more than the model load itself — only a surface that genuinely works across the whole model,
-  // like searching every property, should do that.
+  // A Thing's own value replaces the one it inherits. Without `ids` this reads every Thing, more than the
+  // model load itself on a large model, so only a page working across the whole model should leave it out.
   getAllProperties: (ids?: readonly string[]) => {
     const narrowing = ids?.length ? `&ids=${encodeURIComponent(ids.join(','))}` : '';
     return apiClient.get<Record<string, Record<string, EffectiveProperty>>>(

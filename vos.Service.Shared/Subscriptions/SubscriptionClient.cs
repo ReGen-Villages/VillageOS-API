@@ -20,8 +20,8 @@ public interface ISubscriptionClient
     event Action? Reconnected;
 }
 
-// Subscribe once for a snapshot, then stream live changes over SSE, resuming via Last-Event-ID
-// so no change is missed or double-applied across drops.
+// Subscribe once for a snapshot, then stream live changes, resuming from the last event id seen so no
+// change is missed or applied twice across a dropped connection.
 public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -108,7 +108,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
                     if (change is null) continue;
                     if (change.Sequence > 0)
                     {
-                        if (change.Sequence <= lastSequence) continue; // replay overlap
+                        if (change.Sequence <= lastSequence) continue; // a resumed stream can repeat what was already seen
                         lastSequence = change.Sequence;
                     }
                     yield return change; // an entry or departure carries no id and moves nothing; the change after it does

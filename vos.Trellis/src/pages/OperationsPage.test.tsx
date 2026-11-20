@@ -430,8 +430,8 @@ describe('OperationsPage on a specification authored wrong', () => {
   });
 });
 
-// One open dashboard asked the platform tens of times a second on a running model: every live
-// event re-resolved every widget, and property changes are the highest-rate event there is.
+// Property changes are the most frequent live event, so resolving every widget again on each one would ask
+// the platform many times a second.
 describe('what a live event makes the page ask again', () => {
   const stateReads = () => vi.mocked(stateApi.getThingsInState).mock.calls.length;
 
@@ -439,7 +439,7 @@ describe('what a live event makes the page ask again', () => {
     for (let count = 0; count < times; count += 1) streamHandlers.get(event)?.forEach((handler) => handler(data));
   }
 
-  /** The stream's own beat: the states counter the model-data hook moves on a StatesChanged. */
+  /** Moves the states counter, as the model-data hook does on StatesChanged. */
   function statesMoved(states: string[]): void {
     useUiStore.getState().statesMoved(states);
     arrived('StatesChanged', 1, { entityId: 'p1', currentStates: states });
@@ -520,7 +520,7 @@ describe('what a live event makes the page ask again', () => {
   });
 
   // The event that takes a Thing out of a state names the states it still holds and never the one it
-  // left, so a page stating no cadence keeps the live event as the beat its figures fall back on.
+  // left, so a page stating no refresh rate keeps the live event as what its figures refresh on.
   it('keeps the live event as the beat on a page stating no cadence', async () => {
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();

@@ -290,7 +290,7 @@ public class ItemsGoOnByThemselvesTests
         (await running).Success.Should().BeTrue();
     }
 
-    // The fault this guards: a fetch box called every slice of a long history at once and the broker fell behind (Bug 8455).
+    // A fetch box calling every slice of a long history at once would leave the broker behind.
     [Fact]
     public async Task A_node_holding_one_item_at_once_calls_the_next_item_only_when_the_one_before_has_answered()
     {

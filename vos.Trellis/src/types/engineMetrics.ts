@@ -1,6 +1,4 @@
-/** Shapes served by GET /api/engines/metrics — the per-model capacity summary of the two
- *  reactive engines. Counts and a deterministic footprint estimate; reading one never evaluates a
- *  range or a reduction. */
+/** GET /api/engines/metrics: counts and an estimate of size, so reading it never works out a range or a reduction. */
 
 interface RangeEngineMetrics {
   RegisteredRanges: number;

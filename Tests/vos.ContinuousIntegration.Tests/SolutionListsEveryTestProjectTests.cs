@@ -6,8 +6,8 @@ namespace vos.ContinuousIntegration.Tests;
 // The build runs the tests by handing the runner the solution, so the solution decides what runs. A
 // test project that nobody added to it is still built, still passes locally under its own project,
 // and is simply never run on the agent — and a suite that does not run leaves no mark on a green
-// build. Before, the build matched test projects by wildcard and a new one was picked up by having
-// been written; this is what replaces that.
+// build. The build lists the solution rather than matching test projects by wildcard, so this is what
+// makes a new one run.
 public class SolutionListsEveryTestProjectTests
 {
     [Fact]

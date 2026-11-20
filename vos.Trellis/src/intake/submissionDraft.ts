@@ -27,7 +27,7 @@ export type StepId = (typeof STEPS)[number];
 /**
  * How a boundary came to be, in the words the land-intake template declares and the intake service
  * resolves against the model. The wizard states this itself rather than asking — it knows whether it
- * generated the square — so these are the two declared terms it can truthfully submit.
+ * generated the square — so these are the declared terms it can truthfully submit.
  */
 export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
 export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';

@@ -7,8 +7,8 @@ using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
-// DAG resolution + validation: build the executable DAG from the loaded graph and
-// validate it acyclic with type-compatible wires.
+// Building the PipelineDag from the loaded graph, and checking it has no cycle and that every wire joins
+// matching types.
 public class PipelineModelTests
 {
     [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.
@@ -171,7 +171,7 @@ public class PipelineModelTests
     }
 
     // The whole point of role Things: a model may call its archetypes anything, and a deployment that
-    // renames them used to leave this orchestrator starting cleanly and finding nothing.
+    // renames them would otherwise leave this orchestrator starting cleanly and finding nothing.
     [Fact]
     public void Build_WhenTheModelNamesEveryArchetypeSomethingElse_ResolvesTheSameDag()
     {
@@ -239,7 +239,7 @@ public class PipelineModelTests
     }
 
     // One role left unbound is refused by name rather than being read as "no node plays that role", which
-    // is the silence this replaced.
+    // would fail without a word.
     [Fact]
     public void Build_WhenOneRoleIsUnbound_NamesOnlyThatRole()
     {

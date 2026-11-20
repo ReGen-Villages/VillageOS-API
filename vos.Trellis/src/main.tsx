@@ -7,7 +7,7 @@ import App from './App.tsx'
 import i18n from './i18n'
 import { useUiStore } from './stores/uiStore'
 
-// Exposed for the screenshot-capture script and dev tools.
+// Reachable from the browser's developer tools while developing.
 if (import.meta.env.DEV) {
   (window as Window & { __vosStore?: typeof useUiStore }).__vosStore = useUiStore;
 }

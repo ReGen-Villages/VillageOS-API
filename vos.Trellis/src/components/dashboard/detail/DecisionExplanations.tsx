@@ -1,10 +1,6 @@
 /**
- * Why a service decided about the Thing this card is open on: what it chose, the rule it decided
- * under, what spoke for the choice and what turned candidates away.
- *
- * Both halves are drawn by one renderer, because both are the same Thing held through a different
- * predicate. Every number a constraint names was read as it stood when the decision was taken, so a
- * card explaining this morning's decision shows this morning's values; a value the platform cannot
+ * One renderer draws both halves, because both are the same Thing held through a different predicate. Every
+ * number a constraint names is read as it stood when the decision was taken, and a value the platform cannot
  * answer for that instant reads as not recorded rather than as today's.
  */
 import { useMemo, useState } from 'react';

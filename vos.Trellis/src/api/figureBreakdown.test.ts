@@ -5,7 +5,7 @@ import type { ModelReads } from '@tendril-ui/tendril';
 import { buildModelIndex, type ResolveContext, type Row } from '@tendril-ui/tendril';
 import { breakdownOf, hasBreakdown } from './figureBreakdown';
 
-/** Stamp the archetype declaration a real model carries on everything something `is`. */
+/** Stamps the declaration a real model carries on everything something `is`. */
 function declared(things: VosThing[], relationships: VosRelationship[]): VosThing[] {
   const targets = new Set(relationships.filter((r) => r.PredicateId === 'is').map((r) => r.TargetId));
   return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));

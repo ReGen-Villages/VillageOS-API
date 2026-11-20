@@ -2,8 +2,8 @@
 /**
  * Generates an Azure DevOps project wiki from a repository's own markdown.
  *
- * The repository is the source of truth: every page is produced from a file listed in the
- * manifest, so a page cannot fall behind the document it documents.
+ * Every page is produced from a file listed in the manifest, so a page always says what its document
+ * in the repository says.
  *
  * The manifest names the wiki it publishes to, so a repository that keeps its own documentation
  * drives this tool with its own manifest rather than carrying a copy of it.
@@ -27,10 +27,8 @@ function attachmentName(file, bytes) {
 
 /** The markdown a clone of the repository would contain. A file git ignores is a working note
  *  somebody keeps locally, so the wiki manifest is never expected to account for it. */
-// Walked rather than listed from two known directories: a document is a decision wherever it sits, and
-// one written outside them used to be invisible here — neither published nor recorded as withheld.
-// These are skipped for speed, not for correctness; git ignores them anyway, and check-ignore below is
-// what actually decides.
+// The whole repository is walked, so a document anywhere must be published or recorded as withheld.
+// These folders are skipped only for speed: git ignores them anyway, and check-ignore below decides.
 const NOT_WORTH_WALKING = new Set(['.git', 'node_modules', 'bin', 'obj']);
 
 function markdownUnder(directory, root) {
@@ -51,7 +49,7 @@ function repositoryDocuments(root) {
     encoding: 'utf8',
   });
   // Nothing ignored is the safe answer when git cannot be asked: the manifest then has to account
-  // for every file, which fails loudly, where dropping them all would pass in silence.
+  // for every file and the run fails, where dropping them all would pass and report nothing.
   const ignored = new Set((check.stdout || '').split('\n').filter(Boolean));
   return documents.filter((doc) => !ignored.has(doc));
 }
@@ -67,8 +65,8 @@ function stripLintDirectives(markdown) {
   return markdown.replace(/^<!--\s*markdownlint-[\s\S]*?-->\r?\n/gm, '');
 }
 
-/** Heading text as the repository's own tables of contents slug it (GitHub rules). Each space
- *  becomes its own hyphen, so a removed character such as an em dash leaves a double hyphen. */
+/** Heading text as the anchor, or slug, that the repository's own tables of contents link to
+ *  (GitHub's rules). Each space becomes its own hyphen, so a removed character such as an em dash leaves a double hyphen. */
 function githubSlug(heading) {
   return headingText(heading)
     .toLowerCase()
@@ -124,8 +122,8 @@ function repoFileUrl(wiki, repoRelativePath) {
   return `${wiki.repositoryFileAddress}${repoRelativePath}`;
 }
 
-/** A document nobody decided about is how a wiki starts falling behind, so the generator refuses to
- *  run on one — the guard for a caller with no test suite of its own. */
+/** The generator refuses to run while a document is neither published nor withheld, so a caller with
+ *  no tests of its own is held to its manifest too. */
 function unaccountedDocuments(repoRoot, manifest) {
   const accounted = new Set([
     ...manifest.pages.map((entry) => entry.doc),
@@ -162,7 +160,7 @@ function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, attachmentNa
     const page = pageOf(file);
     if (page) {
       const translated = anchor ? (anchorsOf(file) ?? {})[anchor] : undefined;
-      // A doc index labels its links with file names; on the wiki those read as page names. The name
+      // A documentation index labels its links with file names; on the wiki those read as page names. The name
       // is often set as code, and a path in backticks is still a path to the reader.
       const named = text.replaceAll('`', '');
       const label = named === path.posix.basename(targetPath) || named === targetPath
@@ -185,8 +183,7 @@ function convertPage(markdown, options) {
 
 function generate(repoRoot, manifestPath, outputDirectory) {
   // The output directory is emptied before anything is written, so naming one inside the
-  // repository deletes source files. A caller that passed its arguments in the wrong order once
-  // named a tracked manifest as the output and the run removed it.
+  // repository would delete source files.
   const output = path.resolve(outputDirectory);
   const root = path.resolve(repoRoot);
   if (output === root || output.startsWith(root + path.sep)) {

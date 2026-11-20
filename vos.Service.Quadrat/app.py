@@ -1,6 +1,6 @@
 """Quadrat — the VillageOS raster reader, a managed microservice and pipeline node (FastAPI).
 
-The contract — arguments, inbound JWT validation, registration, the four endpoints, and the pipeline node's
+The contract — arguments, checking inbound tokens, registration, the contract's endpoints, and the pipeline node's
 envelope, answer and manifest (docs/SERVICES.md §16.2) — is implemented once in vos.Service.Python.Shared. This
 file is what Quadrat adds to it: the operations over the quadrat package, and the ports they read and write.
 

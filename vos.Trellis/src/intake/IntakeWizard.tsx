@@ -5,7 +5,7 @@
  * One definition, rendered both by the planner's page and by the public form, so a field added here
  * appears in both and there is one shape of submission rather than two that can disagree.
  *
- * Three things shape it. Nothing is kept in the browser beyond the draft — the answers become Things the
+ * Nothing is kept in the browser beyond the draft — the answers become Things the
  * moment the submission is accepted, so there is no file to download and nothing to lose. The programme
  * categories are read out of the model by whoever renders this rather than listed here, because the
  * intake service resolves a submitted word against the terms the model declares and offering anything

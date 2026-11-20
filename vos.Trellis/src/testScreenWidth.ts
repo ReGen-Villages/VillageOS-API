@@ -1,9 +1,7 @@
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 
-/** Test double for `window.matchMedia`, for components that lay out by the width of the screen. jsdom
- *  answers no media query, so every query answers `wide` until `resize` says otherwise and tells each
- *  listener. Undone by `vi.unstubAllGlobals()`. */
+/** jsdom answers no media query, so every query answers `wide` until `resize`. Undone by `vi.unstubAllGlobals()`. */
 export function stubScreenWidth(wide: boolean): { resize: (wide: boolean) => void } {
   const screen = { wide, listeners: [] as (() => void)[] };
   vi.stubGlobal('matchMedia', (media: string) => ({

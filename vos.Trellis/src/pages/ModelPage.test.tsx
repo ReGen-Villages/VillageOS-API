@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { ModelPage } from './ModelPage';
 
-// BimFragmentsViewer pulls in @react-three/fiber + @thatopen/fragments which need
-// WebGL and a worker. jsdom has neither, so we stub the whole component and
-// expose the onPick callback so tests can simulate a pick.
+// The viewer needs WebGL and a worker, which jsdom lacks, so it is stubbed and its pick callback kept for tests.
 let capturedOnPick: ((id: string | null) => void) | null = null;
 let capturedVisibility: SceneVisibility = { kind: 'everything' };
 vi.mock('../components/model/BimFragmentsViewer', () => ({
@@ -32,8 +30,7 @@ vi.mock('../components/model/BimFragmentsViewer', () => ({
   },
 }));
 
-// NodeDetailPanel has its own test suite; stub it here so we only assert that
-// ModelPage mounts the *same* component the GraphPage uses.
+// Tested on its own; here only that ModelPage mounts the same panel GraphPage uses.
 vi.mock('../components/panels/NodeDetailPanel', () => ({
   NodeDetailPanel: ({
     thing,
@@ -48,8 +45,7 @@ vi.mock('../components/panels/NodeDetailPanel', () => ({
   ),
 }));
 
-// ResizablePanel reads pointer state from useUiStore; for these tests we only
-// care that its children render, so collapse it to a passthrough.
+// Only its children matter here, so it draws them and nothing else.
 vi.mock('../components/panels/ResizablePanel', () => ({
   ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -87,7 +83,6 @@ vi.mock('../hooks/useAuthentication', () => ({
   useAuthentication: () => ({ modelId: mockModelId }),
 }));
 
-// Import after mocks so the mocked module is used.
 import { apiClient } from '../api/client';
 import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
@@ -113,7 +108,7 @@ describe('ModelPage', () => {
     mockModelId = 'model-1';
     capturedOnPick = null;
     capturedVisibility = { kind: 'everything' };
-    // Reset shared selection state so cross-test bleed-through can't mask bugs.
+    // So one test's selection cannot hide a fault in the next.
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, hiddenTypeIds: new Set() });
     // ModelPage reads things from the model store, which the app-shell-level useModelData hook
     // populates. Tests seed it directly because they don't mount the AuthenticatedApp shell.
@@ -174,7 +169,6 @@ describe('ModelPage', () => {
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(2));
   });
 
-  // The model page mounts the same NodeDetailPanel the GraphPage uses, never a duplicate panel.
   it('mounts NodeDetailPanel (not a duplicate panel) when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
@@ -229,14 +223,9 @@ describe('ModelPage', () => {
     await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
   });
 
-  // A partial hide must cover the same three cases as applyTypeFilter
-  // on the Graph page — instances of a hidden type, the hidden type-Things
-  // themselves, and untyped Things when NO_TYPE_ID is hidden. A bespoke loop
-  // once handled only the first, leaving IFC objects rendered.
-  //
-  // Model: two type Things (each with its own IFC geometry, as IfcWallType has),
-  // an instance of each, and one untyped Thing (no `is` relation — e.g.
-  // IfcDistributionPort).
+  // A partial hide covers the same three cases as applyTypeFilter on the Graph page: a hidden type's
+  // instances, the hidden type Things, and untyped Things when the no-type group is hidden. Two type
+  // Things, each with its own geometry as IfcWallType has, an instance of each, and one untyped Thing.
   function seedTwoTypeModel() {
     const isPredicate: VosThing = { Id: 'pred-is', Name: 'is', Properties: {} };
     const wallType: VosThing = {
@@ -307,9 +296,8 @@ describe('ModelPage', () => {
     ]);
   });
 
-  // A guid list can only ever hide geometry the model has a Thing
-  // for, and a real .frag holds far more elements than that. Unchecking every
-  // type has to say "show nothing" outright or the scene stays on screen.
+  // A list of identifiers hides only geometry the model has a Thing for, and a .frag file holds far more, so
+  // hiding every type has to say show nothing outright.
   it('shows nothing when every type is hidden, rather than listing guids to hide', async () => {
     mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
     seedTwoTypeModel();

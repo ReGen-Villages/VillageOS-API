@@ -1,7 +1,5 @@
-// The exact shape Tributary writes when an endpoint keeps what it fetched: "sha256:" and the
-// 64 hex digits of the content. Only the whole string counts — a sentence mentioning a ticket
-// is prose, not a reference the store can resolve — and only a scalar string, because a ticket
-// is an ordinary property value, never a structure.
+// The shape Tributary writes when an endpoint keeps what it fetched. Only a whole string counts, because a
+// sentence mentioning a ticket is prose, and only a plain value, because a ticket is never a structure.
 const TICKET_SHAPE = /^sha256:[0-9a-fA-F]{64}$/;
 
 export function assetTicketOf(value: unknown): string | null {

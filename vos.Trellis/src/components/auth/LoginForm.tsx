@@ -109,7 +109,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             </div>
           )}
 
-          {/* Search */}
           <div className="mb-3">
             <input
               type="text"
@@ -120,7 +119,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             />
           </div>
 
-          {/* Column headers */}
           <div className="flex items-center text-xs text-zinc-600 dark:text-zinc-400 px-3 py-1 mb-1 border-b border-zinc-200 dark:border-zinc-700">
             <button
               onClick={() => toggleSort('name')}
@@ -136,7 +134,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             </button>
           </div>
 
-          {/* Scrollable seed list */}
           <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
             {filteredModels.length === 0 ? (
               <p className="text-sm text-zinc-500 text-center py-4">
@@ -164,7 +161,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             )}
           </div>
 
-          {/* Result count */}
           <p className="text-xs text-zinc-500 mt-2 px-1">
             {t('authentication.seedCount', { shown: filteredModels.length, total: availableModels.length })}
           </p>

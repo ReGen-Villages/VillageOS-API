@@ -348,7 +348,7 @@ func TestWriteKinds(t *testing.T) {
 
 func TestWriteKinds_Errors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusMethodNotAllowed) // e.g. wrong write kind for the property
+		w.WriteHeader(http.StatusMethodNotAllowed) // such as the wrong write kind for the property
 	}))
 	defer srv.Close()
 	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, client: srv.Client()}

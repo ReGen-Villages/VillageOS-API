@@ -35,9 +35,8 @@ type BimFragmentsState =
   | { status: 'error'; message: string }
   | { status: 'ready'; bytes: ArrayBuffer };
 
-// Build the IFC-GlobalId → VosThing-Id map by scanning the Mycelium's authoritative
-// thing list rather than the pre-baked .mapping.json sidecar (which drifts whenever
-// the seed is regenerated).
+// Built from the broker's Things rather than the .mapping.json file, which falls out of step whenever the
+// seed is generated again.
 function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
   const map: BimFragmentsMapping = {};
   for (const t of things) {
@@ -72,9 +71,7 @@ export function ModelPage() {
     [things, relationships, hiddenTypeIds],
   );
 
-  // Re-fetch the .frag whenever the JWT-scoped model changes (e.g. via
-  // /api/auth/switch-model). The thing/relationship arrays come from the
-  // app-shell-level useModelData hook.
+  // Read again whenever the signed-in model changes.
   useEffect(() => {
     let cancelled = false;
     selectNode(null);
@@ -131,9 +128,7 @@ export function ModelPage() {
                 visibility={visibility}
               />
             </Suspense>
-            {/* Type filter overlays the 3D viewport.
-                The container is a bounded flex column so the panel's
-                inner list gets a finite height to scroll within. */}
+            {/* A bounded column, so the panel's list has a height to scroll within. */}
             <div className="absolute top-3 left-3 z-10 w-72 max-w-[80vw] flex flex-col max-h-[calc(100vh-1.5rem)]">
               <TypeFilterPanel />
             </div>

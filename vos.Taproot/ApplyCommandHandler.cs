@@ -2,10 +2,9 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-// `apply <file.json>` upserts a fragment (a partial-model {Name, Things, Relationships} batch) into
-// the live model via POST /api/model/fragment. Idempotent: re-applying the same fragment neither
-// duplicates nor errors, and the server resolves lazy inheritance. Contrast `plant`, which replaces
-// the whole model.
+// `apply <file.json>` sends a fragment (a {Name, Things, Relationships} batch) to POST /api/model/fragment,
+// which adds what is missing and updates what is there, so applying it again changes nothing. `plant`
+// replaces the whole model instead.
 public class ApplyCommandHandler
 {
     private readonly TextWriter _writer;

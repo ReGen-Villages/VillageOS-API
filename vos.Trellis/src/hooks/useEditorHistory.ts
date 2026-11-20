@@ -12,12 +12,8 @@ interface EditorHistoryInputs {
   onUndone: () => void;
 }
 
-/**
- * Undo, and putting the canvas back after a refused save. The history records the editor's state before
- * each change, and keeps the last state the platform confirmed as the point a refused save returns to.
- * `canUndo` and `dirty` drive the toolbar. A reference holds the latest nodes and edges, so any handler
- * can copy the current state.
- */
+/** Keeps the editor's state before each change for undo, and the last state the platform confirmed, which
+ *  a refused save returns to. A reference holds the latest nodes and edges, so any handler can copy them. */
 export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }: EditorHistoryInputs) {
   const historyReference = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
   const stateReference = useRef<EditorSnapshot>({ nodes, edges });
@@ -55,7 +51,7 @@ export function useEditorHistory({ nodes, edges, setNodes, setEdges, onUndone }:
     onUndone();
   }, [applySnapshot, onUndone]);
 
-  /** Puts the last state the platform confirmed back after a refused save; false when there is none. */
+  /** False when there is no confirmed state to return to. */
   const rollBack = useCallback(() => {
     const target = historyReference.current.rollbackTarget();
     if (!target) return false;

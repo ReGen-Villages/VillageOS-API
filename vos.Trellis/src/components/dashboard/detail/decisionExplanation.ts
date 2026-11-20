@@ -1,14 +1,8 @@
 /**
- * Why a service decided about one Thing, read through the roles the platform's site template binds.
- *
- * A decision is a Thing. It reaches the subject it is about, what it chose, the rule it was decided
- * under, and the considerations that spoke for the choice or turned candidates away. A consideration
- * reaches its cause, and where that cause is a constraint the numbers are not written down: the
- * constraint names the properties instead, and the card reads them as they stood at the instant the
- * decision carries.
- *
- * Nothing here names a predicate, an archetype or a kind. What a model calls them is its own; what is
- * fixed is the role each one is bound by.
+ * A decision is a Thing reaching its subject, its choice, its rule and the considerations for and against.
+ * Where a consideration's cause is a constraint, the numbers are not written down: the constraint names the
+ * properties, which are read as they stood at the decision's instant. Nothing here names a predicate,
+ * archetype or kind; only the role each is bound by is fixed.
  */
 import { thingIdBoundBy, type ModelIndex } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
@@ -322,14 +316,9 @@ export function instantReadsFor(decisions: DecisionExplanation[]): InstantRead[]
   return [...wanted.values()];
 }
 
-/**
- * One measure against one limit.
- *
- * `measure` and `limit` are null where the platform did not answer the property at that instant —
- * a property declared current-only, or a past the eviction has already reclaimed. An absent `limit`
- * is the other thing entirely: the constraint declared none, so the measure reads as a value rather
- * than as a comparison.
- */
+/** `measure` and `limit` are null where the platform did not answer at that instant, for a current-only
+ *  property or a past already reclaimed. An absent `limit` is different: the constraint declared none, so the
+ *  measure reads as a value rather than a comparison. */
 export interface Comparison {
   candidate?: NamedThing;
   measure: number | null;

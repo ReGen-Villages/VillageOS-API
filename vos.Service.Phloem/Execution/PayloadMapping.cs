@@ -5,7 +5,7 @@ namespace vos.Service.Phloem.Execution;
 
 // Field-level wire mapping: extract a dotted field-path from an upstream output, place it at
 // a dotted field-path of a downstream input, and deep-merge several such contributions into one input value.
-// A dotted path (e.g. user.id) navigates
+// A dotted path, such as user.id, navigates
 // nested JSON objects; an empty path means "the whole value".
 public static class PayloadMapping
 {

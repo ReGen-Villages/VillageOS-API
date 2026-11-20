@@ -10,7 +10,7 @@ namespace vos.Taproot;
 // Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through the
 // predicate the model binds to the proposed-site role, and the dispositions are the Things under the archetype
 // the model binds to the disposition role. A model that spells either differently keeps answering, which is
-// the whole reason both are Things. Each role's identifier is the standard version 5 identifier of its word.
+// why both are Things. Each role's identifier is the standard version 5 identifier of its word.
 public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumClient client)
 {
     public static readonly Guid ProposedSiteRoleId = new("ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b");
@@ -299,8 +299,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
             yield break;
 
-        // Resolved once for the listing: a binding read scans the model, and read per submission it would cost
-        // a queue of hundreds half a second in a model of tens of thousands of Things.
+        // Resolved once for the listing, because a binding read scans the whole model.
         var resolvedAs = BoundBy(model, DispositionPredicateRoleId);
 
         // One submission per relationship: a submission is only a submission because it proposes a site, so the

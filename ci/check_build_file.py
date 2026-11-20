@@ -34,16 +34,15 @@ CONFIGURATION_MUST_READ = (MAIN, 'Release', 'Debug', 'Build.SourceBranch')
 # the full ref; compared against the full ref, a pull request into main compiles Debug and passes.
 PULL_REQUEST_INTO_MAIN = "eq(variables['System.PullRequest.TargetBranch'], 'main')"
 
-# A build that pushes to the repository it builds, as the old copy to GitHub did with a generated
-# commit on top, changes the history every clone has to follow.
+# A build that pushes to the repository it builds, such as a copy to GitHub with a generated commit on
+# top, changes the history every clone has to follow.
 OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 
 # A release is handed over as an archive of the running platform, not as libraries on a package feed:
 # a feed needs a credential scoped for packaging that this organization does not issue, and a
-# consumer wants something to run rather than something to compile against. The steps that packed and
-# pushed outlived that decision, gated to a branch that had never built, so no build result ever
-# showed the contradiction. Read as the absence of packaging anywhere, so a step added later is
-# decided on rather than inherited.
+# consumer wants something to run rather than something to compile against. A packing step gated to a
+# branch that never builds would go on contradicting that with no build result to show it, so this is
+# read as the absence of packaging anywhere, and a step added later is decided on rather than inherited.
 #
 # Tendril is the one decided exception: another application installs it to build with,
 # so a feed is how it is delivered, and the pipeline publishes it under its own identity, so no

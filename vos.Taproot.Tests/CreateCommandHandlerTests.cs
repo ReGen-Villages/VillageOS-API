@@ -140,8 +140,7 @@ public class CreateCommandHandlerTests
         Assert.Contains("Usage:", _writer.ToString());
     }
 
-    // Adding went through the set-existing request, which answers 404 for a
-    // property the Thing does not hold yet.
+    // The set request answers 404 for a property the Thing does not hold yet, so adding one uses the add request.
     [Fact]
     public async Task CreateProperty_ValidArgs_AddsThePropertyRatherThanSettingAnExistingOne()
     {
@@ -205,8 +204,6 @@ public class CreateCommandHandlerTests
 
         Assert.Contains("Usage:", _writer.ToString());
     }
-
-    // --showguids flag tests
 
     [Fact]
     public async Task CreateThing_WithShowGuidsFlag_ShowsGuid()
@@ -386,7 +383,6 @@ public class CreateCommandHandlerTests
         var json = JsonSerializer.Deserialize<JsonElement>($"{{\"id\":\"{relationshipId}\"}}");
         _myceliumMock.Setup(b => b.CreateRelationshipAsync(subjectId, predicateId, targetId)).ReturnsAsync(json);
 
-        // Use GUID for subject, name for predicate, GUID for target
         var handler = new CreateCommandHandler($"relation {subjectId} Predicate {targetId}", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
 

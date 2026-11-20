@@ -6,10 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 
-/** A dropdown of language flags: the trigger shows the active flag, the menu lists every
- *  language (flag + name). Opens upward in the sidebar footer; pass `openDirection="down"`
- *  where it sits near the top of the viewport (e.g. the login page). Pass `align="right"`
- *  when the trigger sits against the right edge so the menu opens inward instead of off-screen. */
+/** Opens upward, for the sidebar footer. Pass `openDirection="down"` near the top of the viewport, and
+ *  `align="right"` against the right edge, so the menu opens on screen. */
 export function LanguageSwitcher({
   openDirection = 'up',
   align = 'left',

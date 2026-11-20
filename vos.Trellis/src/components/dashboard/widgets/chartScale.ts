@@ -1,8 +1,4 @@
-/**
- * The arithmetic a hand-drawn chart needs: a scale from values to pixels, round tick values, and a
- * domain that fits the data with a little air. Pure, so every chart widget draws with the same
- * answers and none carries its own.
- */
+/** Shared, so every chart widget draws with the same scales and ticks and none carries its own. */
 
 export type Scale = (value: number) => number;
 

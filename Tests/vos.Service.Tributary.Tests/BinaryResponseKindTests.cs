@@ -13,7 +13,7 @@ namespace vos.Service.Tributary.Tests;
 // inside the { contentType, dataBase64, byteLength } envelope, and config combos that presuppose a
 // decodable string body (responseTransform, offset paging) must be rejected up front.
 //
-// Effective-property keys are namespaced (e.g. "Endpoint.responseKind") to mirror Mycelium's
+// Effective-property keys are namespaced (such as "Endpoint.responseKind") to mirror Mycelium's
 // template-merged shape; EffectivePropertyResolver suffix-matches them.
 public class BinaryResponseKindTests
 {

@@ -81,7 +81,7 @@ public sealed class DivisionResolver
             return await WriteAsync(siteId, lookup, division, cancellationToken);
         }
 
-        // Said out loud rather than left as an empty hazards table: the portal holds no division of any
+        // Logged rather than left as an empty hazards table: the portal holds no division of any
         // name this site's position gave, in this site's country.
         _logger.LogInformation(
             "The hazard portal holds no division in {Country} named {Terms}, so site {SiteId} keeps no "

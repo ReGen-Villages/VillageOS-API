@@ -1,12 +1,9 @@
 import type { DashboardSpecification, Widget } from '@tendril-ui/tendril';
 
 /**
- * What a state-driven list asks the platform to send beside each row.
- *
- * A row arrives carrying the values its widget reads, so a table is drawn from the answer that
- * listed it. The list is derived from the widget rather than written beside the binding, because a
- * second list is wrong the day somebody adds a column; the Design page applies the rule when a page
- * is kept, and never shows the field.
+ * A row arrives carrying the values its widget reads, so a table is drawn from the answer that listed it.
+ * The list is worked out from the widget rather than written beside the binding, because a second list goes
+ * wrong the day a column is added; the Design page applies it when a page is kept and never shows the field.
  */
 
 const ALWAYS_SENT = new Set(['id', 'name']);

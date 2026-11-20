@@ -42,7 +42,7 @@ const ENGINE_REFRESH_WINDOW_MILLISECONDS = 2000;
 const REGISTRY_REFRESH_WINDOW_MILLISECONDS = 2000;
 
 // With the platform gone no event arrives to prompt a registry read, so only a read on a timer
-// finds out and turns the Mycelium mark red.
+// finds out and turns the broker's mark red.
 const REGISTRY_POLL_MILLISECONDS = 15000;
 
 export function DashboardPage() {
@@ -118,10 +118,9 @@ export function DashboardPage() {
     : services;
 
   useEffect(() => {
-    // Under a simulation a service request completes hundreds of times a second, far more often
-    // than the registry is worth reading again. The first event after a quiet spell claims the
-    // window and the rest are absorbed; events that arrive while the read runs claim the next one.
-    // A debounce restarting on every event would never read at all while a simulation runs.
+    // Under a simulation a request completes hundreds of times a second, far more often than the registry is
+    // worth reading. The first event after a quiet spell claims the window and the rest wait for it; events
+    // during the read claim the next. A delay restarted on every event would never read while a simulation runs.
     let registryRefresh: ReturnType<typeof setTimeout> | null = null;
     const registryMoved = () => {
       if (registryRefresh) return;

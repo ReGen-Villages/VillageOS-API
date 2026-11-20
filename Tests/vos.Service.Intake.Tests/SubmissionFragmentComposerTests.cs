@@ -801,7 +801,7 @@ public class SubmissionFragmentComposerTests
             && edge.Target == composed.ParcelId!.Value);
     }
 
-    // A study used to declare its own computed outputs, and named one no service writes. The archetype
+    // A study declaring its own computed outputs could name one no service writes. The archetype
     // declares every one of them, so a study that is the archetype resolves them through inheritance and
     // a declaration here could only disagree with it.
     [Fact]

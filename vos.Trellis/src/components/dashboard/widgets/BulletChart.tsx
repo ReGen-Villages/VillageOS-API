@@ -6,12 +6,8 @@ import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 
-/**
- * Bullet-bar chart (actual vs. target band). Each row's track runs 0..`max` (default 1, the
- * utilization case where the value is a 0..1 fraction); target and band are positions on that
- * track in the row's own units. `direction` sets which way is good — 'down-good' (default) treats
- * overshooting the band as critical, 'up-good' treats falling below it as critical.
- */
+/** Each row's track runs from 0 to `max`, by default 1, for a fraction; target and band are in the row's units.
+ *  'down-good', the default, treats passing the band as critical, and 'up-good' falling below it. */
 export function BulletChart({ widget, context }: { widget: BulletWidget; context: ResolveContext }) {
   const { t } = useTranslation();
   const results = useBindings(
@@ -42,9 +38,8 @@ function BulletBar({ row, value }: { row: BulletRow; value: number | null }) {
   const band = row.band;
   const target = row.target;
   const color = row.direction === 'up-good' ? upGoodColor(v, target, band) : downGoodColor(v, target, band);
-  // Position on the 0..max track, clamped to the track edges. Deriving the band's width from two
-  // clamped positions (not a scaled delta) keeps it inside the track — a band whose upper bound
-  // exceeds max can never bleed past the right edge into the labels.
+  // The band's width comes from two clamped positions rather than a scaled difference, so a band past `max`
+  // cannot run over the labels.
   const position = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
   const percent = (x: number) => `${position(x)}%`;
 

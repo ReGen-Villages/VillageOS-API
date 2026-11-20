@@ -38,7 +38,7 @@ public class ServicesPresentTheirApiKeyTests
     // covered on the day it is written.
     //
     // The parameter list between the name and the base is optional because a client written with a
-    // primary constructor carries one — and the client this guard was written for is one of those.
+    // primary constructor carries one.
     private static IReadOnlyCollection<string> BrokerClientTypesUnder(string root)
     {
         var derived = new HashSet<string> { "SubscriptionClient" };

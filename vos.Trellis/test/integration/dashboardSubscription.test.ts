@@ -4,18 +4,11 @@ import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type Vos
 import type { SubscriptionSelector } from '../../src/types/subscription';
 import { BASE_URL, login } from './signIn';
 
-// A dashboard now says what it is about and the platform answers with that and no more, which is
-// only true if the selector the client writes is one the platform reads. Nothing in the offline
-// suite can check that: it asserts the shape of a request nobody sends.
+// Only a running platform can say whether it reads the selector the client writes. Each dashboard must be
+// sent fewer Things than the model holds, because a subscription that covers everything narrows nothing.
 //
-// This signs in to a running platform, derives each of its dashboards' subscriptions from the specification
-// the model itself carries, and checks the platform answers each with the Things that dashboard
-// reads — and with fewer than the model holds, since a subscription that covers everything has
-// narrowed nothing.
-//
-// Needs a running Mycelium serving a model that publishes at least one dashboard; where the platform
-// serves several, name that model in VOS_INTEGRATION_MODEL (see signIn.ts), or the run says what it
-// found if the first offered publishes none. Run with `npm run test:integration`.
+// Needs a broker serving a model that publishes a dashboard; VOS_INTEGRATION_MODEL names that model where
+// there are several (see signIn.ts). Run with `npm run test:integration`.
 
 interface OpenedSubscription {
   subscriptionId: string;
@@ -42,7 +35,7 @@ function release(subscriptionId: string, token: string) {
   });
 }
 
-/** The specifications the model publishes, read the way the client reads them: JSON in a property. */
+/** JSON in a property, as the client reads it. */
 function specificationsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
   const found: { name: string; specification: DashboardSpecification }[] = [];
   for (const thing of things) {
@@ -86,8 +79,7 @@ describe('the subscription a dashboard opens', () => {
     }
   });
 
-  // A binding that names a Thing outright is the one case a walk cannot rescue: the page reads that
-  // Thing's properties out of what it was sent, and reads nothing if it was not sent.
+  // The page reads a Thing that a binding names outright only from what it was sent.
   it('carries every Thing the specifications name', async () => {
     for (const { name, specification } of published) {
       const selector = subscriptionForSpecification(specification, null);

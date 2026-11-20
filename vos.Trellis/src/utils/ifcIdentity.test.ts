@@ -11,8 +11,6 @@ describe('ifcGlobalIdOf', () => {
     expect(ifcGlobalIdOf(thing({ Properties: { ifcGlobalId: 'own-guid' } }))).toBe('own-guid');
   });
 
-  // The case that broke the viewer: an instance and its type both define the
-  // name, so the instance's real identifier is stored as an override.
   it('reads the identifier a Thing overrides, which is where an IFC instance keeps its own', () => {
     const instance = thing({
       Properties: { Dimensions_Area: 1.97 },
@@ -67,8 +65,7 @@ describe('ifcGlobalIdOf', () => {
 });
 
 describe('storedPropertyOf', () => {
-  // ifcClass travels the same way as the identifier: the type declares the name,
-  // so an instance's own class is stored as an override. The graph colours by it.
+  // The type declares ifcClass too, so an instance's own class is an override, and the graph colours by it.
   it('reads a non-identifier property out of the overrides too', () => {
     const instance = thing({
       InheritedOverrides: {

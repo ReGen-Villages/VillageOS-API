@@ -5,8 +5,8 @@ using System.Runtime.CompilerServices;
 
 namespace vos.Service.Shared.ServiceCalls;
 
-// Handled-predicate service call is at-least-once: the broker sends a relation again when it cannot
-// confirm the handler finished, and a handler that reconnects is sent what it missed. Nothing in a
+// A handled-predicate service call can arrive more than once: the broker sends a relation again when it
+// cannot confirm the handler finished, and a handler that reconnects is sent what it missed. Nothing in a
 // delivery says whether it is the first.
 //
 // A claim is the note kept here against a relationshipId work has started for. A failing effect

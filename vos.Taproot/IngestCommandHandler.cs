@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace vos.Taproot;
 
 // `ingest <file.ifc> [--new] [--name=<model>] [--url=<xylem-url>]` uploads an IFC to the Xylem ingestion
-// service, which parses it and applies the graph to the model — no local ingest toolchain needed. The
-// service URL comes from --url or the VOS_INGEST_URL env var. --new replaces the model; the default merges
-// (idempotent upsert by stable id).
+// service, which parses it and applies it to the model, so nothing needs installing here. The service's
+// address comes from --url or the VOS_INGEST_URL environment variable. --new replaces the model; otherwise
+// the import is merged by stable identifier, so importing again updates the same Things.
 public class IngestCommandHandler
 {
     private readonly TextWriter _writer;

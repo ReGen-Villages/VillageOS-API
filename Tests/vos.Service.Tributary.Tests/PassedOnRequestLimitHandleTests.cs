@@ -47,7 +47,7 @@ public class PassedOnRequestLimitHandleTests
             reason: "The broker had not accepted the readings within 28 of the 30 seconds");
     }
 
-    // The fault this guards: a slow reshape was reported as a broker that had not accepted the readings (Bug 8455).
+    // A slow reshape must not be reported as a broker that had not accepted the readings.
     [Fact]
     public async Task Handle_WhenTheDeadlinePassesWhileTheAnswerIsReshaped_AnswersThatTheReshapeHadNotFinished()
     {

@@ -1,15 +1,7 @@
-// Reading a Thing's property wherever it is stored.
-//
-// When an IFC instance and the type it `is`-relates to both define a
-// name, the instance's own value is stored as an override rather than as an own
-// property. It is the instance's value, not an inherited one — but code reading
-// the own bag alone sees nothing there. That is how most of what the 3D viewer
-// draws became unpickable and unfilterable: `ifcGlobalId` is exactly such a
-// name, and so is `ifcClass`, which colours the graph.
-//
-// This reads own value first, then the overrides. It does not reach a value the
-// Thing merely inherits without overriding — that resolves live from the type
-// and needs the server-resolved view (GET /api/things/{id}/properties).
+// When an IFC instance and its type both define a name, such as ifcGlobalId or ifcClass, the instance's own
+// value is stored as an override, so reading own properties alone misses it and the 3D viewer could not pick
+// or filter what it drew. A value merely inherited is not read here; it needs the platform's resolved view
+// (GET /api/things/{id}/properties).
 
 import type { VosThing } from '@tendril-ui/tendril';
 

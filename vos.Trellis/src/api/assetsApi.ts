@@ -8,13 +8,9 @@ interface KeptContent {
 }
 
 export const assetsApi = {
-  /**
-   * The content a ticket names, from the broker's asset store. Fetched with the bearer token in
-   * a header rather than linked as a plain address, because an address carries no credential —
-   * a bare <img src> would be refused — and a token must never land in a URL or the history.
-   * Null when the store holds nothing for the ticket, and on any other refusal too: a reference
-   * that cannot be resolved degrades to text, it does not take the panel down.
-   */
+  /** The token goes in a header, because a plain <img src> carries no credential and a token must never
+   *  land in an address, a log or the history. Null on any refusal, so a reference that cannot be
+   *  resolved shows as text rather than breaking the panel. */
   async getContent(ticket: string): Promise<KeptContent | null> {
     const token = await apiClient.ensureToken();
     const response = await fetch(`${BASE_URL}/api/assets/${ticket}`, {

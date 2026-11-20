@@ -2,15 +2,10 @@ import type { VosRelationship } from '@tendril-ui/tendril';
 import { formatGuid } from './formatters';
 
 /**
- * How a relationship reads: "subject predicate target".
- *
- * The platform sends `Name` only for a relationship given a name of its own when it was created — the one
- * thing a client could not work out. Every other relationship composes its name from the three endpoints on
- * every read, all of which are already in the payload, so composing it here saves sending the single
- * biggest repeated string in a model read, and a renamed endpoint shows through immediately.
- *
- * `nameOf` resolves a Thing id to its name; an id it cannot resolve reads as a shortened id, which is
- * what the panels already showed for an endpoint missing from the loaded model.
+ * The platform sends `Name` only for a relationship named when it was created; any other is composed here
+ * from its endpoints, which saves sending the most repeated string in a model read and shows a renamed
+ * endpoint at once. An identifier `nameOf` cannot resolve reads shortened, as the panels show an endpoint
+ * missing from the loaded model.
  */
 export function relationshipLabel(
   relationship: VosRelationship,

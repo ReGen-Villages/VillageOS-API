@@ -4,7 +4,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// One place to build a snapshot, so a test reads as the shape it is asserting rather than as plumbing.
+// One place to build a snapshot, so a test reads as the shape it is asserting rather than as setup.
 // Shared by every test over what a run reads out of the model.
 internal sealed class ModelBuilder
 {
