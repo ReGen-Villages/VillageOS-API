@@ -1,11 +1,11 @@
 # pipeline-playground
 
-A generator for example **pipelines and services** to exercise the Trellis **Pipelines page** — the service
-palette, wiring, field-mapping, transforms, param binding, fan-out, pre-run validation, run history, and
-live node status. It emits VOS Things + Relationships in the seed JSON shape and can drop them into any
-model.
+A generator for example **pipelines and services** to try out the Trellis **Pipelines page** — the service
+palette, wiring, field mapping, transforms, run parameters, running a node once per item of a list, the
+checks before a run, run history, and live node status. It writes Things and relationships in the seed
+JSON shape and can add them to any model.
 
-Stock Python 3.10+, no third-party dependencies. For *using* the generated pipelines in the GUI, see
+Plain Python 3.10 or later, with no packages to install. For *using* the generated pipelines in the console, see
 [docs/PIPELINE_PLAYGROUND.md](../../docs/PIPELINE_PLAYGROUND.md).
 
 ## Files
@@ -15,7 +15,7 @@ Stock Python 3.10+, no third-party dependencies. For *using* the generated pipel
 | `catalog.py` | The content: the service catalog (`SERVICES`) and the example pipelines (`PIPELINES`). Edit this to add or change services and pipelines. |
 | `generate.py` | Turns the catalog into Things + Relationships and writes a standalone seed or merges into an existing one. |
 | `declare_service.py` | Declares one service in a seed from its `GET /manifest`, with a published pipeline that runs it. |
-| `validate_fragment.py` | Reimplements the Trellis + Phloem graph traversals and asserts every pipeline resolves and passes pre-run validation. |
+| `validate_fragment.py` | Reads the generated pipelines the way Trellis and Phloem do, and checks that every one resolves and passes the checks before a run. |
 
 ## Use it
 
@@ -23,10 +23,10 @@ Stock Python 3.10+, no third-party dependencies. For *using* the generated pipel
 # a standalone seed you can load on its own to play with the Pipeline page
 python3 generate.py --out PipelinePlayground.seed.json
 
-# drop the playground into any model seed, in place (idempotent; writes a .bak alongside)
+# add the playground to any model seed, in place (running it again changes nothing; writes a .bak beside it)
 python3 generate.py --into /path/to/Some.seed.json
 
-# ...with per-model ids so the same pipelines in two seeds don't collide when both load into one broker
+# ...with per-model ids, so the same pipelines in two seeds can load into one broker together
 python3 generate.py --into /path/to/Some.seed.json --namespace SomeModel
 
 # take it back out again (leaves the shared archetypes, predicates, role Things and what they bind in place; pass the same --namespace)
@@ -91,8 +91,8 @@ Things and the shared vocabulary.
 
 ## How it drops into any model
 
-Every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the same Things instead of forking
-duplicates — merging is idempotent. When merging, the target's own vocabulary is reused rather than doubled:
+Every id is a version 5 identifier derived from a stable key, so running it again replaces the same Things
+rather than adding copies, and merging twice changes nothing. When merging, the target's own vocabulary is reused rather than doubled:
 the `is` / `has` / `of` predicates are matched **by name**, and each archetype or predicate playing a role is
 matched **through what the target's role Thing binds**, then by name — a match by name passes over role
 Things — so a model that calls its pipeline
@@ -144,7 +144,7 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 
 | Pipeline | Shows |
 | --- | --- |
-| Hello Echo | The canonical linear pipeline, plus a seeded succeeded + failed run so the History panel and node status rings work with no live Phloem. |
+| Hello Echo | The simplest straight pipeline, plus a seeded succeeded and failed run so the History panel and node status rings work with no live Phloem. |
 | Boundary I/O Echo | `PipelineInput` / `PipelineOutput` boundary nodes; the Input's output is filled from a run param, the Output's input becomes the run result. |
 | Text Studio | A multi-stage transform chain driven from a run parameter. |
 | Field Merge | Two sources landing at different to-paths of one input, deep-merged. |

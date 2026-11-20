@@ -42,7 +42,7 @@ empty box.
   document name, the version, the date, the source commit and the notice.
 - **A contents page**, generated from the guide's headings rather than from any list the guide
   writes for itself — that list is dropped, so a reader never meets two.
-- **A divider page per part**, with the part's ordinal set large, who the part is written for, and
+- **A divider page per part**, with the part's number set large, who the part is written for, and
   the chapters it holds.
 - **A chapter badge** on every numbered heading, so a cross-reference to "chapter 42" is findable.
 - **A running footer** with the guide's name and version, the page number and the owner.
@@ -51,15 +51,15 @@ empty box.
 
 ## What it decides for you
 
-**The typography travels with the file.** Three variable faces are embedded, so a guide renders the
-same on a machine that has none of them.
+**The fonts travel with the file.** Three fonts are embedded, so a guide renders the same on a
+machine that has none of them.
 
 **A figure drawn dark is turned light.** The `vos-*.svg` figures were drawn for a screen, on a
-near-black ground, and no published page attaches them; printing one costs a page of ink a reader
-did not ask for. A figure whose backdrop is dark has every colour's lightness turned over — the
-ground becomes paper, light text becomes ink, and an accent keeps its hue — and its backdrop is set
-to white. A figure that was already light is left exactly as it is: inverting one would be the fault
-this exists to prevent. The Field Guide's diagrams are drawn light, paint no ground of their own, and
+near-black background, and no published page attaches them; printing one costs a page of ink a
+reader did not ask for. A figure whose backdrop is dark has every colour's lightness inverted — the
+background becomes white, light text becomes dark, and an accent keeps its hue — and its backdrop is
+set to white. A figure that was already light is left exactly as it is: inverting one would be the
+fault this exists to prevent. The Field Guide's diagrams are drawn light, paint no background of their own, and
 carry a dark-scheme stylesheet for the wiki; the renderer leaves them alone and prints their light
 default. `figures.mjs` decides by reading the backdrop rectangle, not by guessing.
 
@@ -72,9 +72,9 @@ be written anywhere and a guide cannot lose a picture to a path that resolved so
 figure a guide names and the disk does not hold is drawn as a marked gap and named in the run's
 output, rather than going missing quietly.
 
-**Pages are not bled.** The cover and the dividers are panels inside the page margins rather than
-full-bleed, so the file prints on a machine that cannot bleed and the footer stays in the margin
-where it belongs.
+**Nothing is printed to the paper's edge.** The cover and the dividers are panels inside the page
+margins, so the file prints on a printer that cannot print to the edge, and the footer stays in the
+margin.
 
 ## What a guide has to look like
 
@@ -96,7 +96,7 @@ Nothing, but it gets more if it offers more.
 | File | What it holds |
 | --- | --- |
 | `build.mjs` | The command: Markdown to a document, a document to HTML, HTML to PDF |
-| `brand.mjs` | The palette, the embedded faces, what mermaid draws with, and the stylesheet |
+| `brand.mjs` | The palette, the embedded fonts, what mermaid draws with, and the stylesheet |
 | `regen-mark.svg` | The ReGen mark, traced from the brand's own artwork. Replacing this file is how the mark is changed |
 | `figures.mjs` | Reading a figure, deciding whether it was drawn dark, and turning it light |
 | `docs-pdf.test.mjs` | `npm test` — what the renderer makes of a guide, and what it makes of a figure |
