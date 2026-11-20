@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -19,7 +20,6 @@ public class RetypeCommandHandlerTests
     private static readonly Guid RelA = Guid.NewGuid();
     private static readonly Guid RelB = Guid.NewGuid();
 
-    private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
     private static string Edge(Guid id, Guid subj, Guid pred, Guid tgt) =>
         $"{{\"Id\":\"{id}\",\"SubjectId\":\"{subj}\",\"PredicateId\":\"{pred}\",\"TargetId\":\"{tgt}\"}}";
 
@@ -27,10 +27,10 @@ public class RetypeCommandHandlerTests
 
     private void SetupModel(params string[] edges)
     {
-        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Json($"[{{\"Id\":\"{IsId}\",\"Name\":\"is\"}}]"));
-        _mycelium.Setup(m => m.GetAllRelationshipsAsync()).ReturnsAsync(Json("[" + string.Join(",", edges) + "]"));
+        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{IsId}\",\"Name\":\"is\"}}]"));
+        _mycelium.Setup(m => m.GetAllRelationshipsAsync()).ReturnsAsync(Parse("[" + string.Join(",", edges) + "]"));
         _mycelium.Setup(m => m.DeleteRelationshipAsync(It.IsAny<Guid>())).ReturnsAsync(true);
-        _mycelium.Setup(m => m.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>())).ReturnsAsync(Json("{}"));
+        _mycelium.Setup(m => m.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>())).ReturnsAsync(Parse("{}"));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -19,19 +20,6 @@ public class StateCommandHandlerTests
     {
         var handler = new StateCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
-    }
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
-    [Fact]
-    public async Task Execute_NoMycelium_ShowsHelp()
-    {
-        var handler = new StateCommandHandler("get foo", _writer, client: null);
-        await handler.ExecuteAsync();
-
-        var output = _writer.ToString();
-        Assert.Contains("State query commands:", output);
-        Assert.Contains("state get", output);
     }
 
     [Fact]

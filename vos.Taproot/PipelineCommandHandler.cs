@@ -23,29 +23,22 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     public static readonly Guid StopRequestRoleId = new("159ef90f-8089-5055-b5a9-8839d5e28e7a");
     public static readonly Guid RunStoppingRoleId = new("7acbab6c-58f3-5145-a9c0-18a907197131");
 
-    public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-        : base(arg, writer, mycelium, options)
+    public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+        : base(arg, writer, mycelium)
     {
     }
 
     public async Task ExecuteAsync()
     {
-        if (!CommandParser.TryParseSubcommand(_arg ?? "", out var subcommand, out var args))
-        {
-            ShowUsage();
-            return;
-        }
-
         try
         {
-            switch (subcommand.ToLowerInvariant())
+            await Subcommands.RunAsync(_arg, new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
-                case "list": await ListAsync(); break;
-                case "run": await RunAsync(args); break;
-                case "cancel": await CancelAsync(args); break;
-                case "history": await HistoryAsync(args); break;
-                default: ShowUsage(); break;
-            }
+                ["list"] = _ => ListAsync(),
+                ["run"] = RunAsync,
+                ["cancel"] = CancelAsync,
+                ["history"] = HistoryAsync,
+            }, ShowUsage);
         }
         catch (Exception ex)
         {

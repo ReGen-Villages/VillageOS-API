@@ -4,8 +4,6 @@ public class OutputOptions
 {
     public bool ShowGuids { get; set; }
 
-    public static OutputOptions Default => new();
-
     public string FormatIdentifier(string name, string guid)
     {
         if (string.IsNullOrEmpty(name) || name == "N/A")
@@ -22,7 +20,7 @@ public class OutputOptions
     public static (OutputOptions Options, string RemainingArgs) ParseFromArgs(string args)
     {
         var options = new OutputOptions();
-        if (string.IsNullOrEmpty(args))
+        if (args.Length == 0)
             return (options, args);
 
         var tokens = args.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();

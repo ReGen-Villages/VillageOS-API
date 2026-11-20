@@ -1,7 +1,7 @@
-using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -41,7 +41,7 @@ public class EventsCommandHandlerTests
     public async Task Watch_EndsWhenTheWindowClosesAndSaysWhenNothingArrived()
     {
         _myceliumMock.Setup(c => c.WatchEventsAsync(It.IsAny<CancellationToken>()))
-            .Returns((CancellationToken token) => Endless(token));
+            .Returns((CancellationToken token) => EndlessAfter(token));
 
         await Execute("watch --for=1");
 
@@ -57,21 +57,6 @@ public class EventsCommandHandlerTests
         await Execute("watch");
 
         _writer.ToString().Should().Contain("Error:").And.Contain("offline").And.NotContain("Nothing happened");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> Events(params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-        {
-            await Task.Yield();
-            yield return one;
-        }
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> Endless([EnumeratorCancellation] CancellationToken token)
-    {
-        await Task.Delay(Timeout.Infinite, token);
-        yield break;
     }
 
     private static async IAsyncEnumerable<ServerSentEvent> Throwing(Exception exception)

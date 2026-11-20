@@ -573,8 +573,8 @@ def load_seed(path):
 
 def dump_seed(seed, path):
     """Write in the seed house style — top-level keys in their existing order, with the Things and
-    Relationships arrays one compact object per line. Existing entities re-serialize byte-for-byte, so a
-    merge only adds lines rather than reformatting the whole file."""
+    Relationships arrays one compact object per line and every letter written as itself. Existing entities
+    re-serialize byte-for-byte, so a merge only adds lines rather than reformatting the whole file."""
     with open(path, "w", encoding="utf-8") as f:
         f.write("{\n")
         keys = list(seed.keys())
@@ -584,10 +584,10 @@ def dump_seed(seed, path):
             if key in ("Things", "Relationships") and isinstance(value, list):
                 f.write(f"  {json.dumps(key)}: [\n")
                 for ri, entity in enumerate(value):
-                    f.write("    " + json.dumps(entity) + ("" if ri == len(value) - 1 else ",") + "\n")
+                    f.write("    " + json.dumps(entity, ensure_ascii=False) + ("" if ri == len(value) - 1 else ",") + "\n")
                 f.write(f"  ]{tail}\n")
             else:
-                f.write(f"  {json.dumps(key)}: {json.dumps(value)}{tail}\n")
+                f.write(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)}{tail}\n")
         f.write("}\n")
 
 

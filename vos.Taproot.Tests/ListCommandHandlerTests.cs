@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -24,18 +25,16 @@ public class ListCommandHandlerTests
     // Mock the bulk properties endpoint `list` reads inherited properties from.
     private void SetupEffective(string effectiveJson) =>
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
-            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
-
-    private static JsonElement Json(string text) => JsonSerializer.Deserialize<JsonElement>(text);
+            .ReturnsAsync(Parse(effectiveJson));
 
     [Fact]
     public async Task ListThings_PassesEveryNarrowingOptionToTheRoute()
     {
         var site = Guid.NewGuid();
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
         _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n =>
                 n.Type == "Home" && n.Within == site && n.Limit == 5 && n.Properties == "area,storeys" && n.Names == "Home-1,Home-2")))
-            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\",\"Properties\":{\"area\":120}}]"));
+            .ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\",\"Properties\":{\"area\":120}}]"));
 
         await ExecuteHandler("things --type=Home --within=Site-1 --limit=5 --properties=area,storeys --name=Home-1,Home-2");
 
@@ -49,7 +48,7 @@ public class ListCommandHandlerTests
     public async Task ListThings_NarrowedWithoutNamingProperties_StillReadsTheInheritedOnes()
     {
         _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Home" && n.Within == null)))
-            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+            .ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
         SetupEffective("{\"a\":{\"Building.storeys\":{\"Value\":2,\"IsInherited\":true}}}");
 
         await ExecuteHandler("things --type=Home");
@@ -61,7 +60,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithNoOptions_ReadsTheWholeModelAsBefore()
     {
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
 
         await ExecuteHandler("things");
 
@@ -72,7 +71,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithinANameTheModelDoesNotHold_SaysSoAndReadsNothing()
     {
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("things --within=Nowhere");
 

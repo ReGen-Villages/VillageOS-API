@@ -4,8 +4,8 @@ namespace vos.Taproot
 {
     public class QueryCommandHandler : CommandHandlerWithOutputOptions
     {
-        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
         }
 
@@ -13,7 +13,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
                 if (tok.Length == 0)
                 {
@@ -93,8 +93,8 @@ namespace vos.Taproot
             var map = new Dictionary<string, string>();
             foreach (var thing in allThings.EnumerateArray())
             {
-                var id = GetStringProperty(thing, "Id");
-                if (id != null) map[id] = GetStringProperty(thing, "Name") ?? id;
+                var id = thing.GetStringOrDefault("Id", "");
+                if (id.Length > 0) map[id] = thing.GetStringOrDefault("Name", id);
             }
             return map;
         }
@@ -155,11 +155,6 @@ namespace vos.Taproot
             return value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : value.GetRawText();
-        }
-
-        private static string? GetStringProperty(JsonElement element, string propertyName)
-        {
-            return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() : null;
         }
 
         private void WritePropertyMatches(

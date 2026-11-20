@@ -14,6 +14,13 @@ public static class CommandOptions
     public static int? Number(IEnumerable<string> tokens, string option) =>
         int.TryParse(Value(tokens, option), out var number) ? number : null;
 
+    public static bool TryNumber(string token, string option, out int number)
+    {
+        var prefix = option + "=";
+        number = 0;
+        return token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && int.TryParse(token[prefix.Length..], out number);
+    }
+
     public static bool Has(IEnumerable<string> tokens, string option) =>
         tokens.Any(token => token.Equals(option, StringComparison.OrdinalIgnoreCase));
 
