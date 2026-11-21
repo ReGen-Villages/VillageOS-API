@@ -188,7 +188,7 @@ public sealed record VerificationAsked(string? EmailAddress);
 
 public sealed record VerificationAnswered(string? EmailAddress, string? Code);
 
-public sealed record FindingsAsked(string? SubmissionId, string? EmailAddress);
+public sealed record FindingsAsked(string? SubmissionId, string? EmailAddress, Guid? Page);
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -45,13 +46,17 @@ public class FindingsEndpointTests
         return BrokerSnapshot.RootedAt(selector.RootElement) is { } site ? model.OpenedReaching(site) : model.Opened();
     }
 
-    private static async Task<HttpResponseMessage> AskAsync(
+    private static Task<HttpResponseMessage> AskAsync(
         IntakeWebApplicationFactory factory, HttpClient client, string submissionId, string emailAddress,
-        string? ticket = null)
+        string? ticket = null) =>
+        AskForAsync(factory, client, new { submissionId, emailAddress, page = LandIntakeRoles.SubmitterProDataPage.Id }, emailAddress, ticket);
+
+    private static async Task<HttpResponseMessage> AskForAsync(
+        IntakeWebApplicationFactory factory, HttpClient client, object asked, string emailAddress, string? ticket = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions/findings")
         {
-            Content = JsonContent.Create(new { submissionId, emailAddress }),
+            Content = JsonContent.Create(asked),
         };
         if (ticket is not null) request.Headers.Add(TicketHeader, ticket);
         else request.Headers.Add(TicketHeader, await TicketFor(factory, client, emailAddress));
@@ -221,14 +226,58 @@ public class FindingsEndpointTests
     public async Task A_model_never_seeded_for_this_answers_that_it_cannot_and_says_no_more()
     {
         await using var factory = Holding(BrokerSnapshot.WithTwoSubmissions()
-            .Unbound(FindingsReader.PageRole).Unbound(FindingsReader.PersonalDetailRole));
+            .Unbound(LandIntakeRoles.SubmitterProDataPage).Unbound(FindingsReader.PersonalDetailRole));
         using var client = factory.CreateClient();
 
         var response = await AskAsync(factory, client, WillowBend.SubmissionId, ThisAddress);
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().NotContain(FindingsReader.PageRole.Word).And.NotContain("archetype");
+        body.Should().NotContain(LandIntakeRoles.SubmitterProDataPage.Word).And.NotContain("archetype");
+    }
+
+    [Fact]
+    public async Task Each_page_is_drawn_from_the_page_its_role_binds()
+    {
+        await using var factory = Holding();
+        using var client = factory.CreateClient();
+
+        var response = await AskForAsync(factory, client,
+            new { submissionId = WillowBend.SubmissionId, emailAddress = ThisAddress, page = LandIntakeRoles.SubmitterLiteDataPage.Id },
+            ThisAddress);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("specification").GetString()
+            .Should().Be(BrokerSnapshot.LitePageSpecification);
+    }
+
+    // Refused before the model is read, so a stranger's request never reaches the personal-detail archetype or
+    // anything else a project binds.
+    [Theory]
+    [InlineData("2e154d0e-6477-5e2b-9d61-faf40f7d39d1")]
+    [InlineData("3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7")]
+    [InlineData("0f6a3b2c-9d1e-4f8a-b7c6-5e4d3c2b1a09")]
+    [InlineData(null)]
+    public async Task A_request_naming_no_declared_page_is_refused_before_the_model_is_read(string? page)
+    {
+        var modelReads = 0;
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+            {
+                if (ModelStub.IsDeclarationRead(request)) modelReads++;
+                return Answer(request, BrokerSnapshot.WithTwoSubmissions());
+            },
+        };
+        using var client = factory.CreateClient();
+
+        var response = await AskForAsync(factory, client,
+            new { submissionId = WillowBend.SubmissionId, emailAddress = ThisAddress, page = page is null ? (Guid?)null : Guid.Parse(page) },
+            ThisAddress);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString().Should().Be("pageNotOffered");
+        modelReads.Should().Be(0);
     }
 
     // The broker being unreachable is a deployment's problem, not the caller's, and is answered the way

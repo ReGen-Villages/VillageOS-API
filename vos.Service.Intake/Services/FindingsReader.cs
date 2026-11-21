@@ -51,6 +51,17 @@ public static class FindingsReader
         Relationships = [new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" }],
     };
 
+    public static Role? OfferedPage(Guid? roleId) => throw new NotImplementedException();
+
+    public static SubscriptionSelector DeclarationSelector(Guid contactId, Role page) => throw new NotImplementedException();
+
+    public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId, Role page) =>
+        throw new NotImplementedException();
+
+    public static SubscriptionSelector ContactSelector(Guid contactId) => throw new NotImplementedException();
+
+    public static string? ReadContactAddress(JsonElement snapshot, Guid contactId) => throw new NotImplementedException();
+
     public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId)
     {
         var things = Things(snapshot).ToList();
