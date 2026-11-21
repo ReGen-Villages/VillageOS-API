@@ -66,10 +66,10 @@ describe('usePipelineDrawing', () => {
     expect(result.current.validationIssues.map((issue) => issue.kind)).toContain('relate-without-predicate');
     expect((result.current.canvasNodes[0].data as PipelineNodeData).relating).toBe('relates along no predicate yet');
 
-    act(() => result.current.setStandsFor(relate.id, id.ripens));
+    act(() => result.current.setStandsFor(relate.id, id.overflows));
     expect(result.current.validationIssues.map((issue) => issue.kind)).not.toContain('relate-without-predicate');
     expect(result.current.validationIssues.map((issue) => issue.kind)).not.toContain('relate-refused');
-    expect((result.current.canvasNodes[0].data as PipelineNodeData).relating).toBe('relates along ripens, then waits for ripe');
+    expect((result.current.canvasNodes[0].data as PipelineNodeData).relating).toBe('relates along overflows, then waits for overflowing');
   });
 
   it('says why the orchestrator would refuse a relate box standing for a connection', () => {
@@ -77,10 +77,10 @@ describe('usePipelineDrawing', () => {
     const { result } = renderHook(() => usePipelineDrawing({ model, connections: model.connections(), setError: vi.fn() }));
 
     act(() => result.current.placeRelate());
-    act(() => result.current.setStandsFor(result.current.nodes[0].id, id.ripensCalled));
+    act(() => result.current.setStandsFor(result.current.nodes[0].id, id.overflowsCalled));
 
     const refused = result.current.validationIssues.find((issue) => issue.kind === 'relate-refused')!;
-    expect(refused.message).toContain("'ripens called' is a connection");
+    expect(refused.message).toContain("'overflows called' is a connection");
   });
 
   it('draws a wire between compatible ports, refuses one between incompatible ports saying why, and ignores one to nowhere', () => {

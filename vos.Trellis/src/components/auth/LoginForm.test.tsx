@@ -27,7 +27,7 @@ describe('LoginForm', () => {
       <LoginForm
         {...signIn}
         onSelectModel={vi.fn(async () => {})}
-        availableModels={[{ Id: 'a', Name: 'Orchard  (1.0 MB)' } as never]}
+        availableModels={[{ Id: 'a', Name: 'Catchments  (1.0 MB)' } as never]}
       />,
     );
     expect(screen.getByTestId('theme-toggle')).not.toBeNull();

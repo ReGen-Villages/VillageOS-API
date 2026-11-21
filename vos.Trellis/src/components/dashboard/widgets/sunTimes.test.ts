@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { sunTimes } from './sunTimes';
 
 describe('when the sun rises and sets', () => {
-  // Near Pretoria, in local time: a summer day at the start of January, a winter day near the solstice.
+  // At 26° south, in local time: a summer day at the start of January, a winter day near the solstice.
   it('gives a long day in the southern summer and a short one in its winter', () => {
-    const summer = sunTimes(1, -25.83, 28.17, 2);
-    const winter = sunTimes(172, -25.83, 28.17, 2);
+    const summer = sunTimes(1, -26, 28, 2);
+    const winter = sunTimes(172, -26, 28, 2);
     expect(summer.sunrise).toBeGreaterThan(5);
     expect(summer.sunrise).toBeLessThan(5.5);
     expect(summer.sunset).toBeGreaterThan(19);
@@ -22,8 +22,8 @@ describe('when the sun rises and sets', () => {
   });
 
   it('shifts with the clock offset the hours are read in', () => {
-    const universal = sunTimes(1, -25.83, 28.17, 0);
-    const local = sunTimes(1, -25.83, 28.17, 2);
+    const universal = sunTimes(1, -26, 28, 0);
+    const local = sunTimes(1, -26, 28, 2);
     expect(local.sunrise - universal.sunrise).toBeCloseTo(2, 5);
   });
 });
