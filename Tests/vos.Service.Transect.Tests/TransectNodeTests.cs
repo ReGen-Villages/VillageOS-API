@@ -113,7 +113,7 @@ public class TransectNodeTests
             NullLogger<TransectNode>.Instance, MyceliumUrl, new LaunchToken("svc-jwt"));
 
     private static JsonElement Envelope(string subject) =>
-        JsonDocument.Parse($$"""{"runId":"{{Run}}","nodeId":"{{Node}}","params":{},"inputs":{"subject":{{subject}}}}""").RootElement;
+        JsonDocument.Parse($$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject}}}}}""").RootElement;
 
     private static JsonElement StringValue(string text) => JsonSerializer.SerializeToElement(text);
 
