@@ -10,8 +10,12 @@ namespace vos.Service.Intake.Services;
 
 public sealed record LayerShape(string Name, string Geometry);
 
-// Only shapes bearing a chosen name are parsed, so a shape a planner did not choose costs no more than reading
-// past it. Points and unnamed shapes are left out, since a planner chooses a kind for each shape by its name.
+// Outlines are each polygon's outer ring without the position that closes it, as a border's corners are given.
+public sealed record FileShape(
+    string? Name, string? Folder, string? Description, string Geometry, IReadOnlyList<IReadOnlyList<BoundaryPoint>> Outlines);
+
+// Read parses only shapes bearing a chosen name, so a shape nobody chose costs no more than reading past it.
+// Neither Read nor ReadEvery keeps a point.
 public static class LayerFileReader
 {
     private static readonly XmlReaderSettings WithoutExternalReferences = new()
@@ -20,7 +24,15 @@ public static class LayerFileReader
         XmlResolver = null,
     };
 
-    public static IReadOnlyList<LayerShape> Read(string fileName, Stream bytes, Func<string, bool> isChosen)
+    public static IReadOnlyList<LayerShape> Read(string fileName, Stream bytes, Func<string, bool> isChosen) =>
+        Shapes(fileName, bytes, isChosen).Select(shape => new LayerShape(shape.Name!, Written(shape.Parts))).ToList();
+
+    public static IReadOnlyList<FileShape> ReadEvery(string fileName, Stream bytes) =>
+        Shapes(fileName, bytes, isChosen: null)
+            .Select(shape => new FileShape(shape.Name, shape.Folder, shape.Description, Written(shape.Parts), Outlines(shape.Parts)))
+            .ToList();
+
+    private static List<ShapeBeingRead> Shapes(string fileName, Stream bytes, Func<string, bool>? isChosen)
     {
         try
         {
@@ -39,17 +51,41 @@ public static class LayerFileReader
         }
     }
 
-    private static List<LayerShape> Kml(Stream bytes, Func<string, bool> isChosen)
+    private static List<IReadOnlyList<BoundaryPoint>> Outlines(List<Part> parts) =>
+        parts.OfType<Area>()
+            .Select(area => (IReadOnlyList<BoundaryPoint>)area.Rings[0].SkipLast(1)
+                .Select(position => new BoundaryPoint { Latitude = position.Latitude, Longitude = position.Longitude })
+                .ToList())
+            .ToList();
+
+    private static List<ShapeBeingRead> Kml(Stream bytes, Func<string, bool>? isChosen)
     {
-        var shapes = new List<LayerShape>();
+        var shapes = new List<ShapeBeingRead>();
+        var folders = new Stack<(int Depth, string? Name)>();
         using var reader = XmlReader.Create(bytes, WithoutExternalReferences);
         while (reader.Read())
-            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "Placemark")
-                Keep(shapes, NamedShape(reader, isChosen, (child, shape) => KmlGeometry(reader, child, shape)));
+        {
+            if (reader.NodeType != XmlNodeType.Element) continue;
+            while (folders.Count > 0 && folders.Peek().Depth >= reader.Depth) folders.Pop();
+            switch (reader.LocalName)
+            {
+                case "Folder" when !reader.IsEmptyElement:
+                    folders.Push((reader.Depth, null));
+                    break;
+                case "name" when folders.TryPeek(out var folder) && folder.Depth == reader.Depth - 1 && folder.Name is null:
+                    folders.Pop();
+                    folders.Push((folder.Depth, Trimmed(string.Concat(TextPieces(reader)))));
+                    break;
+                case "Placemark":
+                    var inFolder = folders.FirstOrDefault(open => open.Name is not null).Name;
+                    Keep(shapes, PlacemarkShape(reader, isChosen, inFolder, (child, shape) => KmlGeometry(reader, child, shape)));
+                    break;
+            }
+        }
         return shapes;
     }
 
-    private static List<LayerShape> KmlInside(Stream bytes, Func<string, bool> isChosen)
+    private static List<ShapeBeingRead> KmlInside(Stream bytes, Func<string, bool>? isChosen)
     {
         using var archive = new ZipArchive(bytes, ZipArchiveMode.Read, leaveOpen: true);
         var kml = archive.Entries.FirstOrDefault(entry => entry.FullName.EndsWith(".kml", StringComparison.OrdinalIgnoreCase))
@@ -108,22 +144,22 @@ public static class LayerFileReader
             : throw Unreadable("a position has no latitude");
     }
 
-    private static List<LayerShape> Gpx(Stream bytes, Func<string, bool> isChosen)
+    private static List<ShapeBeingRead> Gpx(Stream bytes, Func<string, bool>? isChosen)
     {
-        var shapes = new List<LayerShape>();
+        var shapes = new List<ShapeBeingRead>();
         using var reader = XmlReader.Create(bytes, WithoutExternalReferences);
         while (reader.Read())
         {
             if (reader.NodeType != XmlNodeType.Element) continue;
             if (reader.LocalName == "trk")
-                Keep(shapes, NamedShape(reader, isChosen, (child, track) =>
+                Keep(shapes, PlacemarkShape(reader, isChosen, folder: null, (child, track) =>
                 {
                     if (child == "trkseg") track.AddLine(GpxPoints(reader, "trkpt", track));
                 }));
             else if (reader.LocalName == "rte")
             {
                 var points = new List<Position>();
-                var route = NamedShape(reader, isChosen, (child, shape) =>
+                var route = PlacemarkShape(reader, isChosen, folder: null, (child, shape) =>
                 {
                     if (child == "rtept") shape.Take(points, GpxPoint(reader, child));
                 });
@@ -148,16 +184,29 @@ public static class LayerFileReader
         Number(reader.GetAttribute("lon") ?? throw Unreadable($"a {pointName} has no longitude")),
         Number(reader.GetAttribute("lat") ?? throw Unreadable($"a {pointName} has no latitude")));
 
-    // KML and GPX give a shape's name before its geometry, so geometry met before any name is read past.
-    private static ShapeBeingRead? NamedShape(
-        XmlReader reader, Func<string, bool> isChosen, Action<string, ShapeBeingRead> readGeometry)
+    // KML and GPX give a shape's name before its geometry, so when only chosen names are read, geometry met before
+    // any name is read past.
+    private static ShapeBeingRead? PlacemarkShape(
+        XmlReader reader, Func<string, bool>? isChosen, string? folder, Action<string, ShapeBeingRead> readGeometry)
     {
-        ShapeBeingRead? shape = null;
+        var shape = isChosen is null ? new ShapeBeingRead(null, folder) : null;
         EachChild(reader, child =>
         {
-            if (child == "name")
-                shape = NameIfChosen(string.Concat(TextPieces(reader)), isChosen) is { } name ? new ShapeBeingRead(name) : null;
-            else if (shape is not null) readGeometry(child, shape);
+            switch (child)
+            {
+                case "name" when isChosen is null:
+                    shape!.Name = Trimmed(string.Concat(TextPieces(reader)));
+                    break;
+                case "name":
+                    shape = NameIfChosen(string.Concat(TextPieces(reader)), isChosen) is { } name ? new ShapeBeingRead(name, folder) : null;
+                    break;
+                case "description" or "desc" when shape is not null:
+                    shape.Description = Trimmed(string.Concat(TextPieces(reader)));
+                    break;
+                default:
+                    if (shape is not null) readGeometry(child, shape);
+                    break;
+            }
         });
         return shape;
     }
@@ -200,7 +249,7 @@ public static class LayerFileReader
 
     // The whole file is held as bytes, because a feature may give its name after its geometry and the reader goes
     // back to the geometry only once the name is chosen.
-    private static List<LayerShape> GeoJson(Stream bytes, Func<string, bool> isChosen)
+    private static List<ShapeBeingRead> GeoJson(Stream bytes, Func<string, bool>? isChosen)
     {
         var file = new byte[bytes.Length];
         bytes.ReadExactly(file);
@@ -219,7 +268,7 @@ public static class LayerFileReader
             else ValueStart(ref reader);
         }
 
-        var shapes = new List<LayerShape>();
+        var shapes = new List<ShapeBeingRead>();
         switch (type)
         {
             case "FeatureCollection":
@@ -238,34 +287,40 @@ public static class LayerFileReader
         return shapes;
     }
 
-    private static ShapeBeingRead? GeoJsonFeature(Utf8JsonReader feature, Func<string, bool> isChosen)
+    private static ShapeBeingRead? GeoJsonFeature(Utf8JsonReader feature, Func<string, bool>? isChosen)
     {
         if (feature.TokenType != JsonTokenType.StartObject) throw NotAFeature();
-        string? name = null;
+        (string? Name, string? Description) named = (null, null);
         var geometry = default(Utf8JsonReader);
         while (Next(ref feature) == JsonTokenType.PropertyName)
         {
-            if (feature.ValueTextEquals("properties"u8)) name = NameAmongProperties(ValueStart(ref feature));
+            if (feature.ValueTextEquals("properties"u8)) named = NameAmongProperties(ValueStart(ref feature));
             else if (feature.ValueTextEquals("geometry"u8)) geometry = ValueStart(ref feature);
             else ValueStart(ref feature);
         }
-        if (NameIfChosen(name, isChosen) is not { } chosen || geometry.TokenType != JsonTokenType.StartObject) return null;
+        if (geometry.TokenType != JsonTokenType.StartObject) return null;
 
-        var shape = new ShapeBeingRead(chosen);
+        ShapeBeingRead shape;
+        if (isChosen is null) shape = new ShapeBeingRead(Trimmed(named.Name), folder: null);
+        else if (NameIfChosen(named.Name, isChosen) is { } chosen) shape = new ShapeBeingRead(chosen, folder: null);
+        else return null;
+
+        shape.Description = Trimmed(named.Description);
         GeoJsonParts(geometry, shape);
         return shape;
     }
 
-    private static string? NameAmongProperties(Utf8JsonReader properties)
+    private static (string? Name, string? Description) NameAmongProperties(Utf8JsonReader properties)
     {
-        if (properties.TokenType != JsonTokenType.StartObject) return null;
-        string? name = null;
+        if (properties.TokenType != JsonTokenType.StartObject) return (null, null);
+        (string? Name, string? Description) named = (null, null);
         while (Next(ref properties) == JsonTokenType.PropertyName)
         {
-            if (properties.ValueTextEquals("name"u8)) name = StringValue(ref properties);
+            if (properties.ValueTextEquals("name"u8)) named.Name = StringValue(ref properties);
+            else if (properties.ValueTextEquals("description"u8)) named.Description = StringValue(ref properties);
             else ValueStart(ref properties);
         }
-        return name;
+        return named;
     }
 
     private static void GeoJsonParts(Utf8JsonReader geometry, ShapeBeingRead shape)
@@ -361,11 +416,13 @@ public static class LayerFileReader
         Unreadable("a GeoJSON layer is a Feature or a FeatureCollection, whose features carry names");
 
     private static string? NameIfChosen(string? name, Func<string, bool> isChosen) =>
-        name?.Trim() is { Length: > 0 } trimmed && isChosen(trimmed) ? trimmed : null;
+        Trimmed(name) is { } trimmed && isChosen(trimmed) ? trimmed : null;
 
-    private static void Keep(List<LayerShape> shapes, ShapeBeingRead? shape)
+    private static string? Trimmed(string? text) => text?.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+
+    private static void Keep(List<ShapeBeingRead> shapes, ShapeBeingRead? shape)
     {
-        if (shape is { Parts.Count: > 0 }) shapes.Add(new LayerShape(shape.Name, Written(shape.Parts)));
+        if (shape is { Parts.Count: > 0 }) shapes.Add(shape);
     }
 
     private static double Number(string text) => double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
@@ -404,11 +461,15 @@ public static class LayerFileReader
         writer.WriteEndObject();
     }
 
-    private sealed class ShapeBeingRead(string name)
+    private sealed class ShapeBeingRead(string? name, string? folder)
     {
         private int corners;
 
-        public string Name => name;
+        public string? Name { get; set; } = name;
+
+        public string? Folder => folder;
+
+        public string? Description { get; set; }
 
         public List<Part> Parts { get; } = [];
 
@@ -447,9 +508,11 @@ public static class LayerFileReader
             if (corners > SubmissionLimits.MostBoundaryCorners) throw TooManyCorners();
         }
 
-        private SubmissionError TooManyCorners() =>
-            new(RefusalCode.FieldTooMany, $"'{name}' holds at most {SubmissionLimits.MostBoundaryCorners} corners.",
-                Refusal.With(("field", name), ("most", SubmissionLimits.MostBoundaryCorners)));
+        private SubmissionError TooManyCorners() => Name is { } named
+            ? new(RefusalCode.FieldTooMany, $"'{named}' holds at most {SubmissionLimits.MostBoundaryCorners} corners.",
+                Refusal.With(("field", named), ("most", SubmissionLimits.MostBoundaryCorners)))
+            : new(RefusalCode.FieldTooMany, $"A shape holds at most {SubmissionLimits.MostBoundaryCorners} corners.",
+                Refusal.With(("most", SubmissionLimits.MostBoundaryCorners)));
     }
 
     // The archive is unpacked no further than a file may be, so a small archive cannot make the service read more.
