@@ -46,6 +46,7 @@ public class TransectNodeTests
         public static readonly Guid MeanSphere = Guid.NewGuid();
         public static readonly Guid Wgs84Ellipsoid = Guid.NewGuid();
         public static readonly Guid Parcel = Guid.NewGuid();
+        public static readonly Guid FlatPlane = Guid.NewGuid();
 
         private readonly List<SnapshotThing> _things = [];
         private readonly List<SnapshotRelationship> _edges = [];
@@ -58,6 +59,7 @@ public class TransectNodeTests
             Thing(AreaMeasuredWith, "areaMeasuredWith");
             Thing(MeanSphere, "Mean sphere");
             Thing(Wgs84Ellipsoid, "WGS84 ellipsoid");
+            Thing(FlatPlane, "Flat plane");
             Bind(LandIntakeRoles.Parcel, ParcelArchetype);
             Bind(LandIntakeRoles.MeasuresAreaWith, MeasuresAreaWith);
             Bind(LandIntakeRoles.AreaMeasuredWith, AreaMeasuredWith);
@@ -71,9 +73,21 @@ public class TransectNodeTests
 
         public bool HoldsTheParcel { get; init; } = true;
 
-        public string Answer() => JsonSerializer.Serialize(
-            new SnapshotReadResult(1, new SnapshotDocument(1, [.. _things.Where(thing => HoldsTheParcel || thing.Id != Parcel)], _edges)),
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        public Role? BindsNothing { get; init; }
+
+        public Role? BindsASecondThing { get; init; }
+
+        public Guid? AlsoMeasuredWith { get; init; }
+
+        public string Answer()
+        {
+            List<SnapshotRelationship> edges = [.. _edges.Where(edge => edge.SubjectId != BindsNothing?.Id)];
+            if (BindsASecondThing is { } bound) edges.Add(Edge(bound.Id, Binds, FlatPlane));
+            if (AlsoMeasuredWith is { } method) edges.Add(Edge(ParcelArchetype, MeasuresAreaWith, method));
+            return JsonSerializer.Serialize(
+                new SnapshotReadResult(1, new SnapshotDocument(1, [.. _things.Where(thing => HoldsTheParcel || thing.Id != Parcel)], edges)),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
 
         private void Thing(Guid id, string name, bool isArchetype = false, Dictionary<string, SnapshotProperty>? properties = null) =>
             _things.Add(new SnapshotThing(id, name, isArchetype, properties ?? [], null, [], null));
@@ -84,11 +98,14 @@ public class TransectNodeTests
             Relate(role.Id, Binds, bound);
         }
 
-        private void Relate(Guid subject, Guid predicate, Guid target) =>
-            _edges.Add(new SnapshotRelationship(Guid.NewGuid(), null, subject, predicate, target, [], null, []));
+        private void Relate(Guid subject, Guid predicate, Guid target) => _edges.Add(Edge(subject, predicate, target));
+
+        private static SnapshotRelationship Edge(Guid subject, Guid predicate, Guid target) =>
+            new(Guid.NewGuid(), null, subject, predicate, target, [], null, []);
     }
 
-    private sealed class Broker(Func<string> snapshot, HttpStatusCode snapshotStatus = HttpStatusCode.OK)
+    private sealed class Broker(
+        Func<string> snapshot, HttpStatusCode snapshotStatus = HttpStatusCode.OK, HttpStatusCode fragmentStatus = HttpStatusCode.OK)
     {
         public List<JsonElement> Fragments { get; } = [];
 
@@ -101,6 +118,8 @@ public class TransectNodeTests
                     : new HttpResponseMessage(snapshotStatus);
             if (path == "/api/model/fragment")
             {
+                if (fragmentStatus != HttpStatusCode.OK)
+                    return new HttpResponseMessage(fragmentStatus) { Content = new StringContent("refused", Encoding.UTF8, "text/plain") };
                 Fragments.Add(JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).RootElement.Clone());
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
             }
@@ -199,6 +218,21 @@ public class TransectNodeTests
         { "a border of two corners", () => new Model(Model.MeanSphere, StringValue(GeoJsonOf([(39.5, 0), (39.5, 0.01)]))), "" },
         { "a boundary that is no polygon", () => new Model(Model.MeanSphere, StringValue("""{"type":"LineString","coordinates":[[0,39.5],[0.01,39.5]]}""")), "" },
         { "a model choosing no area method", () => new Model(Guid.Empty, StringValue(GeoJsonOf(ReferenceBorder))), "" },
+        { "a boundary text that is not GeoJSON", () => new Model(Model.MeanSphere, StringValue("not a border")), "" },
+        { "a polygon with no rings", () => new Model(Model.MeanSphere, StringValue("""{"type":"Polygon","coordinates":[]}""")), "" },
+        {
+            "a model choosing two area methods",
+            () => new Model(Model.MeanSphere, StringValue(GeoJsonOf(ReferenceBorder))) { AlsoMeasuredWith = Model.Wgs84Ellipsoid }, ""
+        },
+        { "a model choosing a method no implemented role binds", () => new Model(Model.FlatPlane, StringValue(GeoJsonOf(ReferenceBorder))), "" },
+        {
+            "a model binding nothing to the parcel role",
+            () => new Model(Model.MeanSphere, StringValue(GeoJsonOf(ReferenceBorder))) { BindsNothing = LandIntakeRoles.Parcel }, ""
+        },
+        {
+            "a model binding the parcel role to two Things",
+            () => new Model(Model.MeanSphere, StringValue(GeoJsonOf(ReferenceBorder))) { BindsASecondThing = LandIntakeRoles.Parcel }, ""
+        },
     };
 
     [Theory]
@@ -223,6 +257,33 @@ public class TransectNodeTests
         response.Result.Should().Be(NodeResponse.Failed);
         response.Retry.Should().NotBeNull();
         broker.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_broker_that_refuses_the_read_is_a_failure_calling_again_would_not_change()
+    {
+        var broker = new Broker(() => "{}", HttpStatusCode.Forbidden);
+
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""));
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        broker.Fragments.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, false)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    public async Task A_measure_the_model_does_not_take_fails_and_is_tried_again_only_when_the_model_could_not_answer(
+        HttpStatusCode answered, bool triedAgain)
+    {
+        var model = new Model(Model.MeanSphere, StringValue(GeoJsonOf(ReferenceBorder)));
+        var broker = new Broker(model.Answer, fragmentStatus: answered);
+
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""));
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        (response.Retry is not null).Should().Be(triedAgain);
     }
 
     [Fact]
