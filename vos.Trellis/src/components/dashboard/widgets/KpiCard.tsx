@@ -127,7 +127,7 @@ export function KpiCard({
 /** One line per Thing the binding read. Every word is the model's, so a row with no origin, or an origin the
  *  specification left without wording, is left out rather than drawn blank, where a placeholder would read as
  *  an answer. */
-export function OriginLines({ rows }: { rows: Row[] }) {
+function OriginLines({ rows }: { rows: Row[] }) {
   return originLines(rows).map((line, position) => (
     <div key={`${line.origin}-${position}`} className={`text-[11px] mt-1.5 ${originTone(line.origin)}`}>
       {line.sentence}
