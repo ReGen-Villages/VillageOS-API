@@ -1048,10 +1048,10 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_AServicesCallParams_AreMergedUnderTheBoxsOwnProperties()
+    public void Build_AServicesCallParameters_AreMergedUnderTheBoxsOwnProperties()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("echSvc"), ModelNames.CallParams, """{"step":"fetch","sliceDays":30}""");
+        fx.Hold(fx.Get("echSvc"), "callParameters", """{"step":"fetch","sliceDays":30}""");
         fx.Hold(fx.Get("Echo"), "attempts", 3);
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
@@ -1062,18 +1062,18 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_ABoxSettingAKeyItsServicesCallParamsSet_IsRefusedNamingTheBoxTheKeyAndTheService()
+    public void Build_ABoxSettingAKeyItsServicesCallParametersSet_IsRefusedNamingTheBoxTheKeyAndTheService()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("echSvc"), ModelNames.CallParams, """{"step":"fetch"}""");
+        fx.Hold(fx.Get("echSvc"), "callParameters", """{"step":"fetch"}""");
         fx.Hold(fx.Get("Echo"), "step", "historyChanged");
 
         PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should()
-            .Contain("Node 'Echo' sets 'step', which its service 'echSvc' already sets in callParams; a box cannot change what its service is called with.");
+            .Contain("Node 'Echo' sets 'step', which its service 'echSvc' already sets in callParameters; a box cannot change what its service is called with.");
     }
 
     [Fact]
-    public void Build_AServiceHoldingNoCallParams_GivesTheBoxOnlyItsOwnProperties()
+    public void Build_AServiceHoldingNoCallParameters_GivesTheBoxOnlyItsOwnProperties()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         fx.Hold(fx.Get("Echo"), "attempts", 3);
@@ -1085,10 +1085,10 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_AServiceHoldingCallParamsWithNoValue_GivesTheBoxOnlyItsOwnProperties()
+    public void Build_AServiceHoldingCallParametersWithNoValue_GivesTheBoxOnlyItsOwnProperties()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("echSvc"), ModelNames.CallParams, null!);
+        fx.Hold(fx.Get("echSvc"), "callParameters", null!);
         fx.Hold(fx.Get("Echo"), "attempts", 3);
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
@@ -1098,10 +1098,10 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_CallParamsHeldByTheKindAServiceIs_AreNotRead()
+    public void Build_CallParametersHeldByTheKindAServiceIs_AreNotRead()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("EchoProto"), ModelNames.CallParams, """{"step":"fetch"}""");
+        fx.Hold(fx.Get("EchoProto"), "callParameters", """{"step":"fetch"}""");
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
@@ -1113,22 +1113,22 @@ public class PipelineModelTests
     [InlineData("""["step","fetch"]""")]
     [InlineData("fetch")]
     [InlineData("""{"step":""")]
-    public void Build_AServicesCallParamsThatAreNotAJsonObject_AreRefusedNamingTheService(string callParams)
+    public void Build_AServicesCallParametersThatAreNotAJsonObject_AreRefusedNamingTheService(string callParameters)
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("echSvc"), ModelNames.CallParams, callParams);
+        fx.Hold(fx.Get("echSvc"), "callParameters", callParameters);
 
         PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should()
-            .Contain("Service 'echSvc' of node 'Echo' holds callParams that are not a JSON object, so the box could not be called with them.");
+            .Contain("Service 'echSvc' of node 'Echo' holds callParameters that are not a JSON object, so the box could not be called with them.");
     }
 
     [Fact]
-    public void Build_AServicesCallParamsHeldAsANumber_AreRefusedNamingTheService()
+    public void Build_AServicesCallParametersHeldAsANumber_AreRefusedNamingTheService()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
-        fx.Hold(fx.Get("echSvc"), ModelNames.CallParams, 3);
+        fx.Hold(fx.Get("echSvc"), "callParameters", 3);
 
         PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should()
-            .Contain("Service 'echSvc' of node 'Echo' holds callParams that are not a JSON object, so the box could not be called with them.");
+            .Contain("Service 'echSvc' of node 'Echo' holds callParameters that are not a JSON object, so the box could not be called with them.");
     }
 }

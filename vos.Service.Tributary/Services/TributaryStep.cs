@@ -5,8 +5,8 @@ using vos.Service.Tributary.Models;
 
 namespace vos.Service.Tributary.Services;
 
-// Tributary as a pipeline step, chosen by the `step` its service holds in callParams. A list on a collection input is run once per
-// item by the orchestrator, so each item is fetched or judged, and tried again, on its own.
+// Tributary as a pipeline step, chosen by the `step` its service holds in callParameters. A list on a collection input is
+// run once per item by the orchestrator, so each item is fetched or judged, and tried again, on its own.
 public sealed class TributaryStep : DagNodeService
 {
     public const string StepSetting = "step";

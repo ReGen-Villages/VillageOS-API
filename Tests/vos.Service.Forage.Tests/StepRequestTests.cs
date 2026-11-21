@@ -445,7 +445,7 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         answer.GetProperty("error").GetString().Should().Be(
-            "A Forage step service holds its step as 'step' in its callParams, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
+            "A Forage step service holds its step as 'step' in its callParameters, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
     }
 
     [Fact]
@@ -469,7 +469,7 @@ public class StepRequestTests
         manifest.GetProperty("service").GetString().Should().Be("Forage plan calls");
         manifest.GetProperty("ports").EnumerateArray().Select(port => (port.GetProperty("portName").GetString(), port.GetProperty("direction").GetString()))
             .Should().Equal(("site", "in"), ("address", "in"), ("calls", "out"));
-        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParams its service holds, and a box may not set it");
+        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParameters its service holds, and a box may not set it");
         (await client.GetAsync("/manifest/discoverEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 

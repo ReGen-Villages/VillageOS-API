@@ -26,7 +26,7 @@ public static class ModelNames
     public const string ListTransform = "listTransform";
     public const string ParameterBindings = "parameterBindings";
     // On a service, a JSON object sent with every call any box makes to it, and which no box may set again.
-    public const string CallParams = "callParams";
+    public const string CallParameters = "callParameters";
     public const string Collection = "collection";
     // An out port whose answers are Things: the node run is related to each.
     public const string Produces = "produces";

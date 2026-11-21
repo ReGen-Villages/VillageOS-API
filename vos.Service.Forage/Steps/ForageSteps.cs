@@ -7,8 +7,8 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.Forage.Steps;
 
-// Each stage of a discovery run as a pipeline step, chosen by the `step` its service holds in callParams. A failed read of the
-// model is answered as a failure that may be tried again, never as an empty answer.
+// Each stage of a discovery run as a pipeline step, chosen by the `step` its service holds in callParameters. A failed
+// read of the model is answered as a failure that may be tried again, never as an empty answer.
 public sealed class ForageSteps : DagNodeService
 {
     public const string StepSetting = "step";
@@ -101,7 +101,7 @@ public sealed class ForageSteps : DagNodeService
             MarkDiscovered => MarkDiscoveredAsync(context, cancellationToken),
             OfferSource => OfferSourceAsync(context, cancellationToken),
             _ => throw new InvalidOperationException(
-                $"A Forage step service holds its step as '{StepSetting}' in its callParams, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}."),
+                $"A Forage step service holds its step as '{StepSetting}' in its callParameters, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}."),
         };
 
     private async Task<NodeResult> ResolveRegionAsync(NodeContext context, CancellationToken cancellationToken)

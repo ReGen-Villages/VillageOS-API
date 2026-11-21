@@ -22,7 +22,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         Guid? Tell = null, Guid? Office = null, Guid? TellsTheOffice = null);
 
     private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false, bool portsOnAPrototype = false,
-        string? transformCallParams = null)
+        string? transformCallParameters = null)
     {
         var firstDrawing = await _engine.FindAsync("carries") is null;
         var @is = await _engine.DeclareOnceAsync(PlatformPredicates.Is);
@@ -45,9 +45,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var comparesWith = await _engine.PlayingAsync(PipelineRoles.ComparesWith, "comparesWith", isArchetype: false);
         var carries = await _engine.DeclareOnceAsync("carries");
 
-        var transform = await _engine.DeclareAsync("Transform service", properties: transformCallParams is null
+        var transform = await _engine.DeclareAsync("Transform service", properties: transformCallParameters is null
             ? null
-            : new Dictionary<string, object?> { [ModelNames.CallParams] = transformCallParams });
+            : new Dictionary<string, object?> { ["callParameters"] = transformCallParameters });
         var portHolder = transform;
         if (portsOnAPrototype)
         {
@@ -188,9 +188,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
     }
 
     [FactAgainstTheEngine]
-    public async Task A_box_drawn_with_no_settings_is_called_with_the_callParams_its_service_holds()
+    public async Task A_box_drawn_with_no_settings_is_called_with_the_callParameters_its_service_holds()
     {
-        var studio = await DrawTextStudioAsync(uppercaseChooses: false, transformCallParams: """{"step":"uppercase"}""");
+        var studio = await DrawTextStudioAsync(uppercaseChooses: false, transformCallParameters:"""{"step":"uppercase"}""");
 
         var dag = await ReadAsync(studio.Pipeline);
 
