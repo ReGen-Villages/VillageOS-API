@@ -1,6 +1,6 @@
 /**
- * A service is reached through a connection, the predicate of a handled relationship or the target of the
- * record the platform writes when a Thing enters a watched state, and the platform stamps that relationship
+ * A service is reached through the connection that the predicate of a handled relationship, or the target of the
+ * record the platform writes when a Thing enters a watched state, names along `notifies`, and the platform stamps that relationship
  * with the call's state and last attempt. So the model says who ran and when, and nothing here names a service,
  * predicate or archetype, only roles. The stamps live in the platform's memory, so a call from before the
  * model was loaded has no time, and {@link ServiceCall} leaves `at` absent rather than guess one.
@@ -38,7 +38,7 @@ interface ServiceEdge {
   serviceId?: string;
   /** What to call the service — the connection's own name where it binds none. */
   serviceName: string;
-  /** The connection the service call went out on: a handled predicate, or a watched state's connection. */
+  /** The connection the service call went out on, as a handled predicate or a watched state names it. */
   connectionName: string;
 }
 
@@ -110,11 +110,10 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   return wiring;
 }
 
-/** The connection a call record's target is answered through: the one it names along `notifies`, else the one the
- *  nearest of its archetypes names, else the target itself, as the platform resolves it. */
-function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
+/** Resolved as the platform's own ConnectionOf resolves it, so the card names the connection the call went out on. */
+function connectionCalledBy(callingId: string, wiring: ServiceWiring): string {
   const seen = new Set<string>();
-  let frontier = [targetId];
+  let frontier = [callingId];
   while (frontier.length > 0) {
     const next: string[] = [];
     for (const id of frontier) {
@@ -126,7 +125,7 @@ function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
     }
     frontier = next;
   }
-  return targetId;
+  return callingId;
 }
 
 /**
@@ -141,12 +140,8 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
 
   for (const edge of modelIndex.relationships) {
     if (edge.SubjectId !== thingId) continue;
-    // A handled relationship carries its connection as the predicate; a record relationship, written when the Thing
-    // entered a watched state, carries it as the target — or a waiting Thing that names it, or whose archetype does. Either way it
-    // has to be a connection: a relationship reaching anything else is somebody's own bookkeeping, and
-    // reading it as a service call would put a row on the card naming a Thing that never ran.
-    const connectionId =
-      edge.PredicateId === wiring.recordPredicateId ? connectionAnswering(edge.TargetId, wiring) : edge.PredicateId;
+    // A relationship that reaches no connection is somebody's own bookkeeping, and listing it would name a Thing that never ran.
+    const connectionId = connectionCalledBy(edge.PredicateId === wiring.recordPredicateId ? edge.TargetId : edge.PredicateId, wiring);
     if (!wiring.connectionIds.has(connectionId)) continue;
 
     const connectionName = wiringIndex.byId.get(connectionId)?.Name ?? connectionId;
