@@ -4,10 +4,8 @@ import { Pencil } from 'lucide-react';
 import { thingApi } from '../../api/thingApi';
 import { toast } from '../common/toastStore';
 
-// Inline rename affordance for the node detail panel header. Click the pencil to edit the name in
-// place; Enter (or blur) commits via thingApi.rename — which keeps the Thing's Id and all relationships — and Escape
-// cancels. A blank or unchanged name is a no-op (no broker call). The optional onRenamed lets the parent
-// reflect the new name immediately; the authoritative update also arrives over SSE.
+// A blank or unchanged name sends nothing. `onRenamed` lets the parent show the new name at once; the broker's
+// own update arrives on the stream as well.
 interface Props {
   thingId: string;
   name: string;

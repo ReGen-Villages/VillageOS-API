@@ -1,6 +1,6 @@
-"""Behavioural specification for the generic simulator: action serialization, the BalanceLedger's
-one-writer-per-balance guarantee, resumable checkpoints, and a dry replay against a fake Mycelium
-that fails loud on any oversell. Domain-agnostic — the timelines here are abstract Things and bins.
+"""The generic simulator: saving and reading actions, the BalanceLedger's one writer per balance,
+resumable checkpoints, and a run against a stand-in Mycelium that raises an error whenever a balance
+would go below zero. The timelines here name no domain: they are plain Things and bins.
 """
 import contextlib
 import io
@@ -21,8 +21,8 @@ def _unwrap(value):
 
 
 class FakeMycelium:
-    """Records every call and maintains per-thing balances, raising a 400 (as Mycelium's Adjust does)
-    if a decrement would go negative — so a passing replay proves the ledger never oversold."""
+    """Records every call and keeps each Thing's balance, raising a 400 (as Mycelium's Adjust does)
+    if a decrement would go negative, so a run that passes shows the ledger never took more than there was."""
 
     def __init__(self):
         self.things, self.rels, self.facts, self.balances, self.order = {}, [], [], {}, []
@@ -50,9 +50,9 @@ class FakeMycelium:
             self.facts.append((thing_id, prop, value))
 
     def apply_fragment(self, things, relationships, name="simulator fragment"):
-        """Record the fragment and apply it the way the server would from the client's view: upsert
-        each Thing (storing its typed Properties, seeding a contained_units balance as
-        create_typed_thing does) and each Relationship. Upsert/idempotent — a re-post is a no-op."""
+        """Record the fragment and apply it as the server appears to the client: add or update each
+        Thing (storing its typed Properties, and a contained_units balance as create_typed_thing does)
+        and each relationship, so posting it again changes nothing."""
         with self._lock:
             self.fragments.append({"name": name, "things": things, "relationships": relationships})
             for t in things:
@@ -177,8 +177,8 @@ def _capture_request(response_json):
 
 
 class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
-    """The mint contract is POST /api/auth/token with the key in the X-API-Key header (optional
-    ?modelId=), returning {token}. Guards the fix from the earlier wrong {"apiKey": ...} body form.
+    """A token is fetched with POST /api/auth/token, the key in the X-API-Key header (optional
+    ?modelId=), answering {token}; a body of {"apiKey": ...} is not what the route reads.
 
     Every client here is given an empty environment, so what the shell running the tests happens to
     export cannot supply a credential the case did not ask for."""
@@ -233,8 +233,8 @@ class CredentialsComeFromTheEnvironment(unittest.TestCase):
 
 
 class CredentialFlagsAreRefused(unittest.TestCase):
-    """Neither credential is an argument any more. A run that still passes one is told the argument
-    is unknown, rather than reaching the model with the secret in the process table."""
+    """Neither credential is an argument. A run that passes one is told the argument is unknown,
+    rather than reaching the model with the secret in the process table."""
 
     def _refusal(self, main, argv):
         stderr = io.StringIO()
@@ -300,8 +300,8 @@ def _scripted_requests(responses):
 
 
 class ExpiredTokenIsReminted(unittest.TestCase):
-    """A cached JWT expires mid-run, so a long scenario would die with 401 on its first write
-    past the token's TTL. An authenticated 401 re-mints once from the API key and retries."""
+    """A kept token expires during a long run, which would stop it with 401 at its first write after
+    expiry, so a 401 on a signed-in call fetches a new token with the API key and tries once more."""
 
     def test_401_remints_the_token_and_retries_once(self):
         calls, fake = _scripted_requests([
@@ -442,8 +442,8 @@ class ReplayAgainstFakeMycelium(unittest.TestCase):
 
 
 class TheChangeStreamIsRefusedNotFaked(unittest.TestCase):
-    """`follow_until` subscribes, reads the SSE stream and unsubscribes — server behaviour a
-    recorder cannot stand in for."""
+    """`follow_until` subscribes, reads the event stream and unsubscribes, which a recording stand-in
+    cannot imitate."""
 
     def test_each_watch_call_says_what_is_not_emulated(self):
         client = FakeMycelium()
@@ -461,8 +461,8 @@ class TheChangeStreamIsRefusedNotFaked(unittest.TestCase):
 
 
 class EveryOpIsApplied(unittest.TestCase):
-    """Exercise the full op vocabulary against the fake, including the ones the reference domain does
-    not emit (set_observation, delete_thing), so the executor's branches stay covered."""
+    """Every op against the stand-in, including those no timeline here produces (set_observation,
+    delete_thing), so each branch that applies an op is run."""
 
     def test_observation_and_delete_ops_reach_the_client(self):
         client = FakeMycelium()
@@ -484,12 +484,10 @@ class EveryOpIsApplied(unittest.TestCase):
 
 
 class FragmentCarriesInheritorWithItsIsEdge(unittest.TestCase):
-    """Lazy inheritance (I1: a Thing may not *own* a property name it *inherits*) is now resolved
-    SERVER-SIDE. The simulator no longer choreographs bare-create-then-override; it coalesces each
-    ``create_thing`` and its creation-time ``create_rel`` edges (same offset, subject == the thing)
-    into ONE ``apply_fragment`` (``POST /api/model/fragment``), so the Thing and its ``is`` edge travel
-    together and the server creates the Thing bare, establishes the edge, and materializes any
-    inherited value as an override. Setup collapses into a single standing-world fragment."""
+    """A Thing may not hold a property of its own under a name it inherits, so the simulator sends each
+    ``create_thing`` with the ``create_rel`` actions at its offset whose subject it is as one
+    ``apply_fragment`` (``POST /api/model/fragment``). The server then creates the Thing bare, adds the
+    relationship, and stores any inherited value as an override. Setup becomes one fragment."""
 
     def _run(self, actions):
         client = FakeMycelium()
@@ -522,8 +520,8 @@ class FragmentCarriesInheritorWithItsIsEdge(unittest.TestCase):
         self.assertEqual(x["Properties"]["weight"], {"typeInfo": "vos.Decimal", "value": 2.5})
 
     def test_a_later_offset_is_edge_stays_granular(self):
-        # An `is` relationship at a LATER offset than the Thing is a lifecycle relationship on an already-existing
-        # Thing; it is not a creation-time relationship, so it stays a granular create_rel, not folded in.
+        # An `is` relationship at a later offset than its Thing is made to a Thing that already exists, so it
+        # stays a separate create_rel.
         client = self._run([
             S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"),
             S.Action(1, 1, "worker", "create_thing",
@@ -531,13 +529,13 @@ class FragmentCarriesInheritorWithItsIsEdge(unittest.TestCase):
             S.Action(5, 2, "worker", "create_rel",
                      {"subject_id": "Y", "predicate_id": "GUID-is", "predicate": "is", "target_id": "A"}, "Y|is|A"),
         ])
-        self.assertEqual(self._fragment_with(client, "Y")["relationships"], [])   # edge not folded in
-        self.assertIn(("Y", "GUID-is", "A"), client.rels)                # applied granularly instead
+        self.assertEqual(self._fragment_with(client, "Y")["relationships"], [])
+        self.assertIn(("Y", "GUID-is", "A"), client.rels)
 
     def test_setup_is_emitted_as_a_single_bulk_fragment(self):
         client = self._run(self._instance({"code": "x"}))
         setup_frags = [f for f in client.fragments if any(t["Id"] == "A" for t in f["things"])]
-        self.assertEqual(len(setup_frags), 1)                            # one standing-world upsert
+        self.assertEqual(len(setup_frags), 1)
         self.assertEqual({t["Id"] for t in setup_frags[0]["things"]}, {"A"})
 
 
@@ -553,8 +551,8 @@ class CliPlaysATimelineFile(unittest.TestCase):
 
 
 class CoalesceForwardReference(unittest.TestCase):
-    """A create_rel whose target is created in a LATER fragment must not fold into its subject's
-    fragment (it would apply before the target exists → 400); it stays granular."""
+    """A create_rel whose target is created in a later fragment stays a separate action, because in its
+    subject's fragment it would be applied before the target exists and refused with 400."""
 
     def test_forward_referencing_edge_stays_granular(self):
         sim = S.Simulator(FakeMycelium(), **_fast())
@@ -577,10 +575,9 @@ class CoalesceForwardReference(unittest.TestCase):
 
 
 class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
-    """A standing-world batch — the coalesced fragment, or the ``--seed-first`` document — carries
-    Thing and Relationship creations and nothing else. Every other setup action used to fall off the
-    end of that rebuild and reach no one, while the identical action on the paced clock applied, so a
-    run delivered less than its timeline asked for and still reported success."""
+    """A setup batch — the combined fragment, or the ``--seed-first`` document — carries only Thing and
+    relationship creations, so every other setup action must still be applied, or a run would do less
+    than its timeline asks and still report success."""
 
     def test_a_fact_set_at_setup_reaches_the_client(self):
         client = FakeMycelium()
@@ -636,7 +633,6 @@ class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
         self.assertEqual(client.facts, [("bin", "code", "x")])
 
     def test_a_seed_document_refuses_an_op_it_cannot_carry(self):
-        # The one loop left that could silently ignore a new op, so it refuses like _apply instead.
         with self.assertRaises(ValueError):
             S.Simulator._as_seed_document([
                 S.Action(0, 0, "setup", "set_fact",
@@ -645,7 +641,7 @@ class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
 
 
 class TheClientPostsBeyondTheWriteApi(unittest.TestCase):
-    """`post` reaches any route on the client's own host or another's. The bearer rides only to
+    """`post` reaches any route on the client's own host or another's. The token is sent only to
     the client's own address: a service served beside the broker is never handed the broker's
     credential, and a timeline that needs one there puts it in the headers it carries."""
 

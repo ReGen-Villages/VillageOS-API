@@ -92,7 +92,6 @@ public class MyceliumStatusCommandHandlerTests
     [Fact]
     public async Task Endpoints_MissingFields_FallsBackToUnknown()
     {
-        // Endpoint with neither Subdomain nor BaseUrl exercises the GetStringOrDefault default branch.
         _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[{}]"));
 
         await ExecuteHandler("endpoints");

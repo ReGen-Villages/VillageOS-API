@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// matchMedia must be polyfilled BEFORE the store module imports it (the
-// initial `theme` value is computed at module load).
+// Stubbed before the store module is imported, because the first theme is worked out as it loads.
 const mqlListeners = new Set<(e: MediaQueryListEvent) => void>();
 let mockSystemDark = false;
 function setupMatchMedia() {
@@ -43,8 +42,8 @@ describe('themeStore', () => {
   });
 
   it('uses the stored override over the system preference', async () => {
-    mockSystemDark = true; // OS says dark
-    localStorage.setItem('vos-theme-override', 'light'); // user previously chose light
+    mockSystemDark = true;
+    localStorage.setItem('vos-theme-override', 'light');
     const { useThemeStore } = await import('./themeStore');
     expect(useThemeStore.getState().theme).toBe('light');
     expect(useThemeStore.getState().isOverride).toBe(true);
@@ -78,10 +77,10 @@ describe('themeStore', () => {
     mockSystemDark = false;
     const { useThemeStore, attachThemeMediaListener } = await import('./themeStore');
     const detach = attachThemeMediaListener();
-    useThemeStore.getState().toggle(); // user chose dark
+    useThemeStore.getState().toggle();
     expect(useThemeStore.getState().theme).toBe('dark');
 
-    emitSystemChange(false); // OS goes light — should NOT flip the user out of dark
+    emitSystemChange(false);
     expect(useThemeStore.getState().theme).toBe('dark');
     detach();
   });

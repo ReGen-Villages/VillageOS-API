@@ -1,18 +1,8 @@
 /**
- * The values the decisions a card has open cite, each read as it stood when its own decision was
- * taken.
- *
- * A decision is written once and carries an instant in the past, so a read of one of its cited
- * properties answers the same thing forever. An answer already held is kept and never asked for
- * again: the round follows the decisions on screen rather than the dashboard's refresh, so a card
- * left open through a running model reads each value once, and opening the earlier decisions reads
- * only what they add.
- *
- * Only the decisions on screen are read. Reading every decision a subject keeps is a request per
- * candidate of each, which would have to be capped — and a cap would leave a row saying the platform
- * recorded nothing when the card had simply never asked. What is read is bounded instead by what the
- * model declares for itself: how many decisions a subject keeps, and how many candidates a refusal
- * may name.
+ * A decision is written once with an instant in the past, so each cited value answers the same for ever and is
+ * read once and kept; reads follow the decisions on screen, not the dashboard's refresh. Only those decisions are
+ * read, because reading all of them would need a cap, and a cap would make a row say nothing was recorded when
+ * nothing was asked; the model's own limits on decisions kept and candidates named bound it instead.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { thingApi } from '../../../api/thingApi';

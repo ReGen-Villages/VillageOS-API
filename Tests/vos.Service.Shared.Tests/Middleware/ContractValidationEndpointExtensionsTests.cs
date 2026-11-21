@@ -39,7 +39,6 @@ public class ContractValidationEndpointExtensionsTests
             .WithMessage("*FakeDtoWithoutAttribute*ContractSchema*");
     }
 
-    // Minimal IEndpointConventionBuilder that just records added metadata.
     private sealed class MetadataCapture : IEndpointConventionBuilder
     {
         public readonly List<object> Captured = new();

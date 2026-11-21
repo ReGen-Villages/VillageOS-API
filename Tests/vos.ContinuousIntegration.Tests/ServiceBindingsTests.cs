@@ -34,8 +34,8 @@ public class ServiceBindingsTests
         Assert.True(ServiceBindings.ReachesBeyondLoopback(source));
     }
 
-    // The bug this guard was rewritten for: a loopback address and a wildcard in the same call read as
-    // loopback, and the service was on the network with the test green.
+    // A loopback address and a wildcard in the same call could read as loopback, leaving the service on
+    // the network with the test green.
     [Fact]
     public void A_loopback_address_alongside_a_wildcard_is_not_loopback()
     {

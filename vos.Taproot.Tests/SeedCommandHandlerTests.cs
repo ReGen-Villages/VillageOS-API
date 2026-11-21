@@ -88,11 +88,6 @@ public class SeedCommandHandlerTests
         Assert.Contains("village", output);
     }
 
-    // Note: the production fallback `seed.GetStringOrDefault("Name", seed.ToString())` throws
-    // on a non-object seed because TryGetProperty rejects string elements. The outer try-catch
-    // converts the throw into "Error: ..." output — a latent bug worth tracking separately.
-    // Happy path (object seeds with Name) is exercised in List_WithSeeds_PrintsName above.
-
     [Fact]
     public async Task Load_NoArg_ShowsUsage()
     {

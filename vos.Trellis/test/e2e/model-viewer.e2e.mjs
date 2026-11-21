@@ -1,19 +1,9 @@
-// Puppeteer e2e test for the Fragments viewer.
+// Draws the Fragments model in a real browser and samples its pixels, because jsdom has no WebGL and the
+// unit tests stub the viewer. Needs the broker on https://localhost:7243 with a model holding an ingested
+// .frag file, and the development server on http://localhost:5173 (npm run dev).
 //
-// What this covers that vitest can't: real WebGL rendering of the Fragments
-// artifact streamed from Mycelium. jsdom has no WebGL, so the unit tests
-// stub the viewer; this test drives Chromium against a live Mycelium + dev
-// server and samples the rendered pixels.
-//
-// Preconditions (manual setup):
-//   1. Mycelium running on https://localhost:7243 with a model that has an
-//      ingested .frag file (the canonical Fragments (.frag) fixture is ingested).
-//   2. GUI dev server running on http://localhost:5173 (npm run dev).
-//
-// Usage:
 //   npm run test:e2e
 //
-// Env overrides:
 //   VOS_E2E_URL         default http://localhost:5173
 //   VOS_E2E_USERNAME    default admin
 //   VOS_E2E_PASSWORD    default admin
@@ -28,8 +18,7 @@ const USERNAME = process.env.VOS_E2E_USERNAME || 'admin';
 const PASSWORD = process.env.VOS_E2E_PASSWORD || 'admin';
 const HEADLESS = process.env.VOS_E2E_HEADFUL !== '1';
 
-// The Filter by Type panel overlays the left of the viewport; sampling starts
-// past it so its own pixels are never mistaken for model geometry.
+// The Filter by Type panel covers the left of the canvas, so sampling starts past it.
 const PANEL_WIDTH_FRACTION = 0.4;
 
 const CANVAS_SELECTOR = '[data-testid=fragments-canvas] canvas';
@@ -37,19 +26,9 @@ const CANVAS_SELECTOR = '[data-testid=fragments-canvas] canvas';
 // The seed a run loads when the session has no model yet.
 const SEED_NAME = process.env.VOS_E2E_SEED || 'MarthasVineyard';
 
-/**
- * Puppeteer reads canvas pixels by screenshotting the element and inspecting
- * the PNG. Reading the WebGL buffer directly doesn't work for r3f/three.js
- * because `preserveDrawingBuffer` defaults to false and the buffer gets
- * cleared between frames.
- *
- * Returns width/height plus how many of `samples × samples` grid points land
- * on rendered geometry (any channel clearly brighter than the #0f0f10 bg).
- *
- * `skipLeftFraction` keeps the grid clear of the Filter by Type panel, which is
- * an HTML overlay sitting on top of the canvas — an element screenshot includes
- * it, so its checkboxes and labels otherwise count as rendered geometry.
- */
+/** Read from a screenshot, because three.js clears its drawing buffer between frames. A sample is geometry
+ *  when any channel is clearly brighter than the #0f0f10 background. A screenshot of the element includes
+ *  the Filter by Type panel, which `skipLeftFraction` keeps the samples off. */
 async function samplePixelsViaScreenshot(page, sel, samples = 8, skipLeftFraction = 0) {
   const elem = await page.$(sel);
   if (!elem) return { error: 'canvas not found' };
@@ -87,13 +66,7 @@ async function samplePixelsViaScreenshot(page, sel, samples = 8, skipLeftFractio
   };
 }
 
-/**
- * Log in and land on the Model page with the Fragments canvas mounted.
- *
- * A session that has no model selected yet meets the seed picker instead of the
- * app, so a run against a freshly started broker hangs on a canvas that never
- * arrives. Pick the seed when it is offered.
- */
+/** A broker that has just started offers the seed picker before the page, so the seed is picked when offered. */
 async function loginAndOpenModelPage(page) {
   await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForSelector('#username', { timeout: 10000 });
@@ -119,10 +92,7 @@ async function loginAndOpenModelPage(page) {
 test('ModelPage renders the Fragments artifact via WebGL', async () => {
   const browser = await puppeteer.launch({
     headless: HEADLESS,
-    // --no-sandbox is required for WebGL in headless Chromium on many machines;
-    // --enable-unsafe-swiftshader lets recent Chromium fall back to software
-    // rendering. Without these, the browser creates the canvas but cannot
-    // obtain a GL context.
+    // Without these, headless Chromium makes the canvas but gets no WebGL context.
     args: [
       '--ignore-certificate-errors',
       '--no-sandbox',
@@ -138,7 +108,6 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
-    // Capture browser-side errors so failures are diagnosable.
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(String(err)));
     page.on('console', (msg) => {
@@ -148,9 +117,7 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
     await loginAndOpenModelPage(page);
     const canvasSel = CANVAS_SELECTOR;
 
-    // Poll pixel samples — under software rendering (swiftshader) the first
-    // frame can take several seconds after the Fragments worker finishes
-    // streaming tiles. Retry until at least 4 samples land or 25s elapses.
+    // Under software rendering the first frame can come seconds after the last tile arrives.
     const deadline = Date.now() + 25000;
     let rendered;
     while (Date.now() < deadline) {
@@ -177,7 +144,6 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
         `Page errors: ${pageErrors.join('\n')}`,
     );
 
-    // ── Assert orbit interaction triggers continued streaming ────────────
     await page.evaluate((sel) => {
       const canvas = document.querySelector(sel);
       const rect = canvas.getBoundingClientRect();
@@ -222,14 +188,11 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
         `post-orbit: ${afterOrbit.nonBackgroundSamples}/${rendered.totalSamples}, renderer: ${rendered.renderer}`,
     );
 
-    // ── Assert click-to-pick resolves an element and shows the metadata panel ─
-    // Click a canvas pixel that definitely landed on geometry in the post-orbit
-    // sample. Raycasting the exact pixel we just read gives us a reliable hit.
+    // A pixel just read as geometry, so the pick has something to hit.
     const hitPoint = await page.evaluate((sel) => {
       const canvas = document.querySelector(sel);
       const rect = canvas.getBoundingClientRect();
       const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-      // Scan the centre-ish region for a pixel that isn't the dark background.
       const pixel = new Uint8Array(4);
       for (let r = 0; r < 200; r += 20) {
         for (let theta = 0; theta < 360; theta += 30) {
@@ -238,7 +201,7 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
           const py = Math.floor(canvas.height / 2 + r * Math.sin(rad));
           gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
           if (pixel[0] > 40 || pixel[1] > 40 || pixel[2] > 40) {
-            // Note: readPixels is (0,0) at bottom-left; clientY is top-left.
+            // readPixels counts rows from the bottom; clientY counts from the top.
             const cssX = rect.left + (px / canvas.width) * rect.width;
             const cssY = rect.top + ((canvas.height - py) / canvas.height) * rect.height;
             return { cssX, cssY };
@@ -259,8 +222,7 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
         { sel: canvasSel, x: hitPoint.cssX, y: hitPoint.cssY },
       );
 
-      // The metadata panel is rendered outside the canvas. Allow up to 3s for
-      // the raycast + mapping lookup + /api/things fetch.
+      // The panel sits outside the canvas, and the pick, its lookup and a read of the Thing all come before it.
       await page.waitForSelector('[data-testid=fragments-metadata-panel]', { timeout: 3000 });
       console.log('ok — pick resolved to a VosThing; metadata panel mounted');
     } else {
@@ -271,12 +233,8 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
   }
 });
 
-// Unchecking every type must empty the canvas. The regression this
-// guards is specific: visibility used to be driven by a list of IFC GlobalIds
-// built from the model's Things, and a .frag holds far more elements than the
-// model has Things for. Hiding "everything" reached only the mapped few, so the
-// scene stayed on screen while the panel reported nothing selected. A unit test
-// cannot catch it — it only shows up against a real .frag in a real GL context.
+// A .frag file holds far more elements than the model has Things, so hiding by Thing left most of them
+// drawn; only a real file in a real WebGL context shows it.
 test('ModelPage hides all geometry when no IFC type is selected', async () => {
   const browser = await puppeteer.launch({
     headless: HEADLESS,
@@ -298,8 +256,7 @@ test('ModelPage hides all geometry when no IFC type is selected', async () => {
     await loginAndOpenModelPage(page);
     const canvasSel = CANVAS_SELECTOR;
 
-    // Every tile must be in before the baseline, or a still-streaming model
-    // reads as "hidden" and the test passes for the wrong reason.
+    // Every tile has to be in first, or a model still arriving reads as hidden.
     const deadline = Date.now() + 40000;
     let visible;
     while (Date.now() < deadline) {
@@ -320,8 +277,7 @@ test('ModelPage hides all geometry when no IFC type is selected', async () => {
     });
     assert.ok(clickedNone, 'could not find the None button in the Filter by Type panel');
 
-    // Hiding walks the whole scene through the Fragments worker, so give it
-    // longer than a frame before reading pixels.
+    // Hiding goes through the Fragments worker over the whole scene, which takes longer than a frame.
     await new Promise((r) => setTimeout(r, 6000));
 
     const hidden = await samplePixelsViaScreenshot(page, canvasSel, 8, PANEL_WIDTH_FRACTION);

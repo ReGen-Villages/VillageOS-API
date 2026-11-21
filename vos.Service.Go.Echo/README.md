@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Go example
 
-A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation, and graceful shutdown.
+A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the required endpoints, checking inbound JSON Web Tokens (JWTs, the signed tokens Mycelium issues), and graceful shutdown.
 
 This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) example — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the body of `handleRelationship` in `main.go` with your predicate logic.
 
@@ -44,8 +44,8 @@ All come from the environment and are never flags. A command line is readable by
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/handle` | JWT* | Process a relationship payload from Mycelium |
-| POST | `/demo/write-kinds` | JWT* | Demo: write typed-Fact kinds back to Mycelium |
-| POST | `/demo/subscribe` | JWT* | Demo: open a snapshot + live SSE subscription |
+| POST | `/demo/write-kinds` | JWT* | Demo: write one of each write kind back to Mycelium |
+| POST | `/demo/subscribe` | JWT* | Demo: subscribe for a slice, report its snapshot, and unsubscribe |
 | GET | `/health` | — | Liveness probe |
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
@@ -55,8 +55,8 @@ All come from the environment and are never flags. A command line is readable by
 ## How it maps to the contract
 
 - **Registration** — `register()` POSTs to `/api/mycelium/register` with `{handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint}` after obtaining a bearer token.
-- **JWT validation** — `verifyES256()` refuses any header naming an algorithm other than ES256, checks the elliptic-curve signature against `base64decode(VerificationKey)`, then checks issuer, this service's own recipient name, and expiry with 30s clock skew — the same parameters as `ServiceTokenValidator` on the .NET side.
-- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and on `/shutdown`. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handlerId}`; the broker's liveness monitor removes a registration whose service stops answering.
+- **JWT validation** — `verifyES256()` refuses any header naming an algorithm other than ES256, checks the elliptic-curve signature against `base64decode(VerificationKey)`, then checks issuer, this service's own recipient name, and expiry, allowing 30 seconds of clock difference — the same parameters as `ServiceTokenValidator` on the .NET side.
+- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and on `/shutdown`. It does not deregister, which a service may do for the registration it made itself with `DELETE /api/mycelium/services/{handlerId}`; the broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 ## Build / verify
 

@@ -5,8 +5,8 @@ Converts the pages [`docs-to-wiki`](../docs-to-wiki/) generates into the content
 DevOps-specific link to its GitHub target so visitors who land on GitHub stay on
 GitHub.
 
-The repository is canonical. The GitHub wiki is generated from it — **do not edit
-it directly**; edits are overwritten on the next `develop` build.
+The GitHub wiki is generated from the repository — **do not edit it directly**; edits are
+overwritten on the next `develop` build.
 
 ## What it does
 
@@ -36,10 +36,11 @@ cd tools/wiki-mirror
 node --test
 ```
 
-The pure transforms (`convert`, `convertMermaid`, `buildSidebar`, `flatName`,
-`pageSlug`) are unit-tested in `sync-wiki.test.js`. CI runs this on every build.
+The transforms (`convert`, `convertMermaid`, `buildSidebar`, `flatName`, `pageSlug`) take input
+and return output, holding nothing, and are tested directly in `sync-wiki.test.js`. The build runs
+these tests every time.
 
-## CI integration
+## In the build
 
 Every build runs *Generate and convert the wiki pages, and prove the publishing token* in
 [`azure-pipelines.yml`](../../azure-pipelines.yml): it runs `docs-to-wiki` and this converter,
@@ -48,6 +49,6 @@ pushes the converted pages, replacing the GitHub wiki's whole content.
 
 One-time prerequisites:
 
-- **GitHub** — enable *Wikis* in repo Settings → Features (creates `.wiki.git`).
-- **`GITHUB_PAT`** — a secret pipeline variable holding a classic GitHub token with repo scope,
+- **GitHub** — enable *Wikis* in the repository's Settings → Features (creates `.wiki.git`).
+- **`GITHUB_PAT`** — a secret pipeline variable holding a classic GitHub token with the `repo` scope,
   which pushes to the GitHub wiki.

@@ -4,12 +4,9 @@ import type {
 import type { ModelIndex } from '@tendril-ui/tendril';
 
 /**
- * A table a person composed, and the roster it becomes.
- *
- * A composed table is a `thingList` binding with computed columns — exactly what a seeded roster
- * is — so it is drawn by the dashboard's own table and kept as the same `Dashboard` Thing. Nothing
- * here names a kind, a property or a state: every word comes from the choices, and the choices come
- * from what the model declares.
+ * A composed table is a `thingList` binding with computed columns, as a seeded roster is, so the dashboard's
+ * own table draws it and it is kept as the same `Dashboard` Thing. Every word comes from choices the model
+ * declares, so nothing here names a kind, a property or a state.
  */
 
 /** The row's own identity, always the first column. */
@@ -24,8 +21,7 @@ function stepWord(step: RelationStep): string {
   return `${arrow}${step.archetype ?? ''}`;
 }
 
-/** The key a column lands on. A property is its own name; a path names every hop it takes, so two
- *  paths to the same kind by different links stay two columns. */
+/** A path's key names every step, so two paths to one kind by different links stay two columns. */
 export function columnKey(column: ComposedColumn): string {
   switch (column.source) {
     case 'property': return column.name;
@@ -66,8 +62,7 @@ function computedColumn(column: ComposedColumn): ComputedColumn | null {
   }
 }
 
-/** The state choices a composition can carry: none at a moment, since no read answers a state at
- *  an instant. */
+/** None at an instant, because no read answers a state at an instant. */
 function stateless(composition: Composition): Composition {
   if (!composition.moment) return composition;
   const columns = composition.columns.filter((column) => column.source !== 'state');
@@ -75,7 +70,6 @@ function stateless(composition: Composition): Composition {
   return { ...composition, columns, inState: undefined, sortKey };
 }
 
-/** The table the dashboard draws for a composition, under the title it was given. */
 export function tableOf(chosen: Composition, title: string): TableWidget {
   const composition = stateless(chosen);
   const rows: Binding = {
@@ -98,8 +92,6 @@ export function tableOf(chosen: Composition, title: string): TableWidget {
   };
 }
 
-/** A composed table kept as a page: one section holding the table, under the name the page was
- *  given, carrying the composition it was made from. */
 export function pageOf(composition: Composition, name: string): DashboardSpecification {
   return {
     title: name,
@@ -109,13 +101,8 @@ export function pageOf(composition: Composition, name: string): DashboardSpecifi
   };
 }
 
-/**
- * Every name the composition carries that the model does not declare, in the order the seed would
- * report them: the kind, then each column's links and far-end kinds, then each state. The seed
- * refuses a page naming a Thing it holds no declaration for or a state no range derives, and a
- * kept page has to pass what the seed would refuse — a kind removed since it was chosen is refused
- * here rather than written.
- */
+/** In the order the seed would report them. The seed refuses a page naming an undeclared Thing or a state
+ *  no range derives, so a kind removed since it was chosen is refused here rather than written. */
 export function unresolvedNames(composition: Composition, modelIndex: ModelIndex, declaredStates: ReadonlySet<string>): string[] {
   const unresolved: string[] = [];
   const thingNamed = (name: string | undefined) => {

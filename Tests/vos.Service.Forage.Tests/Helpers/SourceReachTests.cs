@@ -7,8 +7,8 @@ using Xunit;
 namespace vos.Service.Forage.Tests.Helpers;
 
 // The walk in the other direction: from a source, through the Places it covers and down
-// their nesting, to every site in them. A source added to the catalogue reached no existing site while
-// the only walk ran from a site outward, and a site already discovered was never called again.
+// their nesting, to every site in them. With only the walk from a site outward, a source added to the
+// catalogue would reach no existing site, and a site already discovered would never be called again.
 //
 // The sites are told from the Places around them through the role the platform binds to the archetype
 // every site `is`. Nothing here names an archetype: named, a model calling its sites

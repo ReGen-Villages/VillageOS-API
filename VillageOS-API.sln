@@ -73,11 +73,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Feedback", "vos
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Feedback.Tests", "Tests\vos.Service.Feedback.Tests\vos.Service.Feedback.Tests.csproj", "{54BDA41D-DD32-4AFD-B9F8-B1F6D5054F1A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Client", "vos.Taproot.Client\vos.Taproot.Client.csproj", "{A35D2020-5C6E-4F92-9DA2-8AD62005363C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.MyceliumClient", "vos.MyceliumClient\vos.MyceliumClient.csproj", "{A35D2020-5C6E-4F92-9DA2-8AD62005363C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Pages", "vos.Pages\vos.Pages.csproj", "{C370E9F2-C46C-43A9-988A-52340646C089}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Pages.Tests", "Tests\vos.Pages.Tests\vos.Pages.Tests.csproj", "{07F06E24-06E4-40E0-9280-1D842C24A521}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Transect", "vos.Service.Transect\vos.Service.Transect.csproj", "{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Transect.Tests", "Tests\vos.Service.Transect.Tests\vos.Service.Transect.Tests.csproj", "{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -533,6 +537,30 @@ Global
 		{07F06E24-06E4-40E0-9280-1D842C24A521}.Release|x64.Build.0 = Release|Any CPU
 		{07F06E24-06E4-40E0-9280-1D842C24A521}.Release|x86.ActiveCfg = Release|Any CPU
 		{07F06E24-06E4-40E0-9280-1D842C24A521}.Release|x86.Build.0 = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|x64.Build.0 = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Debug|x86.Build.0 = Debug|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|x64.ActiveCfg = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|x64.Build.0 = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|x86.ActiveCfg = Release|Any CPU
+		{3A1FD423-5467-4382-ADCA-FE0D0F3B3E31}.Release|x86.Build.0 = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|x64.Build.0 = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Debug|x86.Build.0 = Debug|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|x64.ActiveCfg = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|x64.Build.0 = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|x86.ActiveCfg = Release|Any CPU
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -557,5 +585,6 @@ Global
 		{59B81873-02FA-489B-8F6D-F134848509C0} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{54BDA41D-DD32-4AFD-B9F8-B1F6D5054F1A} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{07F06E24-06E4-40E0-9280-1D842C24A521} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
+		{B83C1E8B-39A7-45B5-A774-771BAE9B9EE5} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 	EndGlobalSection
 EndGlobal

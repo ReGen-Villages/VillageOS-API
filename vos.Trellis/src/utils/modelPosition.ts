@@ -5,13 +5,8 @@ interface Position {
   longitude: number;
 }
 
-/**
- * Where the model sits, averaged over every Thing that knows its own position.
- *
- * The average is taken on the raw degrees. A model imported from one building file spans metres,
- * so it cannot straddle the antimeridian, where averaging degrees would put the centre half a
- * world away.
- */
+/** Averaged on raw degrees, which is safe because a model from one building file spans metres and cannot
+ *  straddle the antimeridian, where averaging degrees would put the centre half a world away. */
 export function modelCentre(things: VosThing[]): Position | null {
   let latitudeTotal = 0;
   let longitudeTotal = 0;

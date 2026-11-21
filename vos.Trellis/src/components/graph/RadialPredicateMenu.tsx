@@ -3,18 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import { useUiStore } from '../../stores/uiStore';
 
-/**
- * Radial predicate selector menu — opens on right-click of the graph background.
- *
- * Shows all predicates arranged in a circle around the cursor position.
- * Each slice displays the predicate name, edge count, and color stripe.
- * Supports multi-select: clicking a predicate toggles it on/off with a checkmark.
- * The most-used predicate sits at 12 o'clock, proceeding clockwise by usage.
- * Centre button clears all selections and closes the menu.
- *
- * Rendered as a sibling to SigmaCanvas (outside SigmaContainer), absolutely
- * positioned within the graph page's relative container.
- */
+/** Rendered beside the Sigma canvas, outside its container, and positioned within the graph page. */
 export function RadialPredicateMenu() {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.radialMenuOpen);
@@ -41,8 +30,8 @@ export function RadialPredicateMenu() {
 
   if (!open || !position || predicateStatistics.length === 0) return null;
 
-  const RADIUS = 130; // distance from centre to each button
-  const BUTTON_SIZE = 56; // px, button diameter
+  const RADIUS = 130;
+  const BUTTON_SIZE = 56;
   const count = predicateStatistics.length;
   const hasActive = activePredicateIds.size > 0;
 
@@ -56,7 +45,6 @@ export function RadialPredicateMenu() {
         transform: 'translate(-50%, -50%)',
       }}
     >
-      {/* Centre clear button */}
       <button
         onClick={handleClear}
         className="pointer-events-auto absolute rounded-full bg-zinc-800/90 backdrop-blur border border-zinc-700
@@ -73,7 +61,6 @@ export function RadialPredicateMenu() {
         {hasActive ? '\u2715' : '\u2022'}
       </button>
 
-      {/* Predicate slices arranged radially */}
       {predicateStatistics.map((stat, i) => {
         const angle = ((2 * Math.PI) / count) * i - Math.PI / 2;
         const x = Math.cos(angle) * RADIUS;
@@ -99,22 +86,18 @@ export function RadialPredicateMenu() {
             }}
             title={t('graph.radial.slice', { name: stat.predicateName, edges: stat.edgeCount })}
           >
-            {/* Color stripe */}
             <div
               className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
               style={{ backgroundColor: stat.color }}
             />
-            {/* Checkmark for active predicates */}
             {isActive && (
               <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center">
                 <span className="text-[8px] text-white font-bold">{'\u2713'}</span>
               </div>
             )}
-            {/* Predicate name */}
             <div className="mt-1 font-medium truncate px-1 text-[10px] leading-tight">
               {stat.predicateName}
             </div>
-            {/* Edge count */}
             <div className="text-[9px] text-zinc-500 mt-0.5">
               {stat.edgeCount}
             </div>

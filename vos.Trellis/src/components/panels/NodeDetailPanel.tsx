@@ -336,9 +336,8 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
 }) {
   const { t } = useTranslation();
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
-  // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
-  // The backend tags each effective property with its provenance; own properties are excluded here and
-  // shown in the Own section above.
+  // Every property resolved through an `is` chain counts as inherited, overridden or not; own properties show
+  // in the section above.
   const inherited = Object.entries(effectiveProperties).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 

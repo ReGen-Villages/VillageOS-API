@@ -16,8 +16,8 @@ public class SubscriptionClientTests
     private static readonly Guid MeterRole = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid PumpRole = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
-    // Mirrors real IHttpClientFactory: a fresh HttpClient per call (so the base class can set
-    // Timeout each time) sharing one mock handler.
+    // A fresh HttpClient per call sharing one handler, as the real factory gives, because the base class
+    // sets a timeout on each client.
     private sealed class FreshClientFactory : IHttpClientFactory
     {
         private readonly HttpMessageHandler _handler;
@@ -525,8 +525,8 @@ public class SubscriptionClientTests
     [Fact]
     public async Task StreamAsync_stops_cleanly_when_connect_fails_and_token_is_cancelled()
     {
-        // 500 -> EnsureSuccessStatusCode throws -> ConnectAsync returns null -> StreamAsync
-        // delays-reconnect, which returns false once the token is cancelled -> yield break.
+        // A 500 leaves ConnectAsync with no connection, so StreamAsync waits to reconnect, and that wait gives
+        // up once the token is cancelled, which ends the stream.
         using var cts = new CancellationTokenSource();
         var (client, _) = Build(_ =>
         {

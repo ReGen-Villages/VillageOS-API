@@ -1,23 +1,16 @@
 /**
- * Which services the platform ran on one Thing, and when.
- *
- * A service is reached through a connection: the predicate of a handled relationship, or the target of the
- * record relationship the platform writes when a Thing enters a watched state. Either way the platform
- * stamps that relationship with the state of the service call and the instant of its last attempt, and the
- * connection reaches the service bound to it. So the model itself says who ran and when — nothing
- * here names a service, a predicate or an archetype, only the roles the platform finds its own wiring by.
- *
- * The stamps live in the running platform's memory and are not written down, so a service call from
- * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceCall}
- * carries `at` as absent rather than guessing one.
+ * A service is reached through the connection that the predicate of a handled relationship, or the target of the
+ * record the platform writes when a Thing enters a watched state, names along `notifies`, and the platform stamps that relationship
+ * with the call's state and last attempt. So the model says who ran and when, and nothing here names a service,
+ * predicate or archetype, only roles. The stamps live in the platform's memory, so a call from before the
+ * model was loaded has no time, and {@link ServiceCall} leaves `at` absent rather than guess one.
  */
-import { type ModelIndex, thingIdsOfArchetype } from '@tendril-ui/tendril';
+import { type ModelIndex, thingIdBoundBy, thingIdsOfArchetype } from '@tendril-ui/tendril';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { textOf } from './propertyText';
 
-const BINDS_PREDICATE = 'binds';
 const IS_PREDICATE = 'is';
 
 /** What the platform stamps onto a relationship it called a service through. */
@@ -45,7 +38,7 @@ interface ServiceEdge {
   serviceId?: string;
   /** What to call the service — the connection's own name where it binds none. */
   serviceName: string;
-  /** The connection the service call went out on: a handled predicate, or a watched state's connection. */
+  /** The connection the service call went out on, as a handled predicate or a watched state names it. */
   connectionName: string;
 }
 
@@ -72,30 +65,24 @@ interface ServiceWiring {
  *  model cannot change without a new index, and several open cards ask the same question. */
 const wiringByIndex = new WeakMap<ModelIndex, ServiceWiring>();
 
-/** The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role bound
- *  twice answers nothing, as the pipeline editor reads it, because seed validation refuses that model. */
-function boundBy(modelIndex: ModelIndex, roleId: string): VosThing | undefined {
-  const bindings: VosRelationship[] = [];
-  for (const [predicateId, name] of modelIndex.predicateIdToName) {
-    if (name !== BINDS_PREDICATE) continue;
-    for (const edge of modelIndex.relationshipsByPredicate.get(predicateId) ?? [])
-      if (edge.SubjectId === roleId) bindings.push(edge);
-  }
-  return bindings.length === 1 ? modelIndex.byId.get(bindings[0].TargetId) : undefined;
-}
-
 function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
-  const membersOf = (archetype: VosThing | undefined) =>
-    archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
-  const connectionIds = membersOf(boundBy(modelIndex, ROLE.Connection));
-  const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
-  const notifiedConnectionPredicateId = boundBy(modelIndex, NOTIFIED_CONNECTION_ROLE_ID)?.Id;
+  const bound = (roleId: string) => {
+    const id = thingIdBoundBy(roleId, modelIndex);
+    return id === undefined ? undefined : modelIndex.byId.get(id);
+  };
+  const membersOf = (roleId: string) => {
+    const archetype = bound(roleId);
+    return archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
+  };
+  const connectionIds = membersOf(ROLE.Connection);
+  const serviceIds = membersOf(ROLE.Service);
+  const notifiedConnectionPredicateId = bound(NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
-  // A connection binds its service through a relation of the model's own choosing, so the service
-  // is found by what the edge reaches — never by what the predicate is called.
+  // A connection binds its service through a predicate of the model's choosing, so the service is found by what
+  // the relationship reaches, never by the predicate's name.
   const serviceByConnection = new Map<string, VosThing>();
   const notifiedConnectionOf = new Map<string, string>();
   const archetypesOf = new Map<string, string[]>();
@@ -117,17 +104,16 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     serviceByConnection,
     notifiedConnectionOf,
     archetypesOf,
-    recordPredicateId: boundBy(modelIndex, CALL_RECORD_ROLE_ID)?.Id,
+    recordPredicateId: bound(CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
 }
 
-/** The connection a call record's target is answered through: the one it names along `notifies`, else the one the
- *  nearest of its archetypes names, else the target itself, as the platform resolves it. */
-function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
+/** Resolved as the platform's own ConnectionOf resolves it, so the card names the connection the call went out on. */
+function connectionCalledBy(callingId: string, wiring: ServiceWiring): string {
   const seen = new Set<string>();
-  let frontier = [targetId];
+  let frontier = [callingId];
   while (frontier.length > 0) {
     const next: string[] = [];
     for (const id of frontier) {
@@ -139,20 +125,14 @@ function connectionAnswering(targetId: string, wiring: ServiceWiring): string {
     }
     frontier = next;
   }
-  return targetId;
+  return callingId;
 }
 
 /**
- * Every relationship the platform called a service on this Thing through.
- *
- * The subject of the relationship is the Thing the work was done on, and only that end counts. The other
- * end is whatever the work pointed at, and reading it as handled would make every hub in a site
- * claim the whole run: a reservoir at the target end of every reading sent from a hundred
- * catchments would list a hundred rows naming one service, while nothing was ever run on it.
- * Work done on a related Thing is reached by opening that Thing's own card.
- *
- * The relationships are read from `modelIndex` and the connections, services and waiting Things from `wiringIndex`,
- * because a dashboard's index holds the Thing's relationships but none of the wiring.
+ * Only the subject end counts, because reading the other end as handled would make a Thing many relationships
+ * point at claim the whole run: a reservoir targeted by readings from a hundred catchments would list a hundred
+ * rows while nothing ran on it. Relationships come from `modelIndex` and the wiring from `wiringIndex`, because
+ * a dashboard's index holds the Thing's relationships but none of the wiring.
  */
 export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIndex: ModelIndex = modelIndex): ServiceEdge[] {
   const wiring = serviceWiring(wiringIndex);
@@ -160,12 +140,8 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
 
   for (const edge of modelIndex.relationships) {
     if (edge.SubjectId !== thingId) continue;
-    // A handled relationship carries its connection as the predicate; a record relationship, written when the Thing
-    // entered a watched state, carries it as the target — or a waiting Thing that names it, or whose archetype does. Either way it
-    // has to be a connection: a relationship reaching anything else is somebody's own bookkeeping, and
-    // reading it as a service call would put a row on the card naming a Thing that never ran.
-    const connectionId =
-      edge.PredicateId === wiring.recordPredicateId ? connectionAnswering(edge.TargetId, wiring) : edge.PredicateId;
+    // A relationship that reaches no connection is somebody's own bookkeeping, and listing it would name a Thing that never ran.
+    const connectionId = connectionCalledBy(edge.PredicateId === wiring.recordPredicateId ? edge.TargetId : edge.PredicateId, wiring);
     if (!wiring.connectionIds.has(connectionId)) continue;
 
     const connectionName = wiringIndex.byId.get(connectionId)?.Name ?? connectionId;
@@ -182,13 +158,9 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIn
 }
 
 /**
- * The service calls these relationships carry, oldest first, with one the platform holds no time for last —
- * an undated row sorted among the dated ones would claim a sequence nothing measured.
- *
- * `stamped` holds each relationship as it was read back from the platform, keyed by the relationship's id. The
- * stamps are written straight onto the relationship without becoming Facts, so they reach no client that
- * only follows the change stream: read them, or show a card whose service calls never move off the
- * state they were created in.
+ * An undated call sorts last, because among the dated ones it would claim an order nothing measured. The stamps
+ * are written onto the relationship without entering the model's history, so no client following only the
+ * change stream sees them; `stamped` holds each relationship as read back, keyed by its identifier.
  */
 export function serviceCallsFrom(
   edges: ServiceEdge[],

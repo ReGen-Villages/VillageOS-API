@@ -1,11 +1,6 @@
-/**
- * What a drawn parcel boundary encloses, and how that compares with what the planner stated.
- *
- * The area is computed on the sphere, mirroring the intake service's own measure: treating latitude
- * and longitude as flat coordinates looks right near the equator and is meaningfully wrong away from
- * it, and every downstream figure is proportional to this area. The flat reading is used only to
- * place the draft square, where the error is invisible at parcel scale.
- */
+/** The area is measured on the sphere, as the intake service measures it, because treating latitude and
+ *  longitude as flat is wrong away from the equator and every later figure is proportional to it. The flat
+ *  reading only places the draft square, where the error cannot be seen. */
 
 export interface BoundaryPoint {
   readonly latitude: number;
@@ -20,9 +15,8 @@ const METRES_PER_DEGREE = (EARTH_RADIUS_METRES * Math.PI) / 180;
  *  hand-drawing, tight enough to catch a wrong unit. */
 export const AREA_MATCH_TOLERANCE = 0.08;
 
-/** Whether the corners enclose anything at all. Fewer than three enclose nothing, so they describe no
- *  land — which is the same reason an area over them is nought and a submission carrying them is refused.
- *  Stated once here, where the rest of what a boundary means already lives. */
+/** Fewer than three corners describe no land, which is also why their area is nought and a submission
+ *  carrying them is refused. */
 export function enclosesLand(boundary: readonly BoundaryPoint[]): boolean {
   return boundary.length >= 3;
 }
@@ -60,12 +54,8 @@ type AreaComparison =
   | { readonly kind: 'match' }
   | { readonly kind: 'differs'; readonly relativeDifference: number };
 
-/**
- * Drawn against stated, as the planner should read it. The difference is relative to the stated
- * area, which is what was claimed — the design's worked example reads 9.7 drawn against 24 stated
- * as 60% apart. A stated area of nothing is matched only by drawing nothing, and anything drawn
- * beside it is infinitely far from it.
- */
+/** Relative to the stated area, which is what was claimed: 9.7 drawn against 24 stated is 60% apart. A
+ *  stated area of nothing is matched only by drawing nothing. */
 export function areaMatch(drawnHectares: number, statedHectares: number): AreaComparison {
   const apart = Math.abs(drawnHectares - statedHectares);
   if (apart <= AREA_MATCH_TOLERANCE * statedHectares) return { kind: 'match' };

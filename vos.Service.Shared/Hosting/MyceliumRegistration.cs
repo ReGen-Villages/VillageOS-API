@@ -4,8 +4,8 @@ using Serilog;
 namespace vos.Service.Shared.Hosting;
 
 // Announces the service to the broker when it comes up. It does not withdraw the registration on
-// shutdown: that route is admin-only, so the call is refused whatever the service holds, and the
-// broker's liveness monitor removes a registration whose service stops answering.
+// shutdown: the broker's liveness monitor removes a registration after repeated failed health checks,
+// unless the broker supervises the service, and a service may delete only the registration it made itself.
 internal sealed class MyceliumRegistration : IHostedService
 {
     private readonly EndpointServiceMyceliumClient _client;

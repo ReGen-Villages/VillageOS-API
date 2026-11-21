@@ -30,8 +30,8 @@ const categories = [
 
 type CategoryLabel = (typeof categories)[number]['label'];
 
-/** Literal i18n key per category, so the key stays statically typed (dynamic template
- *  keys widen to `string` and break i18next's typed `t`). */
+/** A whole translation key per category, because a key built from a template widens to `string` and breaks
+ *  i18next's typed `t`. */
 const CATEGORY_KEY = {
   Model: 'dashboard.feed.category.model',
   Things: 'dashboard.feed.category.things',
@@ -49,7 +49,7 @@ function loadHeight(): number | null {
     const n = parseInt(stored, 10);
     if (!isNaN(n) && n >= MIN_HEIGHT) return n;
   }
-  return null; // null = fill parent
+  return null; // null fills the parent
 }
 
 interface Props {
@@ -95,10 +95,8 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   );
   const missedCount = frozen ? Math.max(0, events.length - frozen.atLength) : 0;
 
-  // Auto-scroll only when not paused. Scroll the list element itself rather
-  // than scrollIntoView, which also scrolls every scrollable ancestor (the
-  // outer dashboard content region) and drags the other widgets up when the
-  // feed fills.
+  // Scrolls the list itself rather than calling scrollIntoView, which scrolls every scrollable ancestor too
+  // and drags the other widgets up as the feed fills.
   useEffect(() => {
     if (!paused) {
       const list = listReference.current;
@@ -142,7 +140,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
       className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 flex flex-col overflow-hidden"
       style={{ height: height ?? 'calc(100vh - 7.5rem)' }}
     >
-      {/* Resize handle */}
       <div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -154,7 +151,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
       </div>
 
       <div className="p-4 pt-2 flex flex-col flex-1 min-h-0 overflow-hidden">
-        {/* Header row */}
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{t('dashboard.feed.title')}</h3>
           <div className="flex items-center gap-1">
@@ -179,14 +175,12 @@ export function ActivityFeed({ events, onCollapse }: Props) {
           </div>
         </div>
 
-        {/* Paused badge */}
         {paused && missedCount > 0 && (
           <div className="text-xs text-amber-400 mb-1">
             {t('dashboard.feed.pausedBuffered', { count: missedCount })}
           </div>
         )}
 
-        {/* Filter chips */}
         <div className="flex flex-wrap gap-1 mb-2">
           {categories.map((cat) => {
             const on = enabledCategories.has(cat.label);
@@ -206,7 +200,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
           })}
         </div>
 
-        {/* Text filter */}
         <div className="flex items-center gap-1.5 mb-2 bg-zinc-900/50 rounded px-2 py-1">
           <Search size={12} className="text-zinc-500 flex-shrink-0" />
           <input
@@ -225,7 +218,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
           )}
         </div>
 
-        {/* Event list */}
         <div ref={listReference} className="flex-1 overflow-auto space-y-1 min-h-0">
           {filteredEvents.length === 0 && <p className="text-xs text-zinc-500">{t('dashboard.feed.none')}</p>}
           {filteredEvents.map((e, i) => (

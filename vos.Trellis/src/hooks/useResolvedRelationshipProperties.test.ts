@@ -30,8 +30,6 @@ describe('useResolvedRelationshipProperties', () => {
     expect(result.current).toBeNull();
   });
 
-  // A failed read must not leave a stale set standing: a caller uses it to name a property's type,
-  // and naming the wrong one is worse than offering no editing.
   it('holds nothing when the read fails', async () => {
     mockGetEffectiveProperties.mockRejectedValue(new Error('unreachable'));
     const { result } = renderHook(() => useResolvedRelationshipProperties('rel-1'));

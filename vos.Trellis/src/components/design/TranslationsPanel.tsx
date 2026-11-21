@@ -9,7 +9,7 @@ import { useWrittenWhenLeft } from '../../hooks/useWrittenWhenLeft';
 /**
  * Every display string the page carries, with a cell per language the console speaks. An empty cell
  * falls back to the base text, as it does for a seeded page, so a page is never half-translated into
- * blanks. The rows are the localiser's own walk, so nothing it reads is missing here.
+ * blanks. The rows come from the localiser itself, so nothing it reads is missing here.
  */
 export function TranslationsPanel({
   specification,

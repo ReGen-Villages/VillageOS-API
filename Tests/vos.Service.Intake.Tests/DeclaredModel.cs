@@ -85,7 +85,24 @@ public sealed class DeclaredModel
                 (FormOptionsReader.BuildingSourceLayerProperty, WillowBend.BuildingSourceLayer))
             .Relate(WillowBend.VectorBasemapName, "is", BasemapSourceArchetype);
 
-        return model;
+        return model.WithAreaMethods();
+    }
+
+    public const string MeanSphere = "Mean sphere";
+    public const string Wgs84Ellipsoid = "WGS84 ellipsoid";
+
+    // The Parcel archetype must already be declared and bound.
+    public DeclaredModel WithAreaMethods(string measuredWith = MeanSphere) =>
+        With("measuresAreaWith").Bound(LandIntakeRoles.MeasuresAreaWith, "measuresAreaWith")
+            .With("areaMeasuredWith").Bound(LandIntakeRoles.AreaMeasuredWith, "areaMeasuredWith")
+            .With(MeanSphere).Bound(LandIntakeRoles.MeanSphereAreaMethod, MeanSphere)
+            .With(Wgs84Ellipsoid).Bound(LandIntakeRoles.Wgs84EllipsoidAreaMethod, Wgs84Ellipsoid)
+            .Relate("Parcel", "measuresAreaWith", measuredWith);
+
+    public DeclaredModel Unrelate(string subject, string predicate)
+    {
+        _edges.RemoveAll(edge => edge.SubjectId == Id(subject) && edge.PredicateId == Id(predicate));
+        return this;
     }
 
     public const string BasemapSourceArchetype = "BasemapSource";

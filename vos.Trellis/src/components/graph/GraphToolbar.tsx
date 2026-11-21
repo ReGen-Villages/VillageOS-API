@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
-/** Zoom/fit/re-layout/layout-mode controls. Child of <SigmaContainer>. */
 export function GraphToolbar() {
   const { t } = useTranslation();
   const sigma = useSigma();

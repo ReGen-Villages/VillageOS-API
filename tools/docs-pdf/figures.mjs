@@ -23,7 +23,7 @@ function toRgb(hex) {
   };
 }
 
-/** Relative luminance, the measure of how much light a colour actually throws. */
+/** Relative luminance: how bright a colour looks to the eye, from 0 for black to 1 for white. */
 function luminance(hex) {
   const c = toRgb(hex);
   if (!c) return null;
@@ -59,10 +59,9 @@ function toHex({ h, s, l }, alpha = '') {
 }
 
 /**
- * The same colour with its lightness turned over: a near-black ground becomes near-paper, light
- * text becomes ink, and an accent keeps its hue and only changes how dark it sits. Saturation is
- * lifted a little for what was very dark, because a colour that was carrying a glow on black has
- * nothing to carry on white.
+ * The same colour with its lightness inverted: a near-black background becomes near-white, light
+ * text becomes dark, and an accent keeps its hue and changes only how dark it is. A very dark colour
+ * gains a little saturation, because a colour that stood out against black looks dull against white.
  */
 function flipLightness(hex) {
   const rgb = toRgb(hex);

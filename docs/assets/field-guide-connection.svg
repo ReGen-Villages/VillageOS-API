@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 892 204" width="892" height="204" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="How the model says which program a relationship starts.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 892 296" width="892" height="296" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="How the model says which program a relationship starts.">
 <style>
 @media (prefers-color-scheme: dark) {
   [fill="#16201a"] { fill: #e6edf3; }
@@ -41,13 +41,19 @@
 <text x="747.8" y="37.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Service</text>
 <text x="747.8" y="53.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">(the kind every service is)</text>
 <rect x="24.0" y="130.0" width="262.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
-<text x="155.0" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes</text>
-<text x="155.0" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a connection, used as</text>
-<text x="155.0" y="179.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">the predicate of a relationship)</text>
+<text x="155.0" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes connection</text>
+<text x="155.0" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a connection, called for each</text>
+<text x="155.0" y="179.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">relationship along consumes)</text>
 <rect x="340.0" y="130.0" width="232.3" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
 <text x="456.2" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes service</text>
 <text x="456.2" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">port 7102, its own arguments</text>
 <rect x="620.0" y="130.0" width="247.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
 <text x="743.6" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Metabolism</text>
 <text x="743.6" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(one program, shared settings)</text>
+<path d="M 155.0,236.0 L 155.0,188.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(155.0,188.0) rotate(-90.0)"/>
+<text x="163.0" y="216.0" font-size="11" fill="#74857a" text-anchor="start">notifies</text>
+<rect x="24.0" y="236.0" width="262.1" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="155.0" y="253.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes</text>
+<text x="155.0" y="269.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(the predicate a relationship uses)</text>
 </svg>

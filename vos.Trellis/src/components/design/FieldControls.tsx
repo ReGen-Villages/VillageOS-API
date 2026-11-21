@@ -25,7 +25,6 @@ interface Props {
   kind?: string;
 }
 
-/** One field of a widget or a binding, drawn by the control its schema names. */
 export function FieldControl({ field, value, onChange, family, context, kind }: Props) {
   const { t } = useTranslation();
   const label = labelFor(family, field.key, t);
@@ -114,7 +113,6 @@ function BoundField({ label, value, context, onChange }: { label: string; value:
   );
 }
 
-/** A list of words: each drawn as a chip that can be taken away, and a field that adds one. */
 export function StringsField({ label, value, offered, onChange }: { label: string; value: string[]; offered: Offered[]; onChange: (value: string[]) => void }) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(0);
@@ -241,7 +239,7 @@ function ListEditor({
   );
 }
 
-/** Several fields that stand as one object on the specification — a range's seven series, a side of a
+/** Several fields that stand as one object on the specification — a range's series, a side of a
  *  diverging bar — written key by key, and taken away whole when every key is. */
 function GroupEditor({
   label, fields, value, family, context, kind, onChange,

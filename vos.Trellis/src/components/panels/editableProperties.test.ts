@@ -7,8 +7,8 @@ const resolved =(entries: Record<string, string>): Record<string, EffectivePrope
     Object.entries(entries).map(([name, Type]) => [name, { Value: null, Type, IsInherited: false }]),
   );
 
-// A save states the type the platform reports for the property. It was inferred
-// from the typed text before, so a code stored as text was announced as a number.
+// A save states the type the platform reports for the property, so a code stored as text that looks like a
+// number is still saved as text.
 describe('withDeclaredTypes', () => {
   it('carries the platform type alongside each value', () => {
     const paired = withDeclaredTypes(

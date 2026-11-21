@@ -271,7 +271,6 @@ public class PlantCommandHandlerTests : IDisposable
         var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
         var seedPath = CreateSeedFile("test.json", seedContent);
 
-        // Thing without Id field
         var thingsJson = @"[{""Name"":""NoIdThing"",""Properties"":{""Prop1"":{""Value"":1}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
 
@@ -281,7 +280,6 @@ public class PlantCommandHandlerTests : IDisposable
         await ExecuteHandler($"{seedPath} FullHistory");
 
         var output = _writer.ToString();
-        // Should report 0 properties since thing has no Id
         Assert.Contains("Configured 0 properties across 0 things", output);
     }
 
@@ -292,7 +290,6 @@ public class PlantCommandHandlerTests : IDisposable
         var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
         var seedPath = CreateSeedFile("test.json", seedContent);
 
-        // Properties is not an object (it's an array instead)
         var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""Thing1"",""Properties"":[]}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
 
@@ -302,7 +299,6 @@ public class PlantCommandHandlerTests : IDisposable
         await ExecuteHandler($"{seedPath} FullHistory");
 
         var output = _writer.ToString();
-        // Should report 0 properties since Properties is not an object
         Assert.Contains("Configured 0 properties across 0 things", output);
     }
 
@@ -313,7 +309,6 @@ public class PlantCommandHandlerTests : IDisposable
         var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
         var seedPath = CreateSeedFile("test.json", seedContent);
 
-        // Thing with empty properties object
         var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""EmptyThing"",""Properties"":{{}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
 
@@ -323,7 +318,6 @@ public class PlantCommandHandlerTests : IDisposable
         await ExecuteHandler($"{seedPath} FullHistory");
 
         var output = _writer.ToString();
-        // Should report 0 things counted since thingPropertyCount is 0
         Assert.Contains("Configured 0 properties across 0 things", output);
     }
 
@@ -336,7 +330,6 @@ public class PlantCommandHandlerTests : IDisposable
         var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
         var seedPath = CreateSeedFile("test.json", seedContent);
 
-        // Mix: one with properties, one without, one without Properties field
         var thingsJson = $@"[
             {{""Id"":""{thing1Id}"",""Name"":""WithProps"",""Properties"":{{""Prop1"":{{""Value"":1}}}}}},
             {{""Id"":""{thing2Id}"",""Name"":""EmptyProps"",""Properties"":{{}}}},
@@ -353,12 +346,9 @@ public class PlantCommandHandlerTests : IDisposable
         await ExecuteHandler($"{seedPath} FullHistory");
 
         var output = _writer.ToString();
-        // Only Thing1 has properties, so 1 property across 1 thing
         Assert.Contains("Configured 1 properties across 1 things", output);
     }
 
-    // The client held its own list of modes and silently dropped a word that was
-    // not on it, so a mode the platform accepts and this client had not heard of did nothing at all.
     [Fact]
     public async Task Execute_WithAModeThisClientDoesNotKnow_SendsItToThePlatform()
     {
@@ -393,7 +383,6 @@ public class PlantCommandHandlerTests : IDisposable
         _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null, null))
             .ReturnsAsync(modeResult);
 
-        // Args with mode and option
         await ExecuteHandler($"{seedPath} --ringbuffer=50 RingBuffer");
 
         var output = _writer.ToString();
@@ -417,7 +406,6 @@ public class PlantCommandHandlerTests : IDisposable
         _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByObservations", null, 10, null))
             .ReturnsAsync(modeResult);
 
-        // Use uppercase option prefix
         await ExecuteHandler($"{seedPath} SampledByObservations --SAMPLERATE=10");
 
         var output = _writer.ToString();

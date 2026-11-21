@@ -23,8 +23,6 @@ describe('ModelStatisticsCard', () => {
     expect(screen.queryByText('Reading the model…')).toBeNull();
   });
 
-  // What is held before the whole model arrives is one page's own set, or nothing. Counted, either
-  // reads as the size of the model: a handful of Things, then none, then the real figure.
   it('says the model is being read, and counts nothing, until the whole of it is held', () => {
     render(<ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={false} />);
 

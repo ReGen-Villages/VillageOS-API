@@ -13,20 +13,11 @@ import {
 } from '../../utils/typeFilter';
 
 /**
- * Shared type-filter panel rendered inside both the Graph
- * page and the Model page sidebars. Lists every type Thing in the loaded
- * model (any Thing that's the target of an `is` relationship from another
- * Thing) with an instance count and a checkbox. Toggling immediately drops
- * those instances from BOTH visualizations because both consume
- * `useUiStore.hiddenTypeIds`.
+ * A type is any Thing that another Thing's `is` points to. The graph and model pages both read
+ * `hiddenTypeIds`, so a toggle hides the instances on both.
  *
- * Rows are grouped by Name. Multiple type-Things may legitimately
- * share a Name (Name is a display label, not a unique key); the user thinks
- * of them as one category. The row's checkbox controls every underlying
- * typeId in the group together; mixed underlying state renders as
- * indeterminate and normalizes to "all hidden" or "all visible" on click.
- *
- * Domain-agnostic — no string-literal references to IFC class names.
+ * Rows are grouped by name, because names are not unique and a person reads types that share one as one
+ * kind. A group whose types are partly hidden shows as indeterminate.
  */
 export function TypeFilterPanel() {
   const { t } = useTranslation();
@@ -61,9 +52,6 @@ export function TypeFilterPanel() {
     [allGroups],
   );
 
-  // Per-group view of hidden state — counts how many of the group's typeIds
-  // are in hiddenTypeIds. Drives the indeterminate checkbox visual and the
-  // toggle action.
   const hiddenCountByGroup = useMemo(() => {
     const m = new Map<string, number>();
     for (const g of allGroups) {
@@ -77,12 +65,8 @@ export function TypeFilterPanel() {
   const hiddenInstances = useMemo(() => {
     let sum = 0;
     for (const g of allGroups) {
-      // A typeId in the group contributes its share of the group's instance
-      // count when hidden. We don't know the per-typeId count here (only the
-      // group sum), so approximate by sharing equally — accurate when all
-      // typeIds in a group have similar counts; for the panel's header
-      // counter this is good enough. Exact accounting would require keeping
-      // the original TypeStat[] alongside the groups.
+      // Only the group's total is known here, so each hidden type is counted as an equal share of it. That is
+      // close enough for the header count; an exact count would need the per-type counts kept beside the groups.
       const hidden = hiddenCountByGroup.get(g.name) ?? 0;
       if (g.typeIds.length === 0) continue;
       sum += Math.round((g.instanceCount * hidden) / g.typeIds.length);
@@ -97,7 +81,6 @@ export function TypeFilterPanel() {
   };
   const showAll = () => clearHiddenTypeIds();
 
-  /** Toggle every typeId in a group together. Mixed → all hidden; all hidden → all visible. */
   const toggleGroup = (group: TypeGroupStat) => {
     const next = new Set(hiddenTypeIds);
     const allHidden = group.typeIds.every((id) => next.has(id));

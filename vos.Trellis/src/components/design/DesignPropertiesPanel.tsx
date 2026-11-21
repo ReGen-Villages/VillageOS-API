@@ -32,7 +32,6 @@ interface Props {
 const buttonClass =
   'inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:text-zinc-900 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100';
 
-/** What the selection declares — the page, a section or a widget — and where it is changed. */
 export function DesignPropertiesPanel({ specification, selection, context, onEdit, onSelect }: Props) {
   const { t } = useTranslation();
   if (selection.on === 'translations') return null;

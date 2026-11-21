@@ -8,12 +8,10 @@ import type { SubscriptionSelector } from '../types/subscription';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
-/**
- * What a detail card reads a Thing's service calls through: the connection and service archetypes with their
- * members, the predicates the call-record and notified-connection roles bind, and the Things waiting for this
- * Thing with what they are, since a waiting Thing's archetype can name the connection it is answered through. A
- * dashboard's own subscription carries only what its widgets draw, so the card asks for this itself when it opens.
- */
+/** A dashboard's subscription carries only what its widgets draw, so a detail card asks for this itself. The
+ *  Things waiting for this one come with what they are, because a waiting Thing's archetype can name the
+ *  connection it is answered through. Every Thing that names a connection comes too, because a handled predicate
+ *  need not be a connection itself. */
 export function serviceWiringOf(thingId: string): SubscriptionSelector {
   return {
     ids: [thingId, ROLE.Connection, ROLE.Service, AWAITED_THING_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID],
@@ -22,12 +20,12 @@ export function serviceWiringOf(thingId: string): SubscriptionSelector {
     traverse: [
       { predicate: BINDS_PREDICATE_NAME, direction: 'outgoing', depth: 1 },
       { predicateRole: AWAITED_THING_ROLE_ID, direction: 'incoming', depth: 1 },
+      { predicateRole: NOTIFIED_CONNECTION_ROLE_ID, direction: 'incoming', depth: 1 },
     ],
   };
 }
 
-/** The service wiring as the platform holds it now, read through the route that registers no subscription,
- *  because the card reads it once a round. */
+/** Through the route that registers no subscription, because the card reads it once per refresh. */
 export async function fetchServiceWiring(thingId: string, signal?: AbortSignal): Promise<ModelIndex> {
   const token = await apiClient.ensureToken();
   const response = await fetch(`${BASE_URL}/api/snapshots`, {

@@ -8,14 +8,13 @@ using TributaryClient = vos.Service.Tributary.Services.MyceliumClient;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// The keep lane meeting the real store for the first time. Until here the deposit contract was
-// pinned by two stubs written together: the API suite's Mycelium stand-in answers 201 { hash }
-// because the broker's assets route does, and the same hands wrote both — so either repo could
-// drift and leave both suites green while every keep in production answered 502. These cases hold
-// the handshake itself: the ticket is the hash the engine computed over the bytes, under the
-// agreed field name; a repeat deposit is the same ticket; the bytes come back exactly, under the
-// exact type they went in with; and the ticket's other half — resolving the subject and landing
-// the observation — rides the routes the shipped client actually calls.
+// Keeping an asset against the real store. Elsewhere the deposit is checked only against stand-ins
+// written together — the API suite's Mycelium stand-in answers 201 { hash } because the broker's
+// assets route does — so either repository could change and leave both suites green while every keep
+// in production answered 502. These cases check the exchange itself: the ticket is the hash the engine
+// computed over the bytes, under the agreed field name; a repeat deposit is the same ticket; the bytes
+// come back exactly, under the exact type they went in with; and the ticket's other half — resolving the
+// subject and landing the observation — goes through the routes the shipped client actually calls.
 public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -26,7 +25,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
         launchToken: new LaunchToken(_engine.AdminToken));
 
-    // Every case deposits its own bytes, so one case's dedup can never answer another's deposit.
+    // Every case deposits its own bytes, so one case's deposit is never taken as a repeat of another's.
     private static byte[] OwnBytes() => Guid.NewGuid().ToByteArray();
 
     private static string HashOf(byte[] bytes) =>
@@ -39,7 +38,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
 
         var ticket = await Tributary().DepositAssetAsync(bytes, "image/png");
 
-        // One assertion, three pins: the field is spelled the way the client reads it — a renamed
+        // One assertion checks three things: the field is spelled the way the client reads it — a renamed
         // field comes back null — the name carries its algorithm, and the hex is the content's own.
         ticket.Should().Be($"sha256:{HashOf(bytes)}");
     }

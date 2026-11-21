@@ -3,8 +3,8 @@
  *
  * A page carries figures of two kinds. One is answered from the model the browser has loaded, and
  * costs a walk over an index that is rebuilt as events arrive. The other is answered by the broker,
- * and costs a request. Re-resolving both whenever anything in the model moved is what made one open
- * dashboard ask the platform tens of times a second: a property change anywhere re-asked every
+ * and costs a request. Re-resolving both whenever anything in the model moved would have one open
+ * dashboard ask the platform tens of times a second: a property change anywhere would re-ask every
  * question on the page, however unrelated.
  *
  * A figure the broker answers waits on the derived states its own answer is made of. Nothing else

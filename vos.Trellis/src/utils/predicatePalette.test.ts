@@ -10,10 +10,8 @@ describe('CURATED_PREDICATE_COLORS', () => {
   });
 
   it('covers every predicate the IFC pipeline emits', () => {
-    // Source of truth: vos.Tools.ModelIngest/Pipeline/*RelationshipExtractor.cs
-    // grep result. If the pipeline grows, add the new
-    // predicate to predicatePalette.ts AND extend this list — the resolver
-    // hash-fallback would otherwise silently pick a random color.
+    // What vos.Tools.ModelIngest's relationship extractors emit; a new one belongs here and in
+    // predicatePalette.ts, or it quietly takes a hashed colour.
     const pipelinePredicates = [
       'is', 'has', 'contains', 'isContainedIn', 'aggregates', 'isAggregatedBy',
       'nests', 'hasMember', 'hasMaterial', 'hasLayer', 'hasLayerSet',
@@ -29,8 +27,7 @@ describe('CURATED_PREDICATE_COLORS', () => {
   });
 
   it('groups material-chain predicates into one color family', () => {
-    // hasLayer, hasLayerSet, hasConstituent, hasProfile, hasProfileSet should
-    // all be the same tan so the material composite chain reads as a group.
+    // One colour, so the material chain reads as a group.
     const tan = CURATED_PREDICATE_COLORS.hasLayer;
     expect(CURATED_PREDICATE_COLORS.hasLayerSet).toBe(tan);
     expect(CURATED_PREDICATE_COLORS.hasConstituent).toBe(tan);
@@ -48,21 +45,18 @@ describe('CURATED_PREDICATE_COLORS', () => {
 
 describe('resolvePredicateColor priority chain', () => {
   it('1. user override beats curated default and hash', () => {
-    // is is curated; user override should still win.
     expect(resolvePredicateColor('is', { is: '#ff00ff' })).toBe('#ff00ff');
-    // hasMaterial is curated; override wins.
     expect(resolvePredicateColor('hasMaterial', { hasMaterial: '#000000' })).toBe('#000000');
   });
 
   it('2. curated default beats hash fallback', () => {
-    // No user override — should land on curated, NOT on the hash palette.
     expect(resolvePredicateColor('is', {})).toBe(CURATED_PREDICATE_COLORS.is);
     expect(resolvePredicateColor('hasPort', {})).toBe(CURATED_PREDICATE_COLORS.hasPort);
     expect(resolvePredicateColor('interferesWith', {})).toBe(CURATED_PREDICATE_COLORS.interferesWith);
   });
 
   it('3. hash fallback for predicates not in the curated map', () => {
-    // Long-tail predicates from non-IFC sources. Must still get a stable color.
+    // A predicate from another source still gets a stable colour.
     const hashed = resolvePredicateColor('someCustomDomainPredicate', {});
     expect(hashed).toBe(PREDICATE_PALETTE[
       hashStringToIndex('someCustomDomainPredicate', PREDICATE_PALETTE.length)

@@ -53,9 +53,8 @@ public class ServiceHostTests
         return builder.Build();
     }
 
-    // The fault this guards: every service registered the wall clock, so an instant a service wrote
-    // into a simulated run carried the year of the machine playing it rather than the year the model
-    // had reached.
+    // A service that registered the wall clock would write instants into a simulated run carrying the
+    // year of the machine playing it rather than the year the model has reached.
     [Fact]
     public async Task AddModelClock_LeavesTheServiceStampingWhatTheBrokerSaysTheTimeIs()
     {
@@ -269,9 +268,8 @@ public class ServiceHostTests
         ServiceHost.LogDirectory.Should().BeNull("there is no file for the broker to find");
     }
 
-    // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
-    // every shutdown. The broker's liveness monitor removes a registration whose service stops
-    // answering, so shutdown must not ask at all.
+    // Shutdown does not ask: the broker's liveness monitor removes a registration after repeated failed
+    // health checks, unless the broker supervises the service.
     [Fact]
     public async Task AddMyceliumRegistration_DoesNotAskTheBrokerToWithdrawOnShutdown()
     {
@@ -370,8 +368,8 @@ public class ServiceHostTests
         }
     }
 
-    // The fault this guards: the HTTP client wrote information lines for every call a service made,
-    // so a service retrying a refused call every few seconds filled its log and the broker's.
+    // An HTTP client writing information lines for every call would let a service retrying a refused
+    // call every few seconds fill its log and the broker's.
     [Fact]
     public async Task LevelsAndEnrichment_KeepsTheHttpClientsInformationLinesOutOfTheLog()
     {

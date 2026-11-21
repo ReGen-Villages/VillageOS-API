@@ -17,27 +17,27 @@ const monitorsPredicate = makeThing('p-monitors', 'monitors');
 const zone = makeThing('t-zone', 'Zone', { kind: 'type' });
 const sensor = makeThing('t-sensor', 'Sensor', { kind: 'type' });
 
-const orchardZone = makeThing('i-orchardzone', 'OrchardZone', { capacity: '5000' });
+const catchmentZone = makeThing('i-catchmentzone', 'CatchmentZone', { capacity: '5000' });
 const reservoirZone = makeThing('i-reservoirzone', 'ReservoirZone', { capacity: '15000' });
 const tempSensor = makeThing('i-temp', 'ReservoirTempSensor', { unit: 'celsius' });
-const motionSensor = makeThing('i-motion', 'OrchardMotionSensor', { unit: 'boolean' });
+const motionSensor = makeThing('i-motion', 'CatchmentMotionSensor', { unit: 'boolean' });
 const weightSensor = makeThing('i-weight', 'GateWeightSensor', { unit: 'kg' });
 const leafNode = makeThing('i-leaf', 'LeafNode', {});
 
-const allThings = [isPredicate, hasPredicate, monitorsPredicate, zone, sensor, orchardZone, reservoirZone, tempSensor, motionSensor, weightSensor, leafNode];
+const allThings = [isPredicate, hasPredicate, monitorsPredicate, zone, sensor, catchmentZone, reservoirZone, tempSensor, motionSensor, weightSensor, leafNode];
 
 const relationships: VosRelationship[] = [
-  makeRelationship('r1', 'i-orchardzone', 'p-is', 't-zone'),
+  makeRelationship('r1', 'i-catchmentzone', 'p-is', 't-zone'),
   makeRelationship('r2', 'i-reservoirzone', 'p-is', 't-zone'),
   makeRelationship('r3', 'i-temp', 'p-is', 't-sensor'),
   makeRelationship('r4', 'i-motion', 'p-is', 't-sensor'),
   makeRelationship('r5', 'i-weight', 'p-is', 't-sensor'),
 
   makeRelationship('r6', 'i-reservoirzone', 'p-has', 'i-temp'),
-  makeRelationship('r7', 'i-orchardzone', 'p-has', 'i-motion'),
+  makeRelationship('r7', 'i-catchmentzone', 'p-has', 'i-motion'),
 
   makeRelationship('r8', 'i-temp', 'p-monitors', 'i-reservoirzone'),
-  makeRelationship('r9', 'i-motion', 'p-monitors', 'i-orchardzone'),
+  makeRelationship('r9', 'i-motion', 'p-monitors', 'i-catchmentzone'),
 ];
 
 describe('getThingType', () => {
@@ -72,7 +72,7 @@ describe('getThingType', () => {
   });
 
   it('classifies regular instances as default', () => {
-    expect(getThingType(orchardZone, index)).toBe('default');
+    expect(getThingType(catchmentZone, index)).toBe('default');
     expect(getThingType(tempSensor, index)).toBe('default');
     expect(getThingType(leafNode, index)).toBe('default');
   });
@@ -87,7 +87,7 @@ describe('buildGraph', () => {
 
     it('assigns labels from thing names', () => {
       const graph = buildGraph(allThings, relationships);
-      expect(graph.getNodeAttribute('i-orchardzone', 'label')).toBe('OrchardZone');
+      expect(graph.getNodeAttribute('i-catchmentzone', 'label')).toBe('CatchmentZone');
       expect(graph.getNodeAttribute('t-zone', 'label')).toBe('Zone');
     });
 
@@ -95,7 +95,7 @@ describe('buildGraph', () => {
       const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('p-is', 'thingType')).toBe('predicate');
       expect(graph.getNodeAttribute('t-zone', 'thingType')).toBe('type');
-      expect(graph.getNodeAttribute('i-orchardzone', 'thingType')).toBe('default');
+      expect(graph.getNodeAttribute('i-catchmentzone', 'thingType')).toBe('default');
     });
   });
 
@@ -106,7 +106,7 @@ describe('buildGraph', () => {
     });
 
     it('skips edges with missing endpoints', () => {
-      const partialThings = [isPredicate, orchardZone, zone]; // missing sensor, temp, etc.
+      const partialThings = [isPredicate, catchmentZone, zone]; // without the sensor and the other endpoints
       const graph = buildGraph(partialThings, relationships);
       expect(graph.size).toBe(1);
     });
@@ -191,7 +191,7 @@ describe('buildGraph', () => {
 
     it('sets hasGeometry=false for things without lat/lng properties', () => {
       const graph = buildGraph(allThings, relationships);
-      expect(graph.getNodeAttribute('i-orchardzone', 'hasGeometry')).toBe(false);
+      expect(graph.getNodeAttribute('i-catchmentzone', 'hasGeometry')).toBe(false);
       expect(graph.getNodeAttribute('p-is', 'hasGeometry')).toBe(false);
     });
 
@@ -203,8 +203,8 @@ describe('buildGraph', () => {
 
     it('does not set lat/lng on non-geo nodes', () => {
       const graph = buildGraph(allThings, relationships);
-      expect(graph.getNodeAttribute('i-orchardzone', 'lat')).toBeUndefined();
-      expect(graph.getNodeAttribute('i-orchardzone', 'lng')).toBeUndefined();
+      expect(graph.getNodeAttribute('i-catchmentzone', 'lat')).toBeUndefined();
+      expect(graph.getNodeAttribute('i-catchmentzone', 'lng')).toBeUndefined();
     });
   });
 
@@ -224,9 +224,9 @@ describe('buildGraph', () => {
 
     it('derives instance colour from "is" type name consistently', () => {
       const graph = buildGraph(allThings, relationships);
-      const orchardColor = graph.getNodeAttribute('i-orchardzone', 'color');
+      const catchmentColor = graph.getNodeAttribute('i-catchmentzone', 'color');
       const reservoirColor = graph.getNodeAttribute('i-reservoirzone', 'color');
-      expect(orchardColor).toBe(reservoirColor);
+      expect(catchmentColor).toBe(reservoirColor);
       const tempColor = graph.getNodeAttribute('i-temp', 'color');
       const motionColor = graph.getNodeAttribute('i-motion', 'color');
       const weightColor = graph.getNodeAttribute('i-weight', 'color');
@@ -236,7 +236,7 @@ describe('buildGraph', () => {
 
     it('gives different types different colours', () => {
       const graph = buildGraph(allThings, relationships);
-      const zoneInstanceColor = graph.getNodeAttribute('i-orchardzone', 'color');
+      const zoneInstanceColor = graph.getNodeAttribute('i-catchmentzone', 'color');
       const sensorInstanceColor = graph.getNodeAttribute('i-temp', 'color');
       expect(zoneInstanceColor).not.toBe(sensorInstanceColor);
     });
@@ -248,8 +248,8 @@ describe('buildGraph', () => {
 
     it('uses vibrant (non-slate) colour for typed instances', () => {
       const graph = buildGraph(allThings, relationships);
-      const orchardColor = graph.getNodeAttribute('i-orchardzone', 'color');
-      expect(orchardColor).not.toBe('#94a3b8');
+      const catchmentColor = graph.getNodeAttribute('i-catchmentzone', 'color');
+      expect(catchmentColor).not.toBe('#94a3b8');
     });
   });
 
@@ -272,7 +272,7 @@ describe('buildGraph', () => {
       const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('p-is', 'isLogical')).toBe(true);
       expect(graph.getNodeAttribute('t-zone', 'isLogical')).toBe(true);
-      expect(graph.getNodeAttribute('i-orchardzone', 'isLogical')).toBe(true);
+      expect(graph.getNodeAttribute('i-catchmentzone', 'isLogical')).toBe(true);
       expect(graph.getNodeAttribute('i-leaf', 'isLogical')).toBe(true);
     });
 
@@ -448,10 +448,8 @@ describe('buildGraph', () => {
   });
 });
 
-// An IFC instance and the type it `is`-relates to both declare
-// ifcClass, so the instance's own class is stored as an override. Reading the
-// own bag alone found nothing, and every imported element fell through to the
-// hash palette instead of the curated class colours.
+// An IFC instance and its type both declare ifcClass, so the instance's own class is stored as an
+// override, and reading its own properties alone would fall back to the hash palette.
 describe('colouring by the classifying property', () => {
   const wallType = makeThing('t-wall', 'Basic Wall', { ifcClass: 'IfcWallType' });
   const owned = makeThing('i-owned', 'Wall-owns-its-class', { ifcClass: 'IfcWall' });

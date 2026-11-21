@@ -214,7 +214,7 @@ public class MetabolismTests : IAsyncLifetime
     {
         _engine.Register(MakeConfig(quantity: 1.0m, freqSeconds: 60), HeldModelToken.None);
 
-        // Simulate two rapid SSE callbacks on thread pool
+        // Two change-stream callbacks at once, on pool threads.
         var barrier = new Barrier(2);
         var t1 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "quantity", 3.0m); });
         var t2 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "frequencySeconds", 5); });

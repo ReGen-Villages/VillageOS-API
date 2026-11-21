@@ -1,5 +1,6 @@
 using vos.Service.Intake.Models;
 using vos.Service.Shared;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -28,6 +29,7 @@ public static class DeclaredVocabularyReader
     [
         LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
         LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+        LandIntakeRoles.LandCoverClass,
     ];
 
     // The predicates a relationship to a term is written with, the archetype a study `is`, and where a site
@@ -46,7 +48,7 @@ public static class DeclaredVocabularyReader
     // carries.
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles]),
+        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles, .. AreaMethodReader.Roles]),
         Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
         Traverse = [RoleBindings.FollowBindings],
@@ -62,13 +64,28 @@ public static class DeclaredVocabularyReader
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
         Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
-        SoilDepths(snapshot));
+        AreaMethod(snapshot),
+        TermsWhereBound(snapshot, LandIntakeRoles.SoilDepth, "the depths a site's soil is read at"),
+        TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"));
 
-    // None where the model reads no soil, so a submission into it is still composed, as with water demands.
-    internal static DeclaredTerms? SoilDepths(SnapshotDocument snapshot) =>
-        snapshot.Bound(LandIntakeRoles.SoilDepth).Count == 0
+    // Every route answers a model with no usable area method as it answers any model that was never seeded.
+    public static AreaMethodChoice AreaMethod(SnapshotDocument snapshot)
+    {
+        try
+        {
+            return AreaMethodReader.Read(snapshot);
+        }
+        catch (AreaMethodNotDeclaredException refused)
+        {
+            throw new ModelNotSeededError(refused.Message);
+        }
+    }
+
+    // None where the model reads no soil or land cover, so a submission into it is still composed, as with water demands.
+    private static DeclaredTerms? TermsWhereBound(SnapshotDocument snapshot, Role archetypeRole, string whatItDeclares) =>
+        snapshot.Bound(archetypeRole).Count == 0
             ? null
-            : TermsBound(snapshot, LandIntakeRoles.SoilDepth, LandIntakeRoles.Assesses, "the depths a site's soil is read at");
+            : TermsBound(snapshot, archetypeRole, LandIntakeRoles.Assesses, whatItDeclares);
 
     // The demands one harvest is served over, in the order it serves them. Empty where the model
     // declares none: a study then holds no demand and every coverage reads unassessed, which is the honest

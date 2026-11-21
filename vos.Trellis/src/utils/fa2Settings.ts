@@ -12,17 +12,9 @@ interface ResolvedFA2Settings {
   strongGravityMode: boolean;
 }
 
-/**
- * Derive the ForceAtlas2 supervisor settings from the user-tunable
- * {@link LayoutSettings} plus the runtime spread-mode and clustering flags.
- *
- * Every knob is read from <c>layoutSettings</c> so a deployment can override
- * any of them through GUI_Settings without a rebuild.
- *
- * When <c>isClustering</c> is set, the scalingRatio base switches from
- * <c>repulsion</c> to <c>clusterRepulsion</c> so the active-predicate members
- * spread apart enough to read their sub-structure.
- */
+/** Every setting is read from `layoutSettings`, so a deployment can change any of them in GUI_Settings without
+ *  a rebuild. While clustering, the scaling starts from `clusterRepulsion`, so the active members spread far
+ *  enough apart to read their structure. */
 export function resolveFA2Settings(
   layoutSettings: LayoutSettings,
   isSpreadActive: boolean,

@@ -7,7 +7,7 @@ import {
 import { apiClient } from '../api/client';
 import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
-// Captures EventSource instances + their per-event listeners so a test can fire server pushes.
+// Records each EventSource and its listeners, so a test can send events as the server would.
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   url: string;
@@ -66,9 +66,8 @@ describe('useSse', () => {
     unmount();
   });
 
-  // Every property event has to reach a handler as (id, name, value), retractions included. An
-  // event missing from that set arrives as a raw object instead, and the handler quietly does
-  // nothing — no error, no update, the change simply never lands.
+  // A property event missing from that set reaches its handler as a raw object, and the change never
+  // lands, with no error.
   it.each([
     ['PropertyChanged', { EntityId: 't1', PropertyName: 'temp', Value: 5 }, ['t1', 'temp', 5]],
     ['PropertyDeleted', { EntityId: 't1', PropertyName: 'temp' }, ['t1', 'temp', undefined]],
@@ -102,8 +101,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A browser hands a page only the kinds it has attached a listener for, so a kind the hook leaves
-  // out never reaches the handler a page registered for it, and nothing reports that.
   it.each(SYSTEM_STREAM_KINDS)('hands a %s event from the system stream to its handler', async (kind) => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
@@ -146,8 +143,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  // The address is recorded — access logs, proxies, browser history — so of the two credentials the
-  // hook now holds, only the short-lived one may be written into it.
+  // The address is recorded in access logs, proxies and history, so only the short-lived token may go in it.
   it('carries a stream token in the address and never the sign-in token', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(FakeEventSource.instances.length).toBe(2));
@@ -175,24 +171,21 @@ describe('useSse', () => {
 
   const objectStreams = () => FakeEventSource.instances.filter((e) => e.url.includes('/subscriptions/'));
 
-  // The first connect has no consumed position, so it seeds from the snapshot
-  // watermark; after consuming events, a reconnect must resume from the consumed sequence so
-  // the broker replays only the gap — not re-subscribe at the current head (skipping the gap).
   it('resumes the object stream from the consumed sequence on reconnect', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
-    expect(objectStreams()[0].url).toContain('lastEventId=0'); // first connect: snapshot watermark
+    expect(objectStreams()[0].url).toContain('lastEventId=0');
 
     const obj0 = objectStreams()[0];
-    act(() => obj0.emit('ThingCreated', { EntityId: 't7' }, 7)); // consume up to sequence 7
+    act(() => obj0.emit('ThingCreated', { EntityId: 't7' }, 7));
 
     vi.useFakeTimers();
-    act(() => obj0.onerror?.());               // stream drops → schedules reconnect
-    await vi.advanceTimersByTimeAsync(1000);   // first backoff delay
+    act(() => obj0.onerror?.());
+    await vi.advanceTimersByTimeAsync(1000);   // the first wait before reconnecting
     vi.useRealTimers();
 
     await waitFor(() => expect(objectStreams().length).toBe(2));
-    expect(objectStreams()[1].url).toContain('lastEventId=7'); // resumed from consumed sequence
+    expect(objectStreams()[1].url).toContain('lastEventId=7');
     unmount();
   });
 
@@ -295,13 +288,12 @@ describe('useSse', () => {
     unmount();
   });
 
-  /** The bodies of every subscription this test opened, oldest first. */
   const subscriptionsOpened = () =>
     vi.mocked(globalThis.fetch).mock.calls
       .filter(([, requestOptions]) => (requestOptions as RequestInit | undefined)?.method === 'POST')
       .map(([, requestOptions]) => JSON.parse((requestOptions as RequestInit).body as string));
 
-  /** A page arriving with a declaration of its own. Unmounting it is that page leaving. */
+  /** Unmounting it is the page leaving. */
   const mountPage = (selector: SubscriptionSelector) => renderHook(() => useSubscription(selector));
 
   it('opens the subscription the mounted page declared, and restores the last one when it leaves', async () => {
@@ -318,9 +310,8 @@ describe('useSse', () => {
     unmount();
   });
 
-  // Reopening costs a load — a snapshot the platform has to build, or the whole model read again —
-  // so a page that re-renders, or one that declares the same thing the page before it did, must not
-  // pay for one.
+  // Reopening costs a snapshot or a whole-model read, so a page drawn again, or declaring what the page
+  // before it did, must not cause one.
   it('reopens nothing when a declaration says what is already open', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -333,9 +324,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A page mounts its declaration before the shell that contains it mounts one. Were the shell's
-  // just another entry on the stack, arriving last would make it win and every page would be sent
-  // the shell's handful of Things instead of what it asked for.
   it('keeps the shell\'s declaration under the page\'s, whichever mounts first', async () => {
     const { unmount } = renderHook(() => {
       useSse();
@@ -348,10 +336,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A navigation takes the leaving page's declaration back before the arriving page makes its own,
-  // and the arriving page's code is fetched on demand, so the gap between the two is a load rather
-  // than a tick. Between two pages that both read the whole model, acting inside it would re-read a
-  // whole model for a reader that never existed.
+  // The arriving page's code is fetched when needed, so the gap between two pages lasts a load, not a moment.
   it('reopens nothing when one page hands over to another asking for the same thing', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -370,10 +355,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A page replacing its own declaration — the scope switcher choosing another entity — has made
-  // the new one before this turn is over. Waiting out the hand-over window there would leave the
-  // page showing the entity it was about until the wait elapsed, for a hand-over that never
-  // happened.
+  // Waiting here would leave the page showing the entity it was about until the wait ended.
   it('follows a page that replaces its own declaration without waiting', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -382,7 +364,7 @@ describe('useSse', () => {
 
     showing.unmount();
     const showingAnother = mountPage({ ids: ['b'] });
-    await act(async () => {}); // one turn, no timers advanced
+    await act(async () => {});
 
     expect(objectStreams().length).toBe(3);
     expect(subscriptionsOpened().at(-1)).toEqual({ ids: ['b'] });
@@ -390,8 +372,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // Nothing expires a subscription, and a page declaring its own opens one per
-  // navigation, so an abandoned one would go on being written to for the life of the process.
   it('hands back the subscription it replaces', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -406,9 +386,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A declaration changing while an open is in flight abandons the subscription that open was
-  // granted. Nothing on the platform expires one, and the streams it would have been released with
-  // are never attached, so it has to be handed back on the way out.
   it('hands back a subscription the open that asked for it abandoned', async () => {
     let answer: (body: unknown) => void = () => {};
     globalThis.fetch = vi.fn().mockImplementation((_url, requestOptions?: RequestInit) => {
@@ -432,17 +409,15 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A refused request leaves no subscription behind, so there is nothing to hand back — and the
-  // page still has no data, so the open has to be retried. The refusal is what schedules the retry,
-  // so the clock is faked before the render that provokes it.
+  // The refusal is what schedules the retry, so the clock is faked before the render that causes it.
   it('retries a refused subscription request and hands nothing back', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch;
     vi.useFakeTimers();
     const { unmount } = renderHook(() => useSse());
-    await vi.advanceTimersByTimeAsync(0);    // the refusal lands and schedules the retry
+    await vi.advanceTimersByTimeAsync(0);
     expect(subscriptionsOpened().length).toBe(1);
 
-    await vi.advanceTimersByTimeAsync(1000); // first backoff delay
+    await vi.advanceTimersByTimeAsync(1000); // the first wait before retrying
     vi.useRealTimers();
 
     expect(subscriptionsOpened().length).toBe(2);
@@ -469,9 +444,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A subscription answers with the objects it covers and then streams the changes to them. A
-  // reader given that before the stream was listening would apply it and then miss everything
-  // between the two.
   it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -504,9 +476,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // The model read is what fills the store for a whole-model page, because only it honours the
-  // properties the model says its pages are drawn with. A snapshot sent beside it is the whole model
-  // built, sent and parsed a second time, and the read that fills the page waits for it.
   it('asks for no snapshot when the subscription covers the whole model', async () => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
@@ -520,9 +489,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // The consumed position belongs to the coverage it was consumed under. Replaying from it against
-  // different coverage re-applies what the new snapshot already holds, and can ask the broker for a
-  // range it no longer retains.
   it('resumes a newly declared subscription from its own snapshot, not the consumed position', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -608,9 +574,9 @@ describe('useSse', () => {
     const first = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
     act(() => objectStreams()[0].emit('ThingCreated', { EntityId: 't7' }, 7));
-    first.unmount(); // release() → consumedWatermark reset
+    first.unmount();
 
-    // A different model's snapshot head is 99; the remount must resume from 99, not the stale 7.
+    // Another model's snapshot is at 99, so the remount resumes from 99, not the old 7.
     FakeEventSource.instances = [];
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,

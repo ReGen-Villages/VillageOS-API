@@ -124,16 +124,10 @@ export function KpiCard({
   );
 }
 
-/**
- * Where the figure came from, under it. One line per Thing the binding read, so a path reaching
- * several says it of each.
- *
- * Every word is the model's. A row carrying no origin — which is what a slot bound to something
- * other than an `origin` binding resolves to — and an origin the specification left unworded are both left
- * unsaid rather than drawn as a blank line: Trellis has no wording of its own to put there, and a
- * placeholder would read as an answer.
- */
-export function OriginLines({ rows }: { rows: Row[] }) {
+/** One line per Thing the binding read. Every word is the model's, so a row with no origin, or an origin the
+ *  specification left without wording, is left out rather than drawn blank, where a placeholder would read as
+ *  an answer. */
+function OriginLines({ rows }: { rows: Row[] }) {
   return originLines(rows).map((line, position) => (
     <div key={`${line.origin}-${position}`} className={`text-[11px] mt-1.5 ${originTone(line.origin)}`}>
       {line.sentence}

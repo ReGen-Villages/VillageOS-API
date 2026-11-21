@@ -315,7 +315,7 @@ public class UserCommandHandlerTests
     public async Task ChangePassword_ReaderEof_TreatsAsEmptyPassword()
     {
         var userId = Guid.NewGuid();
-        var reader = new StringReader(""); // both ReadLine() return null → empty string per implementation
+        var reader = new StringReader(""); // Nothing to read answers both password prompts with an empty string.
         _myceliumMock
             .Setup(b => b.ChangePasswordAsync(userId, "", ""))
             .ReturnsAsync(System.Text.Json.JsonDocument.Parse("{}").RootElement);

@@ -28,8 +28,8 @@ describe('useLogTail', () => {
     vi.useRealTimers();
   });
 
-  // EventSource cannot send an Authorization header, so the credential rides on the query string —
-  // where it is recorded, which is why it is the stream token and not the sign-in token behind it.
+  // EventSource cannot send an Authorization header, so the credential goes in the address, where it is
+  // recorded; that is why it is the stream token and not the sign-in token.
   it('opens the broker log with the tail length and a stream token', async () => {
     renderHook(() => useLogTail());
 

@@ -4,16 +4,10 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The dashboard client ships widgets and a binding resolver; every word a reader sees comes from the
- * specification a model authors. That contract is what makes a second model cost nothing, and it decays one
- * widget at a time: each new widget written under pressure is a chance to spell a domain into the
- * client, and nothing else notices when one does.
- *
- * So this reads the source. A widget named for what one model measures — or a comment offering a
- * worked example in one model's words, which is what the next author copies — fails here.
- *
- * Silence a finding only by adding it to `ALLOWED` with the reason. A long list means the contract
- * is being argued with rather than kept.
+ * Every word a reader sees comes from the model's specification, which is what makes a second model cost
+ * nothing, and each new widget is a chance to spell one model's domain into the client unnoticed. So this reads
+ * the source, comments too, because a worked example in one model's words is what the next author copies. A
+ * finding is silenced only in `ALLOWED`, with its reason.
  */
 const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -24,8 +18,7 @@ const TENDRIL = join(SOURCE, '../../vos.Tendril/src');
 const ALSO = [
   'pages/OperationsPage.tsx',
   'components/dashboard/DashboardSections.tsx',
-  'publicFindings/PublicFindingsPage.tsx',
-  'publicFindings/answeredFindings.ts',
+  'publicPages/answeredFindings.ts',
   'api/dashboardSubscription.ts',
   'api/bindingVocabulary.ts',
   'api/dashboardLocalization.ts',

@@ -6,61 +6,49 @@ import type { TermWording } from '@tendril-ui/tendril';
 import i18n from '../i18n';
 import { refusalFrom } from './refusals';
 
-/** What the intake service answered a submission with: something the submitter can quote to whoever
- *  reviews it. What the model called the Things it composed the submission into stays inside the service —
- *  the route is anonymous, and a stranger is not told the shape of the model they submitted into. */
+/** Only a reference to quote, because the route is anonymous and a stranger is not told the shape of the
+ *  model they submitted into. */
 export interface SubmissionAccepted {
   reference: string;
 }
 
 /**
- * The intake service is a program of its own rather than a service reached through the broker's endpoint
- * forward, and deliberately so: that route resolves where to forward from data in the model, so anything
- * the model named would be within reach of whoever could call it. Intake holds its own credential and its
- * own address, which is what lets it take a submission from someone who holds none.
- *
- * Its address is configuration for the same reason the ingestion service's is — one deployment may run
- * it beside the broker and another somewhere else entirely.
+ * The intake service is not reached through the broker's endpoint forward, because that forward reads its
+ * target from the model, so anything the model named would be in reach of any caller. Intake holds its own
+ * credential, which lets it take a submission from someone who holds none. Its address is configuration
+ * because one deployment runs it beside the broker and another elsewhere.
  */
 const intakeUrl = () => (import.meta.env.VITE_INTAKE_URL as string | undefined) || '';
 
-/** The service issues one of these in exchange for a code it sent, and reads it back when the form is
- *  posted. It is signed against the address it was issued for, so a submission naming another does not
- *  carry a ticket for itself. */
-export const TICKET_HEADER = 'X-Submission-Ticket';
+/** The ticket is signed against the address it was issued for, so a submission naming another address
+ *  carries no ticket of its own. */
+const TICKET_HEADER = 'X-Submission-Ticket';
 
-/** What the form draws itself with. A page holding no credential cannot read the model for itself, so
- *  the service reads it and answers with the categories a submission may name and the imagery a map may
- *  draw on. What makes a source usable is judged here, by the same rule the planner's page judges it by. */
+/** A page with no credential cannot read the model, so the service reads it for the form. Which sources
+ *  are usable is judged here by the same rule the planner's page uses. */
 export interface FormOptions {
   allocationCategories: string[];
   basemapSources: BasemapSource[];
-  /** The hazards a submitter may report on, and the words they may report. Both the model's, so a form
-   *  cannot offer a term the submission would then be refused for naming. Empty where a deployment
-   *  declares no hazards, which draws one step fewer rather than refusing to answer. */
+  /** The model's own, so a form cannot offer a term a submission is then refused for. Empty where a
+   *  deployment declares no hazards, which draws one step fewer rather than refusing to answer. */
   hazardTypes: string[];
   hazardLevels: string[];
-  /** The split a page offers before anybody has stated a programme, as each category Thing states it.
-   *  Empty where the model states no defaults, which starts a page with nothing chosen. */
+  /** Offered before anybody states a programme, as each category Thing states it. Empty where the model
+   *  states no defaults, which starts a page with nothing chosen. */
   defaultProgramme: { category: string; sharePercent: number }[];
-  /** Whether the model registers each position lookup, so a page draws only what the service can
-   *  honour: no search box over a model with no gazetteer, no fetch attempt against no register. */
+  /** So a page draws no search box for a model with no gazetteer, and asks no register that is absent. */
   parcelLookup: boolean;
   placeSearch: boolean;
-  /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
-   *  report. Empty where the model declares none, which draws every section as a list. */
+  /** The themes a report section may name, which give it a tile. Empty where the model declares none, which
+   *  draws every section as a list. */
   themes: DeclaredTheme[];
-  /** The kinds a planner may give each named shape of a layer file, as the model declares them, with
-   *  the colour a map draws that kind in and the names of the themes it is shown under. Empty where the
-   *  model declares no site layer. */
+  /** The kinds a planner may give each named shape of a layer file. Empty where the model declares no site layer. */
   layerKinds: { name: string; colour: string | null; themes: string[] }[];
-  /** Each offered term's words by language, under the name the lists above offer. A term the model
-   *  words in no language is absent, and is shown by its name. */
+  /** Keyed by the names the lists above offer. A term the model words in no language is absent and shown by its name. */
   wording: TermWording;
 }
 
-/** The legal parcel a register holds at a position, as named pairs, with the register's own credit
- *  line — displayed wherever the boundary is drawn, as a basemap's credit is. */
+/** The register's credit is shown wherever the boundary is drawn, as a basemap's credit is. */
 interface FetchedParcel {
   boundary: { latitude: number; longitude: number }[];
   attribution: string | null;
@@ -73,8 +61,7 @@ export interface FoundPlace {
 }
 
 export const intakeApi = {
-  /** Whether an intake address is configured, which is what decides whether the wizard is offered at
-   *  all: a wizard that collects a submission it cannot post is worse than no wizard. */
+  /** Decides whether the wizard is offered, because one that collects a submission it cannot post is worse than none. */
   configured: () => intakeUrl().length > 0,
 
   formOptions: async (): Promise<FormOptions> => {
@@ -114,10 +101,8 @@ export const intakeApi = {
     };
   },
 
-  /** The legal parcel at a position, or null where none is available — a deployment registering no
-   *  land register, a position outside every register's bounds, and a register holding no parcel there
-   *  are all answered the same way, and the page does the same thing in all three: it lets the person
-   *  draw. */
+  /** Null for no register, a position outside every register, or no parcel there, because in each case the
+   *  page does the same thing and lets the person draw. */
   parcelAt: async (latitude: number, longitude: number): Promise<FetchedParcel | null> => {
     const response = await intakeRequest('/submissions/parcel-at-position', { body: { latitude, longitude }, passNotFound: true });
     if (response.status === 404) return null;
@@ -125,7 +110,7 @@ export const intakeApi = {
     return { boundary: answered.boundary ?? [], attribution: answered.attribution ?? null };
   },
 
-  /** Place names for what somebody typed, or none where the model registers no gazetteer. */
+  /** None where the model registers no gazetteer. */
   searchPlaces: async (query: string): Promise<FoundPlace[]> => {
     const response = await intakeRequest('/submissions/place-search', { body: { query }, passNotFound: true });
     if (response.status === 404) return [];
@@ -133,29 +118,26 @@ export const intakeApi = {
     return answered.places ?? [];
   },
 
-  /** Asks the service to send a code to the address, which is the step that establishes somebody reads
-   *  what is sent there. Answers nothing: what happens next is the person reading their mail. */
+  /** The code proves somebody reads what is sent to the address. */
   askForCode: async (emailAddress: string): Promise<void> => {
     await intakeRequest('/submissions/verification', { body: { emailAddress } });
   },
 
-  /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
-   *  and is no use to the page beyond the post it was got for. */
+  /** In one call, because a ticket lasts minutes and is no use beyond the post it was got for. */
   submit: async (submission: SubmissionDocument, code: string): Promise<SubmissionAccepted> => {
     const ticket = await intakeApi.exchangeTicket(submission.contact.emailAddress, code);
     return (await intakeApi.submitWithTicket(submission, ticket)).accepted;
   },
 
-  /** A code spent on the short-lived ticket the service signs against the address. Held apart from
-   *  submitting because a page that keeps re-posting spends one exchange and then rides the renewals. */
+  /** Apart from submitting, because a page that posts again and again exchanges one code and then uses the
+   *  renewed tickets. */
   exchangeTicket: async (emailAddress: string, code: string): Promise<string> => {
     const exchanged = await intakeRequest('/submissions/ticket', { body: { emailAddress, code } });
     return (await exchanged.json()).ticket;
   },
 
-  /** Posts under a ticket already held. The service hands a fresh ticket back on every accepted act, so
-   *  the caller carries on with whichever came back — a page adjusting sliders stays in the exchange it
-   *  completed while an abandoned ticket still dies at its own age. */
+  /** Each accepted post answers with a fresh ticket for the caller's next one, so a page adjusting sliders
+   *  keeps going while an abandoned ticket still expires at its own age. */
   submitWithTicket: async (
     submission: SubmissionDocument,
     ticket: string,
@@ -165,9 +147,8 @@ export const intakeApi = {
   },
 };
 
-/** A tile address that is a path is a route of the intake service — imagery it proxies so a page holds
- *  no provider address — and the public pages are served from a site of their own, so the path is
- *  resolved against the service rather than the page. */
+/** A tile path is the intake service's route to imagery it passes on, so a page holds no provider address;
+ *  the public pages are served from another site, so the path is resolved against the service. */
 function servedByTheService(source: BasemapSource): BasemapSource {
   return source.kind === 'raster' && source.tileUrl.startsWith('/')
     ? { ...source, tileUrl: `${intakeServiceAddress()}${source.tileUrl}` }
@@ -196,7 +177,7 @@ export function renewedTicket(response: Response, held: string): string {
   return response.headers.get(TICKET_HEADER) ?? held;
 }
 
-export function intakeServiceAddress(): string {
+function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
   if (!base) throw new Error(i18n.t('intake.serviceNotConfigured', { setting: 'VITE_INTAKE_URL' }));
   return base;

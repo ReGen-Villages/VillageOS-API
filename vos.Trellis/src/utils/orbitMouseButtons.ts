@@ -1,19 +1,8 @@
 import { MOUSE } from 'three';
 
-/**
- * OrbitControls mouseButtons map. Default layout:
- *   left = rotate, middle = dolly (zoom), right = pan.
- *
- * When the user holds a pan modifier (Shift, Cmd, or Ctrl),
- * left-drag becomes pan while right-drag falls back to rotate. The middle
- * mouse button always dollies. Picking the modifier this way lets touchpad
- * users pan with a single-finger drag (the only gesture they have available
- * without an external mouse) — right-click is awkward on macOS trackpads.
- *
- * Pure function; the BimFragmentsViewer wires window keydown/keyup state into
- * the React render so OrbitControls re-receives this prop while a modifier
- * is held.
- */
+/** Holding Shift, Command or Control makes a left drag pan and a right drag rotate, because a trackpad offers
+ *  only a one-finger drag and right-clicking on a Mac trackpad is awkward. The viewer passes the held keys in,
+ *  so OrbitControls is given the new map while a key is held. */
 interface KeyboardModifiers {
   shift: boolean;
   meta: boolean;

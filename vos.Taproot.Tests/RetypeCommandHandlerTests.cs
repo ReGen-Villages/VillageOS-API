@@ -6,7 +6,6 @@ using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
-// Covers `retype`: swap ONE of a Thing's is-relationships, preserving multiple inheritance.
 public class RetypeCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };
@@ -45,7 +44,7 @@ public class RetypeCommandHandlerTests
     [Fact]
     public async Task Non_is_edges_are_left_untouched()
     {
-        SetupModel(Edge(RelA, ThingId, Guid.NewGuid(), TypeA)); // a non-is edge
+        SetupModel(Edge(RelA, ThingId, Guid.NewGuid(), TypeA));
         await Execute($"{ThingId} {NewType}");
         _mycelium.Verify(m => m.DeleteRelationshipAsync(It.IsAny<Guid>()), Times.Never);
         _mycelium.Verify(m => m.CreateRelationshipAsync(ThingId, IsId, NewType), Times.Once);

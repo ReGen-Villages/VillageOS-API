@@ -20,7 +20,7 @@ interface DeclaredPage {
 export const myceliumApi = {
   getPages: () => apiClient.get<DeclaredPage[]>('/api/mycelium/pages'),
 
-  /** Unauthenticated — check seed loading progress before login completes. */
+  /** Asked before sign-in, so it carries no credential. */
   getStartupStatus: async (): Promise<StartupProgress> => {
     const baseUrl = import.meta.env.VITE_BROKER_URL || '';
     const res = await fetch(`${baseUrl}/api/mycelium/startup-status`);

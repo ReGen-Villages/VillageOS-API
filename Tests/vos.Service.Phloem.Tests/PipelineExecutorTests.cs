@@ -9,8 +9,8 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// The orchestration core: synchronous spawn-and-wait, routing each node's outputs to
-// its downstream inputs, halting dependents on failure. Mycelium is faked so the logic is tested without HTTP.
+// The executor: a run waited for to its end, each node's outputs routed to its downstream inputs, and
+// dependents halted on failure. Mycelium is faked so the logic is tested without HTTP.
 public class PipelineExecutorTests
 {
     [Fact]

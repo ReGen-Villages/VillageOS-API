@@ -14,11 +14,10 @@ import { resolveClassColor } from './classPalette';
 
 // Built in one pass over things and relationships, rather than a scan of every relationship per thing.
 interface RelationshipIndex {
-  /** Set of all thing IDs used as predicates in any relationship. */
   predicateIds: Set<string>;
-  /** Set of thing IDs that are targets of "is" relationships (type things). */
+  /** The targets of `is` relationships, which are types. */
   isTypeTargets: Set<string>;
-  /** Map from subject ID → target name for "is" relationships (instance type). */
+  /** Each `is` subject's type name. */
   isSubjectToTypeName: Map<string, string>;
 }
 
@@ -87,7 +86,7 @@ interface GraphEdgeAttributes {
   size: number;
   color: string;
   label: string;
-  type: string; // 'arrow'
+  type: string;
   predicateId: string;
   [key: string]: unknown;
 }
@@ -188,7 +187,7 @@ export function buildGraph(
   }
 
   graph.forEachNode((nodeId, attributes) => {
-    if (attributes.hasGeometry) return; // physical node — already classified
+    if (attributes.hasGeometry) return;
     graph.setNodeAttribute(nodeId, 'isLogical', true);
 
     const geoParent = findGeoParent(graph, nodeId);
@@ -200,11 +199,7 @@ export function buildGraph(
   return graph;
 }
 
-/**
- * Find the first geographic neighbour of a logical node.
- * Prefers "has" containment edges (geo parent → logical child),
- * then falls back to any neighbour with geometry.
- */
+/** Prefers a `has` relationship from a parent with a position, then any neighbour with geometry. */
 function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
   for (const edge of graph.inEdges(logicalNodeId)) {
     const source = graph.source(edge);
@@ -225,9 +220,6 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
   return null;
 }
 
-/**
- * Get all logical child node IDs whose parentGeoNodeId matches the given geo node.
- */
 export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   const children: string[] = [];
   graph.forEachNode((nodeId, attributes) => {
@@ -238,9 +230,6 @@ export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   return children;
 }
 
-/**
- * Count logical children of a geo node.
- */
 export function countLogicalChildren(graph: Graph, geoNodeId: string): number {
   let count = 0;
   graph.forEachNode((_nodeId, attributes) => {

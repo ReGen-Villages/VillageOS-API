@@ -1,14 +1,8 @@
 /**
- * Assembles what a detail window shows for one root Thing: the configured relations resolved
- * against the model, the derived states of the root and every related Thing, the root's own
- * derived-state change history, and the services the platform ran on it. Nothing here is
- * domain-specific — the relations come from the model's {@link DetailSpec}, and the services from
- * the wiring the platform's roles bind.
- *
- * The states are read from the model store rather than fetched: seeded from the subscription
- * snapshot and followed live, so a card shows a state the moment it moves rather than at the end
- * of the next refresh window. The history, the service wiring and the call stamps are not in a
- * dashboard's snapshot and are read.
+ * The relations come from the model's {@link DetailSpec} and the services from the wiring the platform's roles
+ * bind, so nothing here is about one domain. States come from the model store, seeded from the snapshot and
+ * followed live, so a card shows a state the moment it moves; the history, the wiring and the call stamps are not
+ * in a dashboard's snapshot, so they are read.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ModelIndex } from '@tendril-ui/tendril';
@@ -30,9 +24,8 @@ import { serviceEdgesOn, serviceCallsFrom, type ServiceCall } from './serviceHan
  *  for their stamps. */
 const MAX_RELATED = 60;
 
-/** The window refreshes on its own cadence rather than following the dashboard's `nonce`.
- *  A round costs a history request, and `nonce` bumps every 400 ms while a sim runs — following it
- *  would issue a request per open window on every flush. */
+/** The window refreshes at its own rate rather than with the dashboard's `nonce`, because a round costs a
+ *  history request and `nonce` moves several times a second while a simulation runs. */
 const REFRESH_THROTTLE_MILLISECONDS = 5000;
 
 interface EntityDetail {
@@ -47,10 +40,8 @@ interface EntityDetail {
   readCallsAgain: () => void;
 }
 
-/** Follow `value` at most once per `milliseconds`, leading-edge: the first change after a quiet period
- *  is taken promptly, then further changes wait out the window. Unlike a debounce this always
- *  makes progress — a continuously-changing value resets a debounce forever, which here would
- *  silently freeze the window's contents for as long as the model kept changing. */
+/** At most once per `milliseconds`, the first change after a quiet spell taken at once. Unlike a delay restarted on
+ *  each change it always moves on, where a value that keeps changing would freeze the window while the model runs. */
 function useThrottled(value: number, milliseconds: number): number {
   const [throttled, setThrottled] = useState(value);
   const lastRun = useRef(0);
@@ -123,14 +114,13 @@ export function useEntityDetail(
   useEffect(() => {
     // The first round waits for the wiring, so opening a card reads its history once rather than twice.
     if (!wiringRead) return;
-    // Abandon a superseded round outright: without this a round whose results we would
-    // discard anyway keeps competing for connections with the round that replaced it.
+    // A replaced round is cancelled, or it would compete for connections with the round that replaced it.
     const controller = new AbortController();
     const { signal } = controller;
 
     (async () => {
-      // The history rides alongside the service call stamps rather than after them. It is rejected, not
-      // thrown, when the model has no active engine — the window still shows its states and relations.
+      // The history is read beside the call stamps, not after them, and is refused rather than thrown when the
+      // model has no active engine, so the window still shows its states and relations.
       const [[historyResult], callResults] = await Promise.all([
         Promise.allSettled(historyEnabled ? [stateApi.getStateTransitions(thingId, undefined, undefined, signal)] : []),
         Promise.allSettled(serviceEdges.map((edge) => relationshipApi.get(edge.relationshipId, signal))),

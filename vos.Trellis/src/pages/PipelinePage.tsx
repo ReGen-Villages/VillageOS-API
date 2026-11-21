@@ -30,14 +30,8 @@ import { mayChangeData } from '../utils/mayChangeData';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
 
-/**
- * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
- *
- * A pipeline is model data — nodes, the connections they call, and the wires between their ports — so
- * this page is Thing and relationship work with a canvas over it. The rail on the left lists every
- * catalyst the model holds, the roster every pipeline, and the rail on the right every outcome and every
- * service a node may call. A boundary node stands for the catalyst or the outcome it was placed from.
- */
+/** A pipeline is model data, so this page works on Things and relationships with a canvas over them; a boundary
+ *  node stands for the catalyst or the outcome it was placed from. */
 export function PipelinePage() {
   useSubscription(PIPELINE_PAGE);
   const things = useModelStore((s) => s.things);

@@ -144,7 +144,7 @@ public class ARefusalCarriesThePlatformsReasonTests
     }
 
     private static IEnumerable<string> TaprootSources() =>
-        new[] { "vos.Taproot", "vos.Taproot.Client" }
+        new[] { "vos.Taproot", "vos.MyceliumClient" }
             .SelectMany(project => new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), project))
                 .EnumerateFiles("*.cs", SearchOption.AllDirectories))
             .Where(file => !IsBuildOutput(file.FullName))

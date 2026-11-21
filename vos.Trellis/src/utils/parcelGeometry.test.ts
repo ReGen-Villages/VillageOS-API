@@ -19,9 +19,8 @@ function box(latitude: number, longitude: number): BoundaryPoint[] {
 }
 
 describe('the area a boundary encloses', () => {
-  // One thousandth of a degree is 111.19 metres along a meridian, and that many metres along a
-  // parallel times the cosine of the latitude — which is the whole point: the same box on a flat
-  // reading would measure 1.24 hectares wherever it sat.
+  // A thousandth of a degree is 111.19 metres along a meridian, and that times the cosine of the latitude
+  // along a parallel; a flat reading would give the same box 1.24 hectares wherever it sat.
   it.each([
     [0, 1.23643],
     [45, 0.87428],

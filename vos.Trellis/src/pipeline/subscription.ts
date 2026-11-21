@@ -3,19 +3,11 @@ import type { SubscriptionSelector } from '../types/subscription';
 import { ROLE } from './model';
 
 /**
- * What the Pipelines page asks the platform for: the Things its roles reach, and nothing else.
- *
- * Every role Thing travels by identifier, with its `binds` relationship, because the page tells
- * which Thing plays which role by following `binds` from the role. A role bound to an archetype the
- * page reads the members of — the pipelines, their nodes and wires, the runs — asks for those
- * members; every other role asks for the one Thing it binds, which is a predicate or a result. The
- * built-in predicates travel by name, as they are matched.
- *
- * A port offers Things, a node chooses one, a choice compares with some, a boundary node stands for
- * something, a connection is reached by a trigger and a state judges a kind: each is a Thing no role
- * reaches, found one step along the predicate the role binds. A predicate names the connection a
- * relationship along it calls, found one step back from the connection. The page keeps following all of it, so
- * what it saves and what the orchestrator starts appear without reopening it.
+ * Each role Thing comes by identifier with its `binds` relationship, because the page finds what plays a role
+ * by following `binds`. A role bound to an archetype whose members the page reads asks for those members, any
+ * other for the one Thing it binds, and the built-in predicates come by name, as they are matched. Things one
+ * step along a bound predicate, or one step back from a connection, are followed too and kept followed, so what
+ * the page saves and what the orchestrator starts appear without reopening it.
  */
 export const KINDS_READ = [
   ROLE.Pipeline, ROLE.PipelineNode, ROLE.PipelineInput, ROLE.PipelineOutput, ROLE.Connection, ROLE.Service,

@@ -1,9 +1,10 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Geometry;
 
 namespace vos.Service.Intake.Services;
 
-// The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
+// The shape a submission has to land in: a SiteStudy that `studies` a Site, the site carrying what is true
 // of the land and the study carrying what an analysis makes of it. It is the shape an imported building
 // model already produces, so no reader has to ask where a site's facts came from, and a study is found
 // through the role that binds its archetype rather than by its source.
@@ -180,10 +181,14 @@ public static class SubmissionFragmentComposer
 
         var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, ParcelRole), $"{siteName} Parcel-01");
         var parcelId = parcelThing.Id;
-        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel, vocabulary.AreaMethod.Formula)));
         Relate(siteThing, predicates.Has, parcelThing);
         BeArchetype(parcelThing, archetypes.Parcel);
         RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
+        var areaMethod = vocabulary.AreaMethod;
+        Relate(parcelThing,
+            new PredicateIdentity(areaMethod.AreaMeasuredWith.Name, areaMethod.AreaMeasuredWith.Id, Minted: false),
+            new NamedThing(areaMethod.Method.Id, areaMethod.Method.Name));
 
         var categoriesAlreadyGiven = new Dictionary<Guid, string>();
         foreach (var allocation in submission.Allocations ?? [])
@@ -242,17 +247,23 @@ public static class SubmissionFragmentComposer
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
 
-        // Discovery reads a site's soil once per horizon the site has, as it grades a hazard once per assessment.
-        if (archetypes.SoilHorizon is { } horizonArchetype && vocabulary.SoilDepths is { } soilDepths)
-            foreach (var depth in soilDepths.Terms)
+        // The site has one Thing per declared term, so each soil depth and each land-cover class is read on its own, as each hazard is graded on its own assessment.
+        void OnePerTerm(DeclaredTerm? archetype, DeclaredTerms? declared, string kind)
+        {
+            if (archetype is null || declared is null) return;
+            foreach (var term in declared.Terms)
             {
-                var horizon = new NamedThing(
-                    StableIdentity.Derive(submissionId, $"soil:{Key(depth.Name)}"), $"{siteName} {depth.Name}");
-                things.Add(new FragmentThing(horizon.Id, horizon.Name, new Dictionary<string, TypedValue>()));
-                Relate(siteThing, predicates.Has, horizon);
-                BeArchetype(horizon, horizonArchetype);
-                RelateToTerm(horizon, soilDepths, depth);
+                var held = new NamedThing(
+                    StableIdentity.Derive(submissionId, $"{kind}:{Key(term.Name)}"), $"{siteName} {term.Name}");
+                things.Add(new FragmentThing(held.Id, held.Name, new Dictionary<string, TypedValue>()));
+                Relate(siteThing, predicates.Has, held);
+                BeArchetype(held, archetype);
+                RelateToTerm(held, declared, term);
             }
+        }
+
+        OnePerTerm(archetypes.SoilHorizon, vocabulary.SoilDepths, "soil");
+        OnePerTerm(archetypes.LandCoverShare, vocabulary.LandCoverClasses, "landcover");
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",
@@ -309,7 +320,16 @@ public static class SubmissionFragmentComposer
             Relate(hazardThing, predicates.Has, sourceThing);
         }
 
-        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
+        // An amendment after the model changed its method would otherwise leave the parcel naming the old method too.
+        var area = vocabulary.AreaMethod;
+        var forgotten = area.OtherMethods
+            .Select(other => new FragmentRelationship(
+                $"{parcelThing.Name} {area.AreaMeasuredWith.Name} {other.Name}", parcelId, area.AreaMeasuredWith.Id, other.Id))
+            .ToList();
+        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships)
+        {
+            Retractions = forgotten,
+        };
         return new ComposedSubmission(fragment, submissionId, siteThing.Id, studyThing.Id, parcelId);
     }
 
@@ -399,7 +419,7 @@ public static class SubmissionFragmentComposer
     }
 
     // How the boundary was obtained is the relationship to the declared term, not a value here.
-    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
+    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel, AreaMethod method)
     {
         var boundary = parcel.Boundary
             ?? throw new SubmissionError(RefusalCode.FieldMissing,
@@ -412,7 +432,7 @@ public static class SubmissionFragmentComposer
 
         return new Dictionary<string, TypedValue>
         {
-            ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
+            ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BorderArea.Hectares(BoundaryGeometry.Corners(boundary), method)),
             ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
         };
     }

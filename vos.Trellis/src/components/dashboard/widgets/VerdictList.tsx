@@ -5,15 +5,8 @@ import { asRows, verdictReadings } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 
-/**
- * Each judged quantity read as a sentence: what was measured, what it was judged against, and the
- * verdict in words.
- *
- * Every word of every verdict comes from the model — Trellis supplies the layout and the number
- * formatting and nothing else. A balance the model returned no verdict for is left unsaid rather
- * than filled with a dash: the client has no wording of its own to put there, and a placeholder
- * would read as an answer.
- */
+/** Every word of every verdict comes from the model, and Trellis adds only layout and number formatting. A
+ *  balance with no verdict is left unsaid rather than given a dash, because a placeholder would read as an answer. */
 export function VerdictList({ widget, context }: { widget: VerdictWidget; context: ResolveContext }) {
   const results = useBindings(
     widget.rows.map((r) => r.verdicts),

@@ -282,10 +282,8 @@ function EditableRow({
 }) {
   const { t } = useTranslation();
   const editor = editorForType(declaredType);
-  // Deliberately unformatted, unlike the display row. A reading shown to five decimal places is
-  // rounded, and an edit box holding the rounded text would save that rounding back over the stored
-  // value the moment anything else on the row changed. Editing works on the value, not on its
-  // presentation — which is also why a date here is the timestamp the platform stores.
+  // Unformatted, unlike the display row, because an edit box holding rounded text would save the rounding over
+  // the stored value when anything else on the row changed; a date here is the stored timestamp for the same reason.
   const formatted = formatPropertyValue(value);
   const asDraft = formatted === '(null)' ? '' : formatted;
   const [draft, setDraft] = useState(asDraft);

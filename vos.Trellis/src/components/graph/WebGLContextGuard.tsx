@@ -2,19 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useSigma } from '@react-sigma/core';
 
 /**
- * Renderless component that watches for WebGL context loss on all canvases
- * inside the Sigma container and attempts recovery.
- *
- * Safari is aggressive about reclaiming WebGL contexts when multiple are
- * active (Sigma uses 3). When a context is lost, Sigma cannot recover
- * automatically (sigma.js #1321). This guard:
- *
- * 1. Listens for `webglcontextlost` on all canvas elements in the container
- * 2. Calls `preventDefault()` to signal the browser we want to recover
- * 3. On `webglcontextrestored`, triggers `sigma.refresh()` to re-render
- * 4. Uses MutationObserver to also guard dynamically-added canvases
- *
- * Must be rendered as a child of <SigmaContainer>.
+ * Safari takes back WebGL contexts when several are active, and Sigma uses several. Sigma cannot recover a lost
+ * one by itself (sigma.js issue 1321), so this asks the browser to restore the context of every canvas in the
+ * container, including canvases added later, and redraws once it is restored.
  */
 export function WebGLContextGuard() {
   const sigma = useSigma();
@@ -27,14 +17,8 @@ export function WebGLContextGuard() {
 
     const watched = new Set<HTMLCanvasElement>();
 
-    /**
-     * Rebuild Sigma's rendering state without destroying graph data.
-     *
-     * After WebGL context restore, the old programs/buffers are invalid.
-     * We export the graph, clear Sigma (which also clears the graphology
-     * graph), re-import the snapshot, then refresh to recreate all WebGL
-     * resources from the current graph data.
-     */
+    /** After a restore the old drawing programs and buffers are invalid. Clearing Sigma clears the graph too, so
+     *  the graph is copied out first and imported again before the redraw. */
     const rebuildSigma = () => {
       try {
         const graph = sigma.getGraph();
@@ -85,7 +69,7 @@ export function WebGLContextGuard() {
         recoveryTimerReference.current = null;
       }
 
-      // Multiple RAF to ensure context is fully restored before we attempt to render
+      // Waits more than one frame so the context is fully restored before anything is drawn.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           rebuildSigma();

@@ -59,6 +59,14 @@ public static class LandIntakeRoles
     public static readonly Role HistorySource = new("historySource", new("db993771-bdc0-513f-a5c2-dab3e999471d"));
     public static readonly Role SoilDepth = new("soilDepth", new("7adcafde-a041-5e55-bb29-c3a03bd35493"));
     public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
+    public static readonly Role LandCoverClass = new("landCoverClass", new("e849536c-e5de-52e1-a7c9-b0a59ee7f591"));
+    public static readonly Role LandCoverShare = new("landCoverShare", new("865a1a58-ea9e-5699-8a76-73b48e705042"));
+    public static readonly Role MeasuresAreaWith = new("measuresAreaWith", new("0ba45c9f-fdb9-53f1-9576-76fb041629e8"));
+    public static readonly Role AreaMeasuredWith = new("areaMeasuredWith", new("b1cbb4b6-a7b6-50e7-b974-bbde68dd2d14"));
+    public static readonly Role MeanSphereAreaMethod = new("meanSphereAreaMethod", new("5ec67ad4-faf3-54c5-bdd5-ccf6502b139b"));
+    public static readonly Role Wgs84EllipsoidAreaMethod = new("wgs84EllipsoidAreaMethod", new("54961752-debb-572e-94b9-748a56921ba5"));
+    public static readonly Role VerifiedRequestBudget = new("verifiedRequestBudget", new("f333535d-e10e-5ed6-b21f-9b9e1002f18f"));
+    public static readonly Role UnverifiedRequestBudget = new("unverifiedRequestBudget", new("7d88b06c-605d-5d3f-8f4c-46c2801ecc1a"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -69,6 +77,8 @@ public static class LandIntakeRoles
         PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
-        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon,
+        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare,
+        MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
+        VerifiedRequestBudget, UnverifiedRequestBudget,
     ];
 }

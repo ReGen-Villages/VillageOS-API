@@ -22,7 +22,7 @@ public class ShippedComponentsDeclareOneVersionTests
 {
     // Not shipped with the platform, so not held to its version.
     //
-    // The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
+    // Those under tools/ build documentation and mirror a wiki; they run on somebody's machine
     // and are never handed to anyone. The echo package is one half of a worked example showing what
     // a microservice in another language has to implement, and its version is part of the example.
     // Tendril is published to the package feed on its own, and a feed refuses a version it already
@@ -63,11 +63,8 @@ public class ShippedComponentsDeclareOneVersionTests
             $"these declare a version instead of inheriting one: {string.Join(", ", offenders)}");
     }
 
-    // Pre-release is the point of the number, not an accident of it: the suffix is what says
-    // the platform makes no compatibility promise, and a release version would say the opposite by
-    // saying nothing.
-    // MSBuild ignores comments, so a version left commented out is not the declared one.
-    // Reading it as one failed a repository that agreed with itself.
+    // MSBuild ignores comments, so a version left commented out is not the declared one, and reading
+    // it as one would fail a repository that agrees with itself.
     [Fact]
     public void A_commented_out_version_is_not_the_declared_one()
     {
@@ -79,6 +76,9 @@ public class ShippedComponentsDeclareOneVersionTests
         Assert.DoesNotContain("9.9.9", Regex.Match(uncommented, @"<Version>([^<]+)</Version>").Value);
     }
 
+    // Pre-release is the point of the number, not an accident of it: the suffix is what says
+    // the platform makes no compatibility promise, and a release version would say the opposite by
+    // saying nothing.
     [Fact]
     public void The_version_says_it_is_pre_release()
     {
@@ -127,10 +127,10 @@ public class ShippedComponentsDeclareOneVersionTests
     // Build output is skipped because it is a copy, and a copy goes stale: a content file edited in
     // source stays as it was under bin until something rebuilds that project, so a check reading it
     // reports a file nobody edited and fails a build nobody broke. A workspace reused between builds
-    // — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
-    // into build output today, so this is a trap disarmed rather than a break fixed.
+    // — which is what a self-hosted agent has — is where that happens. Nothing searched here is copied
+    // into build output yet, so this keeps the failure from starting rather than ending one.
     //
-    // VillageOS carries the same search, and that is where the gap was found. Neither repository can
+    // VillageOS carries the same search. Neither repository can
     // reference the other: nothing is packed to a feed, and this one is public while that one
     // is not. So a rule learned in one is applied to both by hand, the way the claim names in VosClaims are.
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)

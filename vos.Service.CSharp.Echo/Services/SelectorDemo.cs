@@ -2,7 +2,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.CSharp.Echo.Services;
 
-// Worked example of the snapshot selector that replaced launch-time object IDs
+// Worked example of the snapshot selector
 // (docs/SERVICE_CONTRACT.md § "Selecting a slice").
 public sealed class SelectorDemo
 {

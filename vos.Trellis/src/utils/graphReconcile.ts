@@ -8,22 +8,11 @@ interface ReconcileResult {
 }
 
 /**
- * Reconcile a live graphology graph toward a freshly built target, mutating in
- * place: add new nodes/edges, drop removed ones, and patch changed attributes.
- *
- * Existing nodes keep their current x/y, so a running force layout and the
- * camera are left undisturbed — only genuinely new elements get a seed position.
- * Edge identity is the relationship Id (the graphology edge key), so multi-edges
- * between the same pair reconcile independently.
- *
- * Removals go through one `clear` + `import` instead of per-element drops.
- * Sigma re-indexes the whole graph synchronously on every `nodeDropped` /
- * `edgeDropped` event, so dropping one at a time costs the graph size once per removed element
- * and wedges the main thread when a filter hides a large share of a big model.
- * A single `cleared` event costs one re-index, and the re-import rides Sigma's
- * per-element add path, which costs the same for each element whatever the graph's size.
- *
- * `next` is scratch space on that path — it is mutated and must not be reused.
+ * Existing nodes keep their x and y, so a running layout and the camera are not disturbed, and edges are keyed
+ * by relationship identifier, so several between one pair reconcile apart. Removals go through one `clear`
+ * and `import`, because Sigma re-indexes the whole graph on every drop, and dropping one at a time freezes the
+ * page when a filter hides much of a large model; adding costs the same per element whatever the graph's size.
+ * `next` is changed on that path and must not be reused.
  */
 export function reconcileGraph(current: Graph, next: Graph): ReconcileResult {
   const result: ReconcileResult = { nodesAdded: 0, nodesRemoved: 0, edgesAdded: 0, edgesRemoved: 0 };
@@ -42,12 +31,8 @@ export function reconcileGraph(current: Graph, next: Graph): ReconcileResult {
   return result;
 }
 
-/**
- * Fold the live graph's settled state into `next`, then swap the whole graph
- * over in one mutation. Survivors keep their laid-out x/y and any attribute the
- * live graph carries that the rebuild doesn't know about (the `fixed` flags
- * predicate clustering pins nodes with, for one).
- */
+/** Survivors keep their laid-out x and y, and any attribute the rebuild does not know about, such as the
+ *  `fixed` flags clustering pins nodes with. */
 function replaceWithTarget(current: Graph, next: Graph): void {
   next.forEachNode((node, attributes) => {
     if (!current.hasNode(node)) return;

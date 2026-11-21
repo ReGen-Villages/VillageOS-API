@@ -7,11 +7,8 @@ namespace vos.Service.Shared;
 // against, and write a computed value back as a Fact — onto that study, or onto a Thing beside it whose
 // own result it is. Bound to the service making them, so every refusal names itself.
 //
-// Shared rather than copied into each handler: the read sat in every compute service and the
-// write in most of them, identical but for the name in the message — the shape where one gets fixed
-// and the others are left as they were. StudyInputs was shared out of the same handlers
-// for the same reason. Several of those services have since been retired, because the model declares
-// what they computed.
+// Shared rather than copied into each handler, as StudyInputs is, because copies identical but for the
+// name in the message get fixed one at a time.
 //
 // The client is supplied rather than built per call, unlike
 // MyceliumClientBase.SetFactAsync: a recompute writes several outputs and would otherwise

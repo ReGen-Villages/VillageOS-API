@@ -1,11 +1,5 @@
-/**
- * What makes a stated basemap source drawable, and how the map loads one.
- *
- * Two pages ask: the signed-in one, which reads the sources out of the model it already holds, and the
- * public form, which is told them by the intake service because it cannot read a model at all. The rule
- * lives here so the two cannot come to different answers, and so the form's bundle carries no way of
- * reaching the broker.
- */
+/** The signed-in page and the public form both ask, so the rule lives here and they cannot answer
+ *  differently; the form is told its sources by the intake service, so its bundle cannot reach the broker. */
 import type { StyleSpecification } from 'maplibre-gl';
 import {
   DEFAULT_RASTER_MAXIMUM_ZOOM,
@@ -16,13 +10,9 @@ import {
   type RaisedGround,
 } from '../types/basemap';
 
-/**
- * A source with no credit is dropped rather than drawn, because the credit is what its licence obliges
- * the page to display. A source stating both a style and a tile address is dropped too: the two load
- * differently and nothing here may decide which the model meant.
- *
- * Ordered by name, so the same model always opens on the same layer.
- */
+/** A source with no credit is dropped, because its licence requires the page to show the credit, and so is
+ *  one stating both a style and a tile address, because nothing here may decide which the model meant.
+ *  Ordered by name, so a model always opens on the same layer. */
 export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): BasemapSource[] {
   const found: BasemapSource[] = [];
   for (const source of declared) {
@@ -52,14 +42,10 @@ export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): 
 }
 
 /**
- * What the source says about drawing land rather than a diagram.
- *
- * A pyramid stated without a scheme a map can read raises nothing, whether the model states none or
- * states a word: the schemes pack a height into the same three channels differently, so a map guessing
- * between them would raise hills out of flat ground and say nothing, and a map handed a scheme it does
- * not know adds no source at all and then throws on being told to drape the ground over one. The
- * exaggeration falls back because it is a presentation choice with a sensible default, where the other
- * two are facts about the provider that only the model can know.
+ * A tile pyramid with no scheme a map can read raises nothing, because the schemes pack a height into the
+ * same channels differently: guessing would raise hills out of flat ground, and a map given an unknown
+ * scheme adds no source and then throws, which takes the page down. The exaggeration has a default because
+ * it is a presentation choice; the other two are facts about the provider that only the model knows.
  */
 function raisedGroundFrom(source: DeclaredBasemapSource): RaisedGround {
   const tileUrl = statedText(source.terrainTileUrl);
@@ -101,9 +87,8 @@ export function styleForSource(source: BasemapSource): StyleSpecification | stri
   };
 }
 
-/** A value the model actually states, or nothing. A blank address and an absent one mean the same thing
- *  to a map, and the two arrive by different routes: one from a property left empty, one from a field the
- *  service answered as null. */
+/** A blank address and an absent one mean the same to a map, and they arrive by different routes: a property
+ *  left empty, or a field the service answered as null. */
 export function statedText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }

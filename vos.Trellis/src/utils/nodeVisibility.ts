@@ -2,11 +2,7 @@ import type Graph from 'graphology';
 import type { SearchOptions } from './searchFilter';
 import { buildStringMatcher } from './searchFilter';
 
-/**
- * Build a label matcher for the Sigma nodeReducer.
- * Delegates to the shared `buildStringMatcher` so label-level dimming
- * stays consistent with the data-level filtering in `filterGraph`.
- */
+/** Built on `buildStringMatcher`, so dimming labels agrees with filtering in `filterGraph`. */
 export function buildLabelMatcher(
   query: string,
   options: SearchOptions,
@@ -14,7 +10,6 @@ export function buildLabelMatcher(
   return buildStringMatcher(query, options);
 }
 
-/** Check if an edge touches the given node. */
 export function edgeTouchesNode(
   graph: Graph,
   edge: string,
@@ -24,18 +19,8 @@ export function edgeTouchesNode(
   return graph.source(edge) === nodeId || graph.target(edge) === nodeId;
 }
 
-/**
- * Pure-function decision for an edge's display state given the current
- * filter context. Extracted from <c>NodeReducer</c> so the policy is
- * unit-testable.
- *
- * Resolution order:
- *   1. Hover takes precedence  → 'brighten' if the edge touches the hovered node
- *   2. Selection                 → 'show' if the edge touches the selected node
- *   3. Search active             → 'show' iff both endpoints are matched, else 'hide'
- *   4. Predicate filter active   → 'show' iff this edge's predicate is selected, else 'hide'
- *   5. No filter active          → 'show' (every edge visible by default)
- */
+/** Hover wins, then selection, then an active search, which shows an edge only when both ends match, then
+ *  an active predicate filter; with no filter every edge shows. */
 type EdgeDisplay = 'show' | 'brighten' | 'hide';
 
 export function decideEdgeDisplay(options: {

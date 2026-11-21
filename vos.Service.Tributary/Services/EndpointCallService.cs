@@ -190,7 +190,7 @@ public sealed class EndpointCallService
             return false;
         if (!EndpointCallChecks.TryRequestContentType(effective, out var requestContentType, out refusal))
             return false;
-        // Optional Accept for content-negotiating upstreams (e.g. image/tiff from an ImageServer);
+        // Optional Accept for content-negotiating upstreams (such as image/tiff from an ImageServer);
         // a dedicated structural key like requestContentType, not an entry in the headers map.
         if (!EndpointCallChecks.TryOptionalText(effective, "acceptHeader", out var acceptHeader, out refusal))
             return false;

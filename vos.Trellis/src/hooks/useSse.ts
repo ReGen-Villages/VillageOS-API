@@ -6,13 +6,10 @@ import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import type { ConnectionState } from '../types/connection';
 import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './streamSilence';
 
-// Live model + operational updates over Server-Sent Events.
-// Two streams — the object subscription the page declared and the system/operational events —
-// feed one delivery point. Same { connection, on } API the consumers use.
+// Two streams, the subscription the page declared and the system events, feed one set of handlers.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
-// Event kinds the server emits on either stream (object subscription + system events).
 const KNOWN_EVENTS = [
   'ModelChanged', 'ModelCleared',
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
@@ -24,21 +21,17 @@ const KNOWN_EVENTS = [
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ] as const;
 
-/** A subscription has opened, with the objects it covers as they stood at that moment. Delivered
- *  to the same handlers the server's own events reach, rather than through a channel of its own: a
- *  subscription answers with a snapshot and then streams the changes to it, and both halves say
- *  what the page holds. Never sent by the server — this client raises it on itself. */
+/** Raised by this client on itself, never by the server, and sent to the same handlers as the server's
+ *  events, because the snapshot and the changes after it both say what the page holds. */
 export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 
-/** What the subscription is to cover has changed, raised with the new selector before anything is
- *  asked of the platform. What a page holds was loaded for the coverage being left, and waiting for
- *  the new subscription to open would leave that on screen as the new page's own for a request or
- *  more. Raised by this client on itself, like {@link SUBSCRIPTION_OPENED}; a reconnect covers
- *  what it covered before and raises nothing. */
+/** Raised by this client with the new selector before the platform is asked, because what the page holds
+ *  was loaded for the old coverage and would otherwise show as the new page's for a request or more. A
+ *  reconnect covers the same and raises nothing. */
 export const SUBSCRIPTION_CHANGING = 'SubscriptionChanging';
 
-/** The kinds a handler can be registered for. A browser hands a page only the kinds it has attached
- *  a listener for, so registering for any other kind would never be called and nothing would say so. */
+/** A browser delivers only the kinds a page listens for, so a handler for any other kind would never be
+ *  called and nothing would say so. */
 type StreamEventKind =
   | typeof KNOWN_EVENTS[number]
   | typeof SUBSCRIPTION_OPENED
@@ -47,7 +40,7 @@ type StreamEventKind =
 type Handler = (...eventArguments: unknown[]) => void;
 type Entry = { event: StreamEventKind; handler: Handler };
 
-// Connection-independent handler registry, re-attached across reconnects.
+// Kept apart from the connection, so the handlers are attached again after a reconnect.
 const handlers = new Set<Entry>();
 const listeners = new Set<() => void>();
 
@@ -59,32 +52,21 @@ let referenceCount = 0;
 let connectionState: ConnectionState = 'connecting';
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
-let generation = 0; // bumped on release/reconnect to abort stale async opens
+let generation = 0; // raised on release and reconnect, so an older open still in progress stops
 
-// Highest object-stream sequence (SSE event id) this client has applied.
-// Persists across reconnects so we resume from here — the broker replays committed Facts
-// after it and de-dupes by sequence, closing the disconnect gap precisely instead of
-// re-subscribing at the current head (which skipped everything during the drop). Reset on
-// full teardown / model switch (release) and on a change of what the subscription covers,
-// because either makes the position meaningless. null = no position yet → start from the
-// fresh snapshot watermark.
+// The highest change sequence applied. Kept across reconnects, so the broker replays what came after it
+// and drops repeats, rather than starting from now and missing everything while the stream was down.
+// Cleared on release and when the coverage changes, because either makes the position meaningless;
+// null starts from the snapshot's own position.
 let consumedWatermark: number | null = null;
 
-/**
- * What the mounted pages have asked the subscription to cover, innermost last.
- *
- * A page declares what it is about while it is on screen and takes the declaration back when it
- * leaves, so the subscription follows the page rather than the app: a dashboard is sent the handful
- * of Things it draws, and the graph — which genuinely reads across the model — is sent everything.
- * The stack is what makes the declaration a page's own: a page leaving restores whatever the page
- * beneath it asked for, whichever order the two changed in.
- */
+/** Innermost last. A page declares what it is about while on screen, so a dashboard is sent the Things it
+ *  draws and the graph is sent everything; a leaving page restores what the page beneath it asked for, in
+ *  whichever order the two change. */
 const declared: { selector: SubscriptionSelector }[] = [];
 
-/** What the subscription covers when no page has declared anything — the shell's own declaration.
- *  Held apart from the pages' rather than at the bottom of their stack, because a page mounts its
- *  declaration before the shell containing it mounts one, and the shell's must not win by arriving
- *  last. */
+/** The shell's declaration, held apart from the pages' stack, because a page mounts its declaration before
+ *  the shell does, and the shell's must not win by arriving last. */
 let defaultSelector: SubscriptionSelector = WHOLE_MODEL;
 
 /** What the streams were opened with, so a declaration that changes nothing reopens nothing. */
@@ -104,9 +86,8 @@ const PROPERTY_EVENTS = new Set([
   'PropertyObserved',
 ]);
 
-// Map an SSE event's data object to the positional arguments the handlers expect.
-// A property event is (id, name, value), with no value on a retraction; everything else passes the
-// data object through.
+// A property event's handler takes (identifier, name, value), with no value on a retraction; any other
+// takes the data object.
 function toArguments(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
   if (PROPERTY_EVENTS.has(kind)) {
     const d = (data ?? {}) as { EntityId?: string; PropertyName?: string; Value?: unknown };
@@ -123,8 +104,7 @@ function deliverToListeners(kind: string, data: unknown) {
   });
 }
 
-// `trackWatermark` is true only for the object subscription — its events carry the
-// per-model Fact sequence as their SSE id; the system/operational stream does not.
+// Only the subscription stream's events carry the model's change sequence as their identifier.
 function attachListeners(source: EventSource, trackWatermark = false) {
   const silence = watchForSilence(source, scheduleReconnect);
   silenceWatches.push(silence);
@@ -134,7 +114,7 @@ function attachListeners(source: EventSource, trackWatermark = false) {
       silence.heard();
       if (trackWatermark && e.lastEventId) {
         const sequence = Number(e.lastEventId);
-        // Monotonic guard: replay/de-dup can re-deliver ≤ our position; never rewind.
+        // A replay can send again what was applied, so the position never goes back.
         if (Number.isFinite(sequence) && (consumedWatermark === null || sequence > consumedWatermark)) {
           consumedWatermark = sequence;
         }
@@ -146,10 +126,9 @@ function attachListeners(source: EventSource, trackWatermark = false) {
   }
 }
 
-/** Hand the subscription back. Nothing expires a registry entry, and a page that
- *  declares its own subscription opens one per navigation, so an abandoned entry would go on being
- *  written to for the life of the process. Best effort: a failed release costs one stale entry, and
- *  waiting on it would hold up the stream that replaces it. */
+/** Nothing expires a registry entry, and a page with its own subscription opens one per navigation, so an
+ *  abandoned entry would be written to for the life of the process. Not awaited: a failed release costs one
+ *  stale entry, and waiting would hold up the stream that replaces it. */
 function releaseSubscription(id: string | null) {
   if (!id) return;
   void apiClient.ensureToken().then((token) =>
@@ -183,8 +162,8 @@ function scheduleReconnect() {
   }, delay);
 }
 
-// Opens both streams with a fresh token. EventSource can't refresh the URL token on its own
-// reconnect, so we drive reconnect ourselves (close + reopen with a new token) on error.
+// EventSource cannot renew the token in its address on its own reconnect, so on an error this closes and
+// reopens with a new token.
 async function openStreams() {
   const myGeneration = ++generation;
   closeStreams();
@@ -193,18 +172,15 @@ async function openStreams() {
   const selector = effectiveSelector();
   openedFor = JSON.stringify(selector);
   const superseded = () => myGeneration !== generation || referenceCount === 0;
-  // The platform holds a subscription for this open from the moment the request answers, and only
-  // an open that goes on to attach its streams records it as the live one. Every other path leaves
-  // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
-  // ever expire, and a declaration changing mid-open abandons one every time.
+  // Every path but an open that attaches its streams hands this subscription back, because nothing would
+  // read or expire it, and a declaration changing mid-open leaves one behind every time.
   let granted: string | null = null;
   try {
     const token = await apiClient.ensureToken();
     if (superseded()) return;
 
-    // The subscription the mounted page declared. Its watermark anchors the first resume. The model
-    // read fills the store for a whole-model page, so that page's snapshot is declined: it would be
-    // the whole model built, sent and parsed a second time, before the read that fills the page.
+    // The model read fills the store for a whole-model page, so its snapshot is declined rather than the
+    // whole model built, sent and parsed twice; the snapshot's position still starts the first resume.
     const response = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -226,10 +202,8 @@ async function openStreams() {
 
     const tokenParameter = `access_token=${encodeURIComponent(streamToken)}&${HEARTBEAT_AS_EVENT}`;
 
-    // Resume from where we left off: on a reconnect the broker replays the
-    // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
-    // seed from the fresh snapshot watermark. The stream honours ?lastEventId over the
-    // subscription's own watermark, so a fresh subscription still resumes precisely.
+    // On a reconnect the broker replays what was missed after this position and drops repeats; on a first
+    // connect the position is the snapshot's. The stream prefers ?lastEventId to the subscription's own.
     const resumeFrom = consumedWatermark ?? watermark;
     consumedWatermark = resumeFrom;
     const object = new EventSource(
@@ -246,7 +220,7 @@ async function openStreams() {
     systemSource = sys;
 
     openSubscriptionId = subscriptionId;
-    granted = null; // adopted: released with the streams it belongs to, not here
+    granted = null; // released with its streams now, not here
     announceOpened(subscriptionId, watermark, snapshot, selector);
   } catch (err) {
     console.warn('SSE open failed; will retry:', err instanceof Error ? err.message : err);
@@ -286,13 +260,9 @@ function coveredBy(snapshot: Snapshot | undefined): CoveredObjects {
   };
 }
 
-/**
- * Add what `selector` covers to the open subscription, for as long as it stays open, and answer with
- * those objects as they stand. What is added is a fixed set: the platform follows later matches only
- * for what the subscription was opened with. Null while no subscription is open; a caller that has
- * to add to whichever subscription is open hears {@link SUBSCRIPTION_OPENED} and asks again, because
- * a reopened subscription starts from its own declaration alone.
- */
+/** A fixed set, because the platform follows later matches only for what a subscription opened with. Null
+ *  while none is open; a caller that must add to whichever is open listens for {@link SUBSCRIPTION_OPENED}
+ *  and asks again, because a reopened subscription starts from its own declaration alone. */
 export async function addToSubscription(selector: SubscriptionSelector): Promise<CoveredObjects | null> {
   const subscriptionId = openSubscriptionId;
   if (!subscriptionId) return null;
@@ -326,13 +296,8 @@ export async function removeFromSubscription(ids: string[]): Promise<void> {
  *  nothing else — the subscription still settles on what that page asked for. */
 const DECLARATIONS_SETTLE_MILLISECONDS = 300;
 
-/**
- * Reopen when what the mounted pages ask the subscription to cover has changed.
- *
- * The consumed position goes with the old coverage: the new subscription answers with its own
- * snapshot, and replaying from a position taken under different coverage would re-apply changes
- * that snapshot already holds and could ask for a range the broker no longer retains.
- */
+/** The applied position goes with the old coverage, because replaying from it would apply changes the new
+ *  snapshot already holds, and could ask for a range the broker no longer keeps. */
 function follow() {
   settling = null;
   if (referenceCount === 0) return;
@@ -344,16 +309,9 @@ function follow() {
 }
 
 /**
- * Follow the declarations once they have stopped moving.
- *
- * A page replacing its own declaration — the scope switcher choosing another entity — takes the old
- * one back and makes the new one in the same commit, so by the end of this turn a page holds a
- * declaration again and there is nothing to wait for. What has to be waited out is the opposite: no
- * page holding one at all, which is a page having left while the next page's code is still loading.
- * Following it there would open a subscription for a reader that never arrives — between two pages
- * that both read the whole model, a whole model re-read for nobody. The wait is skipped entirely
- * before the first open, when every moment is a page waiting on its data and there is no page to
- * hand over from.
+ * A page replacing its own declaration does so in one commit, so there is nothing to wait for. What is
+ * waited out is no page declaring at all, a page gone while the next one's code loads, because following
+ * that opens a subscription nobody reads. There is no wait before the first open, when no page hands over.
  */
 let settling: ReturnType<typeof setTimeout> | null = null;
 let following = false;
@@ -371,19 +329,13 @@ function followDeclarations() {
  *  resolved when it opens, so a model replaced under it has to be asked for again. */
 export function resubscribe(): void {
   if (referenceCount === 0) return;
-  // A reopen is a reopen: a settle still pending would make a second one for the same declaration.
+  // A settle still pending would open a second time for the same declaration.
   if (settling) { clearTimeout(settling); settling = null; }
   consumedWatermark = null;
   void openStreams();
 }
 
-/**
- * Declare what the subscription must cover for as long as the caller is on screen. Leaving restores
- * whatever the rest of the mounted pages asked for.
- *
- * The selector is compared by what it says rather than by identity, so a page may rebuild it on
- * every render.
- */
+/** Compared by what it says rather than by identity, so a page may rebuild the selector on every render. */
 export function useSubscription(selector: SubscriptionSelector): void {
   const declaration = JSON.stringify(selector);
   useEffect(() => {
@@ -423,11 +375,11 @@ function release() {
   referenceCount--;
   if (referenceCount <= 0) {
     referenceCount = 0;
-    generation++; // abort any in-flight open
+    generation++;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (settling) { clearTimeout(settling); settling = null; }
     reconnectAttempt = 0;
-    consumedWatermark = null; // per-model sequence — a fresh acquire (e.g. model switch) restarts from head
+    consumedWatermark = null; // the position belongs to one model, so a fresh start begins from the newest
     openedFor = null;
     closeStreams();
     setConnection('connecting');

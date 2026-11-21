@@ -1,7 +1,7 @@
 """What the build runs on, and what it publishes, read as a passing build when they are wrong.
 
-A widened trigger, a configuration that no longer follows the branch, and a publishing step gated
-to main all produce more green builds rather than a failure, so nothing in a build result would
+A widened trigger, a trigger that builds each push on its own, a configuration that no longer follows
+the branch, and a publishing step gated to main all produce more green builds rather than a failure, so nothing in a build result would
 look wrong. A pull request trigger that names no branch produces no build at all, which the GitHub
 branch rules then read as a pull request that cannot merge. A job with no time limit shows nothing in
 a green build either, and holds a shared agent for an hour on a red one. This reads the build file
@@ -34,16 +34,15 @@ CONFIGURATION_MUST_READ = (MAIN, 'Release', 'Debug', 'Build.SourceBranch')
 # the full ref; compared against the full ref, a pull request into main compiles Debug and passes.
 PULL_REQUEST_INTO_MAIN = "eq(variables['System.PullRequest.TargetBranch'], 'main')"
 
-# A build that pushes to the repository it builds, as the old copy to GitHub did with a generated
-# commit on top, changes the history every clone has to follow.
+# A build that pushes to the repository it builds, such as a copy to GitHub with a generated commit on
+# top, changes the history every clone has to follow.
 OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 
 # A release is handed over as an archive of the running platform, not as libraries on a package feed:
 # a feed needs a credential scoped for packaging that this organization does not issue, and a
-# consumer wants something to run rather than something to compile against. The steps that packed and
-# pushed outlived that decision, gated to a branch that had never built, so no build result ever
-# showed the contradiction. Read as the absence of packaging anywhere, so a step added later is
-# decided on rather than inherited.
+# consumer wants something to run rather than something to compile against. A packing step gated to a
+# branch that never builds would go on contradicting that with no build result to show it, so this is
+# read as the absence of packaging anywhere, and a step added later is decided on rather than inherited.
 #
 # Tendril is the one decided exception: another application installs it to build with,
 # so a feed is how it is delivered, and the pipeline publishes it under its own identity, so no
@@ -137,6 +136,9 @@ def problems(build_file_text):
         branches = trigger_branches(build_file_text, 'trigger:')
         if branches != ['develop', 'main']:
             found.append('A push must build develop and main only; the trigger names %s' % branches)
+        if 'batch: true' not in [line.strip() for line in indented_block(build_file_text, 'trigger:')]:
+            found.append(
+                'Pushes that land while a build runs must share the next build, and the trigger does not batch')
 
     pull_request_branches = trigger_branches(build_file_text, 'pr:')
     if pull_request_branches != ['develop', 'main']:

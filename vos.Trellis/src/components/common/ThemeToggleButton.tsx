@@ -2,11 +2,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/themeStore';
 
-/**
- * Toggle between light and dark theme. The icon previews the *target* mode —
- * a Sun when dark is active (click to switch to light), a Moon when light
- * is active. First click also flips the user out of "follow system" mode.
- */
+/** The icon shows the theme a click switches to. The first click also stops following the system theme. */
 export function ThemeToggleButton() {
   const theme = useThemeStore((s) => s.theme);
   const toggle = useThemeStore((s) => s.toggle);

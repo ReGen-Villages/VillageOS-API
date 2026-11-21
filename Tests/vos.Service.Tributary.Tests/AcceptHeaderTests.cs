@@ -9,7 +9,7 @@ namespace vos.Service.Tributary.Tests;
 
 // Integration tests for the acceptHeader structural key through /handle: when the endpoint
 // template carries acceptHeader, the outbound request must send exactly that Accept value —
-// needed for upstreams that content-negotiate (e.g. image/tiff from an ArcGIS ImageServer).
+// needed for upstreams that content-negotiate (such as image/tiff from an ArcGIS ImageServer).
 // Absent the key, no Accept header is invented.
 public class AcceptHeaderTests
 {

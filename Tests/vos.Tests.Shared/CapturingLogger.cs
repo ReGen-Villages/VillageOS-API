@@ -5,7 +5,7 @@ namespace vos.Tests.Shared;
 // Keeps what a component logged, so a test can say what a line must and must not carry.
 // Serilog owns a host's logging and drops providers added through ConfigureLogging, so a
 // capturing provider never sees a line. Registering this as the closed ILogger<T> wins over the
-// open generic Serilog registers, which is the way in.
+// open generic Serilog registers, so this one is the logger a component is given.
 public sealed class CapturingLogger<T> : ILogger<T>
 {
     private readonly List<string> _lines = [];

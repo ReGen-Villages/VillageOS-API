@@ -403,7 +403,7 @@ func (s *service) demoWriteKinds(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Snapshot selector — subscribe to a slice of the model (replaced launch-time IDs).
+// Snapshot selector — subscribe to a slice of the model.
 // docs/SERVICE_CONTRACT.md § "Selecting a slice".
 
 type traverseRule struct {

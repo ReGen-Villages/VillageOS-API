@@ -15,11 +15,7 @@ const TYPE_SORT_KEY_PREFIX = 'vos-type-sort:';
 const DEFAULT_TYPE_SORT: SortOrder = 'count-desc';
 const VALID_TYPE_SORTS: readonly SortOrder[] = ['count-desc', 'count-asc', 'name-asc', 'name-desc'];
 
-/**
- * Load the persisted set of hidden type Thing ids for a model.
- * Per-model so different models don't share filter state. Returns an empty
- * Set when no model is selected or no persisted state exists.
- */
+/** Kept per model, so two models do not share their filter. */
 function loadHiddenTypeIds(modelId: string | null): Set<string> {
   if (!modelId) return new Set<string>();
   const raw = localStorage.getItem(HIDDEN_TYPES_KEY_PREFIX + modelId);
@@ -42,12 +38,8 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
   }
 }
 
-/**
- * Per-model TypeFilterPanel sort order, persisted in
- * localStorage so the user's preferred view sticks across reloads. Mirrors
- * the hiddenTypeIds pattern; falls back to count-descending on missing / invalid
- * stored values.
- */
+/** Kept per model in the browser's storage, so the chosen order lasts across reloads; a missing or unknown
+ *  value falls back to largest first. */
 function loadTypeSort(modelId: string | null): SortOrder {
   if (!modelId) return DEFAULT_TYPE_SORT;
   const raw = localStorage.getItem(TYPE_SORT_KEY_PREFIX + modelId);
@@ -85,11 +77,9 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
-  // Moved by useModelData on the Mycelium's `StatesChanged` SSE event so detail panels re-fetch
-  // ranges without each page owning a local subscription. The running total is what a panel
-  // showing one Thing's ranges watches; the per-state counts are what a dashboard figure made of
-  // one state watches, so it re-reads when that state moves rather than whenever any does. One
-  // entry per state name the model declares, however long a run lasts.
+  // Moved by useModelData on each StatesChanged event, so detail panels read ranges again without a
+  // subscription of their own. A panel showing one Thing watches the total; a figure made of one state
+  // watches that state's count, so it reads again only when that state moves. One entry per declared state.
   statesVersion: number;
   stateVersions: Record<string, number>;
   statesMoved: (states: string[]) => void;

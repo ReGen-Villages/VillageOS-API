@@ -7,8 +7,8 @@ export function rangeBindingColor(range: RangeDto | undefined): 'green' | 'yello
   const outOfBounds = range.Bindings.filter((b) => b.IsActive && b.IsInBounds === false);
   if (outOfBounds.length === 0) return 'green';
 
-  // Null severity (categorical/pattern) treated as 1.0 (hard violation → red)
-  // Numeric severity is 0–1 normalized by bound range
+  // A categorical or pattern range has no severity and counts as 1, fully out of bounds and red;
+  // a numeric severity runs from 0 to 1 across the bound's range.
   const maxSeverity = Math.max(...outOfBounds.map((b) => b.DeviationSeverity ?? 1));
   return maxSeverity >= 0.5 ? 'red' : 'yellow';
 }

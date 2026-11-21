@@ -82,8 +82,8 @@ function graphWithVocabulary() {
   return { T, R, port, heldWire, things, relationships };
 }
 
-// One connection whose service has an out port `out` and an in port `in`, and an existing pipeline P with two
-// nodes N1,N2 and a wire N1.out -> N2.in — enough to exercise the in-place-update diff.
+// One connection whose service has an out port `out` and an in port `in`, and a saved pipeline P with nodes N1
+// and N2 and a wire from N1.out to N2.in, which is enough to test an update in place.
 function buildModel(): PipelineModel {
   const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
 
@@ -487,8 +487,6 @@ describe('savePipeline — wire field-paths', () => {
     const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in' }];
     await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
-    // A Thing's property write updates and does not create, so a path left undeclared could not be added
-    // later without the write answering that there is no such property.
     expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'fromPath', 'vos.String', '');
     expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'toPath', 'vos.String', '');
   });
@@ -699,8 +697,8 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
   });
 });
 
-// A model built from templates declares the wire predicate and draws nothing. The first pipeline drawn on
-// it was refused as declaring no archetype, although it declares every one.
+// A model built from templates declares the wire predicate and draws nothing, so the first pipeline is saved
+// along a predicate nothing has used yet.
 describe('savePipeline — the first pipeline in a model with no wire yet', () => {
   function modelWithNoWire(): PipelineModel {
     const { T, R, things, relationships } = graphWithVocabulary();

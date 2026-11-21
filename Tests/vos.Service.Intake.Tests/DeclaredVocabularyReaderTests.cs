@@ -47,7 +47,8 @@ public class DeclaredVocabularyReaderTests
             .Relate("housing", "is", "LandUse")
             .Relate("walked", "is", "Provenance")
             .Relate("flooding", "is", "Peril")
-            .Relate("bad", "is", "Severity");
+            .Relate("bad", "is", "Severity")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
 
         var vocabulary = DeclaredVocabularyReader.Read(model.Build());
 
@@ -190,12 +191,16 @@ public class DeclaredVocabularyReaderTests
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.LandCoverClass,
             LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
             LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
-            LandIntakeRoles.PlaceNesting));
+            LandIntakeRoles.PlaceNesting,
+            LandIntakeRoles.Parcel, LandIntakeRoles.MeasuresAreaWith, LandIntakeRoles.AreaMeasuredWith,
+            LandIntakeRoles.MeanSphereAreaMethod, LandIntakeRoles.Wgs84EllipsoidAreaMethod));
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
-            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth));
+            LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
+            LandIntakeRoles.LandCoverClass));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
             PlatformPredicates.Is, RoleBindings.BindsPredicateName);
@@ -226,9 +231,6 @@ public class DeclaredVocabularyReaderTests
             .NotContain("garden-demand", "Thing names are matched exactly, case included");
     }
 
-    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
-    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
-    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_soil_depths_reads_them_with_the_predicate_a_horizon_assesses_along()
     {
@@ -250,6 +252,23 @@ public class DeclaredVocabularyReaderTests
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
     }
 
+    [Fact]
+    public void A_model_declaring_land_cover_classes_reads_them_and_one_declaring_none_reads_none()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("LandCoverClass").Bound(LandIntakeRoles.LandCoverClass, "LandCoverClass")
+            .With("cropland").Relate("cropland", "is", "LandCoverClass");
+
+        var classes = DeclaredVocabularyReader.Read(model.Build()).LandCoverClasses;
+
+        classes!.Terms.Select(term => term.Name).Should().Equal("cropland");
+        classes.Predicate.Id.Should().Be(model.Id("assesses"));
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).LandCoverClasses.Should().BeNull();
+    }
+
+    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
+    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
+    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_no_water_demands_reads_none_rather_than_refusing()
     {

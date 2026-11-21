@@ -1,11 +1,11 @@
 # pipeline-playground
 
-A generator for example **pipelines and services** to exercise the Trellis **Pipelines page** — the service
-palette, wiring, field-mapping, transforms, param binding, fan-out, pre-run validation, run history, and
-live node status. It emits VOS Things + Relationships in the seed JSON shape and can drop them into any
-model.
+A generator for example **pipelines and services** to try out the Trellis **Pipelines page** — the service
+palette, wiring, field mapping, transforms, run parameters, running a node once per item of a list, the
+checks before a run, run history, and live node status. It writes Things and relationships in the seed
+JSON shape and can add them to any model.
 
-Stock Python 3.10+, no third-party dependencies. For *using* the generated pipelines in the GUI, see
+Plain Python 3.10 or later, with no packages to install. For *using* the generated pipelines in the console, see
 [docs/PIPELINE_PLAYGROUND.md](../../docs/PIPELINE_PLAYGROUND.md).
 
 ## Files
@@ -15,7 +15,7 @@ Stock Python 3.10+, no third-party dependencies. For *using* the generated pipel
 | `catalog.py` | The content: the service catalog (`SERVICES`) and the example pipelines (`PIPELINES`). Edit this to add or change services and pipelines. |
 | `generate.py` | Turns the catalog into Things + Relationships and writes a standalone seed or merges into an existing one. |
 | `declare_service.py` | Declares one service in a seed from its `GET /manifest`, with a published pipeline that runs it. |
-| `validate_fragment.py` | Reimplements the Trellis + Phloem graph traversals and asserts every pipeline resolves and passes pre-run validation. |
+| `validate_fragment.py` | Reads the generated pipelines the way Trellis and Phloem do, and checks that every one resolves and passes the checks before a run. |
 
 ## Use it
 
@@ -23,10 +23,10 @@ Stock Python 3.10+, no third-party dependencies. For *using* the generated pipel
 # a standalone seed you can load on its own to play with the Pipeline page
 python3 generate.py --out PipelinePlayground.seed.json
 
-# drop the playground into any model seed, in place (idempotent; writes a .bak alongside)
+# add the playground to any model seed, in place (running it again changes nothing; writes a .bak beside it)
 python3 generate.py --into /path/to/Some.seed.json
 
-# ...with per-model ids so the same pipelines in two seeds don't collide when both load into one broker
+# ...with per-model ids, so the same pipelines in two seeds can load into one broker together
 python3 generate.py --into /path/to/Some.seed.json --namespace SomeModel
 
 # take it back out again (leaves the shared archetypes, predicates, role Things and what they bind in place; pass the same --namespace)
@@ -91,16 +91,15 @@ Things and the shared vocabulary.
 
 ## How it drops into any model
 
-Every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the same Things instead of forking
-duplicates — merging is idempotent. When merging, the target's own vocabulary is reused rather than doubled:
+Every id is a version 5 identifier derived from a stable key, so running it again replaces the same Things
+rather than adding copies, and merging twice changes nothing. When merging, the target's own vocabulary is reused rather than doubled:
 the `is` / `has` / `of` predicates are matched **by name**, and each archetype or predicate playing a role is
 matched **through what the target's role Thing binds**, then by name — a match by name passes over role
 Things — so a model that calls its pipeline
 archetype something else keeps its own. One the target holds under the same name but has never bound comes
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
 what an archetype is for, and the editor and the orchestrator both read it. A model that binds its own stop
-kind keeps that kind's ports, and one that binds its own `stops` connection keeps that connection's
-service: the playground adds neither the kind, the service nor a `stops connection` to such a model,
+kind keeps that kind's ports, and one that binds its own `stops` predicate keeps the connection it names: the playground adds neither the kind, the service nor a `stops connection` to such a model,
 which would leave a required port unfilled on every stop node or send each stop request to a second
 service. Everything else is namespaced so it will not collide with a
 host model's own Things.
@@ -144,7 +143,7 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 
 | Pipeline | Shows |
 | --- | --- |
-| Hello Echo | The canonical linear pipeline, plus a seeded succeeded + failed run so the History panel and node status rings work with no live Phloem. |
+| Hello Echo | The simplest straight pipeline, plus a seeded succeeded and failed run so the History panel and node status rings work with no live Phloem. |
 | Boundary I/O Echo | `PipelineInput` / `PipelineOutput` boundary nodes; the Input's output is filled from a run param, the Output's input becomes the run result. |
 | Text Studio | A multi-stage transform chain driven from a run parameter. |
 | Field Merge | Two sources landing at different to-paths of one input, deep-merged. |
@@ -186,11 +185,12 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
 - A **stop node** `is` the stop kind, which the `pipelineStop` role binds, and holds no ports of its own:
   its `things`, `reason` and `requested` ports are the kind's. A **stop request** `is StopRequest`,
   carries `reason`, names the run that wrote it along `requestedBy`, and is related along `stops` to
-  what it stops — a run, or a Thing whose runs stop. `stops` is a connection as well as a predicate, bound
-  by the `runStopping` role: the `graph` trigger fires it and it `has` the orchestrator service, so the
-  request reaches the orchestrator. It also names `stops connection` along `notifies`, and each
-  `tells <system>` names its own `tells <system> connection`, each with the predicate's trigger and
-  service. A stopped run relates along `stoppedBy` to the request.
+  what it stops — a run, or a Thing whose runs stop. `stops` is a predicate, bound by the `runStopping`
+  role, and names `stops connection` along `notifies`: the `graph` trigger fires that connection and it
+  `has` the orchestrator service, so the request reaches the orchestrator. Each `tells <system>` names its
+  own `tells <system> connection` the same way, and is still a connection itself with that trigger and
+  service, because the orchestrator and the Pipelines page find it as one. A stopped run relates along
+  `stoppedBy` to the request.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**

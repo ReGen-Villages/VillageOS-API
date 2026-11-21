@@ -30,12 +30,10 @@ const PipelinePage = lazy(() => import('./pages/PipelinePage').then(m => ({ defa
 const LogPage = lazy(() => import('./pages/LogPage').then(m => ({ default: m.LogPage })));
 const RequestsPage = lazy(() => import('./pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 
-/** Inner shell rendered only when authenticated. Owns the live model-data
- *  load so every page sees a populated store from mount. */
+/** Loads the model above the routes, so every page opens on a filled store. */
 function AuthenticatedApp() {
   useModelData();
-  // Per-model UI state (e.g. type filter) keys its localStorage entry off
-  // the active modelId.
+  // The interface store keeps each model's settings under that model's own key in the browser's storage.
   const { modelId, user } = useAuthentication();
   const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
   useEffect(() => {
@@ -81,14 +79,14 @@ export default function App() {
   const theme = useThemeStore((s) => s.theme);
   const { i18n } = useTranslation();
 
-  // Mirror theme to <html class="dark"> so Tailwind's class-based dark variant flips.
+  // Tailwind's `dark:` classes read the class on <html>.
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') root.classList.add('dark');
     else root.classList.remove('dark');
   }, [theme]);
 
-  // Mirror the active language to <html lang/dir> so Arabic lays out right-to-left.
+  // `dir` on <html> is what lays Arabic out right to left.
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('lang', i18n.language);

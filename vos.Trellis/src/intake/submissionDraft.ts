@@ -27,7 +27,7 @@ export type StepId = (typeof STEPS)[number];
 /**
  * How a boundary came to be, in the words the land-intake template declares and the intake service
  * resolves against the model. The wizard states this itself rather than asking — it knows whether it
- * generated the square — so these are the two declared terms it can truthfully submit.
+ * generated the square — so these are the declared terms it can truthfully submit.
  */
 export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
 export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';
@@ -292,7 +292,7 @@ export function withHazardReported<Held extends { readonly reportedHazards: Repo
 
 /** Rebuilt corner by corner, so a corner carrying anything beyond its coordinates does not post it. Below
  *  three corners a boundary encloses nothing and is not a parcel. */
-export function parcelFrom(
+function parcelFrom(
   boundarySource: string | null,
   boundary: readonly BoundaryPoint[],
 ): Pick<SubmissionDocument, 'parcel'> {

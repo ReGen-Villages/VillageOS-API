@@ -84,7 +84,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void Resolve_SnapshotWithoutThePredicateThings_ReachesNothing()
     {
-        // Pins the failure the selector exists to prevent, so the two cannot drift apart silently.
+        // The failure the selector exists to prevent, checked here so the two cannot come apart unnoticed.
         var snapshot = Snapshot();
         snapshot.Things.RemoveAll(thing => thing.Name is "is" or "authenticatesBy");
 

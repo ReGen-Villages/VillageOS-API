@@ -215,8 +215,8 @@ describe('valueOrigin', () => {
       .toEqual({ origin: 'unknown', assumedFrom: null });
   });
 
-  // The declaration is looked up along the same chain, so it needs its own guard: this one holds a
-  // value, which is what carries the walk past where the last test stopped.
+  // The declaration is looked up along the same chain, so it needs its own guard: here the Thing holds a
+  // value, which carries the walk on to look for the declaration.
   it('answers rather than hanging when a loop is walked looking for the declaration', () => {
     const first = thing('a', 'First', { Properties: { anything: 1 } });
     const second = thing('b', 'Second');

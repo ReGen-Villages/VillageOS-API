@@ -1,6 +1,6 @@
 namespace vos.Taproot;
 
-// What the snapshot read path has cost against the writers, from the CLI. Totals run from process
+// What the snapshot read path has cost against the writers. Totals run from process
 // start, so `snapshots` prints them raw and says how to turn two readings into a rate for one run.
 public class SnapshotsCommandHandler
 {

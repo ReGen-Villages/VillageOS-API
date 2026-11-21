@@ -117,8 +117,8 @@ describe('unwrapThing', () => {
   });
 });
 
-// Under lazy inheritance an instance's value for an inherited name is relocated out of Properties
-// into InheritedOverrides, so reading Properties alone misses it and dashboard widgets render blank.
+// An instance's value for a name it inherits is held in InheritedOverrides rather than Properties, so
+// reading Properties alone misses it and dashboard widgets render blank.
 describe('effectiveProperties', () => {
   const noAncestors: IsChainLookup = { byId: new Map(), isParents: new Map() };
 
@@ -160,8 +160,7 @@ describe('effectiveProperties', () => {
     expect(merged).toEqual({ a: 1 });
   });
 
-  // Resolve a non-overridden inherited default from the archetype up the is-chain — the
-  // exact value that was invisible before, since it lives on the archetype, not in the instance.
+  // A default lives on the archetype, not in the instance, so it is reached only up the is-chain.
   it('resolves a non-overridden inherited default from the archetype', () => {
     const home = archetype('h', 'Home', { energy_rating: 'A+' });
     const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };

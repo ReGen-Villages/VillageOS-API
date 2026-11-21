@@ -377,6 +377,7 @@ public class SubmissionIntakeServiceTests
     {
         var model = DeclaredModel.Seeded()
             .Without("Parcel").WithArchetype("Plot").Bound(LandIntakeRoles.Parcel, "Plot")
+            .Relate("Plot", "measuresAreaWith", DeclaredModel.MeanSphere)
             .Without("studies").With("examines").Bound(LandIntakeRoles.StudiedSite, "examines");
         string? captured = null;
         var (service, _) = ServiceReading(model, request =>

@@ -1,10 +1,5 @@
-/**
- * The signed-in application's answer to {@link ModelReads}: ask the broker.
- *
- * One of these belongs to one refresh generation. Everything resolved against it asks the broker once
- * per question, however many rows and widgets want the answer, and the sharing dies with the
- * generation — a map outliving it would serve a membership the model has since moved past.
- */
+/** One of these serves one refresh, so each question goes to the broker once however many widgets ask it,
+ *  and nothing is kept past the refresh, where it would answer with a membership the model has since changed. */
 import { apiClient } from './client';
 import type { ModelReads } from '@tendril-ui/tendril';
 import { stateApi } from './stateApi';
@@ -22,17 +17,15 @@ export function brokerModelReads(): ModelReads {
   const services = new Map<string, Promise<unknown>>();
 
   return {
-    // The question is the request, not the state name: two widgets narrowing one state differently
-    // must not be handed each other's answer, which would put a wrong number on screen with nothing
-    // to say so.
+    // Keyed by the request, not the state name: two widgets narrowing one state differently must not get
+    // each other's answer, which would show a wrong number with no warning.
     thingsInState(state: string, narrowing?: StateNarrowing) {
       const question = thingsInStatePath(state, narrowing);
       const inFlight = states.get(question);
       if (inFlight) return inFlight;
       const request = stateApi.getThingsInState(state, narrowing);
       states.set(question, request);
-      // A failed read is dropped rather than shared: one broker hiccup would otherwise stick to
-      // every later reader of this generation, with nothing to retry it until the next refresh.
+      // Dropped when it fails, or one failed read would answer every later reader until the next refresh.
       request.catch(() => states.delete(question));
       return request;
     },
@@ -47,9 +40,7 @@ export function brokerModelReads(): ModelReads {
 
     aggregate: (query) => temporalApi.aggregate(query),
 
-    // A chart of seven series asks seven questions, and the range beside it asks some of the same;
-    // shared by the whole question, as a state read is, so one refresh walks a series once per
-    // distinct question.
+    // A chart's series and the range beside it ask some of the same questions, so a refresh reads each once.
     reduce(query) {
       const question = JSON.stringify(query);
       const inFlight = reductions.get(question);
@@ -60,7 +51,7 @@ export function brokerModelReads(): ModelReads {
       return request;
     },
 
-    // Widgets of one refresh ask together, so sharing a question while it is in flight asks it once.
+    // Shared only while in flight, because the widgets of one refresh ask together.
     fromService(endpoint, body) {
       const question = `${endpoint} ${JSON.stringify(body)}`;
       const inFlight = services.get(question);

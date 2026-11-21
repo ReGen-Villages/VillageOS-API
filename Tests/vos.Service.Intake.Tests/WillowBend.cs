@@ -1,5 +1,6 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Geometry;
 
 namespace vos.Service.Intake.Tests;
 
@@ -44,6 +45,9 @@ public static class WillowBend
     public static readonly Guid SoilHorizonArchetypeId = new("50505050-5050-5050-5050-505050505050");
 
     public static readonly string[] SoilDepthNames = ["0-5cm", "5-15cm", "15-30cm"];
+    public static readonly Guid LandCoverShareArchetypeId = new("60606060-6060-6060-6060-606060606060");
+
+    public static readonly string[] LandCoverClassNames = ["tree-cover", "cropland", "built-up"];
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),
@@ -135,7 +139,20 @@ public static class WillowBend
         new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)),
         [.. WaterDemandNames.Select(demand =>
             new DeclaredDemand(demand.Name, TermId(demand.Name), demand.ServingOrder))],
-        new DeclaredTerm("SiteStudy", SiteStudyArchetypeId));
+        new DeclaredTerm("SiteStudy", SiteStudyArchetypeId),
+        MeasuredOnTheMeanSphere);
+
+    public static readonly Guid AreaMeasuredWithPredicateId = StableIdentity.Derive("areaMeasuredWith", "predicate");
+
+    public static AreaMethodChoice MeasuredOnTheMeanSphere => new(
+        new AreaMethodThing("Mean sphere", TermId("Mean sphere")), AreaMethod.MeanSphere, "meanSphereAreaMethod",
+        new AreaMethodThing("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new AreaMethodThing("WGS84 ellipsoid", TermId("WGS84 ellipsoid"))]);
+
+    public static AreaMethodChoice MeasuredOnTheEllipsoid => new(
+        new AreaMethodThing("WGS84 ellipsoid", TermId("WGS84 ellipsoid")), AreaMethod.Wgs84Ellipsoid, "wgs84EllipsoidAreaMethod",
+        new AreaMethodThing("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new AreaMethodThing("Mean sphere", TermId("Mean sphere"))]);
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

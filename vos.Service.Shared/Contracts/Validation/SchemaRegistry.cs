@@ -7,7 +7,7 @@ using NJsonSchema;
 
 namespace vos.Service.Shared.Contracts.Validation;
 
-// Eagerly loads every embedded JSON Schema and exposes them by $id; treat as a singleton.
+// Loads every embedded JSON Schema when made and gives each by its $id, so one is shared rather than made per call.
 public sealed class SchemaRegistry
 {
     private const string ResourcePrefix = "vos.Service.Shared.Contracts.Schemas.";
@@ -25,7 +25,7 @@ public sealed class SchemaRegistry
         var loaded = new Dictionary<string, JsonSchema>(StringComparer.Ordinal);
         foreach (var (resourceName, json) in rawSchemas)
         {
-            // NJsonSchema's JsonSchema.Id is inconsistent across drafts; read $id from the raw JSON instead.
+            // NJsonSchema fills JsonSchema.Id differently for each JSON Schema version, so $id is read from the text.
             var id = ReadDollarId(json)
                 ?? throw new InvalidOperationException(
                     $"Embedded schema '{resourceName}' has no top-level $id.");

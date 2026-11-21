@@ -2,7 +2,7 @@
 
 VillageOS is a temporal knowledge graph: every property value and relationship carries its
 history — as much as the model declares, which is all of it unless the model says otherwise — and
-you can query state "as of now" or "as of a past time." This page is the canonical
+you can query state "as of now" or "as of a past time." This page is the
 reference for *how* those reads are served — the tiered time-series store behind history queries,
 how data is addressed across tiers, and why current-state reads stay fast.
 
@@ -55,18 +55,18 @@ Rings stores samples keyed by `(entity, property, time-bucket)`. A bucket become
 immutable file once it rotates — cheap to compress, cache, and tier. There are three tiers, named
 for a tree's layers from the outside in:
 
-| Tier | Medium | Holds | Read latency |
-|------|--------|-------|--------------|
-| **Canopy** | RAM | the most recent buckets | sub-millisecond |
-| **Sapwood** | local SSD (sealed bucket files) | recent weeks–months | 1–10 ms |
-| **Heartwood** | cold archive volume (pluggable backend) | long-term | 100 ms – seconds |
+| Tier | Medium | Holds |
+|------|--------|-------|
+| **Canopy** | memory | the most recent buckets |
+| **Sapwood** | local disk (sealed bucket files) | recent weeks to months |
+| **Heartwood** | an archive volume | the long term |
 
 Buckets age outward — Canopy → Sapwood → Heartwood — driven by retention policy. Heartwood is
 optional; a small deployment can live entirely in Canopy + Sapwood.
 
 Both write paths land in the same store. Sensor **observations** (`POST …/observations`) and
 Fact-path **property changes** (asserting or retracting a value through the API) are both
-projected into Rings, each point provenance-tagged with the path it came from. So
+projected into Rings, each point marked with the path it came from. So
 `GET …/properties/{p}/history` returns one unified timeline regardless of how each point was
 written, each sample labelled `observation`, `fact` or `retraction` — a retraction carries no value —
 and `?timestamp=` as-of reads see both. A `CurrentOnly` property's history is its present value, one
@@ -189,7 +189,7 @@ them, each as of the instant:
 | `InheritedOverrides` | The values it holds for names its sources declare, keyed by source id and nested as the live read nests them, each at the value in force then |
 
 The second is where a value written onto an archetype-declared name lives, so it is where every seeded
-value and every value a service writes through the fragment upsert is answered from. A reader that
+value and every value a service writes through the fragment route is answered from. A reader that
 resolves a live Thing by reading `Properties`, then its override sets, then up the `is` chain reads an
 instant the same way: the archetypes' defaults at the instant are the own properties of the archetype
 Things in the same snapshot, and the `is` relationships live then are in the same answer.
@@ -268,17 +268,35 @@ POST /api/temporal/reduce
 |---|---|
 | `thingId`, `property` | The one Thing and the series on it. A property keeping no history is refused |
 | `windowSeconds` | How far back the window reaches from the model clock's now |
+| `calendarYears` | Instead of `windowSeconds`: the latest complete calendar years before this one, in the Thing's local time, so it needs `utcOffsetSeconds`. A year enters only with readings on `minimumDaysPerYear` of its days, 365 when left out. A request naming both windows, or neither, is refused |
 | `utcOffsetSeconds` | The offset the calendar folds are taken in; universal time when left out. A site's own `utcOffsetSeconds` is the one to pass |
 | `steps` | Applied in order: the first folds the samples, each later one the groups the step before it produced |
-| a step's `fold` | A calendar period — `hour`, `day`, `month`, `year`, keyed `2026-07-05T09`, `2026-07-05`, `2026-07`, `2026` — or a cycle laid over itself — `hourOfDay`, `dayOfYear`, `monthOfYear`, `hourOfDay,dayOfYear`, `monthOfYear,hourOfDay`, keyed by the numbers, a composite by each part — or `all`, one group |
-| a step's `function` | `Min`, `Max`, `Average`, `Sum`, `Count`; `Percentile` with `percentile` (interpolated between ranks); `ShareWithin` with `from` and `to` (closed at both ends, a bound left out open, answering a fraction); `CountAtOrBelow` and `CountAbove` with `threshold`; `SumAbove` and `SumBelow` with `threshold` — the positive excess beyond it, summed: degree days |
+| a step's `fold` | A calendar period — `hour`, `day`, `month`, `year`, keyed `2026-07-05T09`, `2026-07-05`, `2026-07`, `2026` — or a cycle laid over itself — `hourOfDay`, `dayOfYear`, `monthOfYear`, `hourOfDay,dayOfYear`, `monthOfYear,hourOfDay`, keyed by the numbers, a composite by each part — or `all`, one group. Two more pairs key each reading by what it reads, and can only count and only come first: `value` and `monthOfYear,value` key a reading by itself (a whole number as written, or a Thing's identifier in its lower-case form), and `cell` and `monthOfYear,cell` key an instant by the bins its reading and its paired reading fall in |
+| a step's `function` | `Min`, `Max`, `Average`, `Sum`, `Count`; `Percentile` with `percentile` (interpolated between ranks); `ShareWithin` with `from` and `to` (closed at both ends, a bound left out open, answering a fraction); `CountAtOrBelow`, `CountAbove` and `CountAtOrAbove` with `threshold`; `SumAbove` and `SumBelow` with `threshold` — the positive excess beyond it, summed: degree days |
+| a step's `minimumCount` | A group holding fewer values is dropped before the next step |
+| a step's `everyPeriod` | A group is kept only when it holds every shorter period the step before grouped by, such as every day of its year. Not on the first step, and only where the fold is a calendar period made of the step before's periods |
+| `bins` | For a `cell` fold: `{ width, upTo? }`. Bins are counted from nought in steps of `width`; a reading at or above `upTo` falls in the last bin below it, so the top of a closed scale is not a bin of its own |
+| `pairedWith` | For a `cell` fold: `{ property, bins }`, a second property of the same Thing whose reading at each instant gives the second half of that instant's cell |
 
 The answer is the groups in key order — numeric where the key is a number, part by part where it is
 composite — with the capitals every Mycelium route answers in, beside how many samples the window held
 that could and could not be read, so an answer with no groups says whether the window was empty or
-unreadable. A retraction sample is left out before anything is read and counted in `Retractions`. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
-first step that could produce more than ten thousand groups, a parameter beside a function that does
-not read it, and an unknown fold or function are each refused with `400` and the reason. The read walks
+unreadable. A retraction sample is left out before anything is read and counted in `Retractions`. A
+cell key is the two bins' lower bounds, such as `21,14`, written without trailing noughts; a paired read
+counts each pair as one usable sample and a reading with no partner at its instant in `UnpairedSamples`.
+A group a cyclic fold produced sits at no instant, so only `all` can fold it further. Each of these is
+refused with `400` and the reason:
+
+- a first step that could produce more than ten thousand groups, and a `value` or `cell` fold that
+  reaches more while it reads;
+- a parameter beside a function that does not read it;
+- an unknown fold or function;
+- a `value` or `cell` fold reducing by anything but `Count`, or as a later step;
+- a `cell` fold without `bins` and `pairedWith`, or `bins` or `pairedWith` beside any other fold;
+- a `calendarYears` window with a `value` or `cell` fold, because those count readings as they read
+  them and cannot leave out a year with too few days.
+
+The read walks
 the property's retained samples once, so its cost follows the depth of history the property keeps and
 not the size of the model; a window reaching further back than the retention answers what is retained
 and says nothing more.
