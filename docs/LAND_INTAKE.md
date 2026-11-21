@@ -1388,6 +1388,17 @@ limit. Those formats give a shape's name before its geometry, so a shape whose n
 out. A GeoJSON file is held as its bytes while it is read, since a feature may give its name after its
 geometry.
 
+**A page reads a border or layer file before anything is kept.** `POST /submissions/read-file`, under
+the ticket, is a form carrying `file` and the `emailAddress` the ticket was issued against. It reads the
+same four formats with the same limits and refusals, and keeps nothing: no Thing, no document and no
+bytes, and it asks nothing of the model. It answers every shape the file holds, named or not, each with
+its `name`, the KML `folder` it sits in, its `description` and its GeoJSON `geometry`; points are left
+out. `largestArea` names the largest polygon in the file: the `shape` it belongs to, its outer
+`boundary` as corners without the closing position, and its `hectares`, measured as a submission measures
+a border. A file holding no polygon answers `largestArea` as null. Because there is no submission to read
+an address from, the address comes with the file, and the answer carries a fresh ticket issued against
+it.
+
 **A submitter can remove a file they shared.** `DELETE /submissions/{submissionId}/documents/{documentId}`,
 under the ticket, removes each feature that came from the file, then the file's Thing, then its bytes.
 Only a file the submission's project shares can be removed. A removal that fails part way leaves the file
@@ -1457,6 +1468,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | The parcel boundary at a clicked position, a place search, the plots in a map view and a border's elevation, answered to a page with no credential | `POST /submissions/parcel-at-position`, `POST /submissions/place-search`, `POST /submissions/plots-in-view` and `POST /submissions/border-elevation`, from the registrations the `parcelLookup`, `placeSearch`, `plotsInViewLookup` and `borderElevation` roles bind |
 | A site's centre, lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
 | The features of a shared layer file, kept under the site and removed with the file | `POST` and `DELETE` on `/submissions/{submissionId}/documents`, under the ticket |
+| Every shape in a border or layer file, and its largest polygon, read before anything is kept | `POST /submissions/read-file`, under the ticket |
 | Land-intake archetypes, registrations, the discovery drawings, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
