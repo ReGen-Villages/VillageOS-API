@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace vos.Taproot
+namespace vos.PlatformClient
 {
     public static class JsonElementExtensions
     {

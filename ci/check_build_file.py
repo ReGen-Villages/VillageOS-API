@@ -1,7 +1,7 @@
 """What the build runs on, and what it publishes, read as a passing build when they are wrong.
 
-A widened trigger, a configuration that no longer follows the branch, and a publishing step gated
-to main all produce more green builds rather than a failure, so nothing in a build result would
+A widened trigger, a trigger that builds each push on its own, a configuration that no longer follows
+the branch, and a publishing step gated to main all produce more green builds rather than a failure, so nothing in a build result would
 look wrong. A pull request trigger that names no branch produces no build at all, which the GitHub
 branch rules then read as a pull request that cannot merge. A job with no time limit shows nothing in
 a green build either, and holds a shared agent for an hour on a red one. This reads the build file
@@ -136,6 +136,9 @@ def problems(build_file_text):
         branches = trigger_branches(build_file_text, 'trigger:')
         if branches != ['develop', 'main']:
             found.append('A push must build develop and main only; the trigger names %s' % branches)
+        if 'batch: true' not in [line.strip() for line in indented_block(build_file_text, 'trigger:')]:
+            found.append(
+                'Pushes that land while a build runs must share the next build, and the trigger does not batch')
 
     pull_request_branches = trigger_branches(build_file_text, 'pr:')
     if pull_request_branches != ['develop', 'main']:

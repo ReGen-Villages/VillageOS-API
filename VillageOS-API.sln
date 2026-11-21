@@ -73,7 +73,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Feedback", "vos
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Feedback.Tests", "Tests\vos.Service.Feedback.Tests\vos.Service.Feedback.Tests.csproj", "{54BDA41D-DD32-4AFD-B9F8-B1F6D5054F1A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Client", "vos.Taproot.Client\vos.Taproot.Client.csproj", "{A35D2020-5C6E-4F92-9DA2-8AD62005363C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.MyceliumClient", "vos.MyceliumClient\vos.MyceliumClient.csproj", "{A35D2020-5C6E-4F92-9DA2-8AD62005363C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Pages", "vos.Pages\vos.Pages.csproj", "{C370E9F2-C46C-43A9-988A-52340646C089}"
 EndProject
