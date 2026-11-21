@@ -55,7 +55,7 @@ public class OneToolAnswersForEachModelItIsAskedTests : IClassFixture<TheEngine>
         {
             Id = Guid.NewGuid(),
             Name = "a template",
-            Things = new[] { new { Id = Guid.NewGuid(), Name = thingName, Properties = new { } } },
+            Things = new[] { thingName, "is", "binds" }.Select(name => new { Id = Guid.NewGuid(), Name = name, Properties = new { } }),
             Relationships = Array.Empty<object>(),
         }));
         return file;
