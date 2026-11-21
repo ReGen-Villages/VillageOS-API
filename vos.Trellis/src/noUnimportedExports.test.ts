@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
 const ALLOWED = new Map<string, string>([
-  ['useFormOptions', 'kept for the site study\'s public pages, which read the form options from the intake service (VillageOS-API 8190)'],
 ]);
 
 function sourceFiles(directory: string): string[] {
