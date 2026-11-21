@@ -118,7 +118,7 @@ public class HistoryChangedStepTests
     [Theory]
     [InlineData("historyChanged", "subject", "subject")]
     [InlineData("fetch", "call", "outcome")]
-    public async Task Each_step_declares_its_ports_and_its_step_setting(string step, string input, string output)
+    public async Task Each_step_declares_its_ports_and_no_setting_for_its_box(string step, string input, string output)
     {
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
@@ -129,9 +129,7 @@ public class HistoryChangedStepTests
         manifest.GetProperty("ports").EnumerateArray()
             .Select(port => (port.GetProperty("portName").GetString(), port.GetProperty("direction").GetString()))
             .Should().Equal((input, "in"), (output, "out"));
-        var setting = manifest.GetProperty("settings").EnumerateArray().Should().ContainSingle().Subject;
-        setting.GetProperty("name").GetString().Should().Be("step");
-        setting.GetProperty("default").GetString().Should().Be(step);
+        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParams its service holds, and a box may not set it");
         (await client.GetAsync("/manifest/judgeEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

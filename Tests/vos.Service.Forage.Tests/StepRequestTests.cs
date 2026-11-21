@@ -437,7 +437,7 @@ public class StepRequestTests
     [Theory]
     [InlineData(null)]
     [InlineData("discoverEverything")]
-    public async Task A_box_naming_no_step_forage_answers_fails_naming_the_steps(string? step)
+    public async Task A_call_naming_no_step_forage_answers_fails_naming_the_steps_and_where_a_step_is_held(string? step)
     {
         var model = new Model();
 
@@ -445,7 +445,7 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         answer.GetProperty("error").GetString().Should().Be(
-            "A Forage box names its step in the 'step' setting, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
+            "A Forage step service holds its step as 'step' in its callParams, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
     }
 
     [Fact]
@@ -458,7 +458,7 @@ public class StepRequestTests
     }
 
     [Fact]
-    public async Task Each_step_declares_its_ports_and_its_step_setting()
+    public async Task Each_step_declares_its_ports_and_no_setting_for_its_box()
     {
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
@@ -469,9 +469,7 @@ public class StepRequestTests
         manifest.GetProperty("service").GetString().Should().Be("Forage plan calls");
         manifest.GetProperty("ports").EnumerateArray().Select(port => (port.GetProperty("portName").GetString(), port.GetProperty("direction").GetString()))
             .Should().Equal(("site", "in"), ("address", "in"), ("calls", "out"));
-        var setting = manifest.GetProperty("settings").EnumerateArray().Should().ContainSingle().Subject;
-        setting.GetProperty("name").GetString().Should().Be("step");
-        setting.GetProperty("default").GetString().Should().Be("planCalls");
+        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParams its service holds, and a box may not set it");
         (await client.GetAsync("/manifest/discoverEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
