@@ -190,18 +190,18 @@ public static class PipelineDagBuilder
     private static IReadOnlyDictionary<string, JsonElement> ParamsOf(GraphThing nodeThing, GraphThing service)
     {
         var merged = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal);
-        if (!service.Properties.TryGetValue(ModelNames.CallParams, out var held) || held.ValueKind == JsonValueKind.Null) return merged;
+        if (!service.Properties.TryGetValue(ModelNames.CallParameters, out var held) || held.ValueKind == JsonValueKind.Null) return merged;
 
-        foreach (var (name, value) in CallParamsOf(nodeThing, service, held))
+        foreach (var (name, value) in CallParametersOf(nodeThing, service, held))
             if (!merged.TryAdd(name, value))
                 throw new PipelineModelException($"Node '{nodeThing.Name}' sets '{name}', which its service '{service.Name}' already sets in "
-                    + $"{ModelNames.CallParams}; a box cannot change what its service is called with.");
+                    + $"{ModelNames.CallParameters}; a box cannot change what its service is called with.");
         return merged;
     }
 
-    private static IEnumerable<KeyValuePair<string, JsonElement>> CallParamsOf(GraphThing nodeThing, GraphThing service, JsonElement held)
+    private static IEnumerable<KeyValuePair<string, JsonElement>> CallParametersOf(GraphThing nodeThing, GraphThing service, JsonElement held)
     {
-        var notAnObject = new PipelineModelException($"Service '{service.Name}' of node '{nodeThing.Name}' holds {ModelNames.CallParams} "
+        var notAnObject = new PipelineModelException($"Service '{service.Name}' of node '{nodeThing.Name}' holds {ModelNames.CallParameters} "
             + "that are not a JSON object, so the box could not be called with them.");
         if (held.ValueKind != JsonValueKind.String) throw notAnObject;
         try
