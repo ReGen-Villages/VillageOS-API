@@ -32,9 +32,11 @@ public static class ModelStub
 
     // What the declaration read answers with: a model declaring both vocabularies, serialised the way
     // the broker serialises it, so the tests that go through the real client exercise the real reading.
-    public static string DeclaredVocabularyAnswer =>
+    public static string DeclaredVocabularyAnswer => DeclarationAnswer(DeclaredModel.Seeded());
+
+    public static string DeclarationAnswer(DeclaredModel model) =>
         JsonSerializer.Serialize(
-            new SnapshotReadResult(0, DeclaredModel.Seeded().Build()),
+            new SnapshotReadResult(0, model.Build()),
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
     // A lookup by identifier rather than by name — how the service asks whether a submission's

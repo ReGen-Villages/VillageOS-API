@@ -302,7 +302,7 @@ public class FindingsEndpointTests
         using var client = factory.CreateClient();
 
         HttpResponseMessage? refused = null;
-        for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
+        for (var attempt = 0; attempt <= RequestBudget.Fallback.RequestCount; attempt++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions/findings")
             {

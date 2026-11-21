@@ -6,7 +6,11 @@ namespace vos.Service.Intake.Models;
 public sealed record ModelFragment(
     string Name,
     IReadOnlyList<FragmentThing> Things,
-    IReadOnlyList<FragmentRelationship> Relationships);
+    IReadOnlyList<FragmentRelationship> Relationships)
+{
+    // Retracted in the same commit as the writes, by their three ends; one already gone is passed over.
+    public IReadOnlyList<FragmentRelationship> Retractions { get; init; } = [];
+}
 
 public sealed record FragmentThing(Guid Id, string Name, IReadOnlyDictionary<string, TypedValue> Properties);
 

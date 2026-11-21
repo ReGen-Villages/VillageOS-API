@@ -65,20 +65,27 @@ try
 
     builder.Services.AddRateLimiter(options =>
     {
-        void PerSource(string policyName, int requestsAllowed, TimeSpan window) =>
-            options.AddPolicy(policyName, context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = requestsAllowed, Window = window }));
-        PerSource(SubmissionRate.PolicyName, SubmissionRate.RequestsAllowed, SubmissionRate.Window);
-        PerSource(TileRate.PolicyName, TileRate.RequestsAllowed, TileRate.Window);
+        options.AddPolicy(SubmissionRate.PolicyName, context =>
+        {
+            var (key, budget) = RequestPartition.For(
+                context.Request.Headers[SubmissionTicket.HeaderName],
+                context.Connection.RemoteIpAddress?.ToString(),
+                context.RequestServices.GetRequiredService<SubmissionTicket>(),
+                context.RequestServices.GetRequiredService<RequestBudgets>().Current);
+            return RateLimitPartition.GetFixedWindowLimiter(
+                key, _ => new FixedWindowRateLimiterOptions { PermitLimit = budget.RequestCount, Window = budget.Window });
+        });
+        options.AddPolicy(TileRate.PolicyName, context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = TileRate.RequestsAllowed, Window = TileRate.Window }));
 
         options.OnRejected = async (context, cancellation) =>
         {
             var comeBackIn = (int)Math.Ceiling(
                 (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var after)
                     ? after
-                    : SubmissionRate.Window).TotalSeconds);
+                    : RequestBudget.Fallback.Window).TotalSeconds);
 
             context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
             context.HttpContext.Response.Headers.RetryAfter = comeBackIn.ToString();
@@ -112,6 +119,8 @@ try
             apiKey));
 
     builder.Services.AddSingleton<HeldDeclarations>();
+    builder.Services.AddSingleton<RequestBudgets>();
+    builder.Services.AddHostedService<RequestBudgetRefresher>();
 
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddModelClock<IntakeMyceliumClient>("Intake");

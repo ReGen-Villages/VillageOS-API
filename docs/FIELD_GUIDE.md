@@ -941,6 +941,7 @@ property; a derived property refuses every write.
 | **Forage** | a pipeline node | Discovery's steps: finds every source covering a site, plans each source's calls, records what they came to, resolves each fetched word to the Thing it names, and marks the site discovered (chapter 39) |
 | **EnergyBalance** | a pipeline node | Works out solar and total generation, the share of consumption and whether the site is net positive from the six inputs wired into it, and answers them to the run |
 | **WaterReserve** | a pipeline node | Reserve figures for a pipeline run |
+| **Transect** | a pipeline node | Measures a parcel's border again with the area method the model configures, and records the method |
 | **ModelBridge** | a pipeline node | Reads a Thing's property into a pipeline, or writes a pipeline value onto one (chapter 44) |
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
 | **Xylem** | http | Accepts a building-model upload, runs the importer, and applies the result to the model |
