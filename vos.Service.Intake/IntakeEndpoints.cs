@@ -711,7 +711,7 @@ internal static class IntakeEndpoints
             try
             {
                 method = (await declarations.ReadAsync(
-                    DeclaredVocabularyReader.Selector(), AreaMethodReader.Read, context.RequestAborted)).Formula;
+                    DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.AreaMethod, context.RequestAborted)).Formula;
             }
             catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
                                           || (error is TaskCanceledException

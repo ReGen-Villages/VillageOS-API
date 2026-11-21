@@ -145,14 +145,14 @@ public static class WillowBend
     public static readonly Guid AreaMeasuredWithPredicateId = StableIdentity.Derive("areaMeasuredWith", "predicate");
 
     public static AreaMethodChoice MeasuredOnTheMeanSphere => new(
-        new DeclaredTerm("Mean sphere", TermId("Mean sphere")), AreaMethod.MeanSphere, "meanSphereAreaMethod",
-        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId),
-        [new DeclaredTerm("WGS84 ellipsoid", TermId("WGS84 ellipsoid"))]);
+        new AreaMethodThing("Mean sphere", TermId("Mean sphere")), AreaMethod.MeanSphere, "meanSphereAreaMethod",
+        new AreaMethodThing("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new AreaMethodThing("WGS84 ellipsoid", TermId("WGS84 ellipsoid"))]);
 
     public static AreaMethodChoice MeasuredOnTheEllipsoid => new(
-        new DeclaredTerm("WGS84 ellipsoid", TermId("WGS84 ellipsoid")), AreaMethod.Wgs84Ellipsoid, "wgs84EllipsoidAreaMethod",
-        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId),
-        [new DeclaredTerm("Mean sphere", TermId("Mean sphere"))]);
+        new AreaMethodThing("WGS84 ellipsoid", TermId("WGS84 ellipsoid")), AreaMethod.Wgs84Ellipsoid, "wgs84EllipsoidAreaMethod",
+        new AreaMethodThing("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new AreaMethodThing("Mean sphere", TermId("Mean sphere"))]);
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

@@ -1,5 +1,6 @@
 using vos.Service.Intake.Models;
 using vos.Service.Shared;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -63,9 +64,22 @@ public static class DeclaredVocabularyReader
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
         Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
-        AreaMethodReader.Read(snapshot),
+        AreaMethod(snapshot),
         TermsWhereBound(snapshot, LandIntakeRoles.SoilDepth, "the depths a site's soil is read at"),
         TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"));
+
+    // Every route answers a model with no usable area method as it answers any model that was never seeded.
+    public static AreaMethodChoice AreaMethod(SnapshotDocument snapshot)
+    {
+        try
+        {
+            return AreaMethodReader.Read(snapshot);
+        }
+        catch (AreaMethodNotDeclaredException refused)
+        {
+            throw new ModelNotSeededError(refused.Message);
+        }
+    }
 
     // None where the model reads no soil or land cover, so a submission into it is still composed, as with water demands.
     private static DeclaredTerms? TermsWhereBound(SnapshotDocument snapshot, Role archetypeRole, string whatItDeclares) =>
