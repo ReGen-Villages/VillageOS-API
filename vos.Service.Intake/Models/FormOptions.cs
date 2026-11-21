@@ -11,7 +11,7 @@ public sealed record FormOptions(
     IReadOnlyList<string> HazardTypes, IReadOnlyList<string> HazardLevels,
     IReadOnlyList<DeclaredShare> DefaultProgramme, bool ParcelLookup, bool PlaceSearch,
     IReadOnlyList<DeclaredTheme> Themes, IReadOnlyList<DeclaredLayerKind> LayerKinds,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording, string AreaMethod);
 
 public sealed record DeclaredLayerKind(string Name, string? Colour, IReadOnlyList<string> Themes);
 

@@ -1,5 +1,6 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Geometry;
 
 namespace vos.Service.Intake.Services;
 
@@ -180,10 +181,14 @@ public static class SubmissionFragmentComposer
 
         var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, ParcelRole), $"{siteName} Parcel-01");
         var parcelId = parcelThing.Id;
-        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel, vocabulary.AreaMethod.Formula)));
         Relate(siteThing, predicates.Has, parcelThing);
         BeArchetype(parcelThing, archetypes.Parcel);
         RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
+        var areaMethod = vocabulary.AreaMethod;
+        Relate(parcelThing,
+            new PredicateIdentity(areaMethod.AreaMeasuredWith.Name, areaMethod.AreaMeasuredWith.Id, Minted: false),
+            new NamedThing(areaMethod.Method.Id, areaMethod.Method.Name));
 
         var categoriesAlreadyGiven = new Dictionary<Guid, string>();
         foreach (var allocation in submission.Allocations ?? [])
@@ -315,7 +320,16 @@ public static class SubmissionFragmentComposer
             Relate(hazardThing, predicates.Has, sourceThing);
         }
 
-        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
+        // An amendment after the model changed its method would otherwise leave the parcel naming the old method too.
+        var area = vocabulary.AreaMethod;
+        var forgotten = area.OtherMethods
+            .Select(other => new FragmentRelationship(
+                $"{parcelThing.Name} {area.AreaMeasuredWith.Name} {other.Name}", parcelId, area.AreaMeasuredWith.Id, other.Id))
+            .ToList();
+        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships)
+        {
+            Retractions = forgotten,
+        };
         return new ComposedSubmission(fragment, submissionId, siteThing.Id, studyThing.Id, parcelId);
     }
 
@@ -405,7 +419,7 @@ public static class SubmissionFragmentComposer
     }
 
     // How the boundary was obtained is the relationship to the declared term, not a value here.
-    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
+    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel, AreaMethod method)
     {
         var boundary = parcel.Boundary
             ?? throw new SubmissionError(RefusalCode.FieldMissing,
@@ -418,7 +432,7 @@ public static class SubmissionFragmentComposer
 
         return new Dictionary<string, TypedValue>
         {
-            ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
+            ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BorderArea.Hectares(BoundaryGeometry.Corners(boundary), method)),
             ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
         };
     }

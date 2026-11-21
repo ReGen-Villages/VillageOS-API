@@ -26,7 +26,8 @@ public class FormOptionsReaderTests
         var model = new DeclaredModel()
             .WithArchetype("LandUse").Bound(LandIntakeRoles.AllocationCategory, "LandUse")
             .With("putTo").Bound(LandIntakeRoles.CategorizedAs, "putTo")
-            .Relate("Orchard", "is", "LandUse");
+            .Relate("Orchard", "is", "LandUse")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
 
         var options = FormOptionsReader.Read(model.Build());
 
@@ -98,7 +99,8 @@ public class FormOptionsReaderTests
         var model = new DeclaredModel()
             .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
             .With("categorizedAs").Bound(LandIntakeRoles.CategorizedAs, "categorizedAs")
-            .Relate("Orchard", "is", "AllocationCategory");
+            .Relate("Orchard", "is", "AllocationCategory")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
 
         var options = FormOptionsReader.Read(model.Build());
 
@@ -136,7 +138,8 @@ public class FormOptionsReaderTests
         var model = new DeclaredModel()
             .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
             .With("categorizedAs").Bound(LandIntakeRoles.CategorizedAs, "categorizedAs")
-            .Relate("Orchard", "is", "AllocationCategory");
+            .Relate("Orchard", "is", "AllocationCategory")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
 
         var options = FormOptionsReader.Read(model.Build());
 

@@ -47,7 +47,7 @@ public static class DeclaredVocabularyReader
     // carries.
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles]),
+        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles, .. AreaMethodReader.Roles]),
         Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
         Traverse = [RoleBindings.FollowBindings],
@@ -63,6 +63,7 @@ public static class DeclaredVocabularyReader
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
         Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
+        AreaMethodReader.Read(snapshot),
         TermsWhereBound(snapshot, LandIntakeRoles.SoilDepth, "the depths a site's soil is read at"),
         TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"));
 
