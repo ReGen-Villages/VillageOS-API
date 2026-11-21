@@ -269,7 +269,7 @@ public class PublicPageProxyEndpointTests
         await using var __ = factory;
         using var client = factory.CreateClient();
 
-        for (var tile = 0; tile <= SubmissionRate.RequestsAllowed; tile++)
+        for (var tile = 0; tile <= RequestBudget.Fallback.RequestCount; tile++)
             (await client.GetAsync($"/basemaps/satellite-tiles/10/{tile}/5")).StatusCode
                 .Should().Be(HttpStatusCode.OK, "one screen of a map is more tiles than a form's whole budget");
 
