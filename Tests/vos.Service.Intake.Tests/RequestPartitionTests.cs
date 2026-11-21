@@ -40,7 +40,7 @@ public class RequestPartitionTests
     {
         var tickets = new SubmissionTicket(_clock);
 
-        tickets.AddressMarkOf(tickets.Issue(Ana)).Should().NotContainEquivalentOf("ana");
+        tickets.AddressMarkOf(tickets.Issue(Ana)).Should().NotBeNull().And.NotContainEquivalentOf("ana");
     }
 
     public static TheoryData<string, Func<SubmissionTicket, FakeTimeProvider, string?>> NoMark => new()
