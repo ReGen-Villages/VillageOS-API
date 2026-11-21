@@ -26,7 +26,7 @@ describe('CatalystRail', () => {
     expect(group('States the model enters').getByText('Reservoir · overdue · every 60 s')).toBeInTheDocument();
     expect(group('The clock').getByText('every hour · every 60 model min')).toBeInTheDocument();
     expect(group('Relationships written').getByText('feeds')).toBeInTheDocument();
-    expect(group('Relationships written').getByText('ripens')).toBeInTheDocument();
+    expect(group('Relationships written').getByText('overflows')).toBeInTheDocument();
   });
 
   it('names the drawing that handles a catalyst in its handling cell', () => {
@@ -78,7 +78,7 @@ describe('CatalystRail', () => {
   it('offers no start node for a catalyst no run can start from', () => {
     rail();
     expect(screen.queryByRole('button', { name: 'Place a start node standing for feeds' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Place a start node standing for ripens' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Place a start node standing for overflows' })).toBeInTheDocument();
   });
 
   it('says a group holds nothing rather than drawing an empty list, and shows every group', () => {

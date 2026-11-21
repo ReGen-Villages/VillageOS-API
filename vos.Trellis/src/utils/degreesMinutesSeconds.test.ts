@@ -3,8 +3,8 @@ import { degreesMinutesSeconds } from './degreesMinutesSeconds';
 
 describe('a position in degrees, minutes and seconds', () => {
   it('names the hemispheres and keeps two decimals of a second', () => {
-    expect(degreesMinutesSeconds({ latitude: -25.865839, longitude: 28.022797 }))
-      .toBe('25°51′57.02″ S 28°01′22.07″ E');
+    expect(degreesMinutesSeconds({ latitude: -26.123456, longitude: 28.654321 }))
+      .toBe('26°07′24.44″ S 28°39′15.56″ E');
   });
 
   it('pads minutes and seconds so a round position still reads as one', () => {

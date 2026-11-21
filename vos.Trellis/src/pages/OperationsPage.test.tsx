@@ -70,8 +70,8 @@ const SPECIFICATION = {
       widgets: [
         {
           type: 'funnel',
-          title: 'Plots by stage',
-          stages: [{ label: 'Harvested', color: '#10b981', count: { kind: 'stateCount', state: 'harvested' } }],
+          title: 'Reservoirs by stage',
+          stages: [{ label: 'Overflowing', color: '#10b981', count: { kind: 'stateCount', state: 'overflowing' } }],
         },
       ],
     },
@@ -140,7 +140,7 @@ describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     declaredSubscriptions.length = 0;
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'overflowing', Count: 2 });
     stream.connection = 'live';
     seedStore();
   });
@@ -159,8 +159,8 @@ describe('OperationsPage', () => {
     renderAt();
     expect(screen.getByText('Ops')).toBeInTheDocument();
     expect(screen.getByText('Headline')).toBeInTheDocument();
-    expect(screen.getByText('Plots by stage')).toBeInTheDocument();
-    expect(screen.getByText('Harvested')).toBeInTheDocument();
+    expect(screen.getByText('Reservoirs by stage')).toBeInTheDocument();
+    expect(screen.getByText('Overflowing')).toBeInTheDocument();
   });
 
   it('offers a scope switcher for the compare archetype', () => {
@@ -185,7 +185,7 @@ describe('OperationsPage', () => {
   it('resolves a stateCount funnel bar from the number the state endpoint gave', async () => {
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('overflowing', expect.objectContaining({ countOnly: true }));
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {
@@ -453,7 +453,7 @@ describe('what a live event makes the page ask again', () => {
     vi.clearAllMocks();
     streamHandlers.clear();
     useUiStore.setState({ stateVersions: {} });
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'overflowing', Count: 2 });
     seedStore();
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
@@ -490,7 +490,7 @@ describe('what a live event makes the page ask again', () => {
     expect(await screen.findByText('2')).toBeInTheDocument();
     const before = stateReads();
 
-    await act(async () => { statesMoved(['harvested']); });
+    await act(async () => { statesMoved(['overflowing']); });
     await pastTheDebounce();
 
     expect(stateReads()).toBe(before + 1);
@@ -502,7 +502,7 @@ describe('what a live event makes the page ask again', () => {
     expect(await screen.findByText('2')).toBeInTheDocument();
     const before = stateReads();
 
-    await act(async () => { statesMoved(['planted']); });
+    await act(async () => { statesMoved(['filling']); });
     await pastTheDebounce();
 
     expect(stateReads()).toBe(before);
