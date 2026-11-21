@@ -35,6 +35,12 @@ describe('fetchServiceWiring', () => {
     expect(serviceWiringOf('well').includeIsAncestors).not.toBe(false);
   });
 
+  it('reaches each Thing that names a connection, so a handled predicate that is no connection itself finds its own', () => {
+    const traverse = serviceWiringOf('catchment').traverse ?? [];
+
+    expect(traverse.at(-1)).toEqual({ predicateRole: NOTIFIED_CONNECTION_ROLE_ID, direction: 'incoming', depth: 1 });
+  });
+
   it('builds the index from one read of the selection, opening no subscription', async () => {
     answering(200, {
       watermark: 7,
