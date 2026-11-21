@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace vos.Taproot;
+namespace vos.PlatformClient;
 
 // One reading of a timestamp typed at the prompt, shared by every command that takes a window.
 public static class Timestamps

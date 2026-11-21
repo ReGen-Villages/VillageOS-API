@@ -17,7 +17,7 @@ public class SubmissionShapeReaderTests
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.Site, LandIntakeRoles.Parcel, LandIntakeRoles.Project, LandIntakeRoles.PersonalDetail,
             LandIntakeRoles.ProgrammeAllocation, LandIntakeRoles.HazardAssessment, LandIntakeRoles.SubmittedSource,
-            LandIntakeRoles.Submission, LandIntakeRoles.SoilHorizon, LandIntakeRoles.StudiedSite,
+            LandIntakeRoles.Submission, LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare, LandIntakeRoles.StudiedSite,
             LandIntakeRoles.ProposedSite, LandIntakeRoles.ServiceOrder));
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.Traverse.Should().ContainEquivalentOf(RoleBindings.FollowBindings);
@@ -64,5 +64,15 @@ public class SubmissionShapeReaderTests
         SubmissionShapeReader.Read(withSoil.Build()).Archetypes.SoilHorizon
             .Should().Be(new DeclaredTerm("SoilHorizon", withSoil.Id("SoilHorizon")));
         SubmissionShapeReader.Read(DeclaredModel.Seeded().Build()).Archetypes.SoilHorizon.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_land_cover_share_archetype_is_read_where_the_model_binds_one_and_absent_where_it_does_not()
+    {
+        var withLandCover = DeclaredModel.Seeded().WithArchetype("LandCoverShare").Bound(LandIntakeRoles.LandCoverShare, "LandCoverShare");
+
+        SubmissionShapeReader.Read(withLandCover.Build()).Archetypes.LandCoverShare
+            .Should().Be(new DeclaredTerm("LandCoverShare", withLandCover.Id("LandCoverShare")));
+        SubmissionShapeReader.Read(DeclaredModel.Seeded().Build()).Archetypes.LandCoverShare.Should().BeNull();
     }
 }
