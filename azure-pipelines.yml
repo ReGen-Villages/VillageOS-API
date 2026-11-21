@@ -408,7 +408,7 @@ jobs:
   # Built here because nothing else exercises their configuration, and a page that will not build is one
   # nobody discovers until they come to place it on the site.
   - script: npm run build:public
-    displayName: 'Build the public submission form, findings page and explore page'
+    displayName: 'Build the public pages'
     workingDirectory: vos.Trellis
     condition: always()
 

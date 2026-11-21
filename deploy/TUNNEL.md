@@ -46,8 +46,8 @@ to `<id>.cfargotunnel.com`, proxied (orange cloud).
 Nothing to do in the account: the machine serves the pages at `submit.example.org` through the tunnel,
 and wrote that hostname's record in step 1.
 
-Only if the machine side has chosen not to serve them, it hands you a folder of files (the form,
-findings and explore pages) to host instead:
+Only if the machine side has chosen not to serve them, it hands you a folder of files (the public
+pages) to host instead:
 
 1. **Workers & Pages → Create → Pages → Upload assets**; name the project; upload the folder.
 2. **Custom domains → Set up a custom domain →** `submit.example.org`. Cloudflare creates the

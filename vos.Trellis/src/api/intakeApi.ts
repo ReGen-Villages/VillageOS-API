@@ -22,7 +22,7 @@ const intakeUrl = () => (import.meta.env.VITE_INTAKE_URL as string | undefined) 
 
 /** The ticket is signed against the address it was issued for, so a submission naming another address
  *  carries no ticket of its own. */
-export const TICKET_HEADER = 'X-Submission-Ticket';
+const TICKET_HEADER = 'X-Submission-Ticket';
 
 /** A page with no credential cannot read the model, so the service reads it for the form. Which sources
  *  are usable is judged here by the same rule the planner's page uses. */
@@ -177,7 +177,7 @@ export function renewedTicket(response: Response, held: string): string {
   return response.headers.get(TICKET_HEADER) ?? held;
 }
 
-export function intakeServiceAddress(): string {
+function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
   if (!base) throw new Error(i18n.t('intake.serviceNotConfigured', { setting: 'VITE_INTAKE_URL' }));
   return base;
