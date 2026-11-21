@@ -7,20 +7,27 @@ import { dirname, relative, resolve } from 'node:path';
  * loads may reach the broker: not to read the model, not to sign in, not to find out whether somebody is
  * signed in. What they need from the model, the intake service answers.
  *
- * Asserted over the import graph rather than over a directory, because they share the wizard, the map,
- * the dashboard widgets and the translations with the signed-in application — sharing a file is the
- * point, and reaching the broker through one is the thing that must not happen.
+ * Asserted over the import graph rather than over a directory, because they share files with the
+ * signed-in application — sharing a file is the point, and reaching the broker through one is the thing
+ * that must not happen.
  *
- * Every entry `vite.public.config.ts` builds is walked. A page added to that build and left out here
- * would be the one page the rule does not hold for.
+ * The pages are read out of `vite.public.config.ts` and each page's own module scripts, so a page added
+ * to that build is held to the rule with nothing to add here.
  */
-const SOURCE = resolve(__dirname, '..');
+const TRELLIS = resolve(__dirname, '../..');
+const SOURCE = resolve(TRELLIS, 'src');
 
-const ENTRIES = {
-  'the submission form': resolve(__dirname, 'main.tsx'),
-  'the findings page': resolve(SOURCE, 'publicFindings/main.tsx'),
-  'the explore page': resolve(SOURCE, 'explore/main.tsx'),
-};
+const PAGES = [
+  ...readFileSync(resolve(TRELLIS, 'vite.public.config.ts'), 'utf8').matchAll(/resolve\(__dirname, '([^']+\.html)'\)/g),
+].map(([, page]) => page);
+
+const MODULE_SCRIPT = /<script\s+type="module"\s+src="\/([^"]+)"/g;
+
+function scriptsOf(page: string): string[] {
+  return [...readFileSync(resolve(TRELLIS, page), 'utf8').matchAll(MODULE_SCRIPT)].map(([, script]) =>
+    resolve(TRELLIS, script),
+  );
+}
 
 const BROKER_CLIENT = resolve(SOURCE, 'api/client.ts');
 const SIGNED_IN_STATE = resolve(SOURCE, 'hooks/useAuth.ts');
@@ -59,19 +66,25 @@ function reachedFrom(entry: string): Set<string> {
   return reached;
 }
 
-/** What each page must have reached. An empty walk would pass every other rule in this file. */
-const RENDERS: Record<string, string> = {
-  'the submission form': 'intake/IntakeWizard.tsx',
-  'the findings page': 'components/dashboard/DashboardSections.tsx',
-  'the explore page': 'components/dashboard/DashboardSections.tsx',
-};
+describe('the public build', () => {
+  it('names its pages in the form this file reads, so a reworded config cannot leave every page unchecked', () => {
+    expect(PAGES).not.toEqual([]);
+  });
 
-describe.each(Object.entries(ENTRIES))('what %s loads', (page, entry) => {
+  it('serves one empty page, loading nothing, until the site study\'s first pages ship', () => {
+    expect(PAGES).toEqual(['public-empty.html']);
+    expect(scriptsOf('public-empty.html')).toEqual([]);
+  });
+});
+
+const ENTRIES = PAGES.flatMap((page) => scriptsOf(page).map((script) => [page, script] as const));
+
+describe.each(ENTRIES)('what %s loads through %s', (_page, entry) => {
   const reached = reachedFrom(entry);
   const named = [...reached].map((file) => relative(SOURCE, file));
 
-  it('reaches what it renders, so an empty walk cannot pass this file', () => {
-    expect(named).toContain(RENDERS[page]);
+  it('reaches a component, so an empty walk cannot pass this file', () => {
+    expect(named.some((file) => file.endsWith('.tsx') && file !== relative(SOURCE, entry))).toBe(true);
   });
 
   it('reaches neither the broker client nor the signed-in state', () => {
