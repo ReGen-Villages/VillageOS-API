@@ -151,16 +151,16 @@ public class TransectNodeTests
     }
 
     [Theory]
-    [InlineData(AreaMethod.MeanSphere, 62.484565)]
-    [InlineData(AreaMethod.Wgs84Ellipsoid, 62.347761)]
-    public async Task The_reference_border_measures_what_the_intake_measures(AreaMethod method, double hectares)
+    [InlineData(AreaMethod.MeanSphere)]
+    [InlineData(AreaMethod.Wgs84Ellipsoid)]
+    public async Task The_reference_border_measures_what_the_intake_measures(AreaMethod method)
     {
         var chosen = method == AreaMethod.MeanSphere ? Model.MeanSphere : Model.Wgs84Ellipsoid;
 
         var (_, broker) = await MeasureAsync(new Model(chosen, StringValue(GeoJsonOf(ReferenceBorder))));
 
         broker.Fragments.Single().GetProperty("Things")[0].GetProperty("Properties").GetProperty("measuredAreaHectares")
-            .GetProperty("value").GetDouble().Should().BeApproximately(hectares, 1e-5);
+            .GetProperty("value").GetDouble().Should().BeApproximately(BorderArea.Hectares(ReferenceBorder, method), 1e-9);
     }
 
     [Fact]
