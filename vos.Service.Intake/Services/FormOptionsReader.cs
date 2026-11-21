@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
 using vos.Service.Shared;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -82,7 +83,7 @@ public static class FormOptionsReader
                 .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
                 .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
             ]),
-            AreaMethodReader.Read(snapshot).RoleWord);
+            DeclaredVocabularyReader.AreaMethod(snapshot).RoleWord);
     }
 
     private static List<DeclaredLayerKind> LayerKinds(

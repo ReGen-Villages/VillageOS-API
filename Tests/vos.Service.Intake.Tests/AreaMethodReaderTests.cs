@@ -1,5 +1,4 @@
 using FluentAssertions;
-using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
@@ -14,12 +13,12 @@ public class AreaMethodReaderTests
     {
         var model = DeclaredModel.Seeded();
 
-        var choice = AreaMethodReader.Read(model.Build());
+        var choice = DeclaredVocabularyReader.AreaMethod(model.Build());
 
         choice.Formula.Should().Be(AreaMethod.MeanSphere);
         choice.RoleWord.Should().Be(LandIntakeRoles.MeanSphereAreaMethod.Word);
-        choice.Method.Should().Be(new DeclaredTerm(DeclaredModel.MeanSphere, model.Id(DeclaredModel.MeanSphere)));
-        choice.AreaMeasuredWith.Should().Be(new DeclaredTerm("areaMeasuredWith", model.Id("areaMeasuredWith")));
+        choice.Method.Should().Be(new AreaMethodThing(DeclaredModel.MeanSphere, model.Id(DeclaredModel.MeanSphere)));
+        choice.AreaMeasuredWith.Should().Be(new AreaMethodThing("areaMeasuredWith", model.Id("areaMeasuredWith")));
     }
 
     [Fact]
@@ -29,7 +28,7 @@ public class AreaMethodReaderTests
             .Unrelate("Parcel", "measuresAreaWith")
             .Relate("Parcel", "measuresAreaWith", DeclaredModel.Wgs84Ellipsoid);
 
-        var choice = AreaMethodReader.Read(model.Build());
+        var choice = DeclaredVocabularyReader.AreaMethod(model.Build());
 
         choice.Formula.Should().Be(AreaMethod.Wgs84Ellipsoid);
         choice.RoleWord.Should().Be(LandIntakeRoles.Wgs84EllipsoidAreaMethod.Word);
@@ -41,8 +40,8 @@ public class AreaMethodReaderTests
     {
         var model = DeclaredModel.Seeded();
 
-        AreaMethodReader.Read(model.Build()).OtherMethods
-            .Should().Equal(new DeclaredTerm(DeclaredModel.Wgs84Ellipsoid, model.Id(DeclaredModel.Wgs84Ellipsoid)));
+        DeclaredVocabularyReader.AreaMethod(model.Build()).OtherMethods
+            .Should().Equal(new AreaMethodThing(DeclaredModel.Wgs84Ellipsoid, model.Id(DeclaredModel.Wgs84Ellipsoid)));
     }
 
     [Fact]
@@ -50,7 +49,7 @@ public class AreaMethodReaderTests
     {
         var model = DeclaredModel.Seeded().Unrelate("Parcel", "measuresAreaWith");
 
-        var reading = () => AreaMethodReader.Read(model.Build());
+        var reading = () => DeclaredVocabularyReader.AreaMethod(model.Build());
 
         reading.Should().Throw<ModelNotSeededError>().WithMessage("*measuresAreaWith*no method*");
     }
@@ -60,7 +59,7 @@ public class AreaMethodReaderTests
     {
         var model = DeclaredModel.Seeded().Relate("Parcel", "measuresAreaWith", DeclaredModel.Wgs84Ellipsoid);
 
-        var reading = () => AreaMethodReader.Read(model.Build());
+        var reading = () => DeclaredVocabularyReader.AreaMethod(model.Build());
 
         reading.Should().Throw<ModelNotSeededError>()
             .WithMessage($"*'{DeclaredModel.MeanSphere}'*'{DeclaredModel.Wgs84Ellipsoid}'*");
@@ -74,7 +73,7 @@ public class AreaMethodReaderTests
             .Unrelate("Parcel", "measuresAreaWith")
             .Relate("Parcel", "measuresAreaWith", "Flat plane");
 
-        var reading = () => AreaMethodReader.Read(model.Build());
+        var reading = () => DeclaredVocabularyReader.AreaMethod(model.Build());
 
         reading.Should().Throw<ModelNotSeededError>().WithMessage("*'Flat plane'*");
     }
