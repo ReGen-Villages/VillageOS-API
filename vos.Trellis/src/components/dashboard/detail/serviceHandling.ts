@@ -69,14 +69,17 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
+  const bound = (roleId: string) => {
+    const id = thingIdBoundBy(roleId, modelIndex);
+    return id === undefined ? undefined : modelIndex.byId.get(id);
+  };
   const membersOf = (roleId: string) => {
-    const archetypeId = thingIdBoundBy(roleId, modelIndex);
-    const archetype = archetypeId === undefined ? undefined : modelIndex.byId.get(archetypeId);
+    const archetype = bound(roleId);
     return archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
   };
   const connectionIds = membersOf(ROLE.Connection);
   const serviceIds = membersOf(ROLE.Service);
-  const notifiedConnectionPredicateId = thingIdBoundBy(NOTIFIED_CONNECTION_ROLE_ID, modelIndex);
+  const notifiedConnectionPredicateId = bound(NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
   // A connection binds its service through a predicate of the model's choosing, so the service is found by what
   // the relationship reaches, never by the predicate's name.
@@ -101,7 +104,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     serviceByConnection,
     notifiedConnectionOf,
     archetypesOf,
-    recordPredicateId: thingIdBoundBy(CALL_RECORD_ROLE_ID, modelIndex),
+    recordPredicateId: bound(CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
