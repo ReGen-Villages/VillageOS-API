@@ -242,7 +242,7 @@ public static class SubmissionFragmentComposer
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
 
-        // A site's soil and land cover are read once per Thing it holds for each term, as a hazard is graded once per assessment.
+        // The site has one Thing per declared term, so each soil depth and each land-cover class is read on its own, as each hazard is graded on its own assessment.
         void OnePerTerm(DeclaredTerm? archetype, DeclaredTerms? declared, string kind)
         {
             if (archetype is null || declared is null) return;

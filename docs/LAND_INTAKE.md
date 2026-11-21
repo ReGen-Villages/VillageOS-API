@@ -715,12 +715,14 @@ flowchart LR
   AL["<b>ProgrammeAllocation</b><br/>share · area"]
   HA["<b>HazardAssessment</b><br/>level · date<br/>general and climate-change recommendations"]
   SH["<b>SoilHorizon</b><br/>soil properties at one depth"]
+  LCS["<b>LandCoverShare</b><br/>share · area · pixels of one class"]
   DS["<b>SubmittedSource</b><br/>which source · coverage<br/>last resolved"]
 
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area · fetched-from-register"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
   HT["<b>HazardType</b><br/>river-flood · landslide · wildfire<br/>…one Thing per hazard"]
   SDE["<b>SoilDepth</b><br/>0-5cm · 5-15cm<br/>…one Thing per depth"]
+  LCC["<b>LandCoverClass</b><br/>tree-cover · cropland · built-up<br/>…one Thing per class"]
 
   SU -->|proposes| SI
   SU -->|resolvedAs| SD
@@ -737,6 +739,8 @@ flowchart LR
   HA -->|assesses| HT
   SI -->|has| SH
   SH -->|assesses| SDE
+  SI -->|has| LCS
+  LCS -->|assesses| LCC
 ```
 
 **A category, a boundary source and a hazard type are Things, and a submission relates to them.** All
@@ -820,7 +824,9 @@ land, not asking for a list they supplied to be graded. Naming one is therefore 
 seen, not choosing what is looked into: it adds the source they cite, and the assessment is the same
 Thing the site has in any case. A model declaring a hazard of its own gets it assessed with no change here.
 A site likewise gets one `SoilHorizon` per soil depth the model declares, which `assesses` that depth,
-and a model declaring no soil vocabulary composes without them.
+and a model declaring no soil vocabulary composes without them. It also gets one `LandCoverShare` per
+land-cover class, which `assesses` that class; a model declaring no land-cover vocabulary composes
+without them.
 
 **An assessment reaches its source, rather than naming it.** The source is the `SubmittedSource` Thing
 the assessment hangs off, not a name copied onto it — one per submission, under the archetype that says a

@@ -249,9 +249,6 @@ public class DeclaredVocabularyReaderTests
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SoilDepths.Should().BeNull();
     }
 
-    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
-    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
-    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_land_cover_classes_reads_them_and_one_declaring_none_reads_none()
     {
@@ -266,6 +263,9 @@ public class DeclaredVocabularyReaderTests
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).LandCoverClasses.Should().BeNull();
     }
 
+    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
+    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
+    // word is already written and something has to say it means nothing.
     [Fact]
     public void A_model_declaring_no_water_demands_reads_none_rather_than_refusing()
     {
