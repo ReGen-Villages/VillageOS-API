@@ -1751,6 +1751,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     boundaryTooFewCorners: "للحدود {{corners}} زوايا، وتحتاج إلى ثلاث على الأقل.",
     modelRefused: "رفض النموذج الطلب: {{refusal}}",
     referenceAndAddressNeeded: "يلزم كل من المرجع وعنوان البريد الإلكتروني.",
+    pageNotOffered: "لا يمكن عرض هذه الصفحة هنا. افتح صفحة البيانات Lite أو Pro.",
     notYourSubmission: "لم يُعثر على طلب بهذا المرجع وهذا العنوان. تحقّق من كليهما؛ يُحذف الطلب بعد معالجته.",
     reductionMalformed: "طلبت هذه الصفحة سجلًا لم تستطع وصفه.",
     fileNotAForm: "لم يُرسل الملف كنموذج.",

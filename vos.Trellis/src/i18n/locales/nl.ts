@@ -1645,6 +1645,7 @@ export const nl: PartialResources = {
     boundaryTooFewCorners: "De grens heeft {{corners}} hoeken; er zijn er minstens drie nodig.",
     modelRefused: "Het model heeft de inzending geweigerd: {{refusal}}",
     referenceAndAddressNeeded: "Zowel de referentie als het e-mailadres is nodig.",
+    pageNotOffered: "Deze pagina kan hier niet worden getoond. Open de Lite- of de Pro-gegevenspagina.",
     notYourSubmission: "Er is geen inzending gevonden voor die referentie en dat adres. Controleer beide; een inzending wordt gewist zodra ze is afgehandeld.",
     reductionMalformed: "Deze pagina vroeg om een geschiedenis die ze niet kon beschrijven.",
     fileNotAForm: "Het bestand is niet als formulier verzonden.",

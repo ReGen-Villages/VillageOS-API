@@ -1645,6 +1645,7 @@ export const es: PartialResources = {
     boundaryTooFewCorners: "El límite tiene {{corners}} vértices; necesita al menos tres.",
     modelRefused: "El modelo ha rechazado la solicitud: {{refusal}}",
     referenceAndAddressNeeded: "Se necesitan tanto la referencia como la dirección de correo.",
+    pageNotOffered: "Esta página no se puede mostrar aquí. Abra la página de datos Lite o Pro.",
     notYourSubmission: "No se ha encontrado ninguna solicitud con esa referencia y esa dirección. Comprueba ambas; una solicitud se borra una vez tramitada.",
     reductionMalformed: "Esta página ha pedido un historial que no ha sabido describir.",
     fileNotAForm: "El archivo no se ha enviado como formulario.",

@@ -9,7 +9,7 @@ namespace vos.Service.Intake.Services;
 // What the page a submitter opens is drawn from, read out of the model that page cannot read for itself.
 //
 // Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model binds
-// to the role of the one a submitter may read; the Things that never travel are whichever archetype it binds
+// to the page role the request names; the Things that never travel are whichever archetype it binds
 // to the role of carrying personal details; and the relationships the reading follows are the ones that
 // page's own specification walks. So a project may re-author the page, and what a submitter is sent follows
 // it without a change here.
@@ -24,9 +24,8 @@ namespace vos.Service.Intake.Services;
 // serialized off a Thing keeps the capital it was declared with.
 public static class FindingsReader
 {
-    // The page a submitter may read, and the archetype whose members never leave the model, each through the
-    // role the platform's land-intake template binds it with.
-    public static readonly Role PageRole = LandIntakeRoles.SubmitterFindingsDashboard;
+    // The archetype whose members never leave the model, through the role the platform's land-intake template binds
+    // it with.
     public static readonly Role PersonalDetailRole = LandIntakeRoles.PersonalDetail;
 
     public const string SpecificationProperty = "specification";
@@ -37,13 +36,15 @@ public static class FindingsReader
     public static readonly Role PropertyNameRole = LandIntakeRoles.PropertyName;
     public const string NamesPropertyOfPredicate = "namesPropertyOf";
 
-    // What the model declares, plus the contact of the one submission being asked about. Read
+    public static Role? OfferedPage(Guid? roleId) => LandIntakeRoles.SubmitterPages.FirstOrDefault(page => page.Id == roleId);
+
+    // What the model declares for one page, plus the contact of the one submission being asked about. Read
     // together because none of it is answered to anybody: the address is compared against the ticket and
     // dropped, and the bindings decide what the second read may carry. Only the `binds` relationships
     // travel, so the contact's own relationships stay out of a read that answers nothing to anybody.
-    public static SubscriptionSelector DeclarationSelector(Guid contactId) => new()
+    public static SubscriptionSelector DeclarationSelector(Guid contactId, Role page) => new()
     {
-        Ids = [contactId, PageRole.Id, PersonalDetailRole.Id],
+        Ids = [contactId, page.Id, PersonalDetailRole.Id],
         Names = [RoleBindings.BindsPredicateName],
         Traverse = [RoleBindings.FollowBindings],
         IncludeIsAncestors = false,
@@ -51,36 +52,36 @@ public static class FindingsReader
         Relationships = [new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" }],
     };
 
-    public static Role? OfferedPage(Guid? roleId) => throw new NotImplementedException();
-
-    public static SubscriptionSelector DeclarationSelector(Guid contactId, Role page) => throw new NotImplementedException();
-
-    public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId, Role page) =>
-        throw new NotImplementedException();
-
-    public static SubscriptionSelector ContactSelector(Guid contactId) => throw new NotImplementedException();
-
-    public static string? ReadContactAddress(JsonElement snapshot, Guid contactId) => throw new NotImplementedException();
-
-    public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId)
+    public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId, Role page)
     {
         var things = Things(snapshot).ToList();
 
-        var page = Bound(snapshot, things, PageRole);
+        var pages = Bound(snapshot, things, page);
         var personal = Bound(snapshot, things, PersonalDetailRole);
-        RefuseAModelThatCannotAnswerSafely(page, personal);
+        RefuseAModelThatCannotAnswerSafely(page, pages, personal);
 
-        var specification = PropertyText(page[0], SpecificationProperty)
+        var specification = PropertyText(pages[0], SpecificationProperty)
             ?? throw new ModelNotSeededError(
-                $"the page the role {PageRole.Word} binds carries no '{SpecificationProperty}', so there is "
+                $"the page the role {page.Word} binds carries no '{SpecificationProperty}', so there is "
                 + "nothing to draw. Seed the model from the analysis templates.");
 
-        var contact = things.FirstOrDefault(thing => Identifier(thing) == contactId);
-        return new SubmitterDeclarations(
-            specification,
-            Identifier(personal[0]),
-            contact is { } named ? PropertyText(named, EmailAddressProperty) : null);
+        return new SubmitterDeclarations(specification, Identifier(personal[0]), AddressOf(things, contactId));
     }
+
+    public static SubscriptionSelector ContactSelector(Guid contactId) => new()
+    {
+        Ids = [contactId],
+        IncludeIsAncestors = false,
+        IncludeRelationships = false,
+    };
+
+    public static string? ReadContactAddress(JsonElement snapshot, Guid contactId) =>
+        AddressOf(Things(snapshot).ToList(), contactId);
+
+    private static string? AddressOf(List<JsonElement> things, Guid contactId) =>
+        things.FirstOrDefault(thing => Identifier(thing) == contactId) is { ValueKind: JsonValueKind.Object } named
+            ? PropertyText(named, EmailAddressProperty)
+            : null;
 
     // The reading the page is drawn from: the site, and what the specification's own walks reach from
     // it. Depth is unbounded because a walk that nests — a site to its parcel to where the boundary came
@@ -185,11 +186,11 @@ public static class FindingsReader
     // would answer a submitter with a reading nothing was filtered out of, and that filter is the only
     // thing standing between a walk and a landowner's address. A role bound to two Things is the same
     // refusal: which of them was meant is not this service's to guess.
-    private static void RefuseAModelThatCannotAnswerSafely(JsonElement[] page, JsonElement[] personal)
+    private static void RefuseAModelThatCannotAnswerSafely(Role page, JsonElement[] pages, JsonElement[] personal)
     {
         var wrong = new[]
         {
-            page.Length == 1 ? null : $"{page.Length} Things bound to the role {PageRole.Word}",
+            pages.Length == 1 ? null : $"{pages.Length} Things bound to the role {page.Word}",
             personal.Length == 1 ? null : $"{personal.Length} Things bound to the role {PersonalDetailRole.Word}",
         }.OfType<string>().ToArray();
 

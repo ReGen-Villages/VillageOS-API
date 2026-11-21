@@ -25,7 +25,6 @@ public static class LandIntakeRoles
     public static readonly Role SubmissionDisposition = new("submissionDisposition", new("f4c54fc1-2c17-54bc-b8e8-c467e8fa321a"));
     public static readonly Role ResolvedAs = new("resolvedAs", new("92e4581a-4936-58b1-a783-36a051aa0a43"));
     public static readonly Role Theme = new("theme", new("d81072a6-1f26-5d4c-a8ce-59957f25ca29"));
-    public static readonly Role SubmitterFindingsDashboard = new("submitterFindingsDashboard", new("3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7"));
     public static readonly Role SubmitterProDataPage = new("submitterProDataPage", new("f7976253-aff8-5f8e-b5cf-dd822312c2ee"));
     public static readonly Role SubmitterLiteDataPage = new("submitterLiteDataPage", new("5bf9dc23-f819-5480-9cc4-b57cec64540c"));
     public static readonly Role RootPlace = new("rootPlace", new("18d228a8-2bed-5b05-8026-2526cf939dfd"));
@@ -74,8 +73,8 @@ public static class LandIntakeRoles
     [
         SiteStudy, Site, AllocationCategory, CategorizedAs, WaterDemandComponent, PropertyName, ProposedSite,
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
-        ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, SubmitterProDataPage,
-        SubmitterLiteDataPage, RootPlace, PlaceNesting,
+        ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterProDataPage, SubmitterLiteDataPage, RootPlace,
+        PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
         PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,

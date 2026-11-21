@@ -1644,6 +1644,7 @@ export const en = {
     boundaryTooFewCorners: "The boundary has {{corners}} corners; it needs at least three.",
     modelRefused: "The model refused the submission: {{refusal}}",
     referenceAndAddressNeeded: "Both the reference and the email address are needed.",
+    pageNotOffered: "This page cannot be shown here. Open the Lite or the Pro Data page.",
     notYourSubmission: "No submission was found for that reference and address. Check both; a submission is cleared once it has been dealt with.",
     reductionMalformed: "This page asked for a history it could not describe.",
     fileNotAForm: "The file was not sent as a form.",
