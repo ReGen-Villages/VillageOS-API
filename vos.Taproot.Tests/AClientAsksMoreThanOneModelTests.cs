@@ -92,6 +92,8 @@ public class AClientAsksMoreThanOneModelTests
     [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":"not an identifier","Name":"Hillside"}]}""")]
     [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":"7a1f0f5e-52a4-4c7b-9d0a-3f1f3c1f8a10"}]}""")]
     [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":7,"Name":"Hillside"}]}""")]
+    [InlineData("""{"error":"No models loaded"}""")]
+    [InlineData("not json")]
     public async Task A_refusal_whose_list_names_no_model_it_can_read_is_an_ordinary_refusal(string answered)
     {
         var mycelium = new MockHttpMessageHandler(_ => Json(answered, HttpStatusCode.BadRequest));
