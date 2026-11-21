@@ -10,38 +10,38 @@ function relationship(id: string, subjectId: string, predicateId: string, target
   return { Id: id, Name: id, SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
 }
 
-// project -has-> task -has-> assignment, project -has-> steward, project -references-> phase -contains-> project.
-// `has` reaches both a task and a steward, so archetype filtering must tell them apart.
+// site -has-> building -has-> array, site -has-> spring, site -references-> catchment -contains-> site.
+// `has` reaches both a building and a spring, so archetype filtering must tell them apart.
 function fixture() {
   const things = [
-    thing('project', 'PRJ-1'),
-    thing('task', 'PRJ-1-T1', { quantity: 5, code: 'RES-9' }),
-    thing('assignment', 'PRJ-1-T1-A', { quantity: 5 }),
-    thing('resource', 'RES-9', { code: 'RES-9', description: 'Compost' }),
-    thing('steward', 'STW-1', { display_name: 'Rowan' }),
-    thing('phase', 'PHS-1', { phase_number: 'P-1' }),
-    thing('ProjectTask', 'ProjectTask'),
-    thing('Assignment', 'Assignment'),
-    thing('Resource', 'Resource'),
-    thing('Steward', 'Steward'),
-    thing('Phase', 'Phase'),
+    thing('site', 'SITE-1'),
+    thing('building', 'SITE-1-B1', { quantity: 5, code: 'RES-9' }),
+    thing('array', 'SITE-1-B1-A', { quantity: 5 }),
+    thing('reservoir', 'RES-9', { code: 'RES-9', description: 'Upper reservoir' }),
+    thing('spring', 'SPR-1', { display_name: 'North spring' }),
+    thing('catchment', 'CAT-1', { catchment_number: 'C-1' }),
+    thing('Building', 'Building'),
+    thing('Array', 'Array'),
+    thing('Reservoir', 'Reservoir'),
+    thing('Spring', 'Spring'),
+    thing('Catchment', 'Catchment'),
     thing('has', 'has'),
     thing('references', 'references'),
     thing('contains', 'contains'),
     thing('is', 'is'),
   ];
   const relationships = [
-    relationship('r1', 'project', 'has', 'task'),
-    relationship('r2', 'task', 'has', 'assignment'),
-    relationship('r3', 'project', 'has', 'steward'),
-    relationship('r4', 'project', 'references', 'phase'),
-    relationship('r5', 'phase', 'contains', 'project'),
-    relationship('r6', 'task', 'references', 'resource'),
-    relationship('i1', 'task', 'is', 'ProjectTask'),
-    relationship('i2', 'assignment', 'is', 'Assignment'),
-    relationship('i3', 'steward', 'is', 'Steward'),
-    relationship('i4', 'phase', 'is', 'Phase'),
-    relationship('i5', 'resource', 'is', 'Resource'),
+    relationship('r1', 'site', 'has', 'building'),
+    relationship('r2', 'building', 'has', 'array'),
+    relationship('r3', 'site', 'has', 'spring'),
+    relationship('r4', 'site', 'references', 'catchment'),
+    relationship('r5', 'catchment', 'contains', 'site'),
+    relationship('r6', 'building', 'references', 'reservoir'),
+    relationship('i1', 'building', 'is', 'Building'),
+    relationship('i2', 'array', 'is', 'Array'),
+    relationship('i3', 'spring', 'is', 'Spring'),
+    relationship('i4', 'catchment', 'is', 'Catchment'),
+    relationship('i5', 'reservoir', 'is', 'Reservoir'),
   ];
   return buildModelIndex(things, relationships);
 }
@@ -49,83 +49,83 @@ function fixture() {
 describe('resolveRelations', () => {
   it('follows an outbound predicate and keeps only the configured archetype', () => {
     const index = fixture();
-    const [group] = resolveRelations('project', index, [
-      { predicate: 'has', direction: 'out', archetype: 'ProjectTask', label: 'Project tasks' },
+    const [group] = resolveRelations('site', index, [
+      { predicate: 'has', direction: 'out', archetype: 'Building', label: 'Buildings' },
     ]);
-    expect(group.label).toBe('Project tasks');
-    expect(group.edges.map((e) => e.relatedName)).toEqual(['PRJ-1-T1']);
-    expect(group.edges.some((e) => e.relatedName === 'STW-1')).toBe(false);
+    expect(group.label).toBe('Buildings');
+    expect(group.edges.map((e) => e.relatedName)).toEqual(['SITE-1-B1']);
+    expect(group.edges.some((e) => e.relatedName === 'SPR-1')).toBe(false);
   });
 
   it('names the subject and target of each edge by direction', () => {
     const index = fixture();
-    const [out] = resolveRelations('project', index, [{ predicate: 'has', direction: 'out', archetype: 'ProjectTask' }]);
-    expect(out.edges[0]).toMatchObject({ subjectName: 'PRJ-1', targetName: 'PRJ-1-T1' });
-    const [inbound] = resolveRelations('project', index, [{ predicate: 'contains', direction: 'in', archetype: 'Phase' }]);
-    expect(inbound.edges[0]).toMatchObject({ subjectName: 'PHS-1', targetName: 'PRJ-1' });
+    const [out] = resolveRelations('site', index, [{ predicate: 'has', direction: 'out', archetype: 'Building' }]);
+    expect(out.edges[0]).toMatchObject({ subjectName: 'SITE-1', targetName: 'SITE-1-B1' });
+    const [inbound] = resolveRelations('site', index, [{ predicate: 'contains', direction: 'in', archetype: 'Catchment' }]);
+    expect(inbound.edges[0]).toMatchObject({ subjectName: 'CAT-1', targetName: 'SITE-1' });
   });
 
   it('shows only the requested properties, or all with "*"', () => {
     const index = fixture();
-    const [some] = resolveRelations('project', index, [
-      { predicate: 'has', archetype: 'ProjectTask', properties: ['quantity'] },
+    const [some] = resolveRelations('site', index, [
+      { predicate: 'has', archetype: 'Building', properties: ['quantity'] },
     ]);
     expect(some.edges[0].properties).toEqual([['quantity', 5]]);
-    const [all] = resolveRelations('project', index, [
-      { predicate: 'has', archetype: 'ProjectTask', properties: '*' },
+    const [all] = resolveRelations('site', index, [
+      { predicate: 'has', archetype: 'Building', properties: '*' },
     ]);
     expect(all.edges[0].properties).toEqual(expect.arrayContaining([['quantity', 5], ['code', 'RES-9']]));
-    const [none] = resolveRelations('project', index, [{ predicate: 'has', archetype: 'ProjectTask' }]);
+    const [none] = resolveRelations('site', index, [{ predicate: 'has', archetype: 'Building' }]);
     expect(none.edges[0].properties).toEqual([]);
   });
 
   it('nests child relations from each matched Thing', () => {
     const index = fixture();
-    const [group] = resolveRelations('project', index, [
+    const [group] = resolveRelations('site', index, [
       {
         predicate: 'has',
-        archetype: 'ProjectTask',
-        relations: [{ predicate: 'has', archetype: 'Assignment', label: 'Assignment', properties: ['quantity'] }],
+        archetype: 'Building',
+        relations: [{ predicate: 'has', archetype: 'Array', label: 'Array', properties: ['quantity'] }],
       },
     ]);
     const child = group.edges[0].children[0];
-    expect(child.label).toBe('Assignment');
-    expect(child.edges[0].relatedName).toBe('PRJ-1-T1-A');
+    expect(child.label).toBe('Array');
+    expect(child.edges[0].relatedName).toBe('SITE-1-B1-A');
     expect(child.edges[0].properties).toEqual([['quantity', 5]]);
   });
 
   it('folds an inline relation onto the parent row instead of nesting it', () => {
     const index = fixture();
-    const [group] = resolveRelations('project', index, [
+    const [group] = resolveRelations('site', index, [
       {
         predicate: 'has',
-        archetype: 'ProjectTask',
+        archetype: 'Building',
         properties: ['quantity'],
-        relations: [{ predicate: 'references', archetype: 'Resource', properties: ['code'], inline: true }],
+        relations: [{ predicate: 'references', archetype: 'Reservoir', properties: ['code'], inline: true }],
       },
     ]);
-    const task = group.edges[0];
-    expect(task.properties).toEqual([['code', 'RES-9'], ['quantity', 5]]);
-    expect(task.children).toEqual([]);
+    const building = group.edges[0];
+    expect(building.properties).toEqual([['code', 'RES-9'], ['quantity', 5]]);
+    expect(building.children).toEqual([]);
   });
 
   it('preserves the configured order of relation groups', () => {
     const index = fixture();
-    const groups = resolveRelations('project', index, [
-      { predicate: 'references', archetype: 'Phase', label: 'Phase' },
-      { predicate: 'has', archetype: 'Steward', label: 'Steward' },
+    const groups = resolveRelations('site', index, [
+      { predicate: 'references', archetype: 'Catchment', label: 'Catchment' },
+      { predicate: 'has', archetype: 'Spring', label: 'Spring' },
     ]);
-    expect(groups.map((g) => g.label)).toEqual(['Phase', 'Steward']);
+    expect(groups.map((g) => g.label)).toEqual(['Catchment', 'Spring']);
   });
 
   it('is cycle-guarded when a relation loops back to the root', () => {
     const index = fixture();
-    // project -references-> phase -contains-> project: the nested contains must not re-expand the root.
-    const [group] = resolveRelations('project', index, [
-      { predicate: 'references', archetype: 'Phase', relations: [{ predicate: 'contains', direction: 'out' }] },
+    // site -references-> catchment -contains-> site: the nested contains must not re-expand the root.
+    const [group] = resolveRelations('site', index, [
+      { predicate: 'references', archetype: 'Catchment', relations: [{ predicate: 'contains', direction: 'out' }] },
     ]);
-    const phaseChildren = group.edges[0].children[0];
-    expect(phaseChildren.edges.some((e) => e.thingId === 'project')).toBe(false);
+    const catchmentChildren = group.edges[0].children[0];
+    expect(catchmentChildren.edges.some((e) => e.thingId === 'site')).toBe(false);
   });
 });
 
@@ -139,16 +139,16 @@ describe('buildStateChanges', () => {
 
   it('orders changes oldest first', () => {
     const changes = buildStateChanges([
-      transition('2026-07-14T09:31:00Z', ['growing'], []),
-      transition('2026-07-14T09:14:00Z', ['planted'], []),
+      transition('2026-07-14T09:31:00Z', ['overflowing'], []),
+      transition('2026-07-14T09:14:00Z', ['filling'], []),
     ]);
     expect(changes.map((c) => c.at)).toEqual(['2026-07-14T09:14:00Z', '2026-07-14T09:31:00Z']);
-    expect(changes[0].entered).toEqual(['planted']);
+    expect(changes[0].entered).toEqual(['filling']);
   });
 
   it('drops transitions that neither enter nor exit a state', () => {
     const changes = buildStateChanges([
-      transition('2026-07-14T09:14:00Z', ['planted'], []),
+      transition('2026-07-14T09:14:00Z', ['filling'], []),
       transition('2026-07-14T09:20:00Z', [], []),
     ]);
     expect(changes).toHaveLength(1);

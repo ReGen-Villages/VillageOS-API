@@ -33,11 +33,11 @@ describe('PipelineNodeView', () => {
   });
 
   it('shows what a relate box relates along, as the drawing worked it out', () => {
-    const props = { id: 'relate', data: { label: 'Relate', kind: 'relate', ports: [], relating: 'relates along ripens, then waits for ripe' } } as unknown as NodeProps;
+    const props = { id: 'relate', data: { label: 'Relate', kind: 'relate', ports: [], relating: 'relates along overflows, then waits for overflowing' } } as unknown as NodeProps;
 
     const { getByText } = render(<ReactFlowProvider><PipelineNodeView {...props} /></ReactFlowProvider>);
 
-    expect(getByText('relates along ripens, then waits for ripe')).toBeInTheDocument();
+    expect(getByText('relates along overflows, then waits for overflowing')).toBeInTheDocument();
   });
 
   it.each([
