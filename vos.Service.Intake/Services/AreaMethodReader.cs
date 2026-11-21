@@ -47,7 +47,7 @@ public static class AreaMethodReader
             if (snapshot.Bound(role).Any(bound => bound.Id == methodId))
                 return new AreaMethodChoice(
                     new DeclaredTerm(NameOf(methodId), methodId), formula, role.Word,
-                    new DeclaredTerm(areaMeasuredWith.Name ?? string.Empty, areaMeasuredWith.Id));
+                    new DeclaredTerm(areaMeasuredWith.Name ?? string.Empty, areaMeasuredWith.Id), []);
 
         throw new ModelNotSeededError(
             $"the Parcel archetype measures area with '{NameOf(methodId)}', which no area method role this service "

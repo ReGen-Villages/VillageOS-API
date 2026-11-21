@@ -146,11 +146,13 @@ public static class WillowBend
 
     public static AreaMethodChoice MeasuredOnTheMeanSphere => new(
         new DeclaredTerm("Mean sphere", TermId("Mean sphere")), AreaMethod.MeanSphere, "meanSphereAreaMethod",
-        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId));
+        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new DeclaredTerm("WGS84 ellipsoid", TermId("WGS84 ellipsoid"))]);
 
     public static AreaMethodChoice MeasuredOnTheEllipsoid => new(
         new DeclaredTerm("WGS84 ellipsoid", TermId("WGS84 ellipsoid")), AreaMethod.Wgs84Ellipsoid, "wgs84EllipsoidAreaMethod",
-        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId));
+        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId),
+        [new DeclaredTerm("Mean sphere", TermId("Mean sphere"))]);
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

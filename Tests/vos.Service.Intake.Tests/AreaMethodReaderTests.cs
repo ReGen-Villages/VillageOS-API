@@ -37,6 +37,15 @@ public class AreaMethodReaderTests
     }
 
     [Fact]
+    public void The_choice_names_every_other_method_the_model_declares_so_a_parcel_can_forget_it()
+    {
+        var model = DeclaredModel.Seeded();
+
+        AreaMethodReader.Read(model.Build()).OtherMethods
+            .Should().Equal(new DeclaredTerm(DeclaredModel.Wgs84Ellipsoid, model.Id(DeclaredModel.Wgs84Ellipsoid)));
+    }
+
+    [Fact]
     public void A_model_whose_parcel_archetype_chooses_no_method_is_refused_saying_so()
     {
         var model = DeclaredModel.Seeded().Unrelate("Parcel", "measuresAreaWith");

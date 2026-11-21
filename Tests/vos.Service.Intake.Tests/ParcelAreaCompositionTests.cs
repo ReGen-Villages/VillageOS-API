@@ -37,6 +37,21 @@ public class ParcelAreaCompositionTests
     }
 
     [Fact]
+    public void A_parcel_amended_after_a_change_of_method_names_only_the_method_now_configured()
+    {
+        var before = WillowBend.MeasuredOnTheMeanSphere;
+        var after = WillowBend.MeasuredOnTheEllipsoid;
+
+        var amended = ComposedMeasuringWith(after);
+
+        amended.Fragment.Relationships.Should().NotContain(edge =>
+            edge.Subject == amended.ParcelId && edge.Predicate == after.AreaMeasuredWith.Id && edge.Target == before.Method.Id);
+        amended.Fragment.Retractions.Should().ContainSingle(edge =>
+            edge.Subject == amended.ParcelId && edge.Predicate == after.AreaMeasuredWith.Id && edge.Target == before.Method.Id);
+        amended.Fragment.Retractions.Should().NotContain(edge => edge.Target == after.Method.Id);
+    }
+
+    [Fact]
     public void The_parcel_names_the_method_its_area_was_measured_with_in_the_same_fragment()
     {
         var method = WillowBend.MeasuredOnTheEllipsoid;
