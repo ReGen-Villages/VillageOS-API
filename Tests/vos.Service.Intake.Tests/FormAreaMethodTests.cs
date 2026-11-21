@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
 using Xunit;
 

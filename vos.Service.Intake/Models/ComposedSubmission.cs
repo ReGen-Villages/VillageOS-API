@@ -55,5 +55,3 @@ public sealed record DeclaredVocabulary(
     DeclaredTerm SiteStudy, AreaMethodChoice AreaMethod, DeclaredTerms? SoilDepths = null,
     DeclaredTerms? LandCoverClasses = null);
 
-public sealed record AreaMethodChoice(
-    DeclaredTerm Method, AreaMethod Formula, string RoleWord, DeclaredTerm AreaMeasuredWith, IReadOnlyList<DeclaredTerm> OtherMethods);
