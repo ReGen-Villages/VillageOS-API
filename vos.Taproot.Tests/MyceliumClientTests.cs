@@ -767,6 +767,48 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetThingBoundByAsync_AsksForTheThingTheRoleBinds()
+    {
+        var role = Guid.NewGuid();
+
+        var captured = await CaptureRequest(client => client.GetThingBoundByAsync(role));
+
+        captured.Method.Should().Be(HttpMethod.Get);
+        captured.RequestUri!.PathAndQuery.Should().Be($"/api/things?boundBy={role}");
+    }
+
+    [Fact]
+    public async Task GetThingBoundByAsync_BoundReturnsTheThing_UnboundReturnsNull()
+    {
+        var role = Guid.NewGuid();
+        var (bound, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token" ? TokenResponse(ServiceToken) : JsonResponse("{\"Name\":\"Spring\"}"));
+        var (unbound, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token" ? TokenResponse(ServiceToken) : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        (await bound.GetThingBoundByAsync(role))!.Value.GetProperty("Name").GetString().Should().Be("Spring");
+        (await unbound.GetThingBoundByAsync(role)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AClientGivenAProgramName_NamesThatProgramOnEveryRequest()
+    {
+        HttpRequestMessage? captured = null;
+        var client = new MyceliumClient(
+            "https://localhost:7243", "an-api-key",
+            new HttpClient(new MockHttpMessageHandler(req =>
+            {
+                captured = req;
+                return TokenResponse(ServiceToken);
+            })),
+            programName: "Another program");
+
+        await client.GetTokenAsync();
+
+        captured!.Headers.GetValues(MyceliumClient.ProgramHeader).Should().ContainSingle("Another program");
+    }
+
+    [Fact]
     public async Task GetRelationshipAsync_NotFound_ReturnsNull()
     {
         var (client, _) = NewClient(req =>

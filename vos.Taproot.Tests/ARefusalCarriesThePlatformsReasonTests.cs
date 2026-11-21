@@ -68,6 +68,7 @@ public class ARefusalCarriesThePlatformsReasonTests
             ["list ranges"] = client => client.GetRangesAsync(AnyId),
             ["read a range"] = client => client.GetRangeAsync(AnyId, "low"),
             ["list states"] = client => client.GetStatesAsync(AnyId),
+            ["read what a role binds"] = client => client.GetThingBoundByAsync(AnyId),
             ["validate criteria"] = client => client.ValidateCriteriaAsync("level <"),
         }
         .Concat(RoutesThatAnswerWhetherItWasThere.Select(route =>
