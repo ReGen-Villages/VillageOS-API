@@ -109,7 +109,7 @@ public class TransectNodeTests
     }
 
     private static TransectNode NodeAnsweredBy(Broker broker) =>
-        new(new TestHttpClientFactory(new HttpClient(new MockHttpMessageHandler(broker.Answer))),
+        new(new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)),
             NullLogger<TransectNode>.Instance, MyceliumUrl, new LaunchToken("svc-jwt"));
 
     private static JsonElement Envelope(string subject) =>
