@@ -87,12 +87,12 @@ describe('the rail of catalysts', () => {
   });
 
   it('lists a predicate that is no connection but names one along notifies, offering a start node that Phloem starts from', () => {
-    expect(rowFor(id.ripens)).toMatchObject({ kind: 'relationship', what: 'ripens', today: 'Balancer', placeable: true });
-    expect(rowFor(id.ripensCalled)).toBeUndefined();
+    expect(rowFor(id.overflows)).toMatchObject({ kind: 'relationship', what: 'overflows', today: 'Balancer', placeable: true });
+    expect(rowFor(id.overflowsCalled)).toBeUndefined();
   });
 
   it('takes no archetype naming a connection along notifies for a relationship written along it', () => {
-    expect(group('relationships').map((each) => each.what)).toEqual(['balances', 'feeds', 'ripens']);
+    expect(group('relationships').map((each) => each.what)).toEqual(['balances', 'feeds', 'overflows']);
   });
 
   it('leaves out the orchestrator\'s own connections and the connection a system is told through, which no run starts from', () => {

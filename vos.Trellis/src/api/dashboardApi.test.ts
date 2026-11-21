@@ -375,10 +375,10 @@ describe('resolveBinding', () => {
   });
 
   it('stateCount answers with the count the state endpoint gave', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 3 });
-    const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, contextFor(null));
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'overflowing', Count: 3 });
+    const v = await resolveBinding({ kind: 'stateCount', state: 'overflowing' }, contextFor(null));
     expect(v).toBe(3);
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('overflowing', expect.objectContaining({ countOnly: true }));
   });
 
   it('stateList lays out the columns the platform sent beside each id', async () => {
@@ -395,21 +395,21 @@ describe('resolveBinding', () => {
 
   // A state can hold Things of several archetypes.
   describe('archetype narrowing', () => {
-    // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
-    function orderContext(): ResolveContext {
+    // Model: 2 Reservoirs + 1 Spring, all is-typed; state "open" holds all three.
+    function reservoirContext(): ResolveContext {
       const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
       const things: VosThing[] = [
-        t('is', 'is'), t('arch-order', 'Order'), t('arch-line', 'OrderLine'),
-        t('o1', 'O-1'), t('o2', 'O-2'), t('l1', 'L-1'),
+        t('is', 'is'), t('arch-reservoir', 'Reservoir'), t('arch-spring', 'Spring'),
+        t('res1', 'RES-1'), t('res2', 'RES-2'), t('spr1', 'SPR-1'),
       ];
       const relationship = (SubjectId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
         SubjectId, PredicateId: 'is', TargetId, Properties: {},
       });
-      const relationships = [relationship('o1', 'arch-order'), relationship('o2', 'arch-order'), relationship('l1', 'arch-line')];
+      const relationships = [relationship('res1', 'arch-reservoir'), relationship('res2', 'arch-reservoir'), relationship('spr1', 'arch-spring')];
       return {
         index: buildModelIndex(declared(things, relationships), relationships),
-        scopeId: null, compareArchetype: 'Order', reads: brokerModelReads(),
+        scopeId: null, compareArchetype: 'Reservoir', reads: brokerModelReads(),
       };
     }
 
@@ -417,28 +417,28 @@ describe('resolveBinding', () => {
     // discarding what it asked for.
     beforeEach(() => {
       vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state, narrowing) => {
-        const Things = narrowing?.type === 'Order'
-          ? [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }]
-          : [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }];
+        const Things = narrowing?.type === 'Reservoir'
+          ? [{ Id: 'res1', Name: 'RES-1' }, { Id: 'res2', Name: 'RES-2' }]
+          : [{ Id: 'res1', Name: 'RES-1' }, { Id: 'res2', Name: 'RES-2' }, { Id: 'spr1', Name: 'SPR-1' }];
         return narrowing?.countOnly ? { StateName: 'open', Count: Things.length } : { StateName: 'open', Things };
       });
     });
 
     it('stateCount counts only Things of the given archetype', async () => {
-      const v = await resolveBinding({ kind: 'stateCount', state: 'open', archetype: 'Order' }, orderContext());
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open', archetype: 'Reservoir' }, reservoirContext());
       expect(v).toBe(2);
     });
 
     it('stateList returns only Things of the given archetype', async () => {
       const rows = (await resolveBinding(
-        { kind: 'stateList', state: 'open', archetype: 'Order' },
-        orderContext(),
+        { kind: 'stateList', state: 'open', archetype: 'Reservoir' },
+        reservoirContext(),
       )) as Record<string, unknown>[];
-      expect(rows.map((r) => r.id)).toEqual(['o1', 'o2']);
+      expect(rows.map((r) => r.id)).toEqual(['res1', 'res2']);
     });
 
     it('without an archetype counts every Thing in the state', async () => {
-      const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, orderContext());
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, reservoirContext());
       expect(v).toBe(3);
     });
   });
