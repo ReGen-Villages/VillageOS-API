@@ -1,12 +1,7 @@
 /**
- * A dashboard's themed sections as a grid of tiles.
- *
- * The model names a theme on a section and declares what the theme looks like — a colour, an icon, a
- * place in the grid — so the report a submitter sees is a grid of coloured tiles rather than a list,
- * and adding a tile is a template edit. A tile's `kpi` widgets are its summary, shown while the tile is
- * hovered or focused; its other widgets are the gallery a click opens; and a gallery card opens the
- * widget full width. Sections naming no theme are not drawn here at all, so a page draws them as the
- * list it always did.
+ * The model declares what a theme looks like, so the report a submitter sees is a grid of coloured tiles and
+ * adding one is a template edit. A tile's `kpi` widgets are its summary on hover or focus, and the rest are the
+ * gallery a click opens. A section naming no theme is not drawn here, so the page draws it as a list.
  */
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

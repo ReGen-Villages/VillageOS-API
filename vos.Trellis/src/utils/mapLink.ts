@@ -1,11 +1,7 @@
 /**
- * The site's position, read out of whatever a planner pasted into the location step.
- *
- * A pasted map link is the most breakable input in the wizard: every map service writes coordinates
- * differently, and a link that half-parses puts a site somewhere nobody asked for. So this answers with
- * a position only when it read one, and says which kind of failure it hit otherwise — a shortened link
- * cannot be expanded without a network call the browser is not allowed to make, and telling the planner
- * to open it and copy the numbers is a different message from not recognising the link at all.
+ * Every map service writes coordinates differently, and a link read halfway puts a site somewhere nobody
+ * asked for, so this answers with a position only when it read one. A shortened link is told apart from an
+ * unknown one, because the browser cannot follow it, and the planner must open it and copy the numbers.
  */
 
 export type MapLinkReading =
@@ -13,8 +9,8 @@ export type MapLinkReading =
   | { readonly kind: 'shortened' }
   | { readonly kind: 'unrecognised' };
 
-/** Link shorteners a browser cannot follow: the redirect is same-origin-blocked, so the coordinates
- *  are on the other side of a request this page cannot make. */
+/** The browser blocks the redirect to another origin, so the coordinates are behind a request this page
+ *  cannot make. */
 const SHORTENERS = ['maps.app.goo.gl', 'goo.gl', 'bit.ly', 'tinyurl.com', 'osm.org/go/'];
 
 const PAIR = String.raw`(-?\d+(?:\.\d+)?)`;

@@ -6,12 +6,12 @@ A *layout* is a nested physical structure: something contains areas, those conta
 somewhere down the chain are the places things stand. This tool turns a description of one into
 Things, containment relationships and `is` relationships, and puts it into a model.
 
-It is **domain-agnostic**. The level names, the containment predicate and the type each level
+It names **no domain**. The level names, the containment predicate and the type each level
 belongs to are all named by the caller, so the tool carries no vocabulary of its own. A consumer's
 own structure and naming standard live in the consumer's repository, the way a scenario lives beside
 `tools/simulator` rather than inside it.
 
-No third-party dependencies — stock Python 3.10+.
+No packages to install — plain Python 3.10 or later.
 
 ## Why a tool
 
@@ -74,7 +74,7 @@ python3 layout.py layout.json --url https://localhost:7243
 
 **The key is not an argument.** A command line is readable by every process on the host and is kept
 in the shell's history file, and an API key keeps minting tokens until somebody revokes it — so it is
-read from `VOS_API_KEY`, and `--api-key` is refused as an unknown argument. A ready editor/admin JWT
+read from `VOS_API_KEY`, and `--api-key` is refused as an unknown argument. An editor or admin token
 in `VOS_TOKEN` is used instead where there is one. Both are read by the client this tool shares with
 `tools/simulator`.
 
@@ -83,11 +83,12 @@ or from the model itself; where both answer, the file wins. The tool never guess
 would quietly build a second structure beside the real one, so a name it cannot resolve is reported
 instead. A dry run with `--ids` covering every name never contacts the model at all.
 
-A file that cannot be read fails before any of that, so a typo costs no round trip.
+A file that cannot be read fails before any of that, so a typo costs no call to the broker.
 
 ## Running it again
 
-Ids come from names via `stable_id`, and `POST /api/model/fragment` is an idempotent upsert. So a
+Ids come from names through `stable_id`, and `POST /api/model/fragment` adds what is missing and
+updates what is there. So a
 second run **adds what is new and disturbs nothing else** — a node keeps its identity, and whatever
 was standing in it still points at it. Extending a structure is editing the file and running again.
 

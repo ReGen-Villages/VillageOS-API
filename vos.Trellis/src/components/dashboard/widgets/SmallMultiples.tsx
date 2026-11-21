@@ -7,6 +7,7 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { linearScale, paddedDomain } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
@@ -15,7 +16,6 @@ const HOURS = 24;
 const PANEL_HEIGHT = 96;
 const PANEL_GAP = 12;
 const LABEL_BAND = 14;
-const FALLBACK_WIDTH = 480;
 const BAR_FILL = 'var(--chart-cool-near)';
 const LINE_STROKE = 'var(--chart-warm-far)';
 

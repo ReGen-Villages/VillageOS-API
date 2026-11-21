@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { Plus } from 'lucide-react';
 import type { DashboardDescriptor, DashboardSpecification } from '@tendril-ui/tendril';
 import { isKeptPage } from '../../utils/designSpec';
+import { NewNameField } from '../common/NewNameField';
 
 /** A page the model holds whose specification could be read; one that could not is not offered,
  *  since there is nothing to lay out. */
@@ -19,14 +18,6 @@ interface Props {
 /** Every page the model holds — the seed's marked as such — and the field that names a new one. */
 export function DesignPagesPanel({ pages, openedId, onOpen, onStart }: Props) {
   const { t } = useTranslation();
-  const [name, setName] = useState('');
-
-  const start = () => {
-    const trimmed = name.trim();
-    if (trimmed === '') return;
-    setName('');
-    onStart(trimmed);
-  };
 
   return (
     <aside className="w-full max-h-40 md:w-56 md:max-h-none flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
@@ -53,26 +44,11 @@ export function DesignPagesPanel({ pages, openedId, onOpen, onStart }: Props) {
           </li>
         ))}
       </ul>
-      <div className="p-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-1.5">
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') start();
-          }}
-          aria-label={t('design.pages.newPage')}
-          placeholder={t('design.pages.newPage')}
-          className="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
-        />
-        <button
-          type="button"
-          onClick={start}
-          aria-label={t('design.pages.start', { name: name.trim() })}
-          className="rounded bg-zinc-100 dark:bg-zinc-800 px-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-        >
-          <Plus size={15} />
-        </button>
-      </div>
+      <NewNameField
+        label={t('design.pages.newPage')}
+        addLabel={(name) => t('design.pages.start', { name })}
+        onName={onStart}
+      />
     </aside>
   );
 }

@@ -1,7 +1,5 @@
-// A wait inside a test (findBy…, waitFor) gets a fifth of the test's own limit: one second of the
-// five a test has by default, which is the testing library's own default. The build agent gives a
-// test a longer limit because it is shared and often busy, and a wait that still gave up after one
-// second would fail there for the same reason.
+// A wait gets a fifth of the test's limit, which at the default limit is the testing library's own default.
+// It scales because the busy build agent raises the test's limit, and a fixed wait would still fail there.
 const WAITS_THAT_FIT_IN_ONE_TEST = 5;
 
 const WAIT_LIMIT_OF_A_TEST_WITH_NO_LIMIT_MILLISECONDS = 1_000;

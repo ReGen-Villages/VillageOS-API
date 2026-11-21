@@ -3,11 +3,9 @@ using Xunit;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// The text a page is worded in is whatever the pinned engine's locale data produces. The expected file
-/// holds that text for every number format, date label and name order in every page language, so an
-/// engine upgrade shows each wording change it brings as a line of the file's diff.
-/// </summary>
+// The text a page is worded in is whatever the pinned engine's locale data produces. The expected file
+// holds that text for every number format, date label and name order in every page language, so an
+// engine upgrade shows each wording change it brings as a line of the file's diff.
 public class WordingTests
 {
     [Fact]

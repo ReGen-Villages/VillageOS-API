@@ -16,13 +16,14 @@ const names = new Map([nearest, cheapest, site].map((t) => [t.Id, t.Name]));
 const SEARCH_THE_OFFERED_KINDS = 'Search every Thing of the kinds the ports offer, not only what they offer';
 
 const NO_WAIT_CHOICES = { states: [], predicatesFrom: () => [] };
+const NO_RELATE_CHOICES = { predicates: [], readingOf: (id: string) => ({ name: id }) };
 
 function inspect(nodeId: string, data: PipelineNodeData, handlers: Partial<Parameters<typeof NodeInspector>[0]> = {}) {
   render(<NodeInspector nodeId={nodeId} data={data} wiredInputs={new Set()}
     offeredByPort={{}} widerList={[nearest, cheapest, site]} onWiden={vi.fn()} nameOf={(id) => names.get(id) ?? id}
     standsForOptions={[]} onSetStandsFor={vi.fn()}
     onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()}
-    waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} onClose={vi.fn()} {...handlers} />);
+    waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} relateChoices={NO_RELATE_CHOICES} onClose={vi.fn()} {...handlers} />);
 }
 
 const passing = (prefix: string, portName: string) =>
@@ -213,7 +214,7 @@ describe('NodeInspector', () => {
     const { unmount } = render(<NodeInspector nodeId="decide" data={decide({ choices })} wiredInputs={new Set()}
       offeredByPort={offering.offeredByPort} widerList={[nearest, cheapest, site]} onWiden={onWiden} nameOf={(id) => names.get(id) ?? id}
       standsForOptions={[]} onSetStandsFor={vi.fn()} onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()}
-      waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} onClose={vi.fn()} />);
+      waitChoices={NO_WAIT_CHOICES} onSetWait={vi.fn()} relateChoices={NO_RELATE_CHOICES} onClose={vi.fn()} />);
     expect(onWiden).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
@@ -288,5 +289,57 @@ describe('a wait box in the inspector', () => {
     expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: 120 });
     fireEvent.change(limit, { target: { value: '' } });
     expect(onSetWait).toHaveBeenLastCalledWith('wait', { waitsAtMostMinutes: undefined });
+  });
+});
+
+describe('a relate box in the inspector', () => {
+  const relate = (changes: Partial<PipelineNodeData> = {}): PipelineNodeData =>
+    ({ label: 'Work it out', kind: 'relate', ports: [port('relate.thing.in', 'thing', 'in')], ...changes });
+  const choices = {
+    predicates: [{ id: 'worksOut', name: 'rechnet aus' }],
+    readingOf: (id: string) => (id === 'worksOut'
+      ? { name: 'rechnet aus', state: 'Ausgerechnet', service: 'Rechendienst' }
+      : { name: 'worksOut connection', refusal: "'worksOut connection' is a connection: a relate box stands for the predicate that names a connection along 'notifies'" }),
+  };
+
+  it('offers the predicates the orchestrator accepts by their name in the page language, and sets the one chosen', () => {
+    const onSetStandsFor = vi.fn();
+    inspect('relate', relate(), { relateChoices: choices, onSetStandsFor });
+
+    const select = screen.getByLabelText('Relates along');
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual(['nothing chosen', 'rechnet aus']);
+    fireEvent.change(select, { target: { value: 'worksOut' } });
+    expect(onSetStandsFor).toHaveBeenCalledWith('relate', 'worksOut');
+  });
+
+  it('shows the state the box will wait for and the service it calls, read through the connection', () => {
+    inspect('relate', relate({ standsForId: 'worksOut' }), { relateChoices: choices });
+    expect(screen.getByText('Ausgerechnet')).toBeInTheDocument();
+    expect(screen.getByText('Rechendienst')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps a box loaded standing for something the orchestrator would refuse, and shows why', () => {
+    const onSetStandsFor = vi.fn();
+    inspect('relate', relate({ standsForId: 'worksOutConnection' }), { relateChoices: choices, onSetStandsFor });
+
+    expect((screen.getByLabelText('Relates along') as HTMLSelectElement).value).toBe('worksOutConnection');
+    expect(screen.getByRole('alert')).toHaveTextContent("'worksOut connection' is a connection");
+    expect(onSetStandsFor).not.toHaveBeenCalled();
+  });
+
+  it('says when no predicate in the model can be related along', () => {
+    inspect('relate', relate(), { relateChoices: { predicates: [], readingOf: (id: string) => ({ name: id }) } });
+    expect(screen.getByText('No predicate here names a connection that binds a service and is proven by one state.')).toBeInTheDocument();
+  });
+
+  it('sets the most minutes the box waits, empty for no limit', () => {
+    const onSetWait = vi.fn();
+    inspect('relate', relate({ standsForId: 'worksOut', waitsAtMostMinutes: 30 }), { relateChoices: choices, onSetWait });
+    const limit = screen.getByLabelText('Waits at most (minutes)');
+    fireEvent.change(limit, { target: { value: '45' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('relate', { waitsAtMostMinutes: 45 });
+    fireEvent.change(limit, { target: { value: '' } });
+    expect(onSetWait).toHaveBeenLastCalledWith('relate', { waitsAtMostMinutes: undefined });
   });
 });

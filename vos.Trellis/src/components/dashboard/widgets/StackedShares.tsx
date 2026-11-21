@@ -5,17 +5,12 @@ import type { BindingResult, ResolveContext, Row } from '@tendril-ui/tendril';
 import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { ANNUAL, linearScale, monthSlots } from './chartScale';
+import { ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf } from './chartFrame';
+import { ANNUAL, monthSlots } from './chartScale';
 import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
-const PLOT_HEIGHT = 220;
-const TOP_GUTTER = 8;
-const AXIS_BAND = 22;
-const LEFT_GUTTER = 40;
-const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 28;
 /** The axis reads in quarters: 0%, 25%, 50%, 75%, 100%. */
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
@@ -99,11 +94,8 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
     ...(hasAnnual ? [{ name: t('widgets.history.annual'), at: ANNUAL, key: 'all', shares: sharesOf((entry) => entry.annual) }] : []),
   ].filter((month) => month.shares.length > 0);
 
-  const width = measuredWidth || FALLBACK_WIDTH;
-  const plotTop = TOP_GUTTER;
-  const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
-  const y = linearScale([0, 1], [plotBottom, plotTop]);
-  const { slotWidth, centreOf } = monthSlots(LEFT_GUTTER, width - RIGHT_GUTTER, hasAnnual);
+  const { width, height, plotTop, plotBottom, plotLeft, plotRight, y } = frameOf(measuredWidth, [0, 1]);
+  const { slotWidth, centreOf } = monthSlots(plotLeft, plotRight, hasAnnual);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
   const figure = (share: number | undefined) => share === undefined ? '—' : formatNumber(share, 'percent');
   const readOut = (month: (typeof months)[number]) =>
@@ -115,20 +107,13 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
       <div ref={measure} className="relative mt-2">
         <svg
           width={width}
-          height={plotBottom + AXIS_BAND}
-          viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={widget.title ?? ''}
           className="block max-w-full"
         >
-          {AXIS_TICKS.map((tick) => (
-            <g key={tick}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'percent')}
-              </text>
-            </g>
-          ))}
+          <ValueGridlines ticks={AXIS_TICKS} y={y} left={plotLeft} right={plotRight} format="percent" />
           {months.map((month) => {
             const centre = centreOf(month.at);
             const left = centre - barWidth / 2;
@@ -136,19 +121,18 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
             // first class sits at the bottom of every bar and a reader can follow it across months.
             let stacked = 0;
             return (
-              <g
+              <MonthColumn
                 key={month.at}
-                data-month={month.key}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(month)}
-                onFocus={() => setActive(month.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(month.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={month.key}
+                centre={centre}
+                markWidth={barWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={month.name}
+                readOut={readOut(month)}
+                active={active === month.at}
+                onActive={(on) => setActive(on ? month.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={barWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 {month.shares.map((entry) => {
                   const bottom = stacked;
                   stacked += entry.share;
@@ -166,13 +150,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
                     />
                   );
                 })}
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {month.name}
-                </text>
-                {active === month.at && (
-                  <rect x={left - 3} y={plotTop} width={barWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

@@ -44,6 +44,9 @@
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="AgainstTheEngine\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\vos.Service.Delta\vos.Service.Delta.csproj"/>

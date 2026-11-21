@@ -7,13 +7,13 @@ import { toast } from '../components/common/toastStore';
 import { ROLE, type PipelineModel } from '../pipeline/model';
 import { COMPLETES_WHEN, declaredType } from '../pipeline/connectionSettings';
 
-export interface ConnectionSettingLine extends CallSetting {
+interface ConnectionSettingLine extends CallSetting {
   name: string;
   /** The type the platform declares; null where it declares none, undefined until it has answered. */
   type: string | null | undefined;
 }
 
-export type ConnectionSettingsReading =
+type ConnectionSettingsReading =
   | { kind: 'reading' }
   | { kind: 'failed'; status: number | undefined; reason: string }
   | { kind: 'read'; completesWhen: CallSetting | undefined; values: ConnectionSettingLine[] };

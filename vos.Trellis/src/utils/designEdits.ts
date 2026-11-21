@@ -1,12 +1,8 @@
 import type { DashboardSection, DashboardSpecification, Placement, Widget } from '@tendril-ui/tendril';
+import { dropAt, replaceAt } from './listEdits';
 
-/**
- * Every edit the Design page makes, as a function over the specification.
- *
- * The canvas and the panels call these and nothing else, so each decision — where a moved widget
- * lands, what an empty field does to its key, where a new section goes — can be tried without a
- * canvas. Nothing here writes to the model; keeping the page is the writes' job.
- */
+/** The canvas and panels make every edit through these, so each decision can be tried without a canvas.
+ *  Nothing here writes to the model. */
 
 export type DesignSelection =
   | { on: 'page' }
@@ -24,7 +20,7 @@ export interface GridItem {
 }
 
 function withSection(specification: DashboardSpecification, index: number, next: DashboardSection): DashboardSpecification {
-  return { ...specification, sections: specification.sections.map((section, at) => (at === index ? next : section)) };
+  return { ...specification, sections: replaceAt(specification.sections, index, next) };
 }
 
 function withWidgets(specification: DashboardSpecification, index: number, widgets: Widget[]): DashboardSpecification {
@@ -47,11 +43,11 @@ export function withPlacements(specification: DashboardSpecification, section: n
 }
 
 export function withWidgetRemoved(specification: DashboardSpecification, section: number, widget: number): DashboardSpecification {
-  return withWidgets(specification, section, specification.sections[section].widgets.filter((_, index) => index !== widget));
+  return withWidgets(specification, section, dropAt(specification.sections[section].widgets, widget));
 }
 
 export function withWidgetReplaced(specification: DashboardSpecification, section: number, widget: number, next: Widget): DashboardSpecification {
-  return withWidgets(specification, section, specification.sections[section].widgets.map((held, index) => (index === widget ? next : held)));
+  return withWidgets(specification, section, replaceAt(specification.sections[section].widgets, widget, next));
 }
 
 export function withWidgetMoved(
@@ -69,7 +65,7 @@ export function withSectionAdded(specification: DashboardSpecification): Dashboa
 }
 
 export function withSectionRemoved(specification: DashboardSpecification, index: number): DashboardSpecification {
-  return { ...specification, sections: specification.sections.filter((_, at) => at !== index) };
+  return { ...specification, sections: dropAt(specification.sections, index) };
 }
 
 export function withSectionMoved(specification: DashboardSpecification, index: number, direction: 'earlier' | 'later'): DashboardSpecification {

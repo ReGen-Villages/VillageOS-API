@@ -1,5 +1,3 @@
-// Verifies SelectorDemo subscribes/summarises/unsubscribes and that the selector serialises correctly.
-
 using System.Net;
 using System.Text;
 using FluentAssertions;

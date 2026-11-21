@@ -2,8 +2,7 @@ import { apiClient } from './client';
 import { unwrapProperties } from '@tendril-ui/tendril';
 import type { TemporalSnapshot, VosThing } from '@tendril-ui/tendril';
 
-/** Counts returned by POST /api/model/fragment. */
-export interface FragmentResult {
+interface FragmentResult {
   thingsCreated: number;
   thingsUpdated: number;
   relationshipsCreated: number;
@@ -30,9 +29,8 @@ export const modelApi = {
     return apiClient.action('replace the whole model', () => apiClient.post<unknown>('/api/model', parsed));
   },
 
-  // Upsert a fragment ({ Name, Things, Relationships }) into the live model. Idempotent: re-applying
-  // the same fragment neither duplicates nor errors; created Things/relationships animate over SSE. Contrast
-  // `set`, which replaces the whole model.
+  // Adds to the model rather than replacing it as `set` does; applying the same fragment again neither
+  // duplicates nor fails.
   applyFragment: (fragmentJson: string) => {
     const parsed = JSON.parse(fragmentJson);
     return apiClient.action(

@@ -120,7 +120,7 @@ test('already-absolute https .md links are left untouched', () => {
 });
 
 test('GitHub wiki URLs produced earlier are not double-rewritten', () => {
-  // /GUI -> wiki URL; that URL must survive the later relative-.md pass etc.
+  // /GUI becomes a wiki address, which the later passes over relative .md links must leave alone.
   assert.equal(convert('[a](/GUI) [b](/CLI)'), `[a](${WIKI}/GUI) [b](${WIKI}/CLI)`);
 });
 

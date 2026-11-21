@@ -3,7 +3,7 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-// The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
+// The shape a submission has to land in: a SiteStudy that `studies` a Site, the site carrying what is true
 // of the land and the study carrying what an analysis makes of it. It is the shape an imported building
 // model already produces, so no reader has to ask where a site's facts came from, and a study is found
 // through the role that binds its archetype rather than by its source.

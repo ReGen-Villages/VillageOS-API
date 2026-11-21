@@ -7,7 +7,7 @@ namespace vos.Service.Shared.Tests.Middleware;
 
 // A service reached through /handle must adopt the bearer that arrived, or MyceliumClientBase falls
 // back to the daemon's startup token and the service reads and writes in whichever model launched it.
-// Omitting the middleware breaks nothing at run time with a single model loaded, so this pins the
+// Omitting the middleware breaks nothing at run time with a single model loaded, so this checks the
 // convention across every service rather than the behaviour of any one of them.
 public class MyceliumModelTokenWiringTests
 {

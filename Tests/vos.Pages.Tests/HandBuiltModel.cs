@@ -3,10 +3,8 @@ using System.Text.Json.Nodes;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// A small model in the shape a selection of Mycelium's answers with: a few reservoirs, the page that
-/// compares them, and a second page whose description cannot be read.
-/// </summary>
+// A small model in the shape a selection of Mycelium's answers with: a few reservoirs, the page that
+// compares them, and a second page whose description cannot be read.
 internal static class HandBuiltModel
 {
     public const string PageRoleId = "a18768bc-b4e7-513c-864f-842d674c1858";

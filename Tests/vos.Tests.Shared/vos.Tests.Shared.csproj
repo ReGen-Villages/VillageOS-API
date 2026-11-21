@@ -9,5 +9,8 @@
     <!-- IHttpClientFactory lives here. Test consumers used to get it transitively via their Web SDK production project; the shared library needs it directly. -->
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+    <PackageReference Include="xunit.extensibility.core" Version="2.7.0" />
+    <PackageReference Include="xunit.assert" Version="2.7.0" />
   </ItemGroup>
 </Project>

@@ -24,8 +24,8 @@ import type { BoundaryPoint } from '../../utils/parcelGeometry';
 // the map chapter of docs/FIELD_GUIDE.md.
 //
 // Asked for as a worker rather than as a file, because the library splits it in two and the worker
-// imports the other half by name. Asked for as a file, the bundler copies the one it was named and
-// nothing it imports, so every built map answered 404 for the half nobody emitted and parsed no tile.
+// imports the other half by name. Asked for as a file, the bundler copies only the named half, so the
+// other half answers 404 and no tile is parsed.
 // `ci/every-worker-carries-its-imports.mjs` fails a build that emits one that way again.
 maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
@@ -94,13 +94,8 @@ interface MapViewProps {
   showMarker?: boolean;
 }
 
-/**
- * A basemap centred on a point, with whatever layers the model offers.
- *
- * This component knows nothing about the page showing it. It takes a position and a list of
- * sources and returns a map; every caller — the model viewer, the intake wizard — supplies its
- * own position and passes the same sources through.
- */
+/** Knows nothing about the page showing it: each caller supplies its own position and passes the model's
+ *  sources through. */
 export function MapView({
   latitude,
   longitude,
@@ -243,9 +238,8 @@ export function MapView({
     };
   }, [ground, buildingSourceLayer, hasSource, mapGeneration]);
 
-  // A map that raises land opens showing it, because a reader who cannot see the fall of the land has
-  // been shown a diagram again; looking straight down is theirs to ask for, and is what somebody
-  // drawing a boundary corner by corner works in. Kept here rather than on the map so the control can
+  // A map that raises land opens tilted, because looking straight down hides the fall of the land; looking
+  // straight down is the reader's to ask for, and is what somebody drawing a boundary corner by corner works in. Kept here rather than on the map so the control can
   // say which view is on.
   const canTilt = Boolean(ground || buildingSourceLayer);
   const [tiltWanted, setTiltWanted] = useState(true);

@@ -5,10 +5,9 @@ using Xunit;
 namespace vos.Service.Shared.Tests;
 
 // The broker answers a study's effective properties with its own under their bare name and
-// every inherited one under a key qualified by the set it came from. Since the shared study archetype
-// took over the assumptions, reading by bare name alone found none of them — and every handler test
-// stubbed the answer with bare keys, so the lookup was only ever exercised against a shape the broker
-// does not produce.
+// every inherited one under a key qualified by the set it came from. The assumptions live on the shared
+// study archetype, so reading by bare name alone finds none of them, and a stub answering with bare keys
+// would check the lookup only against a shape the broker does not produce.
 public class StudyInputsTests
 {
     private const string Service = "EnergyBalance";

@@ -19,7 +19,7 @@ public class ModelCommandHandler
     {
         try
         {
-            var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (tok.Length == 0) { ShowUsage(); return; }
 
             switch (tok[0])

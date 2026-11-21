@@ -3,8 +3,7 @@ import type { PartialResources } from './types';
 /**
  * DRAFT — machine-drafted German. Not reviewed by a human translator.
  * Every string here needs sign-off by a fluent speaker before it ships as
- * final. Keys intentionally omitted (e.g. log.fullLogTitle) fall back to the
- * English base locale, which is the expected behaviour for an incomplete draft.
+ * final. A key left out falls back to the English base locale.
  */
 export const de: PartialResources = {
   navigation: {
@@ -50,7 +49,6 @@ export const de: PartialResources = {
     dark: 'dunklen',
   },
   language: {
-    label: 'Sprache',
     select: 'Sprache auswählen',
   },
   log: {
@@ -124,8 +122,6 @@ export const de: PartialResources = {
     notAvailable: 'Nicht verfügbar',
     switchModel: 'Modell wechseln',
     logout: 'Abmelden',
-    search: 'Suchen',
-    clear: 'Leeren',
     query: "Abfragen",
     copyAsMarkdown: "Als Markdown kopieren",
     downloadAsMarkdown: "Als Markdown herunterladen",
@@ -134,7 +130,6 @@ export const de: PartialResources = {
     showMore_one: "Mehr anzeigen (noch {{count}})",
     showMore_other: "Mehr anzeigen (noch {{count}})",
     showingFirst: "erste {{count}} angezeigt",
-    noProperties: "Keine Eigenschaften",
   },
   dashboard: {
     engines: {
@@ -1164,7 +1159,6 @@ export const de: PartialResources = {
       subject: "Subjekt",
       predicate: "Prädikat",
       target: "Ziel",
-      openDetail: "Kantendetails öffnen",
       rangesTab: "Bereiche",
       propertiesTab: "Eigenschaften ({{count}})",
       deleteRelationship: "Beziehung löschen",
@@ -1284,6 +1278,22 @@ export const de: PartialResources = {
     waitLimitNotWholeMinutes: "„{{node}}“ wartet höchstens {{minutes}} Minuten, und das ist keine ganze Zahl von Minuten über null.",
     waitingFor: "wartet auf {{state}}",
     waitsForNothing: "wartet noch auf keinen Zustand",
+    relatesAlong: "Verknüpft über",
+    callsService: "Ruft auf",
+    noRelatablePredicate: "Kein Prädikat hier benennt eine Verbindung, die einen Dienst bindet und durch genau einen Zustand belegt ist.",
+    relatesAlongNothing: "verknüpft noch über kein Prädikat",
+    relatingAlong: "verknüpft über {{predicate}}, wartet dann auf {{state}}",
+    relateWithoutPredicate: "„{{node}}“ verknüpft über kein Prädikat, also würde nichts aufgerufen.",
+    relateRefused: "„{{node}}“ kann nicht laufen: {{reason}}.",
+    relateWithoutThing: "Mit dem Anschluss von „{{node}}“ ist nichts verbunden, also hat er kein Ding zum Verknüpfen.",
+    relate: {
+      standsForAConnection: "'{{name}}' ist eine Verbindung: ein Verknüpfungsknoten steht für das Prädikat, das eine Verbindung über '{{notifies}}' benennt",
+      namesNoConnection: "'{{name}}' benennt keine Verbindung über '{{notifies}}', also ruft eine Beziehung darüber nichts auf",
+      modelNamesNoNotifiedConnection: "'{{name}}' benennt keine Verbindung: dieses Modell bindet kein Prädikat an die Rolle, die eine Verbindung benennt, also ruft eine Beziehung darüber nichts auf",
+      connectionBindsNoService: "'{{name}}' benennt '{{connection}}', die keinen Dienst bindet, also würde nichts aufgerufen",
+      connectionNamesNoState: "'{{name}}' benennt '{{connection}}', die keinen Zustand nennt, durch den ihre Arbeit belegt ist, also könnte der Lauf nicht erkennen, wann die Arbeit erledigt ist",
+      connectionNamesTwoStates: "'{{name}}' benennt '{{connection}}', die mehr als einen Zustand nennt, durch den ihre Arbeit belegt ist",
+    },
     danglingWire: "Diese Verbindung ist nicht an beiden Enden angeschlossen: {{from}} → {{to}}",
     requiredInputUnbound: "Der erforderliche Eingang „{{port}}“ an „{{node}}“ ist weder verbunden noch an einen Laufparameter gebunden.",
     startCannotStart: "„{{node}}“ ist der Anfang dieser Pipeline und steht für „{{named}}“, das nichts startet",
@@ -1318,7 +1328,6 @@ export const de: PartialResources = {
     bindInput: "Einen Eingang an einen Ausführungsparameter binden:",
     wired: "verdrahtet",
     fromParameter: "aus Param…",
-    wire: "Verbindung",
     mapField: "Ein Feld zuordnen (leer = gesamte Nutzlast):",
     fromPath: "Von-Pfad",
     toPath: "Zu-Pfad",
@@ -1458,6 +1467,9 @@ export const de: PartialResources = {
       wait: "Auf einen Zustand warten",
       waitBody: "Hält den Lauf an, bis das ankommende Ding einen Zustand erreicht",
       placeWait: "Einen Warteknoten platzieren",
+      relate: "Ein Ding verknüpfen",
+      relateBody: "Verknüpft das ankommende Ding über ein Prädikat, damit die Plattform einen Dienst aufruft, und wartet, bis dessen Arbeit erledigt ist",
+      placeRelate: "Einen Verknüpfungsknoten platzieren",
       stops: "Läufe stoppen",
       stop: "Ihre Läufe stoppen",
       stopBody: "Stoppt jeden Lauf zu den Dingen, die ihn erreichen",
@@ -1680,6 +1692,11 @@ export const de: PartialResources = {
       fromPlaceSearch: 'aus einer Ortssuche',
       fromDevice: 'von diesem Gerät',
     },
+  },
+  typedFigure: {
+    notANumber: "Keine Zahl.",
+    negative: "Darf nicht negativ sein.",
+    notWhole: "Muss eine ganze Zahl sein.",
   },
   publicFindings: {
     noTicket: "Bestätigen Sie zuerst Ihre E-Mail-Adresse.",

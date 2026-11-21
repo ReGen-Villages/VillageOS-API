@@ -2,11 +2,10 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
-// Covers `rename <thing> <new-name>`: rename a Thing in place via the broker's
-// PUT /api/things/{id}/name, keeping its Id and relationships.
 public class RenameCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };
@@ -14,7 +13,6 @@ public class RenameCommandHandlerTests
 
     private static readonly Guid ThingId = Guid.NewGuid();
 
-    private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
     private Task Execute(string arg) => new RenameCommandHandler(arg, _writer, _mycelium.Object).ExecuteAsync();
 
     [Fact]
@@ -32,7 +30,7 @@ public class RenameCommandHandlerTests
     public async Task Rename_resolves_the_target_by_name()
     {
         _mycelium.Setup(m => m.GetAllThingsAsync())
-            .ReturnsAsync(Json($"[{{\"Id\":\"{ThingId}\",\"Name\":\"Pump\"}}]"));
+            .ReturnsAsync(Parse($"[{{\"Id\":\"{ThingId}\",\"Name\":\"Pump\"}}]"));
         _mycelium.Setup(m => m.RenameThingAsync(ThingId, "Pump-7")).ReturnsAsync(true);
 
         await Execute("Pump Pump-7");
@@ -83,7 +81,7 @@ public class RenameCommandHandlerTests
     [Fact]
     public async Task Unresolvable_target_reports_an_error_and_does_not_rename()
     {
-        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Json("[]"));
+        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
 
         await Execute("NoSuchThing Whatever");
 

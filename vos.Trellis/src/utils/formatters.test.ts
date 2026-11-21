@@ -92,9 +92,8 @@ describe('formatPropertyValue', () => {
   });
 });
 
-// The value alone cannot say how it should read: a date arrives as the machine timestamp the
-// platform stores, an identifier at full length, geometry as a JSON body. The platform declares a
-// type for every property, and that is the answer this was guessing at.
+// The value alone cannot say how it should read: a date arrives as a machine timestamp, an identifier at
+// full length, geometry as JSON. The type the platform declares for each property says.
 describe('formatPropertyValue by declared type', () => {
   const numbers = { floatingPointPrecision: 5, decimalPrecision: 2 };
 
@@ -139,7 +138,6 @@ describe('formatPropertyValue by declared type', () => {
     expect(formatPropertyValue('4711', 'vos.String', numbers)).toBe('4711');
   });
 
-  // A badly formatted value is recoverable; a missing one is not.
   it('falls back to the shape of the value when the type is unknown or absent', () => {
     expect(formatPropertyValue(0.123456789, 'acme.Reading', numbers)).toBe('0.123456789');
     expect(formatPropertyValue({ a: 1 }, 'acme.Blob')).toBe('{"a":1}');

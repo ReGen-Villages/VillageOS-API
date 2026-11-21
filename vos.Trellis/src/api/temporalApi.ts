@@ -19,10 +19,9 @@ function timeParameters(start?: string, end?: string): string {
 }
 
 export const temporalApi = {
-  /** Reduce a type's instances into time buckets across the trailing window — the shape derived properties
-   *  (which reduce over membership) and property history (which returns one property's past values)
-   *  cannot express between them. A question the platform cannot answer is refused, so a caller
-   *  hears about it rather than drawing an empty series. */
+  /** Time buckets over a type's instances, which neither derived properties nor one property's history can
+   *  express. A question the platform cannot answer is refused, so a caller hears of it rather than drawing
+   *  an empty series. */
   aggregate: (query: TemporalAggregateQuery) =>
     apiClient.post<TemporalAggregateResponse>('/api/temporal/aggregate', query),
 

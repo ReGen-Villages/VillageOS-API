@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -17,8 +18,6 @@ public class RelationshipDisplayTests
     private static readonly Guid Kitchen = Guid.NewGuid();
     private static readonly Guid Contains = Guid.NewGuid();
     private static readonly Guid Sink = Guid.NewGuid();
-
-    private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 
     private static string Things() => $@"[
         {{""Id"":""{Kitchen}"",""Name"":""Kitchen""}},

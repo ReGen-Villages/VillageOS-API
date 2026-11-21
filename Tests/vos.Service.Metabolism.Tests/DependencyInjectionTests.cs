@@ -10,9 +10,8 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-// Pins the DI substitution seam. Endpoint handlers must resolve
-// Services.Metabolism from the container, so a test that swaps the
-// singleton with a stub via services.RemoveAll<Metabolism>() + services.AddSingleton(stub)
+// Endpoint handlers must resolve Services.Metabolism from the container, so a test that replaces the
+// singleton with a stub, through services.RemoveAll<Metabolism>() and services.AddSingleton(stub),
 // actually changes what the endpoint sees.
 public class DependencyInjectionTests
 {

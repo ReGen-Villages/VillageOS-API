@@ -121,8 +121,6 @@ describe('the page a submitter reads their own findings on', () => {
     expect(await screen.findByText(/lists no sections/)).toBeInTheDocument();
   });
 
-  // Drawing nothing is how a figure the analysis has not computed reads. A page that cannot be drawn at
-  // all has to say so, in the place every other refusal is said.
   it('says so when the service answered a page it cannot draw', async () => {
     vi.mocked(findingsApi.read).mockResolvedValue({ ticket: 'ticket-1', findings: { ...ANSWER, specification: 'not a specification' } });
     render(<PublicFindingsPage />);
@@ -150,7 +148,7 @@ describe('the page a submitter reads their own findings on', () => {
 });
 
 // A chart on this page reduces the site's history through the intake service, under the ticket the
-// read handed back — the same exchange the plot-first page rides.
+// read handed back, the same exchange the plot-first page uses.
 describe('a chart on the findings page', () => {
   it('reduces the site\'s history through the service under the ticket the read bought', async () => {
     vi.mocked(findingsApi.read).mockResolvedValue({

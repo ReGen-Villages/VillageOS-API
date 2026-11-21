@@ -39,7 +39,7 @@ var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, 
 var apiKey = launchSettings.Service.ApiKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Intake", "intake-.log", launchSettings.Service.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Intake", "intake-.log", launchSettings.Service.LogDirectory, writeToFile: launchSettings.Service.LogToFile && !isTestingEnv);
 
 try
 {
@@ -141,11 +141,11 @@ try
     builder.Services.AddSingleton(provider => new BasemapTileService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<HeldDeclarations>(),
-        launchSettings.FetcherSubdomain));
+        OutsideCalls.FetcherSubdomain));
     builder.Services.AddSingleton(provider => new PositionLookupService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<HeldDeclarations>(),
-        launchSettings.FetcherSubdomain,
+        OutsideCalls.FetcherSubdomain,
         provider.GetRequiredService<ILogger<PositionLookupService>>(),
         provider.GetRequiredService<ModelClock>()));
 

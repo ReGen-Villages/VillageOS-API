@@ -21,8 +21,8 @@ const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
   Unknown: 'gray',
 };
 
-/** Literal i18n key per health status, so the key stays statically typed (dynamic template
- *  keys widen to `string` and break i18next's typed `t`). */
+/** A whole translation key per status, because a key built from a template widens to `string` and breaks
+ *  i18next's typed `t`. */
 const healthKey = {
   Healthy: 'dashboard.services.health.Healthy',
   Unhealthy: 'dashboard.services.health.Unhealthy',
@@ -30,9 +30,8 @@ const healthKey = {
   Unknown: 'dashboard.services.health.Unknown',
 } as const;
 
-// A connection of either trigger kind, normalized to one row shape so the panel
-// renders them uniformly — graph (predicate) and http (endpoint) are the same
-// kind of thing, distinguished only by how requests reach them.
+// Both trigger kinds share one row, because a predicate connection and an endpoint differ only in how
+// requests reach them.
 interface ServiceRow {
   key: string;
   name: string;
@@ -85,9 +84,7 @@ function fromEndpoint(effectiveProperty: EndpointServiceInformation): ServiceRow
   };
 }
 
-// Base cells: Requests, Avg Time, Last Req. Errors (endpoints), Last Contact and
-// PID (graph services) are added conditionally. Literal class strings so Tailwind
-// keeps them in the build.
+// The class strings are written out whole so Tailwind keeps them in the build.
 function statGridColumns(row: ServiceRow): string {
   const columns =
     3 +

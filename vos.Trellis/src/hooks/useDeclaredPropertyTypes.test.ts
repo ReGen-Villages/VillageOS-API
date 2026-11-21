@@ -22,7 +22,7 @@ describe('useDeclaredPropertyTypes', () => {
     mockGetAllProperties.mockResolvedValue(doorNumber);
     const { result } = renderHook(() => useDeclaredPropertyTypes());
     await waitFor(() => expect(result.current).toEqual(doorNumber));
-    expect(mockGetAllProperties).toHaveBeenCalledWith('effective', undefined);
+    expect(mockGetAllProperties).toHaveBeenCalledWith(undefined);
   });
 
   it('holds nothing until the answer arrives, so a caller formats by shape meanwhile', () => {
@@ -45,8 +45,6 @@ describe('useDeclaredPropertyTypes', () => {
     expect(mockGetAllProperties).toHaveBeenCalledTimes(1);
   });
 
-  // Switching model clears the store rather than remounting the app. A read that never repeated
-  // would keep describing the model that was open before, and those ids belong to that model.
   it('reads again for the next model, and shows nothing from the last one meanwhile', async () => {
     mockGetAllProperties.mockResolvedValue(doorNumber);
     const { result } = renderHook(() => useDeclaredPropertyTypes());
@@ -69,14 +67,12 @@ describe('useDeclaredPropertyTypes', () => {
     await waitFor(() => expect(result.current).toEqual({}));
   });
 
-  // Reading every Thing's resolved properties is more than the model load itself on a large
-  // model. A surface showing a handful of rows should read a handful.
   describe('narrowing to the things a surface shows', () => {
     it('reads only the ids it was given', async () => {
       mockGetAllProperties.mockResolvedValue(doorNumber);
       const { result } = renderHook(() => useDeclaredPropertyTypes(true, ['thing-1']));
       await waitFor(() => expect(result.current).toEqual(doorNumber));
-      expect(mockGetAllProperties).toHaveBeenCalledWith('effective', ['thing-1']);
+      expect(mockGetAllProperties).toHaveBeenCalledWith(['thing-1']);
     });
 
     it('does not read an id it already holds', async () => {
@@ -103,7 +99,7 @@ describe('useDeclaredPropertyTypes', () => {
       rerender({ ids: ['thing-1', 'thing-9'] });
 
       await waitFor(() => expect(result.current).toEqual({ ...doorNumber, ...openRatio }));
-      expect(mockGetAllProperties).toHaveBeenLastCalledWith('effective', ['thing-9']);
+      expect(mockGetAllProperties).toHaveBeenLastCalledWith(['thing-9']);
     });
 
     it('reads nothing when the surface is showing nothing', () => {

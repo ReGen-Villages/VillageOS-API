@@ -50,8 +50,7 @@ export interface Findings {
  *  which is how a figure the analysis has not computed reads. */
 export function findingsFrom(
   answer: FindingsAnswer,
-  reduce: (query: TemporalReduceQuery) => Promise<TemporalReduceResponse> = () =>
-    Promise.reject(new Error('This page was handed no way to reduce a property series.')),
+  reduce: (query: TemporalReduceQuery) => Promise<TemporalReduceResponse>,
 ): Findings {
   const specification = JSON.parse(answer.specification) as DashboardSpecification;
   const relationships = answer.relationships.map(unwrapRelationship);

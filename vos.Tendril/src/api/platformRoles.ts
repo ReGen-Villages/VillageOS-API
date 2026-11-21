@@ -18,8 +18,7 @@ export const AWAITED_THING_ROLE_ID = '6548fbdd-3474-5043-9864-abb665bb2d4b';
 export const NOTIFIED_CONNECTION_ROLE_ID = '8ac302e3-3de9-51db-8960-65f33396838e';
 export const CALL_RECORD_ROLE_ID = 'dfe02bba-b36e-56ca-9dc3-58ca35c71940';
 
-/** The Thing a role binds in a loaded set, or undefined where the set holds no binding for it. A role binds
- *  one Thing (the platform refuses a second), so the first binding found is the binding. */
+/** The Thing a role binds in a loaded set, or undefined where the set holds no binding for it or more than one. */
 export function thingBoundBy(
   roleId: string,
   things: readonly VosThing[],
@@ -27,6 +26,6 @@ export function thingBoundBy(
 ): VosThing | undefined {
   const binds = things.find((thing) => thing.Name === BINDS_PREDICATE_NAME);
   if (!binds) return undefined;
-  const binding = relationships.find((r) => r.SubjectId === roleId && r.PredicateId === binds.Id);
-  return binding ? things.find((thing) => thing.Id === binding.TargetId) : undefined;
+  const bindings = relationships.filter((r) => r.SubjectId === roleId && r.PredicateId === binds.Id);
+  return bindings.length === 1 ? things.find((thing) => thing.Id === bindings[0].TargetId) : undefined;
 }

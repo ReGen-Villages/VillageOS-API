@@ -29,7 +29,7 @@ public sealed class SchemaValidator
             throw new ContractValidationException(schemaId, result);
     }
 
-    // Never throws on validation failure; lets production traffic flow past stale schemas.
+    // Never throws on a validation failure, so a schema that has fallen behind never stops a live request.
     public void ValidateForLog(string json, JsonSchema schema, string schemaId, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -55,8 +55,8 @@ public sealed class SchemaValidator
         }
     }
 
-    // NJsonSchema reports format failures as UuidExpected/UriExpected/etc; group under "Format"
-    // so the public code matches the JSON Schema keyword, not the validator's enum naming.
+    // NJsonSchema reports each format failure under its own kind, such as UuidExpected; they are grouped
+    // under "Format" so the code a caller reads is the JSON Schema keyword, not the validator's name.
     private static readonly HashSet<string> FormatExpectedKinds = new(StringComparer.Ordinal)
     {
         "UuidExpected", "UriExpected", "DateExpected", "DateTimeExpected",

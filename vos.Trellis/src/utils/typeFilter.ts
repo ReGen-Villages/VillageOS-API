@@ -1,13 +1,11 @@
-// A "type" is any Thing that some other Thing `is`-relates to; there is no
-// fixed vocabulary. The synthetic no-type bucket lets the panel's "None"
-// action mean "show nothing → empty graph". It is named by its id, and the
-// panel shows that name in the reader's language.
+// A type is any Thing another Thing `is`; there is no fixed list. The no-type group lets the panel's "None"
+// empty the graph, and the panel shows its name in the reader's language.
 
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 
 const IS_PREDICATE_NAME = 'is';
 
-// Reserved sentinel — cannot collide with a real Thing id because real ids are GUIDs.
+// No real Thing identifier has this form.
 export const NO_TYPE_ID = '__noType__';
 
 export interface TypeStat {
@@ -16,41 +14,18 @@ export interface TypeStat {
   instanceCount: number;
 }
 
-/**
- * Coalesced presentation: one row per Name regardless of how
- * many distinct type-Things share that Name. Thing Names are NOT unique in
- * the system (Name is just a display label; identity is the GUID), so an
- * IFC import can legitimately produce N type-Things named e.g.
- * "Solar_Panel-Tesla:Solar Panel". The user thinks of the row as one
- * category and wants one toggle for the lot.
- *
- * `typeIds` carries every underlying type-Thing id sharing this name so the
- * caller can toggle them together via the existing per-id hiddenTypeIds
- * machinery. The synthetic NO_TYPE bucket appears here as its own group of
- * one (typeIds = [NO_TYPE_ID]).
- */
+/** One row per name, because Thing names are not unique: an IFC import can make several type Things with one
+ *  name, and a person thinks of them as one category with one switch. */
 export interface TypeGroupStat {
-  /** Display name shared by every type-Thing in this group. */
   name: string;
-  /** All type-Thing ids that share this Name. Length ≥ 1. */
+  /** Every type Thing with this name, switched together; at least one. */
   typeIds: string[];
-  /** Sum of instance counts across every type-Thing in this group. */
   instanceCount: number;
 }
 
-/**
- * Walk Things + Relationships and group by `is`-target. Returns one TypeStat
- * per distinct type Thing PLUS one entry under NO_TYPE_ID counting Things
- * that have no `is` relation. Sorted by descending count then by name so the
- * panel surfaces the heaviest buckets first; the synthetic bucket sorts
- * naturally with the rest.
- *
- * Every Thing in `things` falls into exactly one bucket (its first-seen
- * `is` target, or NO_TYPE_ID). Sum of all `instanceCount`s equals
- * `things.length` — invariant the panel header relies on.
- *
- * One pass over relationships plus a Map lookup, so the cost grows with the model and not with its square.
- */
+/** Each Thing falls in exactly one group, its first `is` target or the no-type group, so the counts add up to
+ *  the number of Things, which the panel header relies on. One pass with a map lookup, so the cost grows with
+ *  the model and not with its square. */
 export function discoverTypes(
   things: VosThing[],
   relationships: VosRelationship[],
@@ -60,8 +35,7 @@ export function discoverTypes(
 
   const buckets = new Map<string, Set<string>>();
 
-  // Type Things themselves count in their own bucket — selecting "None" must
-  // hide them too. So first, seed each type Thing into its own bucket.
+  // A type Thing counts in its own group, so "None" hides it too.
   for (const t of things) {
     const typeId = instanceTypeIndex.get(t.Id);
     const bucketKey = typeId && thingNames.has(typeId) ? typeId : NO_TYPE_ID;
@@ -79,9 +53,7 @@ export function discoverTypes(
     if (!name) continue;
     out.push({ typeId, name, instanceCount: members.size });
   }
-  // Real types sort by count descending then name ascending; the synthetic no-type bucket
-  // always sorts to the end so it doesn't displace meaningful types in the
-  // panel even when its count is high.
+  // The no-type group sorts last, so it does not push real types down however large it is.
   out.sort((a, b) => {
     if (a.typeId === NO_TYPE_ID) return 1;
     if (b.typeId === NO_TYPE_ID) return -1;
@@ -90,18 +62,9 @@ export function discoverTypes(
   return out;
 }
 
-/**
- * Collapse a TypeStat[] into one entry per Name, summing
- * counts and concatenating typeIds. Order: the new groups inherit the sort
- * position of their first member, so the heaviest single-typeId types stay
- * near the top. The synthetic NO_TYPE bucket remains last because its
- * single TypeStat already sorts last in `discoverTypes`.
- *
- * Pure function. The caller (TypeFilterPanel) renders one row per
- * TypeGroupStat and toggles all underlying typeIds together.
- */
+/** A group keeps the place of its first member, so the heaviest types stay near the top and the no-type
+ *  group stays last. */
 export function groupTypesByName(types: readonly TypeStat[]): TypeGroupStat[] {
-  // Preserve first-appearance order so the input's sort carries through.
   const order: string[] = [];
   const groups = new Map<string, TypeGroupStat>();
   for (const t of types) {
@@ -117,17 +80,8 @@ export function groupTypesByName(types: readonly TypeStat[]): TypeGroupStat[] {
   return order.map((name) => groups.get(name)!);
 }
 
-/**
- * Sort orderings exposed in the TypeFilterPanel selector.
- *   - count-desc  large buckets first (panel default, matches discoverTypes)
- *   - count-asc   smallest buckets first
- *   - name-asc    A → Z
- *   - name-desc   Z → A
- *
- * The synthetic NO_TYPE bucket always sorts to the END regardless of choice —
- * it's a special "everything else" category, not a real type, and shouldn't
- * displace meaningful rows when a user picks Name A→Z.
- */
+/** Whatever the order, the no-type group sorts last, because it is not a real type and should not push real
+ *  rows down. */
 export type SortOrder = 'count-desc' | 'count-asc' | 'name-asc' | 'name-desc';
 
 export function sortTypeGroups(
@@ -152,11 +106,7 @@ export function sortTypeGroups(
   });
 }
 
-/**
- * For each Thing, return the id of the type it `is`-relates to (or null).
- * If a Thing has multiple `is` relationships, the first one wins — same
- * behavior as graphologyMapper.buildRelationshipIndex's isSubjectToTypeName.
- */
+/** The first `is` wins, as it does in graphologyMapper. */
 export function buildInstanceTypeIndex(
   things: VosThing[],
   relationships: VosRelationship[],
@@ -173,23 +123,9 @@ export function buildInstanceTypeIndex(
   return subjectToType;
 }
 
-/**
- * Filter Things + Relationships down to what should render after the user
- * has hidden `hiddenTypeIds`. A Thing is hidden when:
- *
- *   - its type-Thing id is in `hiddenTypeIds` (instances), OR
- *   - it has no `is` target AND NO_TYPE_ID is in `hiddenTypeIds`
- *     (predicates, GUI_Settings, any unclassified Thing), OR
- *   - the Thing is itself a hidden type Thing (so the type "label" hub
- *     vanishes alongside its instances — selecting "None" yields an
- *     empty graph).
- *
- * A relationship is dropped when either endpoint is hidden.
- *
- * Pure function; new arrays preserve original order. Returns the unfiltered
- * inputs (same references) when hiddenTypeIds is empty so upstream React
- * memoization doesn't pay a copy cost on the hot path.
- */
+/** A hidden type's Things go, Things with no type go when the no-type group is hidden, and a hidden type Thing
+ *  goes too, so "None" empties the graph; a relationship goes with either end. With nothing hidden the inputs
+ *  come back as they are, so the memoised results above them are not copied on every render. */
 export function applyTypeFilter(
   things: VosThing[],
   relationships: VosRelationship[],

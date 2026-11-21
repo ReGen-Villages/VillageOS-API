@@ -1,6 +1,6 @@
 # Deployment routing
 
-**The intake service answers on its own hostname; the API, the GUI and the feedback relay stay on the
+**The intake service answers on its own hostname; the API, the console and the feedback relay stay on the
 main one. The split lives in the reverse proxy and nowhere else.**
 
 ## What the Caddyfile does
@@ -9,11 +9,11 @@ main one. The split lives in the reverse proxy and nowhere else.**
   `/basemaps/*` carries the satellite map tiles a signed-in page asks for. The proxy checks the
   broker's certificate against the file the Caddyfile names (`/srv/villageos/broker-certificate.pem`).
   `/feedback/*` goes to the feedback relay on `localhost:7310` with the prefix removed; every other
-  path serves the built GUI (`vos.Trellis`'s build output).
+  path serves the built console (`vos.Trellis`'s build output).
 - `intake.example.org` — everything goes to the intake service on `localhost:7300`.
 - TLS terminates at the proxy for both hosts. Caddy provisions and renews the certificates itself.
 
-Replace the hostnames and the intake and feedback ports with the deployment's own, put the GUI's
+Replace the hostnames and the intake and feedback ports with the deployment's own, put the console's
 build output where `root` points, put a copy of the certificate the broker presents at the path the
 Caddyfile names, and run `caddy run --config deploy/Caddyfile`. For the development certificate,
 `dotnet dev-certs https --export-path broker-certificate.pem --format PEM --no-password` writes it,
@@ -34,7 +34,7 @@ What each side does:
 
 | Side | What it configures |
 |---|---|
-| The Cloudflare account that holds the domain | Authorises the machine once, in the browser, against the domain's zone; hosts the public pages on a static site only where the machine does not serve them; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the GUI's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
+| The Cloudflare account that holds the domain | Authorises the machine once, in the browser, against the domain's zone; hosts the public pages on a static site only where the machine does not serve them; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the console's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
 | The machine | Creates the tunnel under that authorisation and writes its own routing — one public hostname per host, `app.example.org`, `intake.example.org` and, where it serves the public pages itself, `submit.example.org`, each to where that host is served on loopback — and the hostnames' DNS records. The connector is started and stopped with the services; the tunnel's credentials are written by `cloudflared` under the serving user's home, never on a command line. |
 
 Where the public hostname points depends on what runs:
@@ -49,7 +49,7 @@ Where the public hostname points depends on what runs:
 
 The intake service's rate limit keeps working: the connector and the proxy both pass the caller's
 address on, and the service reads it from loopback only. The broker's event streams send a
-heartbeat every fifteen seconds, which is inside Cloudflare's idle limit for a response, and the GUI
+heartbeat every fifteen seconds, which is inside Cloudflare's idle limit for a response, and the console
 reconnects with replay if a stream is ever cut.
 
 ## What the services must do
@@ -76,7 +76,7 @@ reconnects with replay if a stream is ever cut.
 - **`--mailDelivery=console` is not for a deployment.** It writes each code to the log instead of
   sending it, so a developer with no relay to hand can run the whole exchange. Nobody has to receive
   a code that way, so no address is verified and a submission may name any address at all — which is
-  why the service refuses to start with it anywhere but Development, and says so loudly in the log on
+  why the service refuses to start with it anywhere but Development, and warns in the log on
   the startup it does allow. The default, `--mailDelivery=server`, is the behaviour above.
 - **The intake service keeps the files submitters share on its own disk.** `--documentDirectory=<path>`
   names the folder; the default is `documents` beside the service. Only the bytes live there, keyed by
@@ -113,8 +113,7 @@ on the site: `index.html` is the form, `findings.html` is the page a submitter r
 on, `explore.html` is the plot-first page, and the three share their assets. The explore page leans on
 two lookups the model registers — the parcel boundary at a position and a place search — and draws
 neither where the model registers none; the calls go out through the broker's fetching service, on the
-routing label the intake service is told with `--fetcherSubdomain` (the shipped template's label by
-default). `VITE_INTAKE_URL` is read at build time, not at run time — a form
+routing label named in `OutsideCalls.FetcherSubdomain`, the shipped template's label. `VITE_INTAKE_URL` is read at build time, not at run time — a form
 built without it collects answers it cannot post, and says so instead of offering the button.
 
 Two things have to agree for the pages to work:
@@ -130,5 +129,5 @@ programme categories a submission may name and the basemap sources a map may dra
 
 **A basemap address the model holds is published by this.** The form is open to anybody, so a tile or
 style address carrying a key in it is readable by anybody who opens the page. The same holds for
-every browser signed in to the GUI; the form widens who can open it. A deployment whose imagery is
+every browser signed in to the console; the form widens who can open it. A deployment whose imagery is
 behind a key should put a proxy in front of the provider rather than a key in the model.

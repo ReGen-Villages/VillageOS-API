@@ -3,12 +3,8 @@ import { fileNameFromContentDisposition, fullLogFallbackName } from '../utils/lo
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
-/**
- * The whole current log file from the broker — the Mycelium log, or a service daemon's log when
- * `service` is given. Unlike the tail/stream endpoints this is not line-capped, so it is the
- * source for "download the full log". Fetched with the bearer token rather than a plain link so
- * the token never lands in a URL or the browser history.
- */
+/** Not cut to a number of lines, unlike the tail and stream routes, so this is the full download. The token
+ *  goes in a header so it never lands in an address or the browser's history. */
 export async function fetchFullLog(service?: string): Promise<{ blob: Blob; fileName: string }> {
   const token = await apiClient.ensureToken();
   const query = service ? `?service=${encodeURIComponent(service)}` : '';

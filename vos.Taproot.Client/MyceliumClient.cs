@@ -48,8 +48,8 @@ public class MyceliumClient
             client.DefaultRequestHeaders.Add(ProgramHeader, ProgramName);
     }
 
-    // TLS certificates are validated by default. Validation is bypassed only when VOS_INSECURE_TLS
-    // is explicitly set — for local dev against self-signed certs, never in production.
+    // The server's certificate is checked unless VOS_INSECURE_TLS is set, which is for a local broker with a
+    // self-signed certificate and never for a deployment.
     internal static HttpClientHandler CreateHandler()
     {
         var handler = new HttpClientHandler();
@@ -110,7 +110,7 @@ public class MyceliumClient
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         _cachedToken = result.GetProperty("token").GetString()!;
-        _tokenExpiry = _clock().AddMinutes(4); // API key JWTs are 5min, refresh early
+        _tokenExpiry = _clock().AddMinutes(4); // A token minted from a key lasts five minutes, so a new one is fetched a minute early.
         return _cachedToken;
     }
 
@@ -240,10 +240,10 @@ public class MyceliumClient
             : answer;
     }
 
-    // Every Thing's resolved properties in one call, keyed by Thing id. scope: effective (own +
-    // inherited with own/overrides winning) | own | inherited. Each property carries IsInherited /
-    // InheritedFrom; inherited ones are keyed by qualified path ("Device.serialNumber"). Lets snapshot
-    // read commands surface the full inherited view without a per-Thing request.
+    // Every Thing's resolved properties in one call, keyed by Thing id. `scope` is effective (own and
+    // inherited, with own values and overrides winning), own or inherited. Each property carries IsInherited
+    // and InheritedFrom, and an inherited one is keyed by its qualified path ("Device.serialNumber"), so a
+    // command reading the whole model sees what each Thing inherits without a request per Thing.
     public virtual async Task<JsonElement> GetAllPropertiesAsync(string scope = "effective")
     {
         await SetAuthHeaderAsync();
@@ -281,8 +281,8 @@ public class MyceliumClient
         return await TrueUnlessNotFoundAsync(response);
     }
 
-    // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
-    // persists a NameSet Fact, so the rename streams over SSE and is temporally reconstructable.
+    // Renames a Thing in place, keeping its Id and every relationship. The broker records the rename as a
+    // NameSet Fact, so it reaches everyone following the model's events and a read at an earlier time shows the old name.
     public virtual async Task<bool> RenameThingAsync(Guid id, string newName)
     {
         await SetAuthHeaderAsync();
@@ -398,7 +398,7 @@ public class MyceliumClient
 
     // Every connection the model declares, each with what it resolves to. The platform resolves these —
     // a value may be held on the Thing, inherited through its `is` chain, or reached by a relationship — so
-    // reading them here is what keeps this client out of the business of resolving anything itself.
+    // this client reads the answers and resolves nothing itself.
     public virtual async Task<JsonElement> GetAllConnectionsAsync()
     {
         await SetAuthHeaderAsync();
@@ -452,9 +452,9 @@ public class MyceliumClient
         await EnsureSuccessCarryingTheReasonAsync(response);
     }
 
-    // Upsert a fragment (a partial-model {Name, Things, Relationships} batch) into the live model.
-    // Idempotent: re-applying the same fragment neither duplicates nor errors; the server resolves
-    // lazy inheritance. Contrast SetModelAsync, which replaces the whole model.
+    // Applies a fragment (a {Name, Things, Relationships} batch) to the live model: what is missing is added
+    // and what is there is updated, so applying it again changes nothing, and the server works out what each
+    // Thing inherits. SetModelAsync replaces the whole model instead.
     public virtual async Task<JsonElement> ApplyFragmentAsync(string fragmentJson)
     {
         await SetAuthHeaderAsync();

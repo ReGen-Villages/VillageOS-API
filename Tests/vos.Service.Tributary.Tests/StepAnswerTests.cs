@@ -97,7 +97,7 @@ public class StepAnswerTests
         answer.Reason.Should().Be("400: Request must include a non-empty endpointName.");
     }
 
-    // The fault this guards: a reshape that failed reached the pipeline as its summary alone, so no log said why.
+    // A failed reshape reaching the pipeline as its summary alone would leave no log saying why.
     [Fact]
     public void A_refusal_carrying_its_detail_names_it_in_the_reason()
     {

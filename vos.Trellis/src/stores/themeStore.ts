@@ -3,14 +3,14 @@ import { create } from 'zustand';
 const THEME_KEY = 'vos-theme-override';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-export type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark';
 
 interface ThemeState {
   theme: Theme;
-  /** True if the user has explicitly chosen a theme; false means we're following the OS. */
+  /** False while the theme follows the operating system. */
   isOverride: boolean;
   toggle: () => void;
-  /** Internal: called by the matchMedia listener when the OS theme changes. */
+  /** Called only by the listener on the operating system's theme. */
   _systemChanged: (next: Theme) => void;
 }
 
@@ -39,15 +39,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   _systemChanged: (next) => {
-    // Only follow OS changes when the user hasn't taken manual control.
     if (!get().isOverride) set({ theme: next });
   },
 }));
 
-/**
- * Subscribe to the OS theme so we live-update while the user is in
- * "follow system" mode. Idempotent — safe to call once at app boot.
- */
+/** Call once, when the application starts. */
 export function attachThemeMediaListener(): () => void {
   if (typeof window === 'undefined' || !window.matchMedia) return () => {};
   const mql = window.matchMedia(DARK_QUERY);

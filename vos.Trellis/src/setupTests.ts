@@ -3,8 +3,7 @@ import { configure } from '@testing-library/react';
 import { beforeEach } from 'vitest';
 // Shims must run before any module that reads localStorage at import time.
 import './testShims';
-// Initialise i18next once so any component test that calls `useTranslation`
-// resolves against the real English base locale instead of raw keys.
+// Without it, `useTranslation` answers raw keys rather than the English sentences.
 import './i18n';
 import { waitLimitWithin } from './testWaitLimit';
 

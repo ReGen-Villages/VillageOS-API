@@ -1,9 +1,4 @@
-/**
- * One floating, draggable, resizable detail window for a single Thing. Generic: what it shows
- * is driven by the model's {@link DetailSpec} — title/subtitle property, property groups, the
- * ordered relations to surface, and the state-change history. Several can be open at once (see
- * DetailWindowManager). Clicking a related Thing opens another window.
- */
+/** What it shows comes from the model's {@link DetailSpec}; clicking a related Thing opens another window. */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -322,9 +317,8 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
     : [{ label: t('entityDetail.properties'), entries: Object.entries(props) }];
 
   const [position, setPosition] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
-  // Re-tile when the spread button is clicked, using React's "adjust state during render"
-  // pattern (a guarded render-phase update) rather than an effect: spreadTick only advances on
-  // an explicit click, and starts at 0 so the initial cascade above is kept until then.
+  // Laid out again only when the spread button is clicked, set while drawing rather than in an effect, because
+  // spreadTick moves only on that click and starts at 0, which keeps the first cascade until then.
   const [appliedSpread, setAppliedSpread] = useState(0);
   if (spreadTick !== appliedSpread) {
     setAppliedSpread(spreadTick);
@@ -354,7 +348,7 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
       className="fixed flex flex-col rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden resize"
       style={{ left: position.x, top: position.y, zIndex, width: 460, height: 560, minWidth: 320, minHeight: 260, maxWidth: '95vw', maxHeight: '90vh' }}
     >
-      {/* Title bar (drag handle) */}
+      {/* The title bar is the drag handle. */}
       <div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -390,13 +384,11 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
       </div>
 
       <div className="flex-1 overflow-auto p-3 space-y-4 text-sm">
-        {/* Derived states of the root */}
         <section>
           <SectionTitle>{t('entityDetail.derivedStates')}</SectionTitle>
           <StatePills states={statesById.get(thingId) ?? []} />
         </section>
 
-        {/* Details */}
         <section className="space-y-2">
           <SectionTitle>{t('entityDetail.details')}</SectionTitle>
           {groups.map((group) => (
@@ -419,7 +411,6 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
           ))}
         </section>
 
-        {/* Configured relations, in the model's declared order */}
         {relations.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.relations')}</SectionTitle>
@@ -441,7 +432,6 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
           </section>
         )}
 
-        {/* Handling history — the root's own derived-state changes, oldest first */}
         {detail.history?.enabled !== false && (
           <section>
             <SectionTitle>

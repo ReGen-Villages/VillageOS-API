@@ -4,7 +4,8 @@ Reads a raster at a point or over a zone. It is a Python package (`quadrat/`) wi
 microservice (`app.py`) that exposes the same operations to a pipeline as a node, built on
 [`vos.Service.Python.Shared`](../vos.Service.Python.Shared/README.md).
 
-Coordinates and zones are always WGS84 (lon/lat); Quadrat reprojects to the raster's own CRS.
+Coordinates and zones are always WGS84 (longitude and latitude); Quadrat reprojects to the raster's own coordinate
+reference system.
 
 ## Run
 
@@ -13,6 +14,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt     # on Windows: .venv/Scripts/python
 .venv/bin/python -m pytest
 
+# samples/ is downloaded, not kept in git: see "Sample data" below.
 .venv/bin/python -m quadrat metadata samples/tatra-z10-568-350.tif
 .venv/bin/python -m quadrat point samples/tatra-z10-568-350.tif --lon 19.9814 --lat 49.2319 --resampling bilinear
 .venv/bin/python -m quadrat zonal samples/tatra-z10-568-350.tif --bbox 19.92 49.24 19.95 49.26
@@ -36,8 +38,8 @@ The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the envi
 `/stats`, `/shutdown`) and the pipeline node's envelope, answer and manifest are the shared library's
 ([`NodeService`](../vos.Service.Python.Shared/README.md#answer-pipeline-nodes)). Quadrat answers pipeline nodes: a
 `/handle` body carrying `runId` and `nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused
-with `400`. `GET /manifest` lists the ports. An input given as a graph reference (`{"ref": {"thingId", "property"}}`)
-is read from the graph before the operation runs, and the source rules below then apply to what it held.
+with `400`. `GET /manifest` lists the ports. An input given as a reference to a property (`{"ref": {"thingId", "property"}}`)
+is read from the model before the operation runs, and the source rules below then apply to what it held.
 
 ### What the manifest carries
 
@@ -81,8 +83,9 @@ much larger pieces.
   that check and the read is the one thing left to the host's own trustworthiness.
 - **Only `.tif` and `.tiff`** are opened over the web. A `.vrt` is a file that points at other files, so it is not one.
 - **A host that does not answer is given up on**, as `unreadable_raster`: 5 seconds to connect and 20 seconds per
-  request, with no retries. Set `GDAL_HTTP_TIMEOUT`, `GDAL_HTTP_CONNECTTIMEOUT` or `GDAL_HTTP_MAX_RETRY` in the
-  service's environment to change them. The environment's own value wins.
+  request, with no retries. When Quadrat is started by hand, `GDAL_HTTP_TIMEOUT`, `GDAL_HTTP_CONNECTTIMEOUT` or
+  `GDAL_HTTP_MAX_RETRY` in its environment change them, and the environment's own value wins. A service Mycelium
+  starts is handed only a short list of the broker's variables, none of these, so it uses the values above.
 - Directory listings are not requested (`GDAL_DISABLE_READDIR_ON_OPEN`), so a read makes no requests beyond the file.
 
 | | |
@@ -131,10 +134,11 @@ Over the cell limit is refused as `too_many_cells`, saying how many cells the zo
 line's samples touch) needs and how many are allowed. Over the sample limit is refused as `too_many_samples`. A flag
 that is not a positive whole number stops the service from starting.
 
-**Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global lock for
-most of a large read, so in a thread it stalled everything else in the service: during four 4-million-cell reads
-`/health` took up to 4.6 seconds to answer, against 29 milliseconds with worker processes. A worker the raster library
-brings down takes only itself with it, and the request is refused as `read_failed` and can be sent again.
+**Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global
+interpreter lock for most of a large read, so a read in a thread would stall everything else in the service, `/health`
+among it; a worker process has a lock of its own, and `/health` answered within 29 milliseconds during four
+4-million-cell reads. A worker the raster library brings down takes only itself with it, and the request is refused as
+`read_failed` and can be sent again.
 
 The defaults rest on what a read was measured to take (a float32 raster on a Windows development machine; yours will
 differ, so measure before raising them):
@@ -152,7 +156,7 @@ a gigabyte (measured: 988 MB for four requests at the default, 1,831 MB with `--
 
 | Command | Answers |
 |---|---|
-| `metadata` | CRS, size, resolution, bounds (own CRS and WGS84), bands, dtype, nodata |
+| `metadata` | Coordinate reference system, size, resolution, bounds (in its own system and WGS84), bands, data type, nodata value |
 | `point` | The value at a coordinate; `nearest` or `bilinear`; `null` on a nodata cell |
 | `zonal` | `count`, `mean`, `min`, `max`, `median` over a polygon, weighted by how much of each cell the polygon covers; nodata cells left out and reported as `nodata_cells` |
 | `histogram` | The cells, share and ground area of each distinct value over a polygon, for a raster of class codes. See [Land cover](#land-cover-and-measurements-histogram-and-classify) |
@@ -265,7 +269,7 @@ curl -o samples/tatra-z10-568-350.terrarium.png https://s3.amazonaws.com/elevati
 
 Two checks sit above the unit tests, and they answer different questions.
 
-**The contract test** (`tests/test_contract.py`, part of `pytest`) pins what the rest of the platform depends on
+**The contract test** (`tests/test_contract.py`, part of `pytest`) checks what the rest of the platform depends on
 Quadrat being, from the platform's side of [docs/SERVICES.md §16.2](../docs/SERVICES.md): a manifest whose ports and
 settings are in the shape the editor and `declare_service.py` read; every operation answering the envelope Phloem
 parses (`result`, `outputs`, `error`, only the declared output port); a refusal answering `fail` with its code and no
@@ -288,7 +292,7 @@ Run it against a service you started, from this folder:
 
 ```powershell
 # Windows. Start-Process keeps the service running after the shell that started it ends; a background shell job may not.
-$svc = "D:\RegenRepos\VillageOS-API\vos.Service.Quadrat"
+$svc = "<path to your checkout>\vos.Service.Quadrat"
 $p = Start-Process -FilePath "$svc\.venv\Scripts\python.exe" -WorkingDirectory $svc -WindowStyle Hidden -PassThru `
   -ArgumentList @("app.py", "--port=5611", "--myceliumUrl=http://127.0.0.1:9", "--rasterDirectory=$svc\samples") `
   -RedirectStandardOutput "$env:TEMP\quadrat.out.log" -RedirectStandardError "$env:TEMP\quadrat.err.log"

@@ -9,9 +9,7 @@ const ADDRESS = 'ana.ferreira@example.pt';
 
 const ANSWER = { specification: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} };
 
-/** The ticket exchange first, then whatever the test says the findings request is answered with. Every
- *  faked answer carries a header map because every real one does — an accepted read hands the renewed
- *  ticket back on it. */
+/** Every faked answer carries headers, because a real accepted read returns the renewed ticket in one. */
 function answering(findingsAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
@@ -29,8 +27,7 @@ beforeEach(() => {
 });
 
 describe('asking the intake service for one submission\'s findings', () => {
-  // The code is spent on a ticket and the ticket on the read, in one act: a ticket lasts minutes and is
-  // no use to the page beyond the request it was got for.
+  // In one call, because a ticket lasts minutes and is no use beyond the request it was got for.
   it('spends the code on a ticket and the ticket on the read', async () => {
     answering({ ok: true, json: () => Promise.resolve(ANSWER) });
 
@@ -57,8 +54,7 @@ describe('asking the intake service for one submission\'s findings', () => {
     await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).resolves.toEqual({ findings: ANSWER, ticket: 'ticket-2' });
   });
 
-  // What the service said, not the status it said it under: which of the reference and the address was
-  // wrong is the whole value of the answer to whoever is reading it.
+  // The service's words, not the status, because they say whether the reference or the address was wrong.
   it('carries the service\'s own refusal', async () => {
     answering({
       ok: false,
@@ -71,7 +67,6 @@ describe('asking the intake service for one submission\'s findings', () => {
     );
   });
 
-  // A code that was not the one sent buys no ticket, and the read is never attempted.
   it('does not ask for findings when the code bought no ticket', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: 'Not the code.' }) });
 
@@ -86,8 +81,6 @@ describe('asking the intake service for one submission\'s findings', () => {
   });
 });
 
-// The history reduction a chart asks for after the findings arrived: the same ticket, the same renewal
-// on the way back, and the site supplied by the service rather than named by the page.
 describe('asking the intake service to reduce the site\'s history', () => {
   it('posts the question under the ticket to the submission\'s own route, and carries the renewed ticket back', async () => {
     fetchMock.mockResolvedValue({
@@ -126,11 +119,8 @@ describe('asking the intake service to reduce the site\'s history', () => {
   });
 });
 
-// A survey a submitter shares after the report: the bytes go up as a form under the ticket, the browser
-// reports how far they have got, and the service answers the document the model now holds.
 describe('sharing a survey file through the intake service', () => {
-  /** Stands in for the browser's own request object, which is the one that reports upload progress —
-   *  `fetch` has no way to. What the page hands it and what it fires back are both scripted here. */
+  /** Stands in for XMLHttpRequest, which the page uses because `fetch` cannot report upload progress. */
   class ScriptedRequest {
     static opened: { method: string; url: string }[] = [];
     static headers: Record<string, string> = {};

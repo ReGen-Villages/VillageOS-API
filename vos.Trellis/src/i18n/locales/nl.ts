@@ -3,8 +3,7 @@ import type { PartialResources } from './types';
 /**
  * DRAFT — machine-drafted Dutch. Not reviewed by a human translator.
  * Every string here needs sign-off by a fluent speaker before it ships as
- * final. Keys intentionally omitted (e.g. log.fullLogTitle) fall back to the
- * English base locale, which is the expected behaviour for an incomplete draft.
+ * final. A key left out falls back to the English base locale.
  */
 export const nl: PartialResources = {
   navigation: {
@@ -50,7 +49,6 @@ export const nl: PartialResources = {
     dark: 'donkere',
   },
   language: {
-    label: 'Taal',
     select: 'Taal selecteren',
   },
   log: {
@@ -124,8 +122,6 @@ export const nl: PartialResources = {
     notAvailable: 'Niet beschikbaar',
     switchModel: 'Model wisselen',
     logout: 'Afmelden',
-    search: 'Zoeken',
-    clear: 'Wissen',
     query: "Zoekopdracht",
     copyAsMarkdown: "Kopiëren als Markdown",
     downloadAsMarkdown: "Downloaden als Markdown",
@@ -134,7 +130,6 @@ export const nl: PartialResources = {
     showMore_one: "Meer tonen (nog {{count}})",
     showMore_other: "Meer tonen (nog {{count}})",
     showingFirst: "eerste {{count}} getoond",
-    noProperties: "Geen eigenschappen",
   },
   dashboard: {
     engines: {
@@ -1164,7 +1159,6 @@ export const nl: PartialResources = {
       subject: "Onderwerp",
       predicate: "Predicaat",
       target: "Doel",
-      openDetail: "Verbindingsdetails openen",
       rangesTab: "Bereiken",
       propertiesTab: "Eigenschappen ({{count}})",
       deleteRelationship: "Relatie verwijderen",
@@ -1284,6 +1278,22 @@ export const nl: PartialResources = {
     waitLimitNotWholeMinutes: "“{{node}}” wacht hoogstens {{minutes}} minuten, en dat is geen geheel aantal minuten boven nul.",
     waitingFor: "wacht op {{state}}",
     waitsForNothing: "wacht nog op geen toestand",
+    relatesAlong: "Koppelt via",
+    callsService: "Roept aan",
+    noRelatablePredicate: "Geen predicaat hier noemt een verbinding die een dienst bindt en door één toestand wordt bewezen.",
+    relatesAlongNothing: "koppelt nog via geen predicaat",
+    relatingAlong: "koppelt via {{predicate}}, wacht dan op {{state}}",
+    relateWithoutPredicate: "“{{node}}” koppelt via geen predicaat, dus er zou niets worden aangeroepen.",
+    relateRefused: "“{{node}}” kan niet lopen: {{reason}}.",
+    relateWithoutThing: "Er is niets verbonden met de poort van “{{node}}”, dus het heeft geen ding om te koppelen.",
+    relate: {
+      standsForAConnection: "'{{name}}' is een verbinding: een koppelknoop staat voor het predicaat dat een verbinding via '{{notifies}}' noemt",
+      namesNoConnection: "'{{name}}' noemt geen verbinding via '{{notifies}}', dus een relatie daarlangs roept niets aan",
+      modelNamesNoNotifiedConnection: "'{{name}}' noemt geen verbinding: dit model bindt geen predicaat aan de rol die een verbinding noemt, dus een relatie daarlangs roept niets aan",
+      connectionBindsNoService: "'{{name}}' noemt '{{connection}}', die geen dienst bindt, dus er zou niets worden aangeroepen",
+      connectionNamesNoState: "'{{name}}' noemt '{{connection}}', die geen toestand noemt die haar werk bewijst, dus de run zou niet weten wanneer het werk klaar is",
+      connectionNamesTwoStates: "'{{name}}' noemt '{{connection}}', die meer dan één toestand noemt die haar werk bewijst",
+    },
     danglingWire: "Deze verbinding is niet aan beide uiteinden bevestigd: {{from}} → {{to}}",
     requiredInputUnbound: "De verplichte invoer ‘{{port}}’ op ‘{{node}}’ is niet verbonden en niet gekoppeld aan een uitvoeringsparameter.",
     startCannotStart: "‘{{node}}’ is waar deze pipeline begint en staat voor ‘{{named}}’, dat niets start",
@@ -1318,7 +1328,6 @@ export const nl: PartialResources = {
     bindInput: "Koppel een ingang aan een uitvoeringsparameter:",
     wired: "bedraad",
     fromParameter: "van param…",
-    wire: "Draad",
     mapField: "Wijs een veld toe (leeg = volledige payload):",
     fromPath: "van-pad",
     toPath: "naar-pad",
@@ -1458,6 +1467,9 @@ export const nl: PartialResources = {
       wait: "Wachten op een toestand",
       waitBody: "Houdt de run vast tot het ding dat hem bereikt een toestand binnengaat",
       placeWait: "Een wachtknoop plaatsen",
+      relate: "Een ding koppelen",
+      relateBody: "Koppelt het ding dat hem bereikt via een predicaat, zodat het platform een dienst aanroept, en wacht tot het werk klaar is",
+      placeRelate: "Een koppelknoop plaatsen",
       stops: "Runs stoppen",
       stop: "Hun runs stoppen",
       stopBody: "Stopt elke run over de Dingen die hem bereiken",
@@ -1680,6 +1692,11 @@ export const nl: PartialResources = {
       fromPlaceSearch: 'uit een plaatszoekopdracht',
       fromDevice: 'van dit apparaat',
     },
+  },
+  typedFigure: {
+    notANumber: "Geen getal.",
+    negative: "Kan niet negatief zijn.",
+    notWhole: "Moet een geheel getal zijn.",
   },
   publicFindings: {
     noTicket: "Bevestig eerst uw e-mailadres.",

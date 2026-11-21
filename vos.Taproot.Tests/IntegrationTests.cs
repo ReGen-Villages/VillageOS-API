@@ -4,9 +4,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Integration tests that test CLI command flows using mocked mycelium responses.
-// These tests verify that commands are correctly routed and produce expected output.
-// For true end-to-end tests, a running mycelium is required.
+// Against a stand-in broker, so these show how commands are routed and what they print, not what a running broker answers.
 [Collection(nameof(WorkingDirectoryCollection))]
 public class IntegrationTests : IDisposable
 {
@@ -54,7 +52,6 @@ public class IntegrationTests : IDisposable
         var likesId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
-        // Setup mycelium responses for the workflow
         _myceliumMock.Setup(b => b.CreateThingAsync("Alice", false)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice""}}"));
         _myceliumMock.Setup(b => b.CreateThingAsync("Bob", false)).ReturnsAsync(
@@ -68,17 +65,14 @@ public class IntegrationTests : IDisposable
         var reader = new StringReader("");
         var handler = CreateHandler(reader, writer);
 
-        // Create Alice
         await handler.HandleCommandAsync("create", "thing Alice");
         Assert.Contains("Created Thing", writer.ToString());
 
-        // Create Bob
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("create", "thing Bob");
         Assert.Contains("Created Thing", writer.ToString());
 
-        // Create relationship
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("create", $"relation {aliceId} {likesId} {bobId}");
@@ -108,7 +102,6 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
 
-        // Test list things
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("list", "things");
@@ -116,7 +109,6 @@ public class IntegrationTests : IDisposable
         Assert.Contains("Alice", output);
         Assert.Contains("Bob", output);
 
-        // Test list relations
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("list", "relations");
@@ -147,7 +139,6 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
 
-        // Test find thing
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("find", "thing Ali");
@@ -155,7 +146,6 @@ public class IntegrationTests : IDisposable
         Assert.Contains("Found 1 thing(s)", output);
         Assert.Contains("Alice", output);
 
-        // Test find relationships
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("find", $"relationships {aliceId}");
@@ -207,7 +197,6 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(effectiveJson));
 
-        // Test query stats
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("query", "stats");
@@ -216,7 +205,6 @@ public class IntegrationTests : IDisposable
         Assert.Contains("Things: 2", output);
         Assert.Contains("Relationships: 1", output);
 
-        // Test query property
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("query", "property Status Active");
@@ -235,19 +223,16 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
         _myceliumMock.Setup(b => b.DeleteThingAsync(aliceId)).ReturnsAsync(true);
 
-        // Delete property
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("delete", $"property {aliceId} Age");
         Assert.Contains("Deleted property", writer.ToString());
 
-        // Delete relationship
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("delete", $"relationship {relationshipId}");
         Assert.Contains("Deleted relationship", writer.ToString());
 
-        // Delete thing
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("delete", $"thing {aliceId}");
@@ -264,27 +249,23 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"things\": [], \"relationships\": []}");
         _myceliumMock.Setup(b => b.SetModelAsync(It.IsAny<string>())).ReturnsAsync("OK");
 
-        // Test pwd
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("pwd", null);
         Assert.Contains("Current directory:", writer.ToString());
 
-        // Test cd
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("cd", _testDirectory);
         Assert.Contains("Changed directory to:", writer.ToString());
         Assert.Contains(_testDirectory, writer.ToString());
 
-        // Test serialize to file
         var filePath = Path.Combine(_testDirectory, "integration_test.json");
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("serialize", filePath);
         Assert.True(File.Exists(filePath));
 
-        // Test deserialize from file
         writer = new StringWriter();
         handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("deserialize", filePath);
@@ -300,7 +281,6 @@ public class IntegrationTests : IDisposable
         _myceliumMock.Setup(b => b.GetThingAsync(aliceId)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice"",""Properties"":{{""Age"":30}}}}"));
 
-        // Test get thing
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("get", $"thing {aliceId}");

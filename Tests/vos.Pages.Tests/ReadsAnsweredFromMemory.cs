@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace vos.Pages.Tests;
 
-/// <summary>Answers every selector with the whole hand-built model and keeps what it was asked.</summary>
+// Answers every selector with the whole hand-built model and keeps what it was asked.
 internal sealed class ReadsAnsweredFromMemory : IPageReads
 {
     private readonly SelectedThings _selected = HandBuiltModel.Selected();

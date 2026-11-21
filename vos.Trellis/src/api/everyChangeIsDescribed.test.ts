@@ -32,8 +32,7 @@ beforeEach(() => {
   for (const method of [apiClient.post, apiClient.put, apiClient.del]) vi.mocked(method).mockResolvedValue(answered);
 });
 
-// What a recipient reads on their phone is the description, so each change says what it did in words a
-// person would use, and still sends the request it always sent.
+// A recipient reads the description on their phone, so it says what the change did in a person's words.
 describe('every change a person asks for is described and still sent', () => {
   it.each([
     ['create a Thing', () => thingApi.create('Pump', false), 'post', '/api/things', 'create Thing "Pump"'],

@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { basemapSourcesFrom, styleForSource } from './basemapSources';
 import { DEFAULT_RASTER_MAXIMUM_ZOOM, DEFAULT_TERRAIN_EXAGGERATION } from '../types/basemap';
 
-// What the intake service hands a public form: sources as the model states them, judged here rather than
-// there, so the form and the signed-in page cannot come to different answers about the same model.
 describe('basemapSourcesFrom', () => {
   it('reads a vector style source', () => {
     expect(
@@ -131,9 +129,7 @@ describe('styleForSource', () => {
   });
 });
 
-// What the model says about drawing land rather than a diagram. Every part is
-// optional, and a part stated without what it needs is dropped rather than half-applied: a height
-// cannot be read off a tile pyramid without knowing how the pyramid packs one.
+// Every part is optional, and a part stated without what it needs is dropped rather than half applied.
 describe('what a source says about raising the ground', () => {
   const declared = {
     id: 'src-1',
@@ -181,9 +177,6 @@ describe('what a source says about raising the ground', () => {
     expect(source.terrain).toBeUndefined();
   });
 
-  // A word is not an encoding. The map refuses a scheme it cannot read by adding no source at all, and
-  // then throws on being told to drape the ground over one — out of an effect, which takes the page
-  // down. Refusing the word here is the same refusal as for a missing one, one step earlier.
   it('raises nothing from a pyramid under a scheme no map can read', () => {
     const [source] = basemapSourcesFrom([
       {

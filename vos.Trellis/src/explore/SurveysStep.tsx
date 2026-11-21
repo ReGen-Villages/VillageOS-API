@@ -1,7 +1,7 @@
 /**
  * The surveys a submitter can share once the report is up: a soil test, a water report, a topographical
  * survey. Each file goes to the intake service with the description typed beside it, one after another
- * so every send rides the ticket the last one handed back, and what the model holds is listed after.
+ * so every send uses the ticket the last one handed back, and what the model holds is listed after.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

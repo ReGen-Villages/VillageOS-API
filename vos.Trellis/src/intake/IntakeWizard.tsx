@@ -5,7 +5,7 @@
  * One definition, rendered both by the planner's page and by the public form, so a field added here
  * appears in both and there is one shape of submission rather than two that can disagree.
  *
- * Three things shape it. Nothing is kept in the browser beyond the draft — the answers become Things the
+ * Nothing is kept in the browser beyond the draft — the answers become Things the
  * moment the submission is accepted, so there is no file to download and nothing to lose. The programme
  * categories are read out of the model by whoever renders this rather than listed here, because the
  * intake service resolves a submitted word against the terms the model declares and offering anything
@@ -45,6 +45,7 @@ import {
   withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
+import { figureRefusals, FIGURE_REFUSAL_WORDING } from './typedFigure';
 import { useTermWords, type TermWording } from '@tendril-ui/tendril';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
@@ -431,6 +432,7 @@ function ProgrammeStep({
 }: StepProps & { categories: readonly string[]; wordsFor: (term: string) => string }) {
   const { t, i18n } = useTranslation();
   const hectares = statedAreaHectares(draft);
+  const refusals = figureRefusals(draft);
   const shown = wholePercentages(draft.shares);
   // One formatter for every row rather than one per row per render: the rows redraw on each keystroke
   // anywhere in this step, and building a formatter is the expensive half of formatting one number.
@@ -478,8 +480,14 @@ function ProgrammeStep({
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field labelKey="intake.population" value={draft.population} onChange={(population) => onChange({ population })} />
-        <Field labelKey="intake.householdSize" value={draft.householdSize} onChange={(householdSize) => onChange({ householdSize })} />
+        <div>
+          <Field labelKey="intake.population" value={draft.population} onChange={(population) => onChange({ population })} />
+          {refusals.population && <Note tone="warn">{t(FIGURE_REFUSAL_WORDING[refusals.population])}</Note>}
+        </div>
+        <div>
+          <Field labelKey="intake.householdSize" value={draft.householdSize} onChange={(householdSize) => onChange({ householdSize })} />
+          {refusals.householdSize && <Note tone="warn">{t(FIGURE_REFUSAL_WORDING[refusals.householdSize])}</Note>}
+        </div>
       </div>
 
       <div className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('intake.programme')}</div>

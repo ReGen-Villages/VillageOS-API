@@ -17,21 +17,17 @@ import { csvFileName, tableToCsv } from './tableToCsv';
    depend on the data, so no constant is right for every table. */
 const BODY_ROW_HEIGHT = '(1.5em + 1rem + 1px)';
 
-/* The same box in pixels at the `text-[12.5px]` the scroll container sets. The row window assumes
-   it until a rendered row reports its own height, and keeps assuming it where no ResizeObserver
-   reports one — without an assumption the first paint of a long list would put every row in the
-   document, which is the cost this exists to avoid. The spacers assume the same number, so they
-   place the window exactly; only the rows actually rendered can drift, which is why being a few
-   pixels out stays inside the overscan however far the list is scrolled. */
+/* The same in pixels. The window assumes it until a row reports its own height, and where nothing reports,
+   because without it the first paint of a long list would put every row in the page. The spacers assume it
+   too, so only the drawn rows can drift, and that stays inside the overscan however far the list scrolls. */
 const ESTIMATED_BODY_ROW_HEIGHT = 12.5 * 1.5 + 16 + 1;
 
 /* Rows kept in the document above and below the cap, so a small scroll reveals a row that is
    already there rather than a gap waiting for the next render. */
 const OVERSCAN_ROWS = 6;
 
-/** Sortable, generic data table driven by a rows binding + column specification.
- *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
- *  via `rows` (e.g. the funnel's cross-stage search results). */
+/** Rows come from a `rowsBinding` resolved here, or directly through `rows`, as the funnel's search across
+ *  stages passes them. */
 export function DataTable({
   columns,
   rowsBinding,
@@ -112,13 +108,9 @@ export function DataTable({
   const shown = windowed ? sorted.slice(firstShown, firstShown + windowSize) : sorted;
   const rowsBelow = sorted.length - firstShown - shown.length;
 
-  /* The position is kept as a row index, not as the pixel offset it is read from: a scroll within
-     one row leaves it unchanged and costs no render, so scrolling re-renders once per row crossed
-     rather than once per frame.
-
-     Followed whenever a capped table scrolls, not only while it is windowed — a search that narrows
-     the list inside the cap sends the container back to the top, and the remembered position has to
-     come back with it, or clearing the search would show rows the scrollbar disagrees with. */
+  /* Kept as a row index rather than pixels, so a scroll within one row costs no render. Followed on every
+     scroll of a capped table, because a search narrowing the list sends it to the top, and the position must
+     follow or clearing the search would show rows the scrollbar disagrees with. */
   const followScroll = visibleRows
     ? (event: UIEvent<HTMLDivElement>) => setFirstVisibleRow(Math.floor(event.currentTarget.scrollTop / rowHeight))
     : undefined;

@@ -43,9 +43,7 @@ public class StepHandleTests
             }
             if (request.Method == HttpMethod.Post && path == "/api/model/fragment")
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
-            return RouteFindThing(request, endpointId, "EP")
-                ?? RouteEffectiveProperties(request, endpointId, ReadingEndpoint)
-                ?? RouteKindsFromProperties(request, endpointId, ReadingEndpoint)
+            return RouteEndpoint(request, endpointId, ReadingEndpoint)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         return factory;

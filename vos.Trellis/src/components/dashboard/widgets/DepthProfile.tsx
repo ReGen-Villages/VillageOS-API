@@ -5,6 +5,7 @@ import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, SeriesTable } from './chartChrome';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { linearScale, niceTicks } from './chartScale';
 import { formatNumber } from './format';
 
@@ -14,7 +15,6 @@ const TOP_GUTTER = 4;
 const AXIS_BAND = 20;
 const LEFT_GUTTER = 84;
 const RIGHT_GUTTER = 12;
-const FALLBACK_WIDTH = 480;
 const TICK_COUNT = 5;
 /** A thin ring in the surface colour is the gap between stacked segments. */
 const SURFACE_GAP = 1;

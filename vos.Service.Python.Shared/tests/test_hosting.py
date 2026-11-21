@@ -111,7 +111,7 @@ def test_a_failed_registration_does_not_stop_the_service(host, capsys):
     assert "registration failed: no broker" in capsys.readouterr().err
 
 
-# The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+# The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 def test_shutdown_does_not_ask_the_broker_to_withdraw(host):
     with patch.object(host.mycelium, "register", new=AsyncMock(return_value=True)), \
          patch("httpx.AsyncClient.request", new=AsyncMock()) as request:

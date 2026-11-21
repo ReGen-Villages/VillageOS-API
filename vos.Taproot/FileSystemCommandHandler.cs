@@ -19,7 +19,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var subcommand = tok.Length > 0 ? tok[0] : "";
 
                 switch (_cmd)

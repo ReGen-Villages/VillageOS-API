@@ -3,12 +3,9 @@ import type { Binding } from '@tendril-ui/tendril';
 import type { ResolveContext } from '@tendril-ui/tendril';
 import { breakdownOf, type FigureBreakdown } from '../api/figureBreakdown';
 
-/** What a figure is made of. Called from the panel a reader opened, so a page nobody has clicked
- *  into never gathers any of this.
- *
- *  An open breakdown keeps reading live: the context's identity changes on every refresh the page
- *  makes, and the answer already on screen stays there until the next one lands, so a busy model
- *  moves the figures rather than blanking the table under them. */
+/** Called from the panel a reader opened, so a page nobody opened gathers none of this. It reads again on
+ *  each refresh, and the answer on screen stays until the next arrives, so a busy model moves the figures
+ *  rather than blanking the table. */
 export function useFigureBreakdown(
   binding: Binding,
   context: ResolveContext,

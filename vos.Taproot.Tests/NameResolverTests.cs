@@ -129,7 +129,6 @@ public class NameResolverTests
         Assert.Equal(id1, results[0].Id);
         Assert.Equal(id2, results[1].Id);
 
-        // Should only call GetAllThingsAsync once due to caching
         _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 
@@ -297,7 +296,6 @@ public class NameResolverTests
         var resolver = new NameResolver(_myceliumMock.Object);
         var map = await resolver.GetGuidToNameMapAsync();
 
-        // Only ValidThing should be in the map
         Assert.Single(map);
         Assert.Equal("ValidThing", map[validId.ToString().ToLowerInvariant()]);
     }

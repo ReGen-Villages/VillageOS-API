@@ -5,7 +5,7 @@ import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 /** A model holding one of every catalyst and every output the Pipelines page reads. Every archetype
  *  and predicate is named something the console has never heard of and says what it is through the role
  *  Thing that binds it, so a fixture that resolves at all proves nothing is found by name. */
-export interface CatalystFixture {
+interface CatalystFixture {
   model: PipelineModel;
   things: VosThing[];
   relationships: VosRelationship[];
@@ -29,10 +29,12 @@ interface FixtureOptions {
   bindsTellFollowOnAndStop?: boolean;
   bindsRequestedBy?: boolean;
   drawsTheCadence?: boolean;
+  /** Also gives `ripens called` the one state that proves it, so the page can relate along `ripens`. */
+  bindsRelate?: boolean;
 }
 
 export function catalystFixture({
-  orchestrators = 1, bindsTellFollowOnAndStop = true, bindsRequestedBy = true, drawsTheCadence = true,
+  orchestrators = 1, bindsTellFollowOnAndStop = true, bindsRequestedBy = true, drawsTheCadence = true, bindsRelate = false,
 }: FixtureOptions = {}): CatalystFixture {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -183,6 +185,15 @@ export function catalystFixture({
   const ripens = thing('ripens');
   const ripensCalled = connection('ripens called', graph, balancer);
   relate(ripens, notifies, ripensCalled);
+  if (bindsRelate) {
+    const relateKind = nodeKind('Tie', ROLE.PipelineRelate);
+    for (const [portName, direction] of [['thing', 'in'], ['thing', 'out'], ['written', 'out']]) {
+      const port = thing(`Tie.${portName}.${direction}`, { portName, direction, type: 'any', required: String(direction === 'in') });
+      relate(port, is, portArchetype);
+      relate(relateKind, has, port);
+    }
+    relate(ripensCalled, thing('provenBy', playing(ROLE.CompletionRange)), thing('ripe'));
+  }
   relate(thing('Chore', {}, true), notifies, feeds);
 
   const surplus = thing('surplus');

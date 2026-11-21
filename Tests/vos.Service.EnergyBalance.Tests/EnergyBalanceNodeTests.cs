@@ -49,8 +49,8 @@ public class EnergyBalanceNodeTests
     }
 
     // A port wired to a withheld derived property arrives present-but-null, which is not the same as absent.
-    // Reading it with GetDouble() raised .NET's own "target element has type 'Null'" — a message naming no
-    // port, which is the failure this change exists to remove on the reactive side.
+    // Reading it with GetDouble() would raise .NET's own "target element has type 'Null'", a message naming
+    // no port.
     [Fact]
     public async Task HandleNodeAsync_null_input_names_the_port()
     {

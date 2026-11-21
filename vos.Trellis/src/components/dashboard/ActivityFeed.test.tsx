@@ -27,9 +27,6 @@ describe('ActivityFeed auto-scroll', () => {
     vi.restoreAllMocks();
   });
 
-  // Regression guard for the bug where a full feed dragged the rest of the
-  // dashboard up: scrollIntoView scrolls every scrollable ancestor (the outer
-  // content region), so auto-scroll must instead scroll the feed's own list.
   it('never calls scrollIntoView (which would scroll ancestor regions)', () => {
     const { rerender } = render(<ActivityFeed events={makeEvents(2)} onCollapse={() => {}} />);
     act(() => {

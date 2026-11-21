@@ -10,7 +10,8 @@ using Xunit;
 
 namespace vos.Service.ModelBridge.Tests;
 
-// The model⇄DAG bridge: read outputs a Thing's property value, write persists its input onto one.
+// The step between a pipeline and the model: read mode outputs a Thing's property value, and write mode
+// writes its input onto one.
 public class ModelBridgeNodeTests
 {
     private static readonly Guid ThingId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -88,5 +89,16 @@ public class ModelBridgeNodeTests
 
         Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("total_pv_area", response.Error);
+    }
+
+    [Fact]
+    public async Task Read_the_platform_refuses_fails_the_node_naming_the_property_and_the_status()
+    {
+        var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
+
+        Assert.Equal(NodeResponse.Failed, response.Result);
+        Assert.Contains($"{ThingId}.total_pv_area", response.Error);
+        Assert.Contains("403", response.Error);
     }
 }

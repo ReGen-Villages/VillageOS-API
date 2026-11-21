@@ -16,10 +16,8 @@ const { buildModelIndex, useBinding } = await import('@tendril-ui/tendril');
 const { useUiStore } = await import('../stores/uiStore');
 const { useModelStore } = await import('../stores/modelStore');
 
-// Widgets each resolve their own bindings, so without something shared between them a page
-// showing the same state in a count, a funnel stage and a table asks for it three times per
-// refresh. What shares those reads is the ModelReads the context carries, so what this asserts
-// is that one generation builds exactly one of them.
+// Widgets each resolve their own bindings, so a page showing one state in a count, a funnel stage and a
+// table would ask three times a refresh without the shared ModelReads; one refresh builds exactly one.
 describe('useResolveContext', () => {
   const index = buildModelIndex([], []);
   const reads = () => ({}) as ModelReads;
@@ -44,8 +42,7 @@ describe('useResolveContext', () => {
   });
 });
 
-// One open dashboard asked the platform tens of times a second on a running model, because every
-// live event re-resolved every binding on the page.
+// Resolving every binding again on every live event asks the platform many times a second.
 describe('useBinding waits on what its answer is made of', () => {
   const reads = () => ({}) as ModelReads;
   const flaggedCount: Binding = { kind: 'stateCount', state: 'flagged' };

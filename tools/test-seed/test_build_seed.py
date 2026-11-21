@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 import build_seed as B
-from generate import ROLE_ARCHETYPE, ROLE_NAMESPACE, role_id
+from generate import ROLE_ARCHETYPE, ROLE_NAMESPACE, dump_seed, role_id
 
 # Words the land-intake and site-analysis templates use for their own kinds, predicates and pages. A seed
 # holding one would no longer show that a tool works on a model that has nothing to do with them.
@@ -26,7 +26,7 @@ BINDING_KINDS_THE_READER_RESOLVES = {
 def written(seed):
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "seed.json"
-        B.dump_seed(seed, path)
+        dump_seed(seed, path)
         return path.read_text(encoding="utf-8")
 
 

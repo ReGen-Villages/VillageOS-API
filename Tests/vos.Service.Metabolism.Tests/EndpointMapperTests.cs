@@ -1,6 +1,4 @@
-// Endpoint-level tests for Metabolism's MapMetabolismEndpoints via WebApplicationFactory<Program>,
-// per the canonical pattern in docs/SERVICES.md §10.
-// Sibling reference: vos.Mycelium.Tests.MyceliumWebApplicationFactory.
+// Through WebApplicationFactory<Program>, as docs/SERVICES.md §10 describes.
 
 using System.Net;
 using System.Net.Http.Json;
@@ -91,11 +89,10 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("quantity").GetDecimal().Should().Be(1.5m);
         body.GetProperty("unit").GetString().Should().Be("kg");
 
-        // /stats should now show requestsProcessed=1 (the incrementRequestCount call on /handle)
+        // The /handle call above counts as one request.
         var stats = await _client.GetFromJsonAsync<JsonElement>("/stats");
         stats.GetProperty("requestsProcessed").GetInt32().Should().Be(1);
 
-        // /simulations should list the registered entry
         var sims = await _client.GetFromJsonAsync<JsonElement>("/simulations");
         sims.ValueKind.Should().Be(JsonValueKind.Array);
         sims.GetArrayLength().Should().Be(1);
@@ -105,8 +102,8 @@ public class EndpointMapperTests : IAsyncLifetime
     [Fact]
     public async Task Handle_MalformedJson_Returns400()
     {
-        // Body that doesn't deserialize into HandleRequest at all → ASP.NET returns 400
-        // before the lambda runs. Sanity check that the route is hooked correctly.
+        // A body that is not a HandleRequest at all is refused with 400 by ASP.NET before the handler runs,
+        // which shows the route is wired to it.
         var response = await _client.PostAsync(
             "/handle",
             new StringContent("{not json", System.Text.Encoding.UTF8, "application/json"));
@@ -119,8 +116,8 @@ public class EndpointMapperTests : IAsyncLifetime
     {
         // With UseRequestContractValidation() wired into Metabolism, empty
         // subjectId/targetId trip the schema's minLength:1 rule and the middleware rejects
-        // the request before HandleRequestProcessor runs. Response is the contract envelope
-        // {schemaId, errors[]} rather than the legacy {error} from the processor.
+        // the request before HandleRequestProcessor runs. The answer is the contract's
+        // {schemaId, errors[]} rather than the processor's {error}.
         var response = await _client.PostAsJsonAsync("/handle", new
         {
             relationshipId = Guid.NewGuid().ToString(),
@@ -186,7 +183,6 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("message").GetString().Should().Contain(rel.ToString());
         body.GetProperty("message").GetString().Should().Contain("cancelled");
 
-        // The simulation should now be gone
         var sims = await _client.GetFromJsonAsync<JsonElement>("/simulations");
         sims.GetArrayLength().Should().Be(0);
     }

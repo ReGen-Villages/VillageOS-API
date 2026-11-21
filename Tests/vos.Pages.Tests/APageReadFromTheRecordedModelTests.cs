@@ -3,10 +3,8 @@ using Xunit;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// The library against Things and answers a running Mycelium gave: every page must come out as the
-/// same reader resolved it in Node from the same answers.
-/// </summary>
+// The library against Things and answers a running Mycelium gave: every page must come out as the
+// same reader resolved it in Node from the same answers.
 public class APageReadFromTheRecordedModelTests
 {
     private const string English = "en";

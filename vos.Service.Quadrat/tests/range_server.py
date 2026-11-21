@@ -1,6 +1,6 @@
-"""A small web server for tests, run as its own process so a read that holds the GIL cannot starve it.
+"""A small web server for tests, run as its own process so a read that holds Python's global interpreter lock cannot starve it.
 
-Serves the files under a folder with byte ranges, as a COG host does. `/__log` answers the requests made so far,
+Serves the files under a folder with byte ranges, as a host of Cloud Optimized GeoTIFFs does. `/__log` answers the requests made so far,
 `/__redirect/<path>` redirects to `/<path>`, and `/__slow/<path>` answers `/<path>` after a pause.
 """
 import http.server

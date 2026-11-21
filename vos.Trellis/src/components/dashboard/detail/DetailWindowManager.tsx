@@ -1,8 +1,5 @@
-/**
- * Manages the set of open detail windows so several Things can be inspected at once.
- * Opening an already-open Thing brings its window to the front instead of duplicating it.
- * Stacking order == front-most last; z-index and cascade offset follow that order.
- */
+/** Opening a Thing already open brings its window to the front rather than opening a second. The front-most
+ *  window is last, and the stacking and cascade follow that order. */
 import { useCallback, useState } from 'react';
 import type { ModelIndex } from '@tendril-ui/tendril';
 import type { DetailSpecification } from '@tendril-ui/tendril';
@@ -31,9 +28,8 @@ export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpecifica
     setOrder((previous) => previous.filter((id) => id !== thingId));
   }, []);
 
-  // Read once for every window rather than once per window, only after one is opened, and only for
-  // the things those windows show — a dashboard nobody has clicked into should not pay for a read at
-  // all, and one clicked twice should not pay for the whole model.
+  // Read once for all windows, only once one is open, and only for the Things they show, so a dashboard nobody
+  // clicked into reads nothing and one clicked twice does not read the whole model.
   const declaredTypes = useDeclaredPropertyTypes(order.length > 0, order);
 
   const windows = detail

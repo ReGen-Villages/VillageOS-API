@@ -19,16 +19,11 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
 
     private async Task<(MyceliumGateway Gateway, Guid CadenceId)> AnHourlyCadenceAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
-        var isPredicate = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
-        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
+        var isPredicate = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var kind = await _engine.FindAsync("Cadence") ?? await DeclareTheKindAsync();
-        if (await _engine.FindAsync($"{PipelineRoles.Cadence.Word} role") is null)
-        {
-            await _engine.DeclareAsync($"{PipelineRoles.Cadence.Word} role", identifier: PipelineRoles.Cadence.Id);
-            await _engine.RelateAsync(PipelineRoles.Cadence.Id, binds, kind);
-        }
+        await _engine.BindOnceAsync(PipelineRoles.Cadence, kind);
         var cadenceId = await _engine.DeclareAsync($"Every hour {Guid.NewGuid():N}");
         await _engine.RelateAsync(cadenceId, isPredicate, kind);
         var interval = await _engine.Admin.PutAsJsonAsync($"/api/things/{cadenceId}/properties",
@@ -93,7 +88,7 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
         await Settle.UntilAsync(() => Held(gateway).Single(cadence => cadence.Id == cadenceId).IntervalMinutes == 30, "the edited interval reaches the held cadence");
 
         var later = await _engine.DeclareAsync($"Every day {Guid.NewGuid():N}");
-        await _engine.RelateAsync(later, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), await _engine.TheOnlyThingNamedAsync("Cadence"));
+        await _engine.RelateAsync(later, await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is), await _engine.TheOnlyThingNamedAsync("Cadence"));
         await Settle.UntilAsync(() => Held(gateway).Any(cadence => cadence.Id == later), "the cadence typed in later is held");
     }
 

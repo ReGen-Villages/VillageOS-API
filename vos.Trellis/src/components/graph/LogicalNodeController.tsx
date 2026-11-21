@@ -3,17 +3,8 @@ import { useSigma } from '@react-sigma/core';
 import { useUiStore } from '../../stores/uiStore';
 import { getLogicalChildren } from '../../utils/graphologyMapper';
 
-/**
- * Renderless Sigma child component handling two responsibilities:
- *
- * A) **Radial positioning** — when a geo parent is expanded, positions its
- *    logical children in a circle around the parent's current (x, y).
- *
- * B) **Semantic zoom** — watches camera ratio and auto-expands nearby
- *    geo parents when zoomed in, collapses all when zoomed out.
- *
- * Must be rendered as a child of <SigmaContainer>.
- */
+/** Places an expanded geographic parent's children in a circle round it, and expands nearby parents as the
+ *  camera zooms in and collapses them all as it zooms out. */
 export function LogicalNodeController() {
   const sigma = useSigma();
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);

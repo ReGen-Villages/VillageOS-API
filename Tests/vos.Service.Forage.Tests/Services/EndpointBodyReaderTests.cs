@@ -14,16 +14,9 @@ public class EndpointBodyReaderTests
     private static readonly Dictionary<string, string> Coordinates =
         new() { ["lat"] = "-25.75", ["lng"] = "28.19" };
 
-    private sealed class PerCallFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallFactory(HttpMessageHandler handler) => _handler = handler;
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
-
     private static EndpointBodyReader Reader(
         HttpMessageHandler handler, TimeSpan? timeout = null, string subdomain = "tributary") =>
-        new(new PerCallFactory(handler),
+        new(new PerCallHttpClientFactory(handler),
             NullLogger<EndpointBodyReader>.Instance,
             "http://localhost:7243",
             new LaunchToken("test-token"),

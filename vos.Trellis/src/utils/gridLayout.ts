@@ -1,14 +1,8 @@
 import type { CSSProperties } from 'react';
 import { GRID_COLUMNS, type DashboardSection, type Placement, type Widget } from '@tendril-ui/tendril';
 
-/**
- * Where each widget of a section stands.
- *
- * A `grid` section places each widget where its own placement says. The three fixed layouts — a
- * strip of figures, a weighted split, full width — place theirs by rule, and the rules are kept here
- * in both directions: what the operations page draws for each, and the placements a section converts
- * to when the Design page opens it, so a seeded page opens exactly as it is drawn.
- */
+/** The fixed layouts place widgets by rule, and the rules are kept here both ways, for the operations page and
+ *  for the placements the Design page converts to, so a seeded page opens exactly as it is drawn. */
 
 /** One row of a grid section, in pixels. */
 export const GRID_ROW_HEIGHT = 40;
@@ -84,8 +78,7 @@ export function defaultSizeOf(widget: Widget): { width: number; height: number }
   return size;
 }
 
-/** The layout a section draws with. A section stating none is a strip when every widget is a
- *  figure and full width otherwise, which is how every page has always been read. */
+/** A section stating none is a strip when every widget is a figure, and full width otherwise. */
 export function layoutOf(section: DashboardSection): NonNullable<DashboardSection['layout']> {
   return section.layout ?? (section.widgets.every((widget) => widget.type === 'kpi') ? 'kpi-strip' : 'single');
 }
@@ -159,7 +152,7 @@ export function placementsOf(section: DashboardSection): Placement[] {
   return placed;
 }
 
-export interface SectionGrid {
+interface SectionGrid {
   gridTemplateColumns: string;
   gridAutoRows?: string;
   /** One style per widget, in the section's own order. */

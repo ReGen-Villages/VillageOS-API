@@ -51,7 +51,7 @@ export interface LeverReading {
   declaredName?: string;
 }
 
-export interface VerdictReading {
+interface VerdictReading {
   state: string;
   sentence: string;
   levers: LeverReading[];
@@ -103,7 +103,7 @@ export function leverSentence(reading: LeverReading): string {
 
 /** One input a figure was worked out from: its value on the Thing computing the figure, or the kind
  *  of the members that each hold it where the model reduces over members. */
-export interface WorkingInput {
+interface WorkingInput {
   term: string;
   value?: string;
   memberKind?: string;

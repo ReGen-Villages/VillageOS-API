@@ -134,9 +134,6 @@ describe('KpiCard says where the figure came from', () => {
   });
 });
 
-// A widget saying neither direction is good is saying there is no verdict to reach — the same for the
-// badge against a target as for the tone on the delta. Judging it as though rising were good is the
-// answer that reads as the opposite of what the figure means.
 describe('KpiCard where the widget calls neither direction good', () => {
   const measuredAgainstStated = (direction: KpiWidget['direction']): KpiWidget => ({
     type: 'kpi',

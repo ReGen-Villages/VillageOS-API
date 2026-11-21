@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { X, Copy, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { CopyIdButton, EditModeToggle } from './DetailPanelControls';
 import { EditablePropertyList } from './EditablePropertyList';
 import { withDeclaredTypes, type EditableProperty } from './editableProperties';
 import { RelationshipList } from './RelationshipList';
@@ -20,6 +21,7 @@ const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
 import { storedTextOf } from '../../utils/ifcIdentity';
 import { thingsContainedBy } from '../../utils/containment';
+import { toggled } from '../../utils/toggled';
 
 const TAB_LABEL_KEYS = {
   ranges: 'panels.node.tabRanges',
@@ -100,19 +102,12 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
 
   const handleExpandValue = (name: string, value: string) => setExpandedValue({ name, value });
 
-  const copyId = () => {
-    navigator.clipboard.writeText(thing.Id);
-    toast.information(t('panels.node.idCopied'));
-  };
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         <div className="min-w-0">
           <EditableThingName thingId={thing.Id} name={thing.Name} onRenamed={onRenamed} />
-          <button onClick={copyId} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-            <Copy size={10} /> {formatGuid(thing.Id)}
-          </button>
+          <CopyIdButton id={thing.Id} />
         </div>
         <div className="flex items-center gap-1">
           {onDeleteThing && <DeleteThingButton onDelete={() => onDeleteThing(thing.Id, thing.Name)} />}
@@ -161,18 +156,12 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-1">
                 <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: ownPropertyCount })}</h4>
-                <button
-                  onClick={() => setEditMode((v) => !v)}
+                <EditModeToggle
+                  editing={editMode}
+                  onToggle={() => setEditMode((v) => !v)}
                   disabled={!effectiveProperties}
-                  className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
-                    editMode
-                      ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-                  }`}
                   title={editMode ? t('panels.node.exitEditMode') : t('panels.node.editProperties')}
-                >
-                  <Pencil size={12} />
-                </button>
+                />
               </div>
               <EditablePropertyList
                 properties={props}
@@ -200,17 +189,11 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
         {tab === 'relationships' && (
           <div className="space-y-3">
             <div className="flex items-center justify-end">
-              <button
-                onClick={() => setRelationshipEditMode((v) => !v)}
-                className={`p-0.5 rounded transition-colors ${
-                  relationshipEditMode
-                    ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-                }`}
+              <EditModeToggle
+                editing={relationshipEditMode}
+                onToggle={() => setRelationshipEditMode((v) => !v)}
                 title={relationshipEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
-              >
-                <Pencil size={12} />
-              </button>
+              />
             </div>
             <LogicalChildrenSection
               thingId={thing.Id}
@@ -353,9 +336,8 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
 }) {
   const { t } = useTranslation();
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
-  // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
-  // The backend tags each effective property with its provenance; own properties are excluded here and
-  // shown in the Own section above.
+  // Every property resolved through an `is` chain counts as inherited, overridden or not; own properties show
+  // in the section above.
   const inherited = Object.entries(effectiveProperties).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 
@@ -368,11 +350,7 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
     bySource.get(sourceId)!.props.push({ name, value: effectiveProperty.Value, type: effectiveProperty.Type });
   }
 
-  const toggleSource = (id: string) => setExpandedSources((previous) => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleSource = (id: string) => setExpandedSources((previous) => toggled(previous, id));
 
   return (
     <div className="space-y-2">

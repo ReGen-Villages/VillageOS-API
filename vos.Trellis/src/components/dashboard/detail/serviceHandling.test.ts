@@ -21,7 +21,7 @@ function relationship(
 /**
  * A site whose wiring is named nothing like the platform's own words: the connection archetype
  * is `Wiring`, the service archetype is `Daemon`, and the predicate binding one to the other is
- * `runs`. Only the roles say which is which, which is the whole point of reading them.
+ * `runs`, so only the roles can say which is which.
  *
  * `measures` is a handled predicate — a relationship on it calls the metering daemon. `spring when
  * dry` is a state connection, reached by the record relationship the platform writes along `answered by`.

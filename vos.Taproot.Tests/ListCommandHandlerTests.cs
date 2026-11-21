@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -21,21 +22,18 @@ public class ListCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // Mock the bulk properties endpoint `list` reads inherited properties from.
     private void SetupEffective(string effectiveJson) =>
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
-            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
-
-    private static JsonElement Json(string text) => JsonSerializer.Deserialize<JsonElement>(text);
+            .ReturnsAsync(Parse(effectiveJson));
 
     [Fact]
     public async Task ListThings_PassesEveryNarrowingOptionToTheRoute()
     {
         var site = Guid.NewGuid();
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
         _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n =>
                 n.Type == "Home" && n.Within == site && n.Limit == 5 && n.Properties == "area,storeys" && n.Names == "Home-1,Home-2")))
-            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\",\"Properties\":{\"area\":120}}]"));
+            .ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\",\"Properties\":{\"area\":120}}]"));
 
         await ExecuteHandler("things --type=Home --within=Site-1 --limit=5 --properties=area,storeys --name=Home-1,Home-2");
 
@@ -49,7 +47,7 @@ public class ListCommandHandlerTests
     public async Task ListThings_NarrowedWithoutNamingProperties_StillReadsTheInheritedOnes()
     {
         _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Home" && n.Within == null)))
-            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+            .ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
         SetupEffective("{\"a\":{\"Building.storeys\":{\"Value\":2,\"IsInherited\":true}}}");
 
         await ExecuteHandler("things --type=Home");
@@ -61,7 +59,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithNoOptions_ReadsTheWholeModelAsBefore()
     {
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
 
         await ExecuteHandler("things");
 
@@ -72,7 +70,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithinANameTheModelDoesNotHold_SaysSoAndReadsNothing()
     {
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("things --within=Nowhere");
 
@@ -220,8 +218,8 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListHandlers_ReportsTheRunModeThePlatformResolved()
     {
-        // The run mode may be held on the service, inherited from the prototype it `is`, or reached by an
-        // relationship. Which of those it was is the platform's business; this command prints the answer.
+        // The run mode may be held on the service, inherited from the prototype it `is`, or reached by a
+        // relationship. The platform works out which, and this command prints its answer.
         var id = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
             .ReturnsAsync(Connections($"[{Connection(id, "Oneshot", runMode: "oneshot")}]"));
@@ -234,9 +232,6 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListHandlers_ARunModeNothingStates_SaysSoRatherThanPrintingADefault()
     {
-        // It printed "daemon" whenever the property was absent, so a model that said nothing and a model
-        // that said daemon read identically — and after the platform moves the value, every model would
-        // have read as daemon whatever it declared.
         var id = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
             .ReturnsAsync(Connections($"[{Connection(id, "Unstated", runMode: null)}]"));
@@ -378,8 +373,6 @@ public class ListCommandHandlerTests
 
         Assert.Contains("Usage:", _writer.ToString());
     }
-
-    // --showguids flag tests
 
     [Fact]
     public async Task ListThings_WithShowGuidsFlag_ShowsGuids()
@@ -534,7 +527,7 @@ public class ListCommandHandlerTests
         Assert.DoesNotContain(handlerId.ToString(), output);
     }
 
-    // Agents = alias for services (each service carries its daemon state inline)
+    // `list agents` is another name for `list services`.
 
     [Fact]
     public async Task ListAgents_WithNone_ShowsNoAgents()
@@ -637,8 +630,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithInheritedProperties_ShowsInheritedSource()
     {
-        // serialNumber is inherited (never overridden) so it comes from the
-        // effective endpoint, keyed by qualified path — the removed InheritedProperties key is gone.
+        // serialNumber is inherited and never overridden, so it comes from the effective properties keyed by its qualified path.
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{thingId}\",\"Name\":\"Motor\",\"Properties\":{{\"temp\":50}}}}]");
@@ -660,7 +652,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListServices_NonArrayResponse_ShowsError()
     {
-        var json = JsonSerializer.Deserialize<JsonElement>("{}"); // Not an array
+        var json = JsonSerializer.Deserialize<JsonElement>("{}");
         _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("services");

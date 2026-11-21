@@ -1,8 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
-/** One item of a list — a column, a hop, a stage, a relation — boxed under its own name, with the
- *  control that takes it away. */
 export function Removable({ name, onRemove, children }: { name: string; onRemove: () => void; children: React.ReactNode }) {
   const { t } = useTranslation();
   return (

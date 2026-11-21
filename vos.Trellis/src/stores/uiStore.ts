@@ -3,6 +3,7 @@ import type { PredicateStatistics, ClusterMap } from '../utils/predicateCluster'
 import { FLASH_DEFAULTS, LAYOUT_DEFAULTS } from '../utils/guiSettings';
 import type { FlashSettings, LayoutSettings } from '../utils/guiSettings';
 import type { SortOrder } from '../utils/typeFilter';
+import { toggled } from '../utils/toggled';
 
 const PANEL_WIDTH_KEY = 'vos-panel-width';
 const DEFAULT_PANEL_WIDTH = 320;
@@ -14,11 +15,7 @@ const TYPE_SORT_KEY_PREFIX = 'vos-type-sort:';
 const DEFAULT_TYPE_SORT: SortOrder = 'count-desc';
 const VALID_TYPE_SORTS: readonly SortOrder[] = ['count-desc', 'count-asc', 'name-asc', 'name-desc'];
 
-/**
- * Load the persisted set of hidden type Thing ids for a model.
- * Per-model so different models don't share filter state. Returns an empty
- * Set when no model is selected or no persisted state exists.
- */
+/** Kept per model, so two models do not share their filter. */
 function loadHiddenTypeIds(modelId: string | null): Set<string> {
   if (!modelId) return new Set<string>();
   const raw = localStorage.getItem(HIDDEN_TYPES_KEY_PREFIX + modelId);
@@ -41,12 +38,8 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
   }
 }
 
-/**
- * Per-model TypeFilterPanel sort order, persisted in
- * localStorage so the user's preferred view sticks across reloads. Mirrors
- * the hiddenTypeIds pattern; falls back to count-descending on missing / invalid
- * stored values.
- */
+/** Kept per model in the browser's storage, so the chosen order lasts across reloads; a missing or unknown
+ *  value falls back to largest first. */
 function loadTypeSort(modelId: string | null): SortOrder {
   if (!modelId) return DEFAULT_TYPE_SORT;
   const raw = localStorage.getItem(TYPE_SORT_KEY_PREFIX + modelId);
@@ -84,11 +77,9 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
-  // Moved by useModelData on the Mycelium's `StatesChanged` SSE event so detail panels re-fetch
-  // ranges without each page owning a local subscription. The running total is what a panel
-  // showing one Thing's ranges watches; the per-state counts are what a dashboard figure made of
-  // one state watches, so it re-reads when that state moves rather than whenever any does. One
-  // entry per state name the model declares, however long a run lasts.
+  // Moved by useModelData on each StatesChanged event, so detail panels read ranges again without a
+  // subscription of their own. A panel showing one Thing watches the total; a figure made of one state
+  // watches that state's count, so it reads again only when that state moves. One entry per declared state.
   statesVersion: number;
   stateVersions: Record<string, number>;
   statesMoved: (states: string[]) => void;
@@ -98,7 +89,6 @@ interface UiState {
   currentModelId: string | null;
   hiddenTypeIds: Set<string>;
   setCurrentModelId: (modelId: string | null) => void;
-  toggleHiddenType: (typeId: string) => void;
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
 
@@ -155,7 +145,6 @@ interface UiState {
 
   togglePredicateId: (id: string) => void;
   clearPredicateIds: () => void;
-  setPredicateIds: (ids: Set<string>) => void;
   setClusterMap: (map: ClusterMap | null) => void;
   setPredicateStatistics: (statistics: PredicateStatistics[]) => void;
   toggleClusterCollapsed: (clusterIndex: number) => void;
@@ -201,13 +190,6 @@ export const useUiStore = create<UiState>((set) => ({
     persistTypeSort(s.currentModelId, order);
     return { typeSortOrder: order };
   }),
-  toggleHiddenType: (typeId) => set((s) => {
-    const next = new Set(s.hiddenTypeIds);
-    if (next.has(typeId)) next.delete(typeId);
-    else next.add(typeId);
-    persistHiddenTypeIds(s.currentModelId, next);
-    return { hiddenTypeIds: next };
-  }),
   setHiddenTypeIds: (ids) => set((s) => {
     persistHiddenTypeIds(s.currentModelId, ids);
     return { hiddenTypeIds: new Set(ids) };
@@ -218,12 +200,7 @@ export const useUiStore = create<UiState>((set) => ({
   }),
 
   hiddenPredicateIds: new Set<string>(),
-  toggleHiddenPredicate: (predicateId) => set((s) => {
-    const next = new Set(s.hiddenPredicateIds);
-    if (next.has(predicateId)) next.delete(predicateId);
-    else next.add(predicateId);
-    return { hiddenPredicateIds: next };
-  }),
+  toggleHiddenPredicate: (predicateId) => set((s) => ({ hiddenPredicateIds: toggled(s.hiddenPredicateIds, predicateId) })),
   setHiddenPredicateIds: (ids) => set(() => ({
     hiddenPredicateIds: new Set(ids),
   })),
@@ -242,12 +219,7 @@ export const useUiStore = create<UiState>((set) => ({
   semanticZoomEnabled: true,
 
   toggleLogicalExpansion: (geoNodeId) =>
-    set((state) => {
-      const next = new Set(state.expandedLogicalParents);
-      if (next.has(geoNodeId)) next.delete(geoNodeId);
-      else next.add(geoNodeId);
-      return { expandedLogicalParents: next };
-    }),
+    set((state) => ({ expandedLogicalParents: toggled(state.expandedLogicalParents, geoNodeId) })),
 
   expandLogicalParent: (id) =>
     set((state) => {
@@ -313,17 +285,12 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   togglePredicateId: (id) =>
-    set((state) => {
-      const next = new Set(state.activePredicateIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return {
-        activePredicateIds: next,
-        collapsedClusters: new Set<number>(),
-        expandedNodes: new Set<string>(),
-        clusterMap: null, // recomputed by ClusterComputer
-      };
-    }),
+    set((state) => ({
+      activePredicateIds: toggled(state.activePredicateIds, id),
+      collapsedClusters: new Set<number>(),
+      expandedNodes: new Set<string>(),
+      clusterMap: null, // recomputed by ClusterComputer
+    })),
 
   clearPredicateIds: () =>
     set({
@@ -333,32 +300,14 @@ export const useUiStore = create<UiState>((set) => ({
       clusterMap: null,
     }),
 
-  setPredicateIds: (ids) =>
-    set({
-      activePredicateIds: ids,
-      collapsedClusters: new Set<number>(),
-      expandedNodes: new Set<string>(),
-      clusterMap: null,
-    }),
-
   setClusterMap: (map) => set({ clusterMap: map }),
   setPredicateStatistics: (statistics) => set({ predicateStatistics: statistics }),
 
   toggleClusterCollapsed: (clusterIndex) =>
-    set((state) => {
-      const next = new Set(state.collapsedClusters);
-      if (next.has(clusterIndex)) next.delete(clusterIndex);
-      else next.add(clusterIndex);
-      return { collapsedClusters: next };
-    }),
+    set((state) => ({ collapsedClusters: toggled(state.collapsedClusters, clusterIndex) })),
 
   toggleNodeExpanded: (nodeId) =>
-    set((state) => {
-      const next = new Set(state.expandedNodes);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return { expandedNodes: next };
-    }),
+    set((state) => ({ expandedNodes: toggled(state.expandedNodes, nodeId) })),
 
   openRadialMenu: (position) => set({ radialMenuOpen: true, radialMenuPosition: position, nodeContextMenuOpen: false, nodeContextMenuPosition: null, nodeContextMenuNodeId: null }),
   closeRadialMenu: () => set({ radialMenuOpen: false, radialMenuPosition: null }),

@@ -1,7 +1,7 @@
-"""Spec for the playground generator's id derivation and for the roles its archetypes and predicates play.
---namespace makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no
-namespace) keeps the shared standalone identity; merge reconciles the built-in predicates against a target by
-name and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
+"""The playground generator's ids and the roles its archetypes and predicates play. --namespace gives the
+same pipelines different ids per model, so two seeds can load into one broker; with no namespace the
+standalone fragment keeps its shared ids; a merge matches the built-in predicates against a target by name
+and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
 own.
 """
 import unittest
@@ -781,3 +781,24 @@ class ModelRootsTests(unittest.TestCase):
         [configuration] = bound_in_seed(seed, "configuration")
         [pipeline] = bound_in_seed(seed, "pipeline")
         self.assertIn(configuration, is_ancestors(seed["Things"], seed["Relationships"], pipeline))
+
+
+class SeedWritingTests(unittest.TestCase):
+    def test_a_seed_naming_a_thing_outside_ascii_is_written_back_byte_for_byte(self):
+        import json, os, tempfile
+        held = ('{\n'
+                '  "Name": "Gärten",\n'
+                '  "Things": [\n'
+                '    {"Id": "a", "Name": "Größe"}\n'
+                '  ],\n'
+                '  "Relationships": [\n'
+                '  ]\n'
+                '}\n')
+        with tempfile.TemporaryDirectory() as scratch:
+            path = os.path.join(scratch, "target.seed.json")
+            with open(path, "w", encoding="utf-8") as target:
+                target.write(held)
+            with open(path, encoding="utf-8") as target:
+                G.dump_seed(json.load(target), path)
+            with open(path, encoding="utf-8") as target:
+                self.assertEqual(held, target.read())

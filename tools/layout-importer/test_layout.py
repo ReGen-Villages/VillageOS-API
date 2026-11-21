@@ -1,9 +1,8 @@
-"""Behavioural specification for the containment-layout importer: names build the tree, a name that
-does not follow the standard is reported rather than guessed at, an explicit row overrides one field
-and leaves the rest, the fragment carries every node once, and a re-run is an upsert rather than a
-second structure.
+"""The containment-layout importer: names build the tree, a name that does not follow the standard is
+reported rather than guessed at, an explicit row overrides one field and leaves the rest, the fragment
+carries every node once, and running it again updates the structure rather than adding a second one.
 
-Domain-agnostic, like the tool: the structures here are sites, wings, rooms and cells.
+Like the tool, these name no domain: the structures here are sites, wings, rooms and cells.
 """
 import contextlib
 import io

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -19,19 +20,6 @@ public class StateCommandHandlerTests
     {
         var handler = new StateCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
-    }
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
-    [Fact]
-    public async Task Execute_NoMycelium_ShowsHelp()
-    {
-        var handler = new StateCommandHandler("get foo", _writer, client: null);
-        await handler.ExecuteAsync();
-
-        var output = _writer.ToString();
-        Assert.Contains("State query commands:", output);
-        Assert.Contains("state get", output);
     }
 
     [Fact]
@@ -88,7 +76,7 @@ public class StateCommandHandlerTests
         await ExecuteHandler("get nonexistent");
 
         var output = _writer.ToString();
-        Assert.DoesNotContain("Error:", output); // error path goes through resolveResult.ErrorMessage, not exception
+        Assert.DoesNotContain("Error:", output);
         _myceliumMock.Verify(b => b.GetStatesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
@@ -354,8 +342,6 @@ public class StateCommandHandlerTests
     [Fact]
     public async Task UnknownSubcommand_TreatedAsThingForGet()
     {
-        // The default branch in ExecuteSubcommandAsync re-routes the unknown subcommand
-        // as the first argument to HandleGetAsync (e.g. "state alice" → state get alice).
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllThingsAsync())
             .ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\",\"Name\":\"alice\"}}]"));

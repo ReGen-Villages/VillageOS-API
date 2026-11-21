@@ -109,8 +109,6 @@ describe('the form somebody without an account fills in', () => {
     ).toBeInTheDocument();
   });
 
-  // The whole point of the exchange: the address goes on its own, and what was collected follows only
-  // once the code sent to that address has been answered.
   it('sends the address first and the submission only after the code is answered', async () => {
     vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
     vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-ref-1' });
@@ -138,8 +136,6 @@ describe('the form somebody without an account fills in', () => {
     expect(screen.getByLabelText('Project name')).toHaveValue('Willow Bend Regeneration');
   });
 
-  // The draft belongs to the form rather than to a model, which is what a planner's draft belongs to.
-  // Keyed the way a planner's is, a stranger's browser would hold a draft under nothing.
   it('keeps what was typed under the form, so a reload finds it', () => {
     render(<PublicSubmissionPage />);
     fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Willow Bend' } });

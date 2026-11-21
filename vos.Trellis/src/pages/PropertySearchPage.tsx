@@ -7,6 +7,7 @@ import { WHOLE_MODEL } from '../types/subscription';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
 import { toast } from '../components/common/toastStore';
+import { MarkdownExportButtons } from '../components/common/MarkdownExportButtons';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
@@ -14,7 +15,7 @@ import type { PropertyVersionsResponse } from '@tendril-ui/tendril';
 import { searchProperties, type PropertyMatch } from './propertySearch';
 import clsx from 'clsx';
 
-/** Max rows rendered at once to keep the DOM lightweight. */
+/** The most rows drawn at once, so the page stays light. */
 const PAGE_SIZE = 100;
 
 function highlightMatch(text: string, query: string) {
@@ -49,10 +50,8 @@ export function PropertySearchPage() {
   const selectNode = useUiStore((s) => s.selectNode);
   const navigate = useNavigate();
 
-  // A Thing's inherited property values are resolved by the broker (walking the is-chain); the client
-  // store only carries own + stored overrides, so search must read the server-resolved effective set.
-  // A read-only snapshot — Property Search is not a live surface — and the same read the panels make
-  // for the declared types, which is why it comes from the one hook rather than a second fetch.
+  // The broker resolves inherited values up the `is` chain and the store holds only own values and overrides,
+  // so search reads the resolved set, once, since this page is not live, through the hook the panels use.
   const effectiveProperties = useDeclaredPropertyTypes();
 
   const onInputChange = useCallback((value: string) => {
@@ -79,7 +78,7 @@ export function PropertySearchPage() {
     [debouncedQuery, searchMode, effectiveProperties, relationships, thingNames],
   );
 
-  // Group results by property name, but only materialize what we'll render
+  // Only what is drawn is grouped.
   const { grouped, shownTotal } = useMemo(() => {
     const map = new Map<string, PropertyMatch[]>();
     let count = 0;
@@ -143,25 +142,6 @@ export function PropertySearchPage() {
     return lines.join('\n');
   }, [results, debouncedQuery, searchMode, numbers, t]);
 
-  const copyAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    navigator.clipboard.writeText(buildMarkdown()).then(
-      () => toast.success(t('common.copiedToClipboard')),
-      () => toast.error(t('common.copyFailed')),
-    );
-  }, [results, buildMarkdown, t]);
-
-  const downloadAsMarkdown = useCallback(() => {
-    if (results.length === 0) return;
-    const blob = new Blob([buildMarkdown()], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `property-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [results, debouncedQuery, buildMarkdown]);
-
   const goToGraph = useCallback((match: PropertyMatch) => {
     if (match.ownerType === 'thing') {
       selectNode(match.ownerId);
@@ -178,7 +158,6 @@ export function PropertySearchPage() {
           {searchMode === 'name' ? t('propertySearch.introByName') : t('propertySearch.introByValue')}
         </p>
 
-        {/* Search mode toggle */}
         <div className="flex gap-1 text-xs">
           <button
             onClick={() => setSearchMode('name')}
@@ -204,7 +183,7 @@ export function PropertySearchPage() {
           </button>
         </div>
 
-        {/* Search input — uncontrolled from search perspective, updates immediately */}
+        {/* Updates at once, while the search waits for typing to pause. */}
         <input
           type="text"
           value={inputValue}
@@ -216,7 +195,6 @@ export function PropertySearchPage() {
           className="w-full px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-zinc-400"
         />
 
-        {/* Result count + copy button */}
         {debouncedQuery.trim().length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500">
@@ -224,25 +202,14 @@ export function PropertySearchPage() {
               {hasMore && ` (${t('common.showingFirst', { count: shownTotal })})`}
             </p>
             {results.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={copyAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.copyAsMarkdown')}
-                </button>
-                <button
-                  onClick={downloadAsMarkdown}
-                  className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-                >
-                  {t('common.downloadAsMarkdown')}
-                </button>
-              </div>
+              <MarkdownExportButtons
+                markdown={buildMarkdown}
+                fileName={`property-search-${debouncedQuery.trim().replace(/\s+/g, '-')}.md`}
+              />
             )}
           </div>
         )}
 
-        {/* Grouped results */}
         {debouncedQuery.trim().length > 0 && (
           <div className="space-y-4">
             {[...grouped.entries()].map(([propertyName, matches]) => (
@@ -257,7 +224,6 @@ export function PropertySearchPage() {
                       key={`${m.ownerId}-${i}`}
                       className="flex items-baseline gap-2 text-xs group"
                     >
-                      {/* Owner type badge */}
                       <span
                         className={clsx(
                           'flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase',
@@ -269,7 +235,6 @@ export function PropertySearchPage() {
                         {m.ownerType === 'thing' ? 'T' : 'R'}
                       </span>
 
-                      {/* Owner name (clickable for things) */}
                       {m.ownerType === 'thing' ? (
                         <button
                           onClick={() => goToGraph(m)}
@@ -284,14 +249,12 @@ export function PropertySearchPage() {
                         </span>
                       )}
 
-                      {/* Inherited badge */}
                       {m.inheritedFrom && (
                         <span className="text-[10px] text-emerald-500 flex-shrink-0" title={t('propertySearch.inheritedFrom', { source: m.inheritedFrom })}>
                           {t('propertySearch.via', { source: m.inheritedFrom })}
                         </span>
                       )}
 
-                      {/* Value */}
                       <span className="text-zinc-400 mx-1">=</span>
                       <span className="text-zinc-300 truncate" title={formatPropertyValue(m.value, m.declaredType, numbers)}>
                         {searchMode === 'value' && debouncedQuery.trim().length > 0
@@ -299,7 +262,6 @@ export function PropertySearchPage() {
                           : formatPropertyValue(m.value, m.declaredType, numbers)}
                       </span>
 
-                      {/* History button (things only) */}
                       {m.ownerType === 'thing' && (
                         <button
                           onClick={() => loadHistory(m)}
@@ -330,7 +292,6 @@ export function PropertySearchPage() {
           </div>
         )}
 
-        {/* History panel */}
         {historyTarget && (
           <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mt-4">
             <h3 className="text-sm font-semibold mb-2">

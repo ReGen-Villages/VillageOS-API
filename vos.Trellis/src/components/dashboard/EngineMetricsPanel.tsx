@@ -8,8 +8,7 @@ interface Props {
   metrics: EngineMetricsSummary | null;
 }
 
-/** Compact capacity card for the two reactive engines: reactor counts, dependency fan-in, and the
- *  estimated memory each engine carries. Drill-in to per-reactor detail is Taproot's. */
+/** The detail per reactor is Taproot's to show. */
 export function EngineMetricsPanel({ metrics }: Props) {
   const { t } = useTranslation();
 

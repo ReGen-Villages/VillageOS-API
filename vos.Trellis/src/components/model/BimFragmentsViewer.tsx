@@ -10,7 +10,7 @@ import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 import { hiddenSceneItemsFor, type SceneVisibility } from './sceneVisibility';
 
-/** Map of IFC GlobalId → VosThing GUID, served by Mycelium at /api/model/mapping. */
+/** Each IFC GlobalId to the identifier of its Thing, served at /api/model/mapping. */
 export type BimFragmentsMapping = Record<string, string>;
 
 interface ModelBounds {
@@ -28,7 +28,7 @@ type LoadState =
 interface BimFragmentsViewerProps {
   bimFragmentsBytes: ArrayBuffer;
   mapping: BimFragmentsMapping;
-  /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
+  /** Called with the identifier of the clicked element's Thing, or null when the click missed geometry. */
   onPick: (vosGuid: string | null) => void;
   /**
    * What the type filter says the scene should show. Required, and the caller
@@ -103,9 +103,8 @@ export function BimFragmentsViewer({
         <ambientLight intensity={0.6} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
 
-        {/* Swapping between two drei cameras broke BimFragmentsModel.raycast
-            (returned null for every click). Use the single built-in camera; plan mode
-            is faked by lifting it overhead and narrowing FOV instead of an ortho camera. */}
+        {/* One built-in camera, because swapping between two drei cameras makes BimFragmentsModel.raycast miss
+            every click. */}
         <OrbitControls
           ref={orbitReference}
           makeDefault
@@ -291,8 +290,8 @@ function BimFragmentsScene({
       if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return;
       if (e.button !== 0) return;
 
-      // Fragments' raycaster does the NDC conversion itself, so pass
-      // raw client pixels — pre-normalised NDC makes it miss all geometry.
+      // The Fragments raycaster converts screen pixels itself, so it is given raw client pixels; coordinates
+      // converted beforehand make it miss all geometry.
       const mouse = new THREE.Vector2(e.clientX, e.clientY);
 
       let hit;
@@ -330,8 +329,7 @@ function BimFragmentsScene({
 
     const applyHighlight = async (localId: number) => {
       if (highlightedReference.current === localId) return;
-      // model.highlight(undefined, ...) highlights EVERY item — the whole model turned yellow on the
-      // second pick — so resetHighlight() clears the previous selection instead.
+      // model.highlight(undefined, ...) highlights every item, so resetHighlight() clears the previous selection.
       if (highlightedReference.current != null) {
         await model.resetHighlight([highlightedReference.current]);
       }
@@ -393,9 +391,8 @@ async function fitCameraToBounds(
     camera.near = Math.max(distance / 1000, 0.01);
     camera.far = distance * 1000;
   } else {
-    // Plan mode: fake orthographic by lifting the same perspective camera
-    // straight above the model and narrowing its FOV. Using a single camera
-    // (rather than drei's OrthographicCamera) preserves Fragments picking.
+    // Plan view lifts the same perspective camera straight above the model and narrows its field of view,
+    // rather than switching to an orthographic camera, which would stop picking working.
     const horizontal = Math.max(size.x, size.z) || 1;
     const planFov = 10;
     const distance = horizontal / (2 * Math.tan((planFov * Math.PI) / 360)) * 1.1;

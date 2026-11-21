@@ -102,11 +102,10 @@ public sealed class InputChangeRecomputeService : IHostedService
         _replacementCheckInterval = replacementCheckInterval ?? ModelScopedBearer.ReplacementCheckInterval;
     }
 
-    // Start following a subject, in the model the work in hand belongs to. Called when the service
-    // computes for one, so the set grows from the calls the service already receives rather than from
-    // a discovery rule of its own.
-    // Follow a subject, and every Thing its result is computed from when those are not the
-    // subject itself. A service reading only what it writes passes none.
+    // Start following a subject, and every Thing its result is computed from when those are not the
+    // subject itself, in the model the work in hand belongs to. A service reading only what it writes
+    // passes none. Called when the service computes for one, so the set grows from the calls the service
+    // already receives rather than from a discovery rule of its own.
     public void Watch(Guid subjectId, params Guid[] readsFrom)
     {
         var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _launchToken?.Current);
@@ -135,7 +134,7 @@ public sealed class InputChangeRecomputeService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Tests run against a synthetic Mycelium URL — don't open a real subscription.
+        // Tests give an address no Mycelium answers on, so no subscription is opened.
         if (_environment.IsEnvironment("Testing")) return Task.CompletedTask;
 
         _cancellation = new CancellationTokenSource();

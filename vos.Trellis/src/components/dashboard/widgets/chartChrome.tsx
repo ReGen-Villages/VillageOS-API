@@ -1,11 +1,8 @@
-/**
- * The pieces every hand-drawn chart shares beside its marks: the window label a history chart carries,
- * the tooltip a hovered or focused mark opens, and the table twin that makes every value reachable
- * without either.
- */
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { NumberFormat } from '@tendril-ui/tendril';
 import type { windowOf } from './historySeries';
+import { formatNumber } from './format';
 
 const TOOLTIP_OFFSET = 10;
 /** Past this share of the chart's width the tooltip opens to the left of the mark, so it never leaves
@@ -108,6 +105,87 @@ export function SeriesTable({
         </div>
       )}
     </>
+  );
+}
+
+export function ValueGridlines({
+  ticks,
+  y,
+  left,
+  right,
+  format = 'integer',
+}: {
+  ticks: number[];
+  y: (value: number) => number;
+  left: number;
+  right: number;
+  format?: NumberFormat;
+}) {
+  return ticks.map((tick) => (
+    <g key={tick}>
+      <line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
+      <text x={left - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
+        {formatNumber(tick, format)}
+      </text>
+    </g>
+  ));
+}
+
+export function MonthColumn({
+  monthKey,
+  centre,
+  markWidth,
+  plotTop,
+  plotBottom,
+  name,
+  readOut,
+  active,
+  onActive,
+  children,
+}: {
+  monthKey: string;
+  centre: number;
+  markWidth: number;
+  plotTop: number;
+  plotBottom: number;
+  name: string;
+  readOut: string;
+  active: boolean;
+  onActive: (active: boolean) => void;
+  children: ReactNode;
+}) {
+  const left = centre - markWidth / 2;
+  const plotHeight = plotBottom - plotTop;
+  return (
+    <g
+      data-month={monthKey}
+      role="img"
+      tabIndex={0}
+      aria-label={readOut}
+      onFocus={() => onActive(true)}
+      onBlur={() => onActive(false)}
+      onMouseEnter={() => onActive(true)}
+      onMouseLeave={() => onActive(false)}
+      className="outline-none"
+    >
+      <rect x={left - 6} y={plotTop} width={markWidth + 12} height={plotHeight} fill="transparent" />
+      {children}
+      <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
+        {name}
+      </text>
+      {active && (
+        <rect x={left - 3} y={plotTop} width={markWidth + 6} height={plotHeight} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
+      )}
+    </g>
+  );
+}
+
+export function AxisUnit({ unit, left, plotBottom }: { unit: string | undefined; left: number; plotBottom: number }) {
+  if (!unit) return null;
+  return (
+    <text x={left - 6} y={plotBottom + 15} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)">
+      {unit}
+    </text>
   );
 }
 

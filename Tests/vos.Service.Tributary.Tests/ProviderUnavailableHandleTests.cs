@@ -75,9 +75,7 @@ public class ProviderUnavailableHandleTests
         factory.HandlerCallback = request =>
         {
             if (request.RequestUri!.Host == "portal.test") return portal.Answer();
-            return RouteFindThing(request, thingId, "EP")
-                ?? RouteEffectiveProperties(request, thingId, endpoint)
-                ?? RouteKindsFromProperties(request, thingId, endpoint)
+            return RouteEndpoint(request, thingId, endpoint)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         await using var host = factory.WithWebHostBuilder(builder =>

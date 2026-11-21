@@ -9,24 +9,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { dedupe: TENDRIL_SHARES },
   build: {
-    // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
-    // The sibling auto-detect keeps `npm run build` from silently
-    // emitting to `dist/` while developers wonder why Mycelium URL still
-    // serves a stale bundle.
     outDir: resolveOutDir({ guiRoot: __dirname }),
     emptyOutDir: true,
-    // vendor-three: three + Fragments + three-stdlib
-    // + three-mesh-bvh + @react-three/* + @thatopen/* MUST share one chunk
-    // for `instanceof Camera` identity. Its minified size sits at ~1.27 MB
-    // and cannot be reduced without breaking raycasting. Raise the warning
-    // limit to 1500 so vendor-three doesn't trip it; every other chunk is
-    // still expected to stay below 1000 kB (vendor itself is split
-    // into vendor-react + vendor for that reason).
+    // vendor-three has to stay one chunk and is above the default warning size; every other chunk stays below it.
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        // Chunking rule lives in build/manualChunks.ts so it can be unit-
-        // tested.
         manualChunks: pickChunk,
       },
     },
@@ -35,15 +23,13 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.ts',
-    // test/integration needs a running Mycelium, so it runs from its own config (npm run
-    // test:integration) rather than failing every offline run of this one. Added to the defaults
-    // rather than replacing them, which would drop the exclusions for dist and the config files.
+    // These need a running broker, so they have their own configuration; the defaults stay, so dist stays excluded.
     exclude: [...configDefaults.exclude, 'test/integration/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'cobertura'],
       reportsDirectory: './coverage',
-      // The binding reader's own tests run here, against the console's broker reads.
+      // Tendril's sources sit outside this folder, and this suite's tests run its binding reader.
       allowExternal: true,
       include: ['src/**/*.{ts,tsx}', '../vos.Tendril/src/**/*.{ts,tsx}'],
       exclude: [

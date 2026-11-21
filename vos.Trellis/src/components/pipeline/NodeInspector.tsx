@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DeclaredState, PipelineNamed, PortInformation } from '../../pipeline/model';
-import type { EditorChoice } from '../../pipeline/serialize';
+import type { ChoiceInformation, DeclaredState, PipelineNamed, PortInformation } from '../../pipeline/model';
 import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
+import type { RelateChoices } from '../../pipeline/relate';
 import type { VosThing } from '@tendril-ui/tendril';
+import { dropAt, replaceAt } from '../../utils/listEdits';
 import { ThingPicker } from '../common/ThingPicker';
 import type { PipelineNodeData } from './PipelineNodeView';
 
@@ -25,16 +26,17 @@ interface Props {
   onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
   onSetBinding: (nodeId: string, port: string, parameterKey: string) => void;
   onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
-  onSetChoices: (nodeId: string, choices: EditorChoice[]) => void;
+  onSetChoices: (nodeId: string, choices: ChoiceInformation[]) => void;
   onSetRule: (nodeId: string, rule: string | undefined) => void;
   waitChoices: WaitChoices;
   onSetWait: (nodeId: string, wait: WaitSetting) => void;
+  relateChoices: RelateChoices;
   onClose: () => void;
 }
 
 export type WaitSetting = Partial<Pick<PipelineNodeData, 'waitsFor' | 'follows' | 'waitsAtMostMinutes'>>;
 
-export interface WaitChoices {
+interface WaitChoices {
   states: DeclaredState[];
   predicatesFrom: (kindId: string | undefined) => VosThing[];
 }
@@ -50,7 +52,7 @@ const NO_FAILURE_REACHED = '$count(failures) = 0';
  *  node holds. */
 export function NodeInspector({
   nodeId, data, wiredInputs, offeredByPort, widerList, onWiden, nameOf, standsForOptions, onSetStandsFor,
-  onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, waitChoices, onSetWait, onClose,
+  onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, waitChoices, onSetWait, relateChoices, onClose,
 }: Props) {
   const { t } = useTranslation();
   const [searchingChoices, setSearchingChoices] = useState<ReadonlySet<string>>(new Set());
@@ -75,8 +77,8 @@ export function NodeInspector({
     onSetChosen(nodeId, next);
   };
   const choices = data.choices ?? [];
-  const setChoice = (index: number, changed: Partial<EditorChoice>) =>
-    onSetChoices(nodeId, choices.map((choice, at) => (at === index ? { ...choice, ...changed } : choice)));
+  const setChoice = (index: number, changed: Partial<ChoiceInformation>) =>
+    onSetChoices(nodeId, replaceAt(choices, index, { ...choices[index], ...changed }));
 
   return (
     <div className="absolute top-2 right-2 w-64 max-h-[calc(100%-1rem)] overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
@@ -86,6 +88,8 @@ export function NodeInspector({
       </div>
       {data.kind === 'wait' ? (
         <WaitSettings nodeId={nodeId} data={data} choices={waitChoices} nameOf={nameOf} onSetWait={onSetWait} />
+      ) : data.kind === 'relate' ? (
+        <RelateSettings nodeId={nodeId} data={data} choices={relateChoices} onSetStandsFor={onSetStandsFor} onSetWait={onSetWait} />
       ) : data.kind === 'tell' || data.kind === 'followOn' ? (
         <PassedOn
           nodeId={nodeId}
@@ -200,7 +204,7 @@ export function NodeInspector({
                       className={FIELD}
                     />
                     <button
-                      onClick={() => onSetChoices(nodeId, choices.filter((_, at) => at !== index))}
+                      onClick={() => onSetChoices(nodeId, dropAt(choices, index))}
                       aria-label={t('pipeline.removeChoice', { name: choice.name })}
                       className="text-zinc-400 hover:text-red-400 px-1"
                     >×</button>
@@ -341,20 +345,77 @@ function WaitSettings({ nodeId, data, choices, nameOf, onSetWait }: WaitSettings
           {predicates.map((predicate) => <option key={predicate.Id} value={predicate.Id}>{predicate.Name}</option>)}
         </select>
       </label>
-      <label className="flex items-center gap-1">
-        <span className="w-16 text-zinc-400">{t('pipeline.waitsAtMostMinutes')}</span>
-        <input
-          type="number"
-          min={1}
-          step={1}
-          aria-label={t('pipeline.waitsAtMostMinutes')}
-          placeholder={t('pipeline.noTimeLimit')}
-          value={data.waitsAtMostMinutes ?? ''}
-          onChange={(e) => onSetWait(nodeId, { waitsAtMostMinutes: e.target.value === '' ? undefined : Number(e.target.value) })}
-          className={FIELD}
-        />
-      </label>
+      <WaitLimitField nodeId={nodeId} minutes={data.waitsAtMostMinutes} onSetWait={onSetWait} />
     </div>
+  );
+}
+
+interface RelateSettingsProperties {
+  nodeId: string;
+  data: PipelineNodeData;
+  choices: RelateChoices;
+  onSetStandsFor: (nodeId: string, thingId: string) => void;
+  onSetWait: (nodeId: string, wait: WaitSetting) => void;
+}
+
+/** A loaded box standing for something the orchestrator would refuse keeps it listed, so nothing changes until the person chooses. */
+function RelateSettings({ nodeId, data, choices, onSetStandsFor, onSetWait }: RelateSettingsProperties) {
+  const { t } = useTranslation();
+  const standing = data.standsForId;
+  const reading = standing ? choices.readingOf(standing) : undefined;
+  const listed = standing && reading && !choices.predicates.some((predicate) => predicate.id === standing)
+    ? [{ id: standing, name: reading.name }, ...choices.predicates]
+    : choices.predicates;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{t('pipeline.relatesAlong')}</span>
+        <select
+          aria-label={t('pipeline.relatesAlong')}
+          value={standing ?? ''}
+          onChange={(e) => onSetStandsFor(nodeId, e.target.value)}
+          className={FIELD}
+        >
+          <option value="">{t('pipeline.nothingChosen')}</option>
+          {listed.map((predicate) => <option key={predicate.id} value={predicate.id}>{predicate.name}</option>)}
+        </select>
+      </label>
+      {choices.predicates.length === 0 && <div className="text-zinc-400">{t('pipeline.noRelatablePredicate')}</div>}
+      {reading?.refusal && <div role="alert" className="text-amber-600 dark:text-amber-400">{reading.refusal}</div>}
+      {reading?.state && (
+        <div className="flex items-center gap-1">
+          <span className="w-16 text-zinc-400">{t('pipeline.waitsFor')}</span>
+          <span>{reading.state}</span>
+        </div>
+      )}
+      {reading?.service && (
+        <div className="flex items-center gap-1">
+          <span className="w-16 text-zinc-400">{t('pipeline.callsService')}</span>
+          <span>{reading.service}</span>
+        </div>
+      )}
+      <WaitLimitField nodeId={nodeId} minutes={data.waitsAtMostMinutes} onSetWait={onSetWait} />
+    </div>
+  );
+}
+
+function WaitLimitField({ nodeId, minutes, onSetWait }: { nodeId: string; minutes: number | undefined; onSetWait: (nodeId: string, wait: WaitSetting) => void }) {
+  const { t } = useTranslation();
+  return (
+    <label className="flex items-center gap-1">
+      <span className="w-16 text-zinc-400">{t('pipeline.waitsAtMostMinutes')}</span>
+      <input
+        type="number"
+        min={1}
+        step={1}
+        aria-label={t('pipeline.waitsAtMostMinutes')}
+        placeholder={t('pipeline.noTimeLimit')}
+        value={minutes ?? ''}
+        onChange={(e) => onSetWait(nodeId, { waitsAtMostMinutes: e.target.value === '' ? undefined : Number(e.target.value) })}
+        className={FIELD}
+      />
+    </label>
   );
 }
 

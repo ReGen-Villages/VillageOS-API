@@ -1,10 +1,8 @@
 /**
- * The roles the land-intake, open-data and site-analysis templates declare for the vocabularies a
- * submission is resolved against and the Things a reviewer's page reads. Each role is a Thing the model
- * declares under a fixed identifier, and it binds the one archetype, predicate or Thing playing it along
- * `binds`, so a page asks for the role and follows its binding and never names what the model calls the
- * Thing it binds. Each identifier is the standard version 5 identifier of the role's word; the intake service
- * and the command line read the same ones.
+ * Declared by the land-intake, open-data and site-analysis templates. Each role is a Thing under a fixed
+ * identifier that binds, along `binds`, the archetype, predicate or Thing playing it, so a page follows the
+ * role and never names what the model calls that Thing. Each identifier is the version 5 identifier of the
+ * role's word, which the intake service and the command line read too.
  */
 import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
 

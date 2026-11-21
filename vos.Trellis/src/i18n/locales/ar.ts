@@ -7,8 +7,8 @@ import type { Resources } from './en';
  * through i18next's `ar-XX → ar` language fallback, and any key absent here
  * falls back further to the English base locale.
  *
- * Arabic pluralisation has six CLDR categories, so every counted phrase carries
- * all of them (English needs only one/other). The extra suffixes sit outside the
+ * Arabic has six plural forms where English has two, so every counted phrase carries
+ * all of them. The extra suffixes sit outside the
  * base `Resources` shape, hence the widened annotation below.
  */
 
@@ -71,7 +71,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     dark: 'الداكن',
   },
   language: {
-    label: 'اللغة',
     select: 'اختر اللغة',
   },
   log: {
@@ -149,8 +148,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     notAvailable: 'غير متاح',
     switchModel: 'تبديل النموذج',
     logout: 'تسجيل الخروج',
-    search: 'بحث',
-    clear: 'مسح',
     query: "استعلام",
     copyAsMarkdown: "نسخ كـ Markdown",
     downloadAsMarkdown: "تنزيل كـ Markdown",
@@ -163,7 +160,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     showMore_few: 'عرض المزيد (بقي {{count}})',
     showMore_many: 'عرض المزيد (بقي {{count}})',
     showingFirst: "عرض أول {{count}}",
-    noProperties: "لا توجد خصائص",
   },
   dashboard: {
     engines: {
@@ -1249,7 +1245,6 @@ export const ar: WithArabicPluralForms<Resources> = {
       subject: "الفاعل",
       predicate: "المسند",
       target: "الهدف",
-      openDetail: "فتح تفاصيل الحافة",
       rangesTab: "النطاقات",
       propertiesTab: "الخصائص ({{count}})",
       deleteRelationship: "حذف العلاقة",
@@ -1377,6 +1372,22 @@ export const ar: WithArabicPluralForms<Resources> = {
     waitLimitNotWholeMinutes: "تنتظر «{{node}}» {{minutes}} دقيقة على الأكثر، وهذا ليس عددًا صحيحًا من الدقائق أكبر من الصفر.",
     waitingFor: "تنتظر {{state}}",
     waitsForNothing: "لا تنتظر أي حالة بعد",
+    relatesAlong: "تربط عبر",
+    callsService: "تستدعي",
+    noRelatablePredicate: "لا يسمّي أي محمول هنا اتصالًا يربط خدمة وتثبته حالة واحدة.",
+    relatesAlongNothing: "لا تربط عبر أي محمول بعد",
+    relatingAlong: "تربط عبر {{predicate}}، ثم تنتظر {{state}}",
+    relateWithoutPredicate: "«{{node}}» لا تربط عبر أي محمول، فلن يُستدعى شيء.",
+    relateRefused: "لا يمكن تشغيل «{{node}}»: {{reason}}.",
+    relateWithoutThing: "لا شيء موصول بمنفذ «{{node}}»، فليس لديها شيء لتربطه.",
+    relate: {
+      standsForAConnection: "'{{name}}' اتصال: عقدة الربط تمثّل المحمول الذي يسمّي اتصالًا عبر '{{notifies}}'",
+      namesNoConnection: "'{{name}}' لا يسمّي أي اتصال عبر '{{notifies}}'، فالعلاقة على طوله لا تستدعي شيئًا",
+      modelNamesNoNotifiedConnection: "'{{name}}' لا يسمّي أي اتصال: هذا النموذج لا يربط أي محمول بالدور الذي يسمّي اتصالًا، فالعلاقة على طوله لا تستدعي شيئًا",
+      connectionBindsNoService: "'{{name}}' يسمّي '{{connection}}' الذي لا يربط أي خدمة، فلن يُستدعى شيء",
+      connectionNamesNoState: "'{{name}}' يسمّي '{{connection}}' الذي لا يسمّي أي حالة تثبت عمله، فلن يعرف التشغيل متى انتهى العمل",
+      connectionNamesTwoStates: "'{{name}}' يسمّي '{{connection}}' الذي يسمّي أكثر من حالة تثبت عمله",
+    },
     danglingWire: "هذه الوصلة غير موصولة من الطرفين: {{from}} → {{to}}",
     requiredInputUnbound: "المدخل المطلوب «{{port}}» في «{{node}}» غير موصول وغير مربوط بمعامل تشغيل.",
     startCannotStart: "«{{node}}» هو بداية خط المعالجة هذا ويمثّل «{{named}}»، الذي لا يبدأ شيئًا",
@@ -1411,7 +1422,6 @@ export const ar: WithArabicPluralForms<Resources> = {
     bindInput: "اربط مدخلًا بمعامل تشغيل:",
     wired: "موصول",
     fromParameter: "من معامل…",
-    wire: "توصيل",
     mapField: "عيّن حقلًا (فارغ = الحمولة كاملة):",
     fromPath: "المسار-المصدر",
     toPath: "المسار-الهدف",
@@ -1559,6 +1569,9 @@ export const ar: WithArabicPluralForms<Resources> = {
       wait: "انتظار حالة",
       waitBody: "يُبقي التشغيل حتى يدخل الشيء الذي يصل إليه في حالة",
       placeWait: "وضع عقدة انتظار",
+      relate: "ربط شيء",
+      relateBody: "تربط الشيء الذي يصلها عبر محمول، فتستدعي المنصّة خدمة، وتنتظر حتى ينتهي عملها",
+      placeRelate: "وضع عقدة ربط",
       stops: "إيقاف عمليات التشغيل",
       stop: "إيقاف عمليات تشغيلها",
       stopBody: "توقف كل تشغيل يخص الأشياء التي تصل إليها",
@@ -1785,6 +1798,11 @@ export const ar: WithArabicPluralForms<Resources> = {
       fromPlaceSearch: "من بحث عن مكان",
       fromDevice: "من هذا الجهاز",
     },
+  },
+  typedFigure: {
+    notANumber: "ليس رقمًا.",
+    negative: "لا يمكن أن يكون سالبًا.",
+    notWhole: "يجب أن يكون عددًا صحيحًا.",
   },
   publicFindings: {
     noTicket: "أكّد عنوان بريدك الإلكتروني أولًا.",

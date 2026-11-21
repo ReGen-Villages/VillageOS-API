@@ -36,17 +36,14 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}", cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var answer = await AskForThingNamedAsync(name, BrokerPatience, cancellationToken);
+            if (!answer.IsDone)
             {
-                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
+                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, answer.Status);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return TryParseThing(root, out var thing) ? thing : null;
+            return ThingIn(answer);
         }
         catch (Exception ex)
         {
@@ -60,7 +57,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             // Not the reading as it arrived: a source states its values bare, and the broker takes each
             // one with its type on it — worked out from the value, because only the caller's JSON says
             // what a reading is.
@@ -70,16 +66,14 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                 Properties = TypedProperties.Typed(properties)
             };
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var answer = await AskToCreateThingAsync(JsonContent.Create(payload), BrokerPatience, cancellationToken);
+            if (!answer.IsDone)
             {
-                var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, response.StatusCode, error);
+                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, answer.Status, answer.Body);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return TryParseThing(root, out var thing) ? thing : null;
+            return ThingIn(answer);
         }
         catch (Exception ex)
         {
@@ -92,15 +86,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment",
+            var answer = await AskToApplyFragmentAsync(
                 new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"),
-                cancellationToken);
-            if (response.IsSuccessStatusCode)
+                BrokerPatience, cancellationToken);
+            if (answer.IsDone)
                 return true;
 
-            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}",
-                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}", answer.Status, answer.Body);
             return false;
         }
         catch (Exception ex)
@@ -153,7 +145,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                 : await client.PostAsJsonAsync($"{MyceliumUrl}{path}", body, cancellationToken);
             if (response.IsSuccessStatusCode) return BrokerAnswer.Done;
 
-            var refusal = $"{(int)response.StatusCode}: {ErrorWordsOf(await response.Content.ReadAsStringAsync(cancellationToken))}";
+            var answerBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var refusal = $"{(int)response.StatusCode}: {PlatformAnswer.ErrorWordsIn(answerBody) ?? answerBody}";
             Logger.LogWarning("The broker refused {Path}: {Refusal}", path, refusal);
             return new BrokerAnswer(false, refusal, CanBeTriedAgain: (int)response.StatusCode >= 500, response.Headers.RetryAfter?.Delta);
         }
@@ -166,21 +159,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             Logger.LogWarning(exception, "The broker could not be reached for {Path}", path);
             return new BrokerAnswer(false, $"The broker could not be reached: {exception.Message}", CanBeTriedAgain: true);
         }
-    }
-
-    private static string ErrorWordsOf(string body)
-    {
-        try
-        {
-            using var answer = JsonDocument.Parse(body);
-            if (answer.RootElement is { ValueKind: JsonValueKind.Object } refusal
-                && refusal.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
-                return error.GetString()!;
-        }
-        catch (JsonException)
-        {
-        }
-        return body;
     }
 
     public async Task<bool> SubmitObservationsAsync(
@@ -359,42 +337,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         Logger.LogError(exception, message, arguments);
     }
 
-    private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
-    {
-        thing = null;
-
-        if (element.ValueKind != JsonValueKind.Object)
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Id", out var idProp) || idProp.ValueKind != JsonValueKind.String)
-            return false;
-
-        if (!Guid.TryParse(idProp.GetString(), out var id))
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
-            return false;
-
-        thing = new MyceliumThing(id, nameProp.GetString() ?? string.Empty);
-        return true;
-    }
+    private static MyceliumThing? ThingIn(PlatformAnswer answer) =>
+        TryReadThing(answer.Json(), out var id, out var name) ? new MyceliumThing(id, name) : null;
 
     // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
     // the observation route stores; a shape it has no scalar for keeps its own JSON text.
-    private static object? ResolveObservationValue(object? value)
-    {
-        if (value is not JsonElement element)
-            return value;
-
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
-            JsonValueKind.Number => element.GetDouble(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Null => null,
-            _ => element.GetRawText()
-        };
-    }
+    private static object? ResolveObservationValue(object? value) =>
+        value is not JsonElement element ? value
+        : JsonScalar.TryRead(element, out var scalar) ? scalar
+        : element.GetRawText();
 }

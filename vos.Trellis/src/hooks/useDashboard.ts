@@ -1,7 +1,3 @@
-/**
- * Hooks that drive the configuration-driven dashboard: build a resolve context from the live model store
- * and the selected scope.
- */
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,17 +12,16 @@ import { useModelStore } from '../stores/modelStore';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { useUiStore } from '../stores/uiStore';
 
-/** The index over the loaded model. Shared rather than memoized per component, so the navigation
- *  and the page it points at read one index instead of each walking the whole model. */
+/** Shared rather than built per component, so the navigation and its page read one index instead of
+ *  each walking the whole model. */
 export function useModelIndex(): ModelIndex {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   return modelIndexFor(things, relationships);
 }
 
-/** The pages the platform declares for the signed-in account, then the dashboards the loaded model
- *  publishes, ordered by name. The platform's come first because they are the same for every model
- *  a session opens, and a page that moved when the model changed would be a page a reader loses. */
+/** The platform's pages come first, because they are the same for every model a session opens, and a page
+ *  that moved when the model changed would be lost to its reader. */
 export function useDashboards(): DashboardDescriptor[] {
   const declared = usePlatformPagesStore((s) => s.pages);
   const { i18n } = useTranslation();
@@ -36,16 +31,10 @@ export function useDashboards(): DashboardDescriptor[] {
 
 const warnInTheConsole = (warning: string) => console.warn(warning);
 
-/** Wrap a shared model index + the selected scope into a resolve context.
- *
- *  `makeReads` is called once per generation rather than passed as a value, because what it
- *  builds shares the reads of that generation: widgets asking the same question ask once between
- *  them rather than once each. It is discarded whenever anything that could change an answer moves
- *  — a live event, a state, the cadence — so a generation never hands a reader the answer to a
- *  question the model has since moved past. Which widgets then resolve again is a separate matter,
- *  and `useBinding` decides it per binding. A factory rather than the reads themselves is
- *  also what keeps this file off the broker, so the page a submitter opens with no credential can
- *  use these hooks. */
+/** `makeReads` is called once per refresh, because what it builds shares that refresh's reads, so widgets
+ *  asking the same question ask once. It is rebuilt whenever anything that could change an answer moves,
+ *  so no answer outlives the model it came from; `useBinding` decides per binding which widgets resolve
+ *  again. A factory also keeps this file off the broker, so the public page with no credential can use it. */
 export function useResolveContext(
   index: ModelIndex,
   scopeId: string | null,

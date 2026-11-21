@@ -1,7 +1,7 @@
 namespace vos.Taproot;
 
 // The platform accepts only its own type names (vos.String, vos.Integer, ...). The console lets an
-// operator type the short or CLR name instead; anything else is sent as typed, and the platform
+// operator type the short or .NET type name instead; anything else is sent as typed, and the platform
 // refuses it with a reason the operator sees.
 public static class PropertyTypeNames
 {

@@ -3,8 +3,7 @@ import type { PartialResources } from './types';
 /**
  * DRAFT — machine-drafted Spanish. Not reviewed by a human translator.
  * Every string here needs sign-off by a fluent speaker before it ships as
- * final. Keys intentionally omitted (e.g. log.fullLogTitle) fall back to the
- * English base locale, which is the expected behaviour for an incomplete draft.
+ * final. A key left out falls back to the English base locale.
  */
 export const es: PartialResources = {
   navigation: {
@@ -50,7 +49,6 @@ export const es: PartialResources = {
     dark: 'oscuro',
   },
   language: {
-    label: 'Idioma',
     select: 'Seleccionar idioma',
   },
   log: {
@@ -124,8 +122,6 @@ export const es: PartialResources = {
     notAvailable: 'No disponible',
     switchModel: 'Cambiar de modelo',
     logout: 'Cerrar sesión',
-    search: 'Buscar',
-    clear: 'Limpiar',
     query: "Consultar",
     copyAsMarkdown: "Copiar como Markdown",
     downloadAsMarkdown: "Descargar como Markdown",
@@ -134,7 +130,6 @@ export const es: PartialResources = {
     showMore_one: "Mostrar más (queda {{count}})",
     showMore_other: "Mostrar más (quedan {{count}})",
     showingFirst: "mostrando los primeros {{count}}",
-    noProperties: "Sin propiedades",
   },
   dashboard: {
     engines: {
@@ -1164,7 +1159,6 @@ export const es: PartialResources = {
       subject: "Sujeto",
       predicate: "Predicado",
       target: "Destino",
-      openDetail: "Abrir detalle de arista",
       rangesTab: "Rangos",
       propertiesTab: "Propiedades ({{count}})",
       deleteRelationship: "Eliminar relación",
@@ -1284,6 +1278,22 @@ export const es: PartialResources = {
     waitLimitNotWholeMinutes: "«{{node}}» espera como máximo {{minutes}} minutos, que no es un número entero de minutos mayor que cero.",
     waitingFor: "espera {{state}}",
     waitsForNothing: "aún no espera ningún estado",
+    relatesAlong: "Relaciona mediante",
+    callsService: "Llama a",
+    noRelatablePredicate: "Ningún predicado aquí nombra una conexión que vincule un servicio y que un solo estado acredite.",
+    relatesAlongNothing: "aún no relaciona mediante ningún predicado",
+    relatingAlong: "relaciona mediante {{predicate}}, luego espera {{state}}",
+    relateWithoutPredicate: "«{{node}}» no relaciona mediante ningún predicado, así que no se llamaría a nada.",
+    relateRefused: "«{{node}}» no puede ejecutarse: {{reason}}.",
+    relateWithoutThing: "No hay nada conectado al puerto de «{{node}}», así que no tiene ninguna cosa que relacionar.",
+    relate: {
+      standsForAConnection: "'{{name}}' es una conexión: un nodo de relación representa el predicado que nombra una conexión mediante '{{notifies}}'",
+      namesNoConnection: "'{{name}}' no nombra ninguna conexión mediante '{{notifies}}', así que una relación a lo largo de él no llama a nada",
+      modelNamesNoNotifiedConnection: "'{{name}}' no nombra ninguna conexión: este modelo no vincula ningún predicado al rol que nombra una conexión, así que una relación a lo largo de él no llama a nada",
+      connectionBindsNoService: "'{{name}}' nombra '{{connection}}', que no vincula ningún servicio, así que no se llamaría a nada",
+      connectionNamesNoState: "'{{name}}' nombra '{{connection}}', que no nombra ningún estado que acredite su trabajo, así que la ejecución no sabría cuándo está hecho",
+      connectionNamesTwoStates: "'{{name}}' nombra '{{connection}}', que nombra más de un estado que acredite su trabajo",
+    },
     danglingWire: "Esta conexión no está unida por ambos extremos: {{from}} → {{to}}",
     requiredInputUnbound: "La entrada obligatoria «{{port}}» de «{{node}}» no está conectada ni vinculada a un parámetro de ejecución.",
     startCannotStart: "«{{node}}» es donde empieza este pipeline y representa «{{named}}», que no inicia nada",
@@ -1318,7 +1328,6 @@ export const es: PartialResources = {
     bindInput: "Vincula una entrada a un parámetro de ejecución:",
     wired: "conectado",
     fromParameter: "de param…",
-    wire: "Cable",
     mapField: "Asigna un campo (vacío = toda la carga):",
     fromPath: "ruta-origen",
     toPath: "ruta-destino",
@@ -1458,6 +1467,9 @@ export const es: PartialResources = {
       wait: "Esperar un estado",
       waitBody: "Detiene la ejecución hasta que la cosa que le llega entre en un estado",
       placeWait: "Colocar un nodo de espera",
+      relate: "Relacionar una cosa",
+      relateBody: "Relaciona la cosa que le llega mediante un predicado, para que la plataforma llame a un servicio, y espera a que su trabajo esté hecho",
+      placeRelate: "Colocar un nodo de relación",
       stops: "Detener ejecuciones",
       stop: "Detener sus ejecuciones",
       stopBody: "Detiene cada ejecución sobre las Cosas que lo alcanzan",
@@ -1680,6 +1692,11 @@ export const es: PartialResources = {
       fromPlaceSearch: 'de una búsqueda de lugar',
       fromDevice: 'de este dispositivo',
     },
+  },
+  typedFigure: {
+    notANumber: "No es un número.",
+    negative: "No puede ser negativo.",
+    notWhole: "Debe ser un número entero.",
   },
   publicFindings: {
     noTicket: "Confirma primero tu dirección de correo.",

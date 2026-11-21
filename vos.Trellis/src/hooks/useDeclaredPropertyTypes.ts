@@ -6,19 +6,10 @@ import type { EffectiveProperty } from '@tendril-ui/tendril';
 export type DeclaredPropertyTypes = Record<string, Record<string, EffectiveProperty>>;
 
 /**
- * The platform's resolved view of a Thing's properties — each value with the type the platform
- * declares for it and where it was inherited from. The client model index carries values but
- * no types, because it is built from the model rather than from the resolved-properties routes.
- *
- * Pass the ids a surface is actually showing and only those are read. Only a surface that
- * genuinely works across the whole model — searching every property — should leave `ids` out, because
- * that reads the resolved properties of every Thing, which on a large model is more than the model
- * load itself. Ids already held are not read again, so paging through results does not re-read them.
- *
- * Pass `enabled: false` to hold the read back until something is going to show a property.
- *
- * Null until the first answer lands. A caller should format by shape until then rather than showing
- * nothing: a badly formatted value is recoverable, a missing one is not.
+ * The model index carries values but no types, so the platform's resolved properties are read here. Pass
+ * only the ids a page shows, because without `ids` every Thing is read, more than the model load on a
+ * large model; ids already read are not read again. Null until the first answer, and a caller formats by
+ * shape until then, because a badly formatted value is recoverable and a missing one is not.
  */
 export function useDeclaredPropertyTypes(
   enabled = true,
@@ -59,7 +50,7 @@ export function useDeclaredPropertyTypes(
     if (missing?.length === 0) return;
 
     let cancelled = false;
-    thingApi.getAllProperties('effective', missing).then(
+    thingApi.getAllProperties(missing).then(
       (data) => {
         if (cancelled) return;
         const alreadyRead = read.current;

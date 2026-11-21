@@ -12,10 +12,10 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // The two services that create a Thing carrying properties, writing into the real engine.
 //
-// Both answered a refused create by logging it and carrying on — Delta loses a template and every
-// endpoint beneath it, Tributary loses the reading that first sighted an entity — so nothing but a
-// live run said the writes were wrong, and neither path runs when the Things are already seeded.
-// Both suites answered the create with a stand-in that accepts any body.
+// A refused create that is logged and passed over loses something — for Delta a template and every
+// endpoint beneath it, for Tributary the reading that first sighted an entity — and only a live run
+// would show the writes are wrong, since neither path runs when the Things are already seeded. Both
+// suites answer the create with a stand-in that accepts any body.
 public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

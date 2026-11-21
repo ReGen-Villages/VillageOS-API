@@ -1,9 +1,4 @@
-/**
- * What the chart widgets read off a `history` binding and its answer: the groups by key, the window
- * the binding covers, the calendar words the axes are labelled with, and the labels of the Things
- * the groups are keyed by. Shared so every chart reads
- * a series the same way and names a month the same way.
- */
+/** Shared, so every chart reads a series and names a month the same way. */
 import { asRows, nullableNumber, wordingIn, wordsInLanguage, type BindingResult } from '@tendril-ui/tendril';
 import type { Binding, Row } from '@tendril-ui/tendril';
 

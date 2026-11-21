@@ -1,23 +1,10 @@
 import { describe, it, expect } from 'vitest';
-// Vite `?raw` returns the file's text without evaluating the module, so we can
-// assert layout invariants against the JSX source (jsdom has no layout engine
-// to detect the pixel overlap this guards against).
+// Read as text, because jsdom has no layout to show the overlap this guards against.
 import source from './GraphPage.tsx?raw';
 
-/**
- * Bug: on the Graph page the bottom-right filter cluster (PredicateFilterPanel
- * + TypeFilterPanel) grows upward as the predicate list gets long. Its old
- * `max-h-[calc(100vh-1.5rem)]` let it reach `top-3`, right where the top-right
- * control surface lives (the import-fragment action). Sharing `z-10` and coming
- * later in the DOM, the panel painted OVER that control and blocked it.
- *
- * The fix keeps the control surface reachable two independent ways:
- *   1. The control surface stacks above the filter cluster (higher z-index).
- *   2. The filter cluster's max-h reserves a top band so it can't rise into
- *      the control surface region in the first place.
- */
+/** The filter cluster grows upward with a long predicate list and must not cover the control surface at top
+ *  right, so the control surface stacks above it and the cluster's height leaves a band at the top. */
 
-/** Grab the className string of the `absolute` div anchored at the given corner. */
 function classNameForAnchor(anchor: string): string {
   const re = new RegExp(`className="(absolute ${anchor}[^"]*)"`);
   const m = source.match(re);
@@ -40,14 +27,11 @@ describe('GraphPage control surface vs. filter cluster', () => {
   });
 
   it('reserves a top band so the filter cluster cannot rise into the controls', () => {
-    // Old, buggy value only subtracted the 1.5rem of top+bottom gutters, so the
-    // panel's top reached top-3 (0.75rem) — flush with the control surface.
+    // Taking off only the gutters would let the panel's top reach the control surface.
     const m = filterCluster.match(/max-h-\[calc\(100vh-([\d.]+)rem\)\]/);
     expect(m, `filter cluster should cap height with calc(100vh-<n>rem): ${filterCluster}`).not.toBeNull();
     const reservedRem = Number(m![1]);
-    // The control surface sits at top-3 (0.75rem) and is ~1.75rem tall, so its
-    // bottom edge is ~2.5rem from the top. Reserve at least that much, plus the
-    // bottom-3 (0.75rem) gutter the panel already sits above.
+    // The control surface's bottom edge is about 2.5rem from the top.
     expect(reservedRem).toBeGreaterThanOrEqual(2.5);
   });
 });

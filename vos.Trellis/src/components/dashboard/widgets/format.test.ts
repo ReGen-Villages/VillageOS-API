@@ -24,8 +24,6 @@ describe('columnMaxima', () => {
     expect(columnMaxima([{ name: 'x', age: 2 }], [{ key: 'name', label: 'Location' }])).toEqual({});
   });
 
-  /* A roster no longer needs a row cap, so the list reaching here has no bound. Spreading it over
-     Math.max threw once past a hundred thousand rows, taking the whole page render with it. */
   it('measures a list far longer than an argument list could hold', () => {
     const rows: Row[] = Array.from({ length: 200_000 }, (_, i) => ({ age: i }));
 
@@ -39,8 +37,6 @@ describe('deltaTone', () => {
     expect(deltaTone(4, 'down-good')).toBe('down');
   });
 
-  // A measured area against the one somebody stated is worth noticing whichever way it went, so a
-  // widget saying neither way is good gets the neutral tone rather than a verdict on the direction.
   it('leaves a discrepancy uncoloured, whichever way it went', () => {
     expect(deltaTone(60, 'neither-good')).toBe('flat');
     expect(deltaTone(-60, 'neither-good')).toBe('flat');
@@ -71,8 +67,7 @@ describe('formatNumber', () => {
     expect(formatNumber(0.42, 'percent')).toBe('42\u00a0%');
   });
 
-  // The compact style wrote 32.5 billion bytes as "32.5B", which read as bytes, or as 32.5 of the
-  // binary gigabytes memory is sold in, when it is 30.3 of them.
+  // 32.5 billion bytes is 30.3 of the binary gigabytes memory is sold in, and "32.5B" would read as 32.5 of them.
   it('writes a byte count in binary units, the unit memory is sold and reported in', () => {
     expect(formatNumber(32_500_000_000, 'bytes')).toBe('30.3 GiB');
     expect(formatNumber(5 * 1024 ** 3, 'bytes')).toBe('5 GiB');
