@@ -187,8 +187,13 @@ public sealed class TheEngine : IAsyncLifetime
         return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
     }
 
-    private async Task<Guid> TheModelIdAsync() =>
-        Field((await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single(), "id").GetGuid();
+    private async Task<Guid> TheModelIdAsync() => (await TheModelAsync()).Id;
+
+    public async Task<(Guid Id, string Name)> TheModelAsync()
+    {
+        var model = (await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single();
+        return (Field(model, "id").GetGuid(), Field(model, "name").GetString()!);
+    }
 
     private async Task<string> TokenOfANewKeyAsync(object key)
     {

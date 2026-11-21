@@ -3,6 +3,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
 using vos.Tests.Shared;
@@ -38,6 +40,15 @@ public class AToolSaysWhichModelItAsksTests
             _ => new HttpResponseMessage(HttpStatusCode.NotFound),
         };
     }
+
+    // A key that names no model is given no token without one while the platform holds more than one model.
+    private static HttpResponseMessage AKeyNamingNoModel(HttpRequestMessage request) =>
+        request.RequestUri!.PathAndQuery == "/api/auth/token"
+            ? Json($$"""{"error":"Multiple models available. Specify ModelId.","models":{{Models}}}""", HttpStatusCode.BadRequest)
+            : TwoModels(request);
+
+    private static HttpResponseMessage AKeyNamingNoModelWhereNoModelBindsTheRole(HttpRequestMessage request) =>
+        request.RequestUri!.Query.StartsWith("?boundBy=") ? new HttpResponseMessage(HttpStatusCode.NotFound) : AKeyNamingNoModel(request);
 
     private static Dictionary<string, object?> Asking(string? model) =>
         model is null ? [] : new() { [ModelClients.Parameter] = model };
@@ -144,6 +155,84 @@ public class AToolSaysWhichModelItAsksTests
         await server.Client.CallToolAsync("sample_bound", Asking("Riverbend"));
 
         (await server.ListedToolNamesAsync()).Should().Contain("sample_things").And.NotContain("sample_bound");
+    }
+
+    [Fact]
+    public async Task A_key_that_names_no_model_and_reaches_two_is_shown_the_tools_its_role_may_use()
+    {
+        await using var server = await StartAsync(AKeyNamingNoModel, toolTypes: typeof(ToolsThatTakeAModel));
+
+        (await server.ListedToolNamesAsync()).Should().Contain("sample_things");
+    }
+
+    [Fact]
+    public async Task A_key_that_names_no_model_is_shown_a_tool_whose_role_only_its_second_model_binds()
+    {
+        await using var server = await StartAsync(AKeyNamingNoModel, toolTypes: typeof(ToolsThatTakeAModel));
+
+        (await server.ListedToolNamesAsync()).Should().Contain("sample_bound");
+    }
+
+    [Fact]
+    public async Task A_key_that_names_no_model_is_not_shown_a_tool_whose_role_no_model_binds()
+    {
+        await using var server = await StartAsync(AKeyNamingNoModelWhereNoModelBindsTheRole, toolTypes: typeof(ToolsThatTakeAModel));
+
+        (await server.ListedToolNamesAsync()).Should().Contain("sample_things").And.NotContain("sample_bound");
+    }
+
+    [Fact]
+    public async Task A_call_that_names_no_model_for_a_key_that_reaches_two_is_refused_naming_each_model()
+    {
+        await using var server = await StartAsync(AKeyNamingNoModel, toolTypes: typeof(ToolsThatTakeAModel));
+
+        var refused = await server.Client.CallToolAsync("sample_things", Asking(null));
+
+        refused.IsError.Should().BeTrue();
+        TextOf(refused).Should().Be(
+            $"This key reaches more than one model; name one with `model`: Hillside ({Hillside}), Riverbend ({Riverbend}).");
+    }
+
+    [Theory]
+    [InlineData("Riverbend", "A Thing in Riverbend")]
+    [InlineData(Hillside, "A Thing in Hillside")]
+    public async Task A_call_that_names_a_model_for_a_key_that_names_none_answers_from_that_model(string model, string answered)
+    {
+        await using var server = await StartAsync(AKeyNamingNoModel, toolTypes: typeof(ToolsThatTakeAModel));
+
+        var answer = await server.Client.CallToolAsync("sample_things", Asking(model));
+
+        TextOf(answer).Should().Contain(answered);
+    }
+
+    [Fact]
+    public async Task The_models_tool_names_each_model_a_key_that_names_none_reaches()
+    {
+        await using var server = await StartAsync(AKeyNamingNoModel, toolTypes: typeof(ToolsThatTakeAModel));
+
+        var answer = await server.Client.CallToolAsync("list_models");
+
+        answer.IsError.Should().NotBe(true, TextOf(answer));
+        TextOf(answer).Should().Contain(Hillside).And.Contain("Hillside").And.Contain(Riverbend).And.Contain("Riverbend");
+    }
+
+    [Fact]
+    public async Task A_key_that_names_no_model_and_reaches_two_is_shown_the_prompts_its_role_is_offered()
+    {
+        await using var server = await StartAsync(
+            AKeyNamingNoModel, configure: services => services.AddSingleton<IPromptSource, APromptForAViewer>(),
+            toolTypes: typeof(ToolsThatTakeAModel));
+
+        (await server.Client.ListPromptsAsync()).Select(prompt => prompt.Name).Should().Equal("review_changes");
+    }
+
+    private sealed class APromptForAViewer : IPromptSource
+    {
+        public Task<IReadOnlyList<Prompt>> ListAsync(Caller caller, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Prompt>>(caller.Role == "viewer" ? [new Prompt { Name = "review_changes" }] : []);
+
+        public Task<GetPromptResult?> GetAsync(Caller caller, GetPromptRequestParams asked, CancellationToken cancellationToken) =>
+            Task.FromResult<GetPromptResult?>(null);
     }
 
     [McpServerToolType]

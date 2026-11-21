@@ -73,6 +73,37 @@ public class AClientAsksMoreThanOneModelTests
     }
 
     [Fact]
+    public async Task A_key_naming_no_model_while_several_are_open_is_refused_with_the_models_it_may_enter()
+    {
+        var answered = $$"""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":"{{Hillside}}","Name":"Hillside"},{"Id":"{{Riverbend}}","Name":"Riverbend"}]}""";
+        var mycelium = new MockHttpMessageHandler(_ => Json(answered, HttpStatusCode.BadRequest));
+        var client = new MyceliumClient(MyceliumUrl, "an-api-key", mycelium);
+
+        var asking = () => client.GetAllThingsAsync();
+
+        var refusal = (await asking.Should().ThrowAsync<ModelNotNamedException>()).Which;
+        refusal.Message.Should().Be($"API key authentication failed (BadRequest): {answered}");
+        refusal.Models.Should().Equal(new ReachableModel(Hillside, "Hillside"), new ReachableModel(Riverbend, "Riverbend"));
+    }
+
+    [Theory]
+    [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[]}""")]
+    [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Name":"Hillside"}]}""")]
+    [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":"not an identifier","Name":"Hillside"}]}""")]
+    [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":"7a1f0f5e-52a4-4c7b-9d0a-3f1f3c1f8a10"}]}""")]
+    [InlineData("""{"error":"Multiple models available. Specify ModelId.","models":[{"Id":7,"Name":"Hillside"}]}""")]
+    public async Task A_refusal_whose_list_names_no_model_it_can_read_is_an_ordinary_refusal(string answered)
+    {
+        var mycelium = new MockHttpMessageHandler(_ => Json(answered, HttpStatusCode.BadRequest));
+        var client = new MyceliumClient(MyceliumUrl, "an-api-key", mycelium);
+
+        var asking = () => client.GetAllThingsAsync();
+
+        (await asking.Should().ThrowExactlyAsync<KeyRefusedException>())
+            .Which.Message.Should().Be($"API key authentication failed (BadRequest): {answered}");
+    }
+
+    [Fact]
     public async Task A_client_for_a_model_names_the_same_program()
     {
         var mycelium = AMyceliumWhoseTokensNameTheModelAskedFor();

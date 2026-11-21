@@ -17,25 +17,33 @@ public class OneToolAnswersForEachModelItIsAskedTests : IClassFixture<TheEngine>
     public OneToolAnswersForEachModelItIsAskedTests(TheEngine engine) => _engine = engine;
 
     [FactAgainstTheEngine]
-    public async Task A_tool_answers_from_the_model_it_is_given_by_identifier_or_name_and_from_its_own_when_given_none()
+    public async Task A_tool_answers_from_the_model_it_is_given_by_identifier_or_name_and_from_its_own_while_the_key_reaches_one()
     {
         var run = Guid.NewGuid().ToString("N")[..8];
         var inTheFirst = $"Upper spring {run}";
         var inTheSecond = $"Lower spring {run}";
         var secondName = $"Second catchment {run}";
         await _engine.DeclareAsync(inTheFirst);
+        var first = await _engine.TheModelAsync();
+
+        await using (var whileOne = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer", typeof(ThingNamed)))
+            (await FindAsync(whileOne, inTheFirst)).Should().Be(inTheFirst, "a key that reaches one model answers from it when given none");
+
         var seed = ASeedHolding(inTheSecond);
         var second = await _engine.CreateModelFromAsync(seed, secondName);
         File.Delete(seed);
-
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer", typeof(ThingNamed));
 
-        (await FindAsync(server, inTheFirst)).Should().Be(inTheFirst);
-        (await FindAsync(server, inTheSecond)).Should().Be(NotFound, "the server's own model holds no such Thing");
-        (await FindAsync(server, inTheSecond, second.ToString())).Should().Be(inTheSecond);
+        var refused = await server.CallAsync("thing_named", new Dictionary<string, object?> { ["name"] = inTheFirst });
+        refused.IsError.Should().BeTrue();
+        refused.Text.Should().StartWith("This key reaches more than one model; name one with `model`:")
+            .And.Contain($"{first.Name} ({first.Id})").And.Contain($"{secondName} ({second})");
+
+        (await FindAsync(server, inTheFirst, first.Name)).Should().Be(inTheFirst);
+        (await FindAsync(server, inTheFirst, first.Id.ToString())).Should().Be(inTheFirst);
         (await FindAsync(server, inTheSecond, secondName)).Should().Be(inTheSecond);
+        (await FindAsync(server, inTheSecond, second.ToString())).Should().Be(inTheSecond);
         (await FindAsync(server, inTheFirst, second.ToString())).Should().Be(NotFound, "the second model holds no such Thing");
-        (await FindAsync(server, inTheFirst)).Should().Be(inTheFirst, "asking another model leaves the server's own as it was");
     }
 
     private static async Task<string> FindAsync(HyphaAgainstTheEngine server, string name, string? model = null)
