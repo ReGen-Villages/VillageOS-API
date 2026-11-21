@@ -1132,7 +1132,16 @@ different way the route can be abused, and each owned by this service rather tha
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
 | **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
 | **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included; that budget covers every public route except the map tiles. `GET /basemaps/{registration}/{z}/{x}/{y}` has a separate budget per address, 600 tiles a minute, so drawing a map never spends the budget a submission needs. Over either, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Rate limit** | Every public route except the map tiles counts requests under one of two budgets, each a request count in a window of seconds. A request carrying a live ticket is counted against the address it was issued for, under the verified budget, so renewing a ticket keeps the count and moving to another network does not reset it. Every other request, an expired or forged ticket included, is counted against its source, under the unverified budget; verification and ticket requests are among them. `GET /basemaps/{registration}/{z}/{x}/{y}` has a separate budget per address, 600 tiles a minute, so drawing a map never spends the budget a submission needs. Over any budget, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart before they verify |
+
+**Where the two budgets come from.** The land-intake template binds each to a role, `verifiedRequestBudget` and
+`unverifiedRequestBudget`, and each bound Thing states `requestCount` and `windowSeconds`. The service reads
+them in the background every ten seconds, so a changed budget applies within that time and without a restart,
+and the rate limiter never waits on the model. Until the model gives budgets it can be held to, both are 20
+requests in 600 seconds. The same applies to a budget the model gives with no request count, with a window
+under 60 seconds, or, for the verified budget, with fewer requests than the unverified one; each such budget is
+logged once. VillageOS Task 8694 will declare the budgets' lowest, highest and step, which replaces those
+checks. A model that cannot be read leaves the last budgets read in place.
 
 Every refusal the service answers carries a `code`, such as `serviceUnavailable` or `fieldTooLong`, and
 the `values` its wording needs, so a page words it in the reader's language; a `503` carries the code

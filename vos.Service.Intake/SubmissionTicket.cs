@@ -51,7 +51,11 @@ public sealed class SubmissionTicket(TimeProvider time)
         && CryptographicOperations.FixedTimeEquals(
             signed.AsSpan(IssuedAtBytes), MarkFor(emailAddress));
 
-    public string? AddressMarkOf(string? presented) => null;
+    // The keyed mark rather than the address, so the rate limiter counts one mailbox's requests without holding its address.
+    public string? AddressMarkOf(string? presented) =>
+        TryReadSigned(presented, out var signed) && !HasExpired(signed)
+            ? Base64Url.EncodeToString(signed.AsSpan(IssuedAtBytes))
+            : null;
 
     // Under this service's own key rather than a plain digest of the address: an address is drawn from a
     // small enough set that a bare digest of one could be recognised by trying candidates against it.
@@ -68,12 +72,14 @@ public sealed class SubmissionTicket(TimeProvider time)
             return new Refusal(RefusalCode.TicketMissing,
                 $"This submission did not carry a ticket this service issued. {askAgain}");
 
-        var issuedAt = DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadInt64BigEndian(signed));
-        return time.GetUtcNow() - issuedAt > ValidFor
+        return HasExpired(signed)
             ? new Refusal(RefusalCode.TicketExpired,
                 $"The form this was submitted from has been open too long. {askAgain}")
             : null;
     }
+
+    private bool HasExpired(byte[] signed) =>
+        time.GetUtcNow() - DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadInt64BigEndian(signed)) > ValidFor;
 
     private bool TryReadSigned(string? presented, out byte[] signed)
     {
