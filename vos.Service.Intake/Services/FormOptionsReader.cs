@@ -46,7 +46,8 @@ public static class FormOptionsReader
     public static SubscriptionSelector Selector() => new()
     {
         Ids = RoleBindings.Identifiers(
-            [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource]),
+            [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource,
+                .. AreaMethodReader.Roles]),
         Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),

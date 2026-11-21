@@ -47,7 +47,7 @@ public static class DeclaredVocabularyReader
     // carries.
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles]),
+        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. SingleThingRoles, .. AreaMethodReader.Roles]),
         Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
         Traverse = [RoleBindings.FollowBindings],

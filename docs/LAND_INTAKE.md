@@ -241,9 +241,16 @@ downstream number is proportional to it. The two read as a match when they are w
 other: loose enough for hand-drawing and tight enough to catch a wrong unit. The figure is the
 constant `AREA_MATCH_TOLERANCE` in `vos.Trellis/src/utils/parcelGeometry.ts`.
 
-> **Accuracy note.** The drawn area is computed on the sphere, not by treating latitude and longitude
-> as flat coordinates. A flat calculation looks fine near the equator and is meaningfully wrong at
-> higher latitudes.
+> **How an area is measured is the model's choice.** The Parcel archetype relates along `measuresAreaWith`
+> to one area method, which the intake recognises through the role that binds it. **Mean sphere**
+> (`meanSphereAreaMethod`) measures on a sphere of the Earth's mean radius, as the platform always has.
+> **WGS84 ellipsoid** (`wgs84EllipsoidAreaMethod`) moves each latitude onto the ellipsoid's equal-area sphere
+> and takes the border's edges as great circles there; on the shapes its tests measure it agrees with
+> Karney's ellipsoid area to within a part per million. The intake measures each submitted parcel with the
+> chosen method, writes `measuredAreaHectares` with an `areaMeasuredWith` relationship to that method, and
+> names the method in the form answer as `areaMethod`, by its role word, so a page measures its live area
+> the same way. A model choosing no method, or two, is refused. Neither method treats latitude and longitude
+> as flat coordinates, which looks fine near the equator and is meaningfully wrong at higher latitudes.
 
 ### The plot-first page
 
@@ -1397,7 +1404,7 @@ geometry.
 **A page reads a border or layer file before anything is kept.** `POST /submissions/read-file`, under
 the ticket, is a form carrying `file` and the `emailAddress` the ticket was issued against. It reads the
 same four formats with the same limits and refusals, and keeps nothing: no Thing, no document and no
-bytes, and it asks nothing of the model. It answers every shape the file holds, named or not, each with
+bytes, and it writes nothing to the model, reading only the area method the model chooses. It answers every shape the file holds, named or not, each with
 its `name`, the KML `folder` it sits in, its `description` and its GeoJSON `geometry`; points are left
 out. `largestArea` names the largest polygon in the file: the `shape` it belongs to, its outer
 `boundary` as corners without the closing position, and its `hectares`, measured as a submission measures
