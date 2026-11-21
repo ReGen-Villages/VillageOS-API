@@ -1,5 +1,6 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Geometry;
 
 namespace vos.Service.Intake.Tests;
 
@@ -138,7 +139,18 @@ public static class WillowBend
         new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)),
         [.. WaterDemandNames.Select(demand =>
             new DeclaredDemand(demand.Name, TermId(demand.Name), demand.ServingOrder))],
-        new DeclaredTerm("SiteStudy", SiteStudyArchetypeId));
+        new DeclaredTerm("SiteStudy", SiteStudyArchetypeId),
+        MeasuredOnTheMeanSphere);
+
+    public static readonly Guid AreaMeasuredWithPredicateId = StableIdentity.Derive("areaMeasuredWith", "predicate");
+
+    public static AreaMethodChoice MeasuredOnTheMeanSphere => new(
+        new DeclaredTerm("Mean sphere", TermId("Mean sphere")), AreaMethod.MeanSphere, "meanSphereAreaMethod",
+        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId));
+
+    public static AreaMethodChoice MeasuredOnTheEllipsoid => new(
+        new DeclaredTerm("WGS84 ellipsoid", TermId("WGS84 ellipsoid")), AreaMethod.Wgs84Ellipsoid, "wgs84EllipsoidAreaMethod",
+        new DeclaredTerm("areaMeasuredWith", AreaMeasuredWithPredicateId));
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

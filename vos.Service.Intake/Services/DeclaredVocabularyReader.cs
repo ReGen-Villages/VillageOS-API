@@ -63,6 +63,7 @@ public static class DeclaredVocabularyReader
         PlaceNesting(snapshot),
         WaterDemands(snapshot),
         Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
+        AreaMethodReader.Read(snapshot),
         TermsWhereBound(snapshot, LandIntakeRoles.SoilDepth, "the depths a site's soil is read at"),
         TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"));
 

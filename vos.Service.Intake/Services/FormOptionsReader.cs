@@ -80,7 +80,8 @@ public static class FormOptionsReader
             Wording(snapshot, [
                 .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
                 .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
-            ]));
+            ]),
+            AreaMethodReader.Read(snapshot).RoleWord);
     }
 
     private static List<DeclaredLayerKind> LayerKinds(

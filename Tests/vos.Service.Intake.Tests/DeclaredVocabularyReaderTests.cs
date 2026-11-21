@@ -47,7 +47,8 @@ public class DeclaredVocabularyReaderTests
             .Relate("housing", "is", "LandUse")
             .Relate("walked", "is", "Provenance")
             .Relate("flooding", "is", "Peril")
-            .Relate("bad", "is", "Severity");
+            .Relate("bad", "is", "Severity")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
 
         var vocabulary = DeclaredVocabularyReader.Read(model.Build());
 
