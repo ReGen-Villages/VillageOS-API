@@ -129,7 +129,7 @@ public class HistoryChangedStepTests
         manifest.GetProperty("ports").EnumerateArray()
             .Select(port => (port.GetProperty("portName").GetString(), port.GetProperty("direction").GetString()))
             .Should().Equal((input, "in"), (output, "out"));
-        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParams its service holds, and a box may not set it");
+        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParameters its service holds, and a box may not set it");
         (await client.GetAsync("/manifest/judgeEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }
