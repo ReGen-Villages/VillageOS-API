@@ -194,7 +194,9 @@ public class DeclaredVocabularyReaderTests
             LandIntakeRoles.LandCoverClass,
             LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
             LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
-            LandIntakeRoles.PlaceNesting));
+            LandIntakeRoles.PlaceNesting,
+            LandIntakeRoles.Parcel, LandIntakeRoles.MeasuresAreaWith, LandIntakeRoles.AreaMeasuredWith,
+            LandIntakeRoles.MeanSphereAreaMethod, LandIntakeRoles.Wgs84EllipsoidAreaMethod));
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
