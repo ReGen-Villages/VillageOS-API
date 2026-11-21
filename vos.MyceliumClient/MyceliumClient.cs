@@ -9,7 +9,15 @@ namespace vos.PlatformClient;
 
 public readonly record struct LogDownload(string FileName, Stream Content);
 
-public sealed class KeyRefusedException(string message) : InvalidOperationException(message);
+public class KeyRefusedException(string message) : InvalidOperationException(message);
+
+public sealed record ReachableModel(Guid Id, string Name);
+
+// The platform refuses a token to a key that names no model while it holds several, listing the models the key may enter.
+public sealed class ModelNotNamedException(string message, IReadOnlyList<ReachableModel> models) : KeyRefusedException(message)
+{
+    public IReadOnlyList<ReachableModel> Models { get; } = models;
+}
 
 // The Thing of a name, or none; Matching lists the Things when more than one holds the name.
 public sealed record ThingByName(JsonElement? Thing, IReadOnlyList<Guid> Matching);
@@ -129,12 +137,44 @@ public partial class MyceliumClient
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
-            throw new KeyRefusedException($"API key authentication failed ({response.StatusCode}): {body}");
+            var message = $"API key authentication failed ({response.StatusCode}): {body}";
+            throw ModelsListedIn(response, body) is { } models
+                ? new ModelNotNamedException(message, models)
+                : new KeyRefusedException(message);
         }
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         var issued = Hold(result.GetProperty("token").GetString()!);
         return issued.Value;
+    }
+
+    // Never an empty list, because a caller reads the key's role through the first model listed.
+    private static IReadOnlyList<ReachableModel>? ModelsListedIn(HttpResponseMessage response, string body)
+    {
+        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest) return null;
+        try
+        {
+            using var answer = JsonDocument.Parse(body);
+            if (answer.RootElement.ValueKind != JsonValueKind.Object
+                || !answer.RootElement.TryGetProperty("models", out var listed) || listed.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var models = new List<ReachableModel>();
+            foreach (var model in listed.EnumerateArray())
+            {
+                if (model.ValueKind != JsonValueKind.Object
+                    || !model.TryGetProperty("Id", out var id) || id.ValueKind != JsonValueKind.String || !id.TryGetGuid(out var identifier)
+                    || !model.TryGetProperty("Name", out var name) || name.ValueKind != JsonValueKind.String)
+                    return null;
+                models.Add(new ReachableModel(identifier, name.GetString()!));
+            }
+
+            return models.Count > 0 ? models : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     // A token from an API key lasts five minutes, so it is replaced a minute early.

@@ -6,32 +6,50 @@ using vos.PlatformClient;
 
 namespace vos.Hypha.Registry;
 
-public sealed class Caller(string role, MyceliumClient mycelium)
+public sealed class Caller(string role, IReadOnlyList<MyceliumClient> models)
 {
     private readonly ConcurrentDictionary<Guid, Task<bool>> _bound = new();
 
     public string Role { get; } = role;
 
     public Task<bool> BindsAsync(Guid roleIdentifier) =>
-        _bound.GetOrAdd(roleIdentifier, async identifier => await mycelium.GetThingBoundByAsync(identifier) is not null);
+        _bound.GetOrAdd(roleIdentifier, async identifier =>
+        {
+            foreach (var model in models)
+                if (await model.GetThingBoundByAsync(identifier) is not null)
+                    return true;
+            return false;
+        });
 }
 
 // A caller is read again whenever Mycelium issues a new token, so a changed role or a newly bound role
 // is seen within one token's life.
-public sealed class CallerSource(MyceliumClient own)
+public sealed class CallerSource(MyceliumClient own, ModelClients clients)
 {
     private readonly ConcurrentDictionary<MyceliumClient, (string Token, Caller Caller)> _read = new();
 
-    public Task<Caller> ReadAsync() => ReadAsync(own);
-
-    public async Task<Caller> ReadAsync(MyceliumClient mycelium)
+    // A key's role is the same in every model it reaches, so a key that names no model is read through each of them.
+    public async Task<Caller> ReadAsync()
     {
-        var token = await mycelium.GetTokenAsync();
-        return _read.AddOrUpdate(
-            mycelium,
-            _ => (token, new Caller(RoleIn(token), mycelium)),
-            (_, read) => read.Token == token ? read : (token, new Caller(RoleIn(token), mycelium))).Caller;
+        try
+        {
+            return await ReadAsync(own);
+        }
+        catch (ModelNotNamedException refused)
+        {
+            var models = refused.Models.Select(model => clients.For(model.Id)).ToList();
+            return Held(own, await models[0].GetTokenAsync(), models);
+        }
     }
+
+    public async Task<Caller> ReadAsync(MyceliumClient mycelium) =>
+        Held(mycelium, await mycelium.GetTokenAsync(), [mycelium]);
+
+    private Caller Held(MyceliumClient readFor, string token, IReadOnlyList<MyceliumClient> judgedBy) =>
+        _read.AddOrUpdate(
+            readFor,
+            _ => (token, new Caller(RoleIn(token), judgedBy)),
+            (_, read) => read.Token == token ? read : (token, new Caller(RoleIn(token), judgedBy))).Caller;
 
     internal static string RoleIn(string token)
     {

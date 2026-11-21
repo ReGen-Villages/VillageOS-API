@@ -36,12 +36,18 @@ public static class ToolListing
                     if (context.MatchedPrimitive is not McpServerTool tool)
                         return Refusal(NotAvailable);
 
-                    var asked = await context.Services!.GetRequiredService<ModelClients>().ForAsync(ModelAskedIn(context.Params));
-                    var caller = await context.Services!.GetRequiredService<CallerSource>().ReadAsync(asked);
+                    var callers = context.Services!.GetRequiredService<CallerSource>();
+                    var caller = ModelAskedIn(context.Params) is { } named
+                        ? await callers.ReadAsync(await context.Services!.GetRequiredService<ModelClients>().ForAsync(named))
+                        : await callers.ReadAsync();
                     if (!await IsAvailableAsync(tool, caller, context.Services!))
                         return Refusal(NotAvailable);
 
                     return await next(context, cancellationToken);
+                }
+                catch (ModelNotNamedException refused)
+                {
+                    return Refusal(NameAModel(refused.Models));
                 }
                 catch (Exception refused) when (refused is HttpRequestException or KeyRefusedException or ModelNotReachedException)
                 {
@@ -49,6 +55,10 @@ public static class ToolListing
                 }
             });
         });
+
+    private static string NameAModel(IEnumerable<ReachableModel> models) =>
+        $"This key reaches more than one model; name one with `{ModelClients.Parameter}`: "
+        + string.Join(", ", models.Select(model => $"{model.Name} ({model.Id})")) + ".";
 
     private static string? ModelAskedIn(CallToolRequestParams? call) =>
         call?.Arguments is { } arguments
