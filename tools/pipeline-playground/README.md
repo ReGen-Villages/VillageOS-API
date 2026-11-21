@@ -99,8 +99,7 @@ Things — so a model that calls its pipeline
 archetype something else keeps its own. One the target holds under the same name but has never bound comes
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
 what an archetype is for, and the editor and the orchestrator both read it. A model that binds its own stop
-kind keeps that kind's ports, and one that binds its own `stops` connection keeps that connection's
-service: the playground adds neither the kind, the service nor a `stops connection` to such a model,
+kind keeps that kind's ports, and one that binds its own `stops` predicate keeps the connection it names: the playground adds neither the kind, the service nor a `stops connection` to such a model,
 which would leave a required port unfilled on every stop node or send each stop request to a second
 service. Everything else is namespaced so it will not collide with a
 host model's own Things.
@@ -186,11 +185,12 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
 - A **stop node** `is` the stop kind, which the `pipelineStop` role binds, and holds no ports of its own:
   its `things`, `reason` and `requested` ports are the kind's. A **stop request** `is StopRequest`,
   carries `reason`, names the run that wrote it along `requestedBy`, and is related along `stops` to
-  what it stops — a run, or a Thing whose runs stop. `stops` is a connection as well as a predicate, bound
-  by the `runStopping` role: the `graph` trigger fires it and it `has` the orchestrator service, so the
-  request reaches the orchestrator. It also names `stops connection` along `notifies`, and each
-  `tells <system>` names its own `tells <system> connection`, each with the predicate's trigger and
-  service. A stopped run relates along `stoppedBy` to the request.
+  what it stops — a run, or a Thing whose runs stop. `stops` is a predicate, bound by the `runStopping`
+  role, and names `stops connection` along `notifies`: the `graph` trigger fires that connection and it
+  `has` the orchestrator service, so the request reaches the orchestrator. Each `tells <system>` names its
+  own `tells <system> connection` the same way, and is still a connection itself with that trigger and
+  service, because the orchestrator and the Pipelines page find it as one. A stopped run relates along
+  `stoppedBy` to the request.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**

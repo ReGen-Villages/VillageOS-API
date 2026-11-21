@@ -6,9 +6,9 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Geometry;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -49,15 +49,16 @@ public sealed class ReadFileEndpointTests : IDisposable
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);
     }
 
-    private (IntakeWebApplicationFactory Factory, List<HttpRequestMessage> BrokerCalls) Holding()
+    private (IntakeWebApplicationFactory Factory, List<HttpRequestMessage> BrokerCalls) Holding(DeclaredModel? model = null)
     {
         var brokerCalls = new List<HttpRequestMessage>();
+        var declarations = ModelStub.DeclarationAnswer(model ?? DeclaredModel.Seeded());
         var factory = new IntakeWebApplicationFactory
         {
             HandlerCallback = request =>
             {
                 lock (brokerCalls) brokerCalls.Add(request);
-                return new HttpResponseMessage(HttpStatusCode.OK);
+                return ModelStub.IsDeclarationRead(request) ? ModelStub.Json(declarations) : new HttpResponseMessage(HttpStatusCode.OK);
             },
             DocumentDirectory = _folder,
             RunsTheReclaimPass = false,
@@ -85,9 +86,9 @@ public sealed class ReadFileEndpointTests : IDisposable
         return await client.SendAsync(request);
     }
 
-    private async Task<HttpResponseMessage> ReadWithATicketAsync(byte[] bytes, string fileName)
+    private async Task<HttpResponseMessage> ReadWithATicketAsync(byte[] bytes, string fileName, DeclaredModel? model = null)
     {
-        var (factory, _) = Holding();
+        var (factory, _) = Holding(model);
         await using var _factory = factory;
         using var client = factory.CreateClient();
         return await ReadAsync(client, await TicketFor(factory, client, Address), bytes, fileName);
@@ -95,9 +96,9 @@ public sealed class ReadFileEndpointTests : IDisposable
 
     private async Task<JsonElement> AnswerFor(string text, string fileName) => await AnswerFor(Encoding.UTF8.GetBytes(text), fileName);
 
-    private async Task<JsonElement> AnswerFor(byte[] bytes, string fileName)
+    private async Task<JsonElement> AnswerFor(byte[] bytes, string fileName, DeclaredModel? model = null)
     {
-        var response = await ReadWithATicketAsync(bytes, fileName);
+        var response = await ReadWithATicketAsync(bytes, fileName, model);
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -120,6 +121,9 @@ public sealed class ReadFileEndpointTests : IDisposable
             .ToList();
 
     private static BoundaryPoint Corner(double latitude, double longitude) => new() { Latitude = latitude, Longitude = longitude };
+
+    private static double Measured(IReadOnlyList<BoundaryPoint> boundary, AreaMethod method) =>
+        BorderArea.Hectares([.. boundary.Select(corner => (corner.Latitude, corner.Longitude))], method);
 
     private static byte[] Kmz(string kml)
     {
@@ -145,8 +149,21 @@ public sealed class ReadFileEndpointTests : IDisposable
         var boundary = Boundary(largest);
         boundary.Should().HaveCount(15, "the corners are answered without the ring's closing position");
         boundary[0].Should().Be(Corner(25.1548913568011, 55.55616063595723));
-        largest.GetProperty("hectares").GetDouble().Should().Be(BoundaryGeometry.MeasureHectares(boundary))
+        largest.GetProperty("hectares").GetDouble().Should().Be(Measured(boundary, AreaMethod.MeanSphere))
             .And.BeApproximately(62.485, 0.001);
+    }
+
+    [Fact]
+    public async Task The_largest_area_is_measured_with_the_method_the_model_configures()
+    {
+        var model = DeclaredModel.Seeded()
+            .Unrelate("Parcel", "measuresAreaWith")
+            .Relate("Parcel", "measuresAreaWith", DeclaredModel.Wgs84Ellipsoid);
+
+        var largest = (await AnswerFor(Encoding.UTF8.GetBytes(ReferenceBorderFile), "border.kml", model)).GetProperty("largestArea");
+
+        largest.GetProperty("hectares").GetDouble().Should().Be(Measured(Boundary(largest), AreaMethod.Wgs84Ellipsoid))
+            .And.BeApproximately(62.348, 0.001);
     }
 
     [Fact]
@@ -215,7 +232,7 @@ public sealed class ReadFileEndpointTests : IDisposable
         var boundary = Boundary(largest);
         boundary.Should().HaveCount(4);
         boundary[0].Should().Be(Corner(47.20, 8.20));
-        largest.GetProperty("hectares").GetDouble().Should().Be(BoundaryGeometry.MeasureHectares(boundary));
+        largest.GetProperty("hectares").GetDouble().Should().Be(Measured(boundary, AreaMethod.MeanSphere));
     }
 
     [Fact]
@@ -243,7 +260,7 @@ public sealed class ReadFileEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task A_read_keeps_nothing_and_asks_nothing_of_the_model()
+    public async Task A_read_keeps_nothing_and_writes_nothing_to_the_model()
     {
         var (factory, brokerCalls) = Holding();
         await using var _ = factory;
@@ -254,7 +271,9 @@ public sealed class ReadFileEndpointTests : IDisposable
         var response = await ReadAsync(client, ticket, Encoding.UTF8.GetBytes(ReferenceBorderFile), "border.kml");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        brokerCalls.Should().HaveCount(callsBefore);
+        brokerCalls.Skip(callsBefore).Should().ContainSingle()
+            .Which.Should().Match<HttpRequestMessage>(request => ModelStub.IsDeclarationRead(request),
+                "the method the area is measured with is the one thing a read asks of the model");
         Directory.Exists(_folder).Should().BeFalse();
     }
 
@@ -298,6 +317,22 @@ public sealed class ReadFileEndpointTests : IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.AddressNotVerified);
+    }
+
+    [Fact]
+    public async Task A_model_choosing_no_area_method_is_answered_as_a_service_that_cannot_answer_and_the_reason_is_logged()
+    {
+        var (factory, _) = Holding(DeclaredModel.Seeded().Unrelate("Parcel", "measuresAreaWith"));
+        await using var _factory = factory;
+        using var client = factory.CreateClient();
+        var ticket = await TicketFor(factory, client, Address);
+
+        var response = await ReadAsync(client, ticket, Encoding.UTF8.GetBytes(ReferenceBorderFile), "border.kml");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+        response.Headers.Contains(SubmissionTicket.HeaderName).Should().BeFalse();
+        factory.Log.Lines.Should().Contain(line => line.Contains("measuresAreaWith"));
     }
 
     [Fact]

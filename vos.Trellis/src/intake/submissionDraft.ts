@@ -292,7 +292,7 @@ export function withHazardReported<Held extends { readonly reportedHazards: Repo
 
 /** Rebuilt corner by corner, so a corner carrying anything beyond its coordinates does not post it. Below
  *  three corners a boundary encloses nothing and is not a parcel. */
-export function parcelFrom(
+function parcelFrom(
   boundarySource: string | null,
   boundary: readonly BoundaryPoint[],
 ): Pick<SubmissionDocument, 'parcel'> {

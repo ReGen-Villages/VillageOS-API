@@ -33,6 +33,7 @@ The .NET services:
 | `Metabolism` | The consume/produce simulation behind the `consumes` and `produces` predicates (see [`METABOLISM.md`](METABOLISM.md)). |
 | `EnergyBalance` | Computes solar and other generation against consumption: the share of consumption covered, and whether the site is net-positive. It runs as a pipeline node only, with its inputs supplied on wired ports. |
 | `WaterReserve` | Computes the emergency reserve, days of supply and share of annual consumption. It runs as a pipeline node only, with its inputs supplied on wired ports. |
+| `Transect` | Measures the Parcel on its `subject` input with the area method the model configures, using `BorderArea` from `vos.Service.Shared` as the intake does, and writes `measuredAreaHectares` and `areaMeasuredWith` in one fragment that retracts the parcel's edge to every other method. A pipeline node only. |
 | `ModelBridge` | A generic **bridge between the model and a pipeline**, as a node. With node param `mode:"read"` it outputs a Thing's property value; with `mode:"write"` it writes its `value` input onto a Thing's property as a Fact. The Thing and the property are named in the node params (`thingId`, `property`). See [`MODELBRIDGE.md`](MODELBRIDGE.md). |
 | `Phloem` | The pipeline orchestrator (§16). |
 | `Xylem` | Takes a building-model upload, runs the ingest tool and applies the result to the model. |
@@ -275,7 +276,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 ### Registration sequence
 
 Registration is for a service started outside Mycelium. Echo, Phloem,
-EnergyBalance, WaterReserve and ModelBridge register on start. The other
+EnergyBalance, WaterReserve, Transect and ModelBridge register on start. The other
 services are launched by Mycelium from the model's declaration and make no
 registration call.
 
@@ -439,7 +440,7 @@ a test can reach it — code inside an entry point cannot be called from a test.
 
 A service that is one pipeline node and nothing else takes all these steps from one call,
 `DagNodeHost.Run(args, serviceName, logFileName, createNode)` in `vos.Service.Shared/DagNode`. That
-call is the whole of ModelBridge's, EnergyBalance's and WaterReserve's `Program.cs`. Echo, Delta,
+call is the whole of ModelBridge's, EnergyBalance's, WaterReserve's and Transect's `Program.cs`. Echo, Delta,
 Tributary, Forage, Metabolism, Phloem and Xylem map a `/health` of their own, and Echo and Phloem
 make their own registration call on start; a new service uses the shared calls.
 

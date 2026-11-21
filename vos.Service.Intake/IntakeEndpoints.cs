@@ -11,6 +11,7 @@ using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Hosting;
 
 namespace vos.Service.Intake;
@@ -665,7 +666,8 @@ internal static class IntakeEndpoints
     private static void MapFileRead(WebApplication app)
     {
         // The address comes with the file because a ticket holds none, and a fresh ticket is issued against one.
-        app.MapPost("/submissions/read-file", async (HttpContext context, SubmissionTicket tickets) =>
+        app.MapPost("/submissions/read-file", async (
+            HttpContext context, SubmissionTicket tickets, HeldDeclarations declarations, ILogger<SubmissionIntakeService> logger) =>
         {
             if (TicketRefusal(context, tickets, out var presented) is { } refused)
                 return refused;
@@ -705,6 +707,20 @@ internal static class IntakeEndpoints
                 return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
             }
 
+            AreaMethod method;
+            try
+            {
+                method = (await declarations.ReadAsync(
+                    DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.AreaMethod, context.RequestAborted)).Formula;
+            }
+            catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                          || (error is TaskCanceledException
+                                              && !context.RequestAborted.IsCancellationRequested))
+            {
+                logger.LogError(error, "A file could not be measured: {Reason}", error.Message);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
+            }
+
             context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(emailAddress);
             return Results.Ok(new
             {
@@ -715,20 +731,20 @@ internal static class IntakeEndpoints
                     description = shape.Description,
                     geometry = JsonSerializer.Deserialize<JsonElement>(shape.Geometry),
                 }),
-                largestArea = LargestArea(shapes),
+                largestArea = LargestArea(shapes, method),
             });
         }).RequireRateLimiting(SubmissionRate.PolicyName)
           .WithMetadata(new RequestSizeLimitAttribute(SharedDocumentService.MaximumRequestBytes));
     }
 
-    private static object? LargestArea(IReadOnlyList<FileShape> shapes)
+    private static object? LargestArea(IReadOnlyList<FileShape> shapes, AreaMethod method)
     {
         object? largest = null;
         var largestHectares = double.NegativeInfinity;
         for (var index = 0; index < shapes.Count; index++)
             foreach (var outline in shapes[index].Outlines)
             {
-                var hectares = BoundaryGeometry.MeasureHectares(outline);
+                var hectares = BorderArea.Hectares(BoundaryGeometry.Corners(outline), method);
                 if (hectares <= largestHectares) continue;
                 largestHectares = hectares;
                 largest = new { shape = index, boundary = outline, hectares };

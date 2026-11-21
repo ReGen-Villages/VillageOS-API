@@ -241,66 +241,18 @@ downstream number is proportional to it. The two read as a match when they are w
 other: loose enough for hand-drawing and tight enough to catch a wrong unit. The figure is the
 constant `AREA_MATCH_TOLERANCE` in `vos.Trellis/src/utils/parcelGeometry.ts`.
 
-> **Accuracy note.** The drawn area is computed on the sphere, not by treating latitude and longitude
-> as flat coordinates. A flat calculation looks fine near the equator and is meaningfully wrong at
-> higher latitudes.
-
-### The plot-first page
-
-The public build carries a second way in beside the wizard, so the two approaches run side by side
-and can be compared. It inverts the wizard's order: the land comes first, and the report comes
-before the questions.
-
-- **The map is first, with the address box leading.** A place search, the browser's own position, or
-  a click puts the pin — nothing geographic is typed. Where a land register covers the point, the
-  legal parcel boundary is fetched and recorded as `fetched-from-register`; anywhere else the
-  boundary is drawn as in the wizard.
-- **The facts about the land stand beside the map as they become known.** The area, in hectares and
-  acres, once a boundary encloses some; the coordinates, in degrees, minutes and seconds, once the pin
-  is placed; the reference once the submission is accepted; and whatever the model has since resolved
-  about the site, from the section of the dashboard marked `facts`. Each card names where its figure
-  came from in place of a tick — the register's credit, *drawn by hand*, how the pin was placed, or the
-  model's own account of the value's origin.
-- **The report is a grid of tiles.** Each section of the submission dashboard that names a theme the
-  model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
-  a click opens its charts as a gallery, and a card opens full width. A tile and its gallery are
-  named by the section's own title where the page gives one, then by the theme's words in the page
-  language, then by the theme's name. A section naming no theme draws as a list, so the same specification serves the findings page. See
-  [the Field Guide](FIELD_GUIDE.md#94-tiles-and-what-a-page-is-sent).
-- **The only questions are a name for the land, the person's name, and the mailbox** — the same
-  verification exchange as the wizard, and nothing else. The programme starts from the default share
-  each category declares in the model, and the population and household size start unset.
-- **The report leads with capacity.** The study declares three figures that read no population — the
-  people the land could feed, water and power — so a submission carrying only a boundary still gets a
-  first answer, and the energy balance is judged once a population is set.
-- **Everything else is a dial on the report.** The page forwards itself to the findings with the
-  reference and the ticket already in hand; the programme split, the population, the household size
-  and what the person has seen of each hazard re-post the same submission under the same identifier —
-  a fragment adds or updates — and every figure recomputes. A re-post waits while a typed population or
-  household size cannot be read, with the reason under the dial, and goes once the field is mended or
-  cleared. A successful post or read hands a fresh ticket
-  back in the response header, so a long session is not sent back to the mailbox every ten minutes,
-  while an abandoned ticket still dies at its own age.
-- **After the report, the page asks for surveys.** *Have you done any surveys which you can share?* —
-  yes opens a file box that takes several files at once, each with a description typed beside it; not
-  now closes the question. Each file goes to the intake service under the same ticket (see the shared
-  files in [§9](#9-public-submissions-and-the-trust-boundary)), one after another so every send rides
-  the ticket the last one handed back, with the browser reporting how far the bytes have got. A file
-  over the limit is refused on the page before a byte is sent, with the limit named; a refusal from
-  the service is shown beside the file in the reader's language, worded by the page from the code the
-  refusal carries. What the model holds is listed
-  below with each file's description, read back through the service when the report opens, so a
-  person who returns sees what they shared before.
-- **The closing view is the land itself.** *See it on the land* opens the parcel on the imagery the
-  model declares (the `Satellite` source, whose tiles come through the intake service's own route,
-  so no page holds the provider's address), with the sections the submitted page declares as tabs —
-  location, water, nutrition, housing, infrastructure and overview — in a sheet along the bottom,
-  each drawing its own figures. The opening map is a globe that flattens as the map closes in, the
-  library's own blend; see [the Field Guide](FIELD_GUIDE.md#94-tiles-and-what-a-page-is-sent).
-
-What the two approaches share is deliberately everything that matters: one submission document, one
-composing path, one verification exchange, one dashboard. What differs is only the order the person
-meets it in.
+> **How an area is measured is the model's choice.** The Parcel archetype relates along `measuresAreaWith`
+> to one area method, which the intake recognises through the role that binds it. **Mean sphere**
+> (`meanSphereAreaMethod`) measures on a sphere of the Earth's mean radius, as the platform always has.
+> **WGS84 ellipsoid** (`wgs84EllipsoidAreaMethod`) moves each latitude onto the ellipsoid's equal-area sphere
+> and takes the border's edges as great circles there; on the shapes its tests measure it agrees with
+> Karney's ellipsoid area to within a part per million. The intake measures each submitted parcel with the
+> chosen method, writes `measuredAreaHectares` with an `areaMeasuredWith` relationship to that method,
+> retracts the parcel's relationship to every other method so an amendment after a change of method names
+> one method only, and
+> names the method in the form answer as `areaMethod`, by its role word, so a page measures its live area
+> the same way. A model choosing no method, or two, is refused. Neither method treats latitude and longitude
+> as flat coordinates, which looks fine near the equator and is meaningfully wrong at higher latitudes.
 
 ### What gets written
 
@@ -387,7 +339,7 @@ downstream can catch; the boundary is stored as a GeoJSON polygon, which is long
 with a boundary, the service asks the registration the `borderElevation` role binds, in its fallback
 order, and writes the centre, lowest and highest point (`elevationMetres`, `elevationMinimumMetres`,
 `elevationMaximumMetres`) onto the site as facts. What a page sends is a claim; what the lookup answered
-is what the site keeps. The explore page posts the whole submission again each time a dial settles, so
+is what the site keeps. A page may post the whole submission again each time a figure changes, so
 the boundary is looked up only when it differs from the one the parcel holds or a figure is missing. A
 lookup that answers only some figures, such as a fallback that knows the centre alone, still lets the
 submission be accepted with those: for a moved boundary, any figure the new answer lacks is removed
@@ -597,7 +549,7 @@ position into an area name, the other searches the portal's own divisions for th
 covers a Place and neither carries a reshape expression, because nothing they answer is a reading
 about the site — see [§8](#hazards).
 
-**Others answer the plot-first page, before any site exists.** `parcel-at-position`
+**Others answer a public page before any site exists.** `parcel-at-position`
 asks a country's land register for the legal parcel enclosing a clicked point — the French national
 cadastre is the one the seed registers — and `place-search` turns what somebody typed into positions.
 `plots-in-view` asks a register for the plots inside the map in view, and `border-elevation` answers a
@@ -1180,7 +1132,16 @@ different way the route can be abused, and each owned by this service rather tha
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
 | **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
 | **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included; that budget covers every public route except the map tiles. `GET /basemaps/{registration}/{z}/{x}/{y}` has a separate budget per address, 600 tiles a minute, so drawing a map never spends the budget a submission needs. Over either, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Rate limit** | Every public route except the map tiles counts requests under one of two budgets, each a request count in a window of seconds. A request carrying a live ticket is counted against the address it was issued for, under the verified budget, so renewing a ticket keeps the count and moving to another network does not reset it. Every other request, an expired or forged ticket included, is counted against its source, under the unverified budget; verification and ticket requests are among them. `GET /basemaps/{registration}/{z}/{x}/{y}` has a separate budget per address, 600 tiles a minute, so drawing a map never spends the budget a submission needs. Over any budget, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart before they verify |
+
+**Where the two budgets come from.** The land-intake template binds each to a role, `verifiedRequestBudget` and
+`unverifiedRequestBudget`, and each bound Thing states `requestCount` and `windowSeconds`. The service reads
+them in the background every ten seconds, so a changed budget applies within that time and without a restart,
+and the rate limiter never waits on the model. Until the model gives budgets it can be held to, both are 20
+requests in 600 seconds. The same applies to a budget the model gives with no request count, with a window
+under 60 seconds, or, for the verified budget, with fewer requests than the unverified one; each such budget is
+logged once. VillageOS Task 8694 will declare the budgets' lowest, highest and step, which replaces those
+checks. A model that cannot be read leaves the last budgets read in place.
 
 Every refusal the service answers carries a `code`, such as `serviceUnavailable` or `fieldTooLong`, and
 the `values` its wording needs, so a page words it in the reader's language; a `503` carries the code
@@ -1239,16 +1200,16 @@ allowance — lives in [`deploy/`](../deploy/README.md).
 
 ### Where the form lives
 
-**The form somebody with land fills in is a build of its own, served from a public site.** Not a route in
+**The pages somebody with land uses are a build of their own, served from a public site.** Not a route in
 the signed-in application, which renders nothing until somebody has signed in, and not a page the intake
-service serves — the site the form belongs on is the one that brought the person there.
+service serves — the site the pages belong on is the one that brought the person there. Until the site
+study's first pages ship, that build is one empty page, and the routes below wait for them.
 
-It is built from `vos.Trellis` all the same, and it renders the same wizard the planner's page renders.
-One definition of what a submission asks for, not two that can disagree. The same build serves the
-findings page and the plot-first page ([§4](#the-plot-first-page)), which lean on two more anonymous
-routes — the parcel lookup and the place search — standing under the same rate limit as everything
-here, with a parcel click refused before any outbound call unless a register's declared bounds cover
-it. What differs between the planner's page and the public build is only where each gets what the form
+The public pages are built from `vos.Trellis` all the same, so a form among them renders the same wizard
+the planner's page renders: one definition of what a submission asks for, not two that can disagree. The
+parcel lookup and the place search are anonymous routes too, standing under the same rate limit as
+everything here, with a parcel click refused before any outbound call unless a register's declared bounds
+cover it. What differs between the planner's page and the public build is only where each gets what the form
 is drawn with:
 
 | | The planner's page | The public form |
@@ -1258,9 +1219,9 @@ is drawn with:
 | Where the draft is kept | Under the model it proposes into | Under the form |
 | What it may reach | The whole API | The intake service, and nothing else |
 
-**That last row is asserted rather than intended.** `src/publicForm/noSignedInCode.test.ts` follows the
-form's imports and fails if one leads to the broker client, to the signed-in state, or to any part of the
-application behind sign-in. The form shares the wizard, the map and the translations with that
+**That last row is asserted rather than intended.** `src/publicPages/noSignedInCode.test.ts` follows the
+imports of every page the public build names and fails if one leads to the broker client, to the
+signed-in state, or to any part of the application behind sign-in. The public pages share files with that
 application, so sharing a file is the point and reaching the broker through one is what must not happen.
 
 **`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
@@ -1282,7 +1243,7 @@ one is.
 
 **What the form is drawn with is held for ten seconds.** The form's options, the submission's shape,
 the vocabularies and the shared-document declarations are held in the service for ten seconds and
-read from the model again after that, so an edit to the model reaches the public form within ten
+read from the model again after that, so an edit to the model reaches the public pages within ten
 seconds. They are held for a short while rather than until a change is heard, because the model's
 change stream goes quiet while the broker replaces its model. The read of one submission's contact is
 never held.
@@ -1397,7 +1358,7 @@ geometry.
 **A page reads a border or layer file before anything is kept.** `POST /submissions/read-file`, under
 the ticket, is a form carrying `file` and the `emailAddress` the ticket was issued against. It reads the
 same four formats with the same limits and refusals, and keeps nothing: no Thing, no document and no
-bytes, and it asks nothing of the model. It answers every shape the file holds, named or not, each with
+bytes, and it writes nothing to the model, reading only the area method the model chooses. It answers every shape the file holds, named or not, each with
 its `name`, the KML `folder` it sits in, its `description` and its GeoJSON `geometry`; points are left
 out. `largestArea` names the largest polygon in the file: the `shape` it belongs to, its outer
 `boundary` as corners without the closing position, and its `hectares`, measured as a submission measures
@@ -1470,7 +1431,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Composing a submission into the model's own shape | `vos.Service.Intake` |
 | The map, the wizard, and drawing a parcel with the drawn area checked against the stated area | `vos.Trellis` |
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
-| The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
+| The public pages, one empty page until the site study's first pages ship | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
 | The parcel boundary at a clicked position, a place search, the plots in a map view and a border's elevation, answered to a page with no credential | `POST /submissions/parcel-at-position`, `POST /submissions/place-search`, `POST /submissions/plots-in-view` and `POST /submissions/border-elevation`, from the registrations the `parcelLookup`, `placeSearch`, `plotsInViewLookup` and `borderElevation` roles bind |
 | A site's centre, lowest and highest point, kept when its border arrives | `vos.Service.Intake`, from the registration the `borderElevation` role binds |
 | The features of a shared layer file, kept under the site and removed with the file | `POST` and `DELETE` on `/submissions/{submissionId}/documents`, under the ticket |
