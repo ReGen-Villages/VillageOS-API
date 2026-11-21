@@ -1,4 +1,4 @@
-/** Shared by the operations page and the findings page a submitter opens, so a section cannot lay out one way
+/** Shared by the operations page and the public pages a submitter opens, so a section cannot lay out one way
  *  for a planner and another for the person whose land it is about. */
 import type { ResolveContext } from '@tendril-ui/tendril';
 import type { DashboardSection } from '@tendril-ui/tendril';

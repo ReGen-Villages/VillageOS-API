@@ -37,7 +37,6 @@ export default defineConfig({
         '../vos.Tendril/src/**/*.test.{ts,tsx}',
         '../vos.Tendril/src/setupTests.ts',
         'src/main.tsx',
-        'src/publicForm/main.tsx',
         'src/setupTests.ts',
       ],
     },
