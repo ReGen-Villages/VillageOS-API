@@ -320,7 +320,16 @@ public static class SubmissionFragmentComposer
             Relate(hazardThing, predicates.Has, sourceThing);
         }
 
-        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
+        // An amendment after the model changed its method would otherwise leave the parcel naming the old method too.
+        var area = vocabulary.AreaMethod;
+        var forgotten = area.OtherMethods
+            .Select(other => new FragmentRelationship(
+                $"{parcelThing.Name} {area.AreaMeasuredWith.Name} {other.Name}", parcelId, area.AreaMeasuredWith.Id, other.Id))
+            .ToList();
+        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships)
+        {
+            Retractions = forgotten,
+        };
         return new ComposedSubmission(fragment, submissionId, siteThing.Id, studyThing.Id, parcelId);
     }
 

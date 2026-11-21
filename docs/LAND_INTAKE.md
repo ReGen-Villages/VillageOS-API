@@ -247,7 +247,9 @@ constant `AREA_MATCH_TOLERANCE` in `vos.Trellis/src/utils/parcelGeometry.ts`.
 > **WGS84 ellipsoid** (`wgs84EllipsoidAreaMethod`) moves each latitude onto the ellipsoid's equal-area sphere
 > and takes the border's edges as great circles there; on the shapes its tests measure it agrees with
 > Karney's ellipsoid area to within a part per million. The intake measures each submitted parcel with the
-> chosen method, writes `measuredAreaHectares` with an `areaMeasuredWith` relationship to that method, and
+> chosen method, writes `measuredAreaHectares` with an `areaMeasuredWith` relationship to that method,
+> retracts the parcel's relationship to every other method so an amendment after a change of method names
+> one method only, and
 > names the method in the form answer as `areaMethod`, by its role word, so a page measures its live area
 > the same way. A model choosing no method, or two, is refused. Neither method treats latitude and longitude
 > as flat coordinates, which looks fine near the equator and is meaningfully wrong at higher latitudes.
