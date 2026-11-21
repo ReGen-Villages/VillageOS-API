@@ -50,6 +50,8 @@ public static class Confirmation
             throw new InputRequiredException(
                 new Dictionary<string, InputRequest> { [Question] = InputRequest.ForElicitation(asking) }, digest);
 
+        // SDK 2.4.0 never reaches this, because it turns the exception above into a request to an older client
+        // itself; it stays so that, under an SDK which stops doing that, a person who can be asked still is.
         if (canAskThePerson)
             return Answered(Accepted(await call.Server.ElicitAsync(asking, cancellationToken)));
 
