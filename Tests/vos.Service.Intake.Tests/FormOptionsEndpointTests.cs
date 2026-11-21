@@ -312,7 +312,7 @@ public class FormOptionsEndpointTests
         using var client = factory.CreateClient();
 
         HttpResponseMessage? refused = null;
-        for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
+        for (var attempt = 0; attempt <= RequestBudget.Fallback.RequestCount; attempt++)
             refused = await client.GetAsync("/submissions/form");
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);

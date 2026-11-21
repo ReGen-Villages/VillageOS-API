@@ -65,6 +65,8 @@ public static class LandIntakeRoles
     public static readonly Role AreaMeasuredWith = new("areaMeasuredWith", new("b1cbb4b6-a7b6-50e7-b974-bbde68dd2d14"));
     public static readonly Role MeanSphereAreaMethod = new("meanSphereAreaMethod", new("5ec67ad4-faf3-54c5-bdd5-ccf6502b139b"));
     public static readonly Role Wgs84EllipsoidAreaMethod = new("wgs84EllipsoidAreaMethod", new("54961752-debb-572e-94b9-748a56921ba5"));
+    public static readonly Role VerifiedRequestBudget = new("verifiedRequestBudget", new("f333535d-e10e-5ed6-b21f-9b9e1002f18f"));
+    public static readonly Role UnverifiedRequestBudget = new("unverifiedRequestBudget", new("7d88b06c-605d-5d3f-8f4c-46c2801ecc1a"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -77,5 +79,6 @@ public static class LandIntakeRoles
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
         SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare,
         MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
+        VerifiedRequestBudget, UnverifiedRequestBudget,
     ];
 }

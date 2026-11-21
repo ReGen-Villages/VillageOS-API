@@ -112,6 +112,8 @@ try
             apiKey));
 
     builder.Services.AddSingleton<HeldDeclarations>();
+    builder.Services.AddSingleton<RequestBudgets>();
+    builder.Services.AddHostedService<RequestBudgetRefresher>();
 
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddModelClock<IntakeMyceliumClient>("Intake");

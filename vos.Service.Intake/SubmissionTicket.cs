@@ -51,6 +51,8 @@ public sealed class SubmissionTicket(TimeProvider time)
         && CryptographicOperations.FixedTimeEquals(
             signed.AsSpan(IssuedAtBytes), MarkFor(emailAddress));
 
+    public string? AddressMarkOf(string? presented) => null;
+
     // Under this service's own key rather than a plain digest of the address: an address is drawn from a
     // small enough set that a bare digest of one could be recognised by trying candidates against it.
     private byte[] MarkFor(string emailAddress) =>
