@@ -15,6 +15,7 @@ pr:
 
 PREAMBLE = """\
 trigger:
+  batch: true
   branches:
     include:
       - develop
@@ -96,6 +97,11 @@ class CheckBuildFileTests(unittest.TestCase):
         widened = COMPLIANT.replace('      - main\n', '      - main\n      - release\n')
 
         self.assertIn('the trigger names', problems(widened)[0])
+
+    def test_a_trigger_that_does_not_batch_is_reported(self):
+        one_build_per_push = COMPLIANT.replace('  batch: true\n', '')
+
+        self.assertIn('the trigger does not batch', problems(one_build_per_push)[0])
 
     def test_one_configuration_for_every_branch_is_reported(self):
         literal = COMPLIANT.replace(

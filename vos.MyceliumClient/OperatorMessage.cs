@@ -1,4 +1,4 @@
-namespace vos.Taproot;
+namespace vos.PlatformClient;
 
 internal static class OperatorMessage
 {

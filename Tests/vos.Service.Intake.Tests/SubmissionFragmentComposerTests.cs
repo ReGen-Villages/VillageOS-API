@@ -557,6 +557,34 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
+    public void Every_land_cover_class_the_model_declares_is_a_share_the_site_has()
+    {
+        var vocabulary = WillowBend.KnownVocabulary with
+        {
+            LandCoverClasses = new DeclaredTerms(
+                new DeclaredTerm("assesses", WillowBend.AssessesPredicateId),
+                [.. WillowBend.LandCoverClassNames.Select(name => new DeclaredTerm(name, WillowBend.TermId(name)))]),
+        };
+        var archetypes = WillowBend.KnownArchetypes with
+        {
+            LandCoverShare = new DeclaredTerm("LandCoverShare", WillowBend.LandCoverShareArchetypeId),
+        };
+
+        var composed = SubmissionFragmentComposer.Compose(
+            WillowBend.Submission(), WillowBend.KnownPredicates, archetypes, vocabulary, WillowBend.ArrivedAt, elevation: null);
+        var site = Named(composed, "Willow Bend");
+        var shares = composed.Fragment.Things.Where(thing => IsEdgeTo(composed, thing.Id, WillowBend.LandCoverShareArchetypeId)).ToList();
+
+        shares.Should().HaveCount(WillowBend.LandCoverClassNames.Length);
+        foreach (var name in WillowBend.LandCoverClassNames)
+        {
+            var share = shares.Single(thing => Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(name)));
+            share.Name.Should().Be($"Willow Bend {name}");
+            Holds(composed, site.Id, share.Id).Should().BeTrue();
+        }
+    }
+
+    [Fact]
     public void A_model_declaring_no_soil_vocabulary_composes_no_horizon()
     {
         var composed = Compose(WillowBend.Submission());
