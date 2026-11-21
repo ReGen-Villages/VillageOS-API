@@ -22,7 +22,7 @@ import type {
 } from '@tendril-ui/tendril';
 
 /** Every widget type and a detail card. The exceptions section title is left untranslated to show fallback
- *  for one string, and the state name "Harvested" is also a KPI unit, to show a binding value matching a
+ *  for one string, and the state name "Overflowing" is also a KPI unit, to show a binding value matching a
  *  translation is never rewritten. */
 function fixture(): DashboardSpecification {
   return {
@@ -36,25 +36,25 @@ function fixture(): DashboardSpecification {
         widgets: [
           {
             type: 'kpi',
-            title: 'Harvest logged',
-            value: { kind: 'stateCount', state: 'Harvested' },
-            unit: 'Harvested',
+            title: 'Overflow logged',
+            value: { kind: 'stateCount', state: 'Overflowing' },
+            unit: 'Overflowing',
             targetLabel: 'goal',
             footnote: 'since midnight',
           } satisfies KpiWidget,
           {
             type: 'funnel',
-            title: 'Growth',
+            title: 'Filling',
             hint: 'by stage',
-            searchNoun: 'harvests',
-            stages: [{ label: 'Planted', sublabel: 'ready to grow', count: { kind: 'const', value: 1 } }],
-            drillColumns: [{ key: 'name', label: 'Plot' }],
+            searchNoun: 'reservoirs',
+            stages: [{ label: 'Filled', sublabel: 'ready to draw', count: { kind: 'const', value: 1 } }],
+            drillColumns: [{ key: 'name', label: 'Reservoir' }],
           } satisfies FunnelWidget,
           {
             type: 'table',
             title: 'Backlog',
             hint: 'oldest first',
-            columns: [{ key: 'name', label: 'Plot' }, { key: 'age', label: 'Age' }],
+            columns: [{ key: 'name', label: 'Reservoir' }, { key: 'age', label: 'Age' }],
             rows: { kind: 'stateList', state: 'Open' },
           } satisfies TableWidget,
           {
@@ -99,15 +99,15 @@ function fixture(): DashboardSpecification {
         site: 'sitio',
         Yield: 'Rendimiento',
         'last hour': 'última hora',
-        'Harvest logged': 'Cosecha registrada',
+        'Overflow logged': 'Desbordamiento registrado',
         goal: 'objetivo',
         'since midnight': 'desde medianoche',
-        Growth: 'Crecimiento',
+        Filling: 'Llenado',
         'by stage': 'por etapa',
-        harvests: 'cosechas',
-        Planted: 'Plantado',
-        'ready to grow': 'listo para crecer',
-        Plot: 'Parcela',
+        reservoirs: 'embalses',
+        Filled: 'Lleno',
+        'ready to draw': 'listo para extraer',
+        Reservoir: 'Embalse',
         Backlog: 'Pendientes',
         'oldest first': 'más antiguos primero',
         Age: 'Antigüedad',
@@ -124,7 +124,7 @@ function fixture(): DashboardSpecification {
         Tasks: 'Tareas',
         Resource: 'Recurso',
         // "Yield" (metric label) shares the section-title translation above.
-        // "Harvested" is intentionally absent: it is a state name / binding value,
+        // "Overflowing" is intentionally absent: it is a state name / binding value,
         // never a translatable label.
       },
     },
@@ -143,19 +143,19 @@ describe('localizeSpecification', () => {
     expect(yieldSection.hint).toBe('última hora');
 
     const kpi = yieldSection.widgets[0] as KpiWidget;
-    expect(kpi.title).toBe('Cosecha registrada');
+    expect(kpi.title).toBe('Desbordamiento registrado');
     expect(kpi.targetLabel).toBe('objetivo');
     expect(kpi.footnote).toBe('desde medianoche');
 
     const funnel = yieldSection.widgets[1] as FunnelWidget;
-    expect(funnel.title).toBe('Crecimiento');
-    expect(funnel.searchNoun).toBe('cosechas');
-    expect(funnel.stages[0].label).toBe('Plantado');
-    expect(funnel.stages[0].sublabel).toBe('listo para crecer');
-    expect(funnel.drillColumns?.[0].label).toBe('Parcela');
+    expect(funnel.title).toBe('Llenado');
+    expect(funnel.searchNoun).toBe('embalses');
+    expect(funnel.stages[0].label).toBe('Lleno');
+    expect(funnel.stages[0].sublabel).toBe('listo para extraer');
+    expect(funnel.drillColumns?.[0].label).toBe('Embalse');
 
     const table = yieldSection.widgets[2] as TableWidget;
-    expect(table.columns.map((c) => c.label)).toEqual(['Parcela', 'Antigüedad']);
+    expect(table.columns.map((c) => c.label)).toEqual(['Embalse', 'Antigüedad']);
 
     const leaderboard = yieldSection.widgets[4] as LeaderboardWidget;
     expect(leaderboard.metrics[0].label).toBe('Rendimiento');
@@ -169,8 +169,8 @@ describe('localizeSpecification', () => {
   it('never translates binding values or model-vocabulary keys', () => {
     const specification = localizeSpecification(fixture(), 'es');
     const kpi = specification.sections[0].widgets[0] as KpiWidget;
-    // The state name stays "Harvested" even though the KPI unit "Harvested" was translatable.
-    expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Harvested' });
+    // The state name stays "Overflowing" even though the KPI unit "Overflowing" was translatable.
+    expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Overflowing' });
     const table = specification.sections[0].widgets[2] as TableWidget;
     expect(table.columns.map((c) => c.key)).toEqual(['name', 'age']);
     expect(specification.detail?.relations?.[0].predicate).toBe('has');

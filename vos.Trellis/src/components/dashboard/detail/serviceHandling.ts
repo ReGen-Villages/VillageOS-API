@@ -5,13 +5,12 @@
  * predicate or archetype, only roles. The stamps live in the platform's memory, so a call from before the
  * model was loaded has no time, and {@link ServiceCall} leaves `at` absent rather than guess one.
  */
-import { type ModelIndex, thingIdsOfArchetype } from '@tendril-ui/tendril';
+import { type ModelIndex, thingIdBoundBy, thingIdsOfArchetype } from '@tendril-ui/tendril';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID } from '@tendril-ui/tendril';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { textOf } from './propertyText';
 
-const BINDS_PREDICATE = 'binds';
 const IS_PREDICATE = 'is';
 
 /** What the platform stamps onto a relationship it called a service through. */
@@ -66,27 +65,21 @@ interface ServiceWiring {
  *  model cannot change without a new index, and several open cards ask the same question. */
 const wiringByIndex = new WeakMap<ModelIndex, ServiceWiring>();
 
-/** The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role bound
- *  twice answers nothing, as the pipeline editor reads it, because seed validation refuses that model. */
-function boundBy(modelIndex: ModelIndex, roleId: string): VosThing | undefined {
-  const bindings: VosRelationship[] = [];
-  for (const [predicateId, name] of modelIndex.predicateIdToName) {
-    if (name !== BINDS_PREDICATE) continue;
-    for (const edge of modelIndex.relationshipsByPredicate.get(predicateId) ?? [])
-      if (edge.SubjectId === roleId) bindings.push(edge);
-  }
-  return bindings.length === 1 ? modelIndex.byId.get(bindings[0].TargetId) : undefined;
-}
-
 function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
-  const membersOf = (archetype: VosThing | undefined) =>
-    archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
-  const connectionIds = membersOf(boundBy(modelIndex, ROLE.Connection));
-  const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
-  const notifiedConnectionPredicateId = boundBy(modelIndex, NOTIFIED_CONNECTION_ROLE_ID)?.Id;
+  const bound = (roleId: string) => {
+    const id = thingIdBoundBy(roleId, modelIndex);
+    return id === undefined ? undefined : modelIndex.byId.get(id);
+  };
+  const membersOf = (roleId: string) => {
+    const archetype = bound(roleId);
+    return archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
+  };
+  const connectionIds = membersOf(ROLE.Connection);
+  const serviceIds = membersOf(ROLE.Service);
+  const notifiedConnectionPredicateId = bound(NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
   // A connection binds its service through a predicate of the model's choosing, so the service is found by what
   // the relationship reaches, never by the predicate's name.
@@ -111,7 +104,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     serviceByConnection,
     notifiedConnectionOf,
     archetypesOf,
-    recordPredicateId: boundBy(modelIndex, CALL_RECORD_ROLE_ID)?.Id,
+    recordPredicateId: bound(CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
