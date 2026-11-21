@@ -436,7 +436,7 @@ describe('a draft left and come back to', () => {
   it('falls back to the first step where what was stored names no step this wizard has', () => {
     localStorage.setItem(
       'vos-intake-draft:' + MODEL,
-      JSON.stringify({ submissionId: 'sub-0006', visited: ['orchard', 7] }),
+      JSON.stringify({ submissionId: 'sub-0006', visited: ['reservoir', 7] }),
     );
 
     expect(loadDraft(MODEL)?.visited).toEqual(['project']);
@@ -445,7 +445,7 @@ describe('a draft left and come back to', () => {
   it('keeps the steps it recognises out of what was stored', () => {
     localStorage.setItem(
       'vos-intake-draft:' + MODEL,
-      JSON.stringify({ submissionId: 'sub-0007', visited: ['project', 'orchard', 'location'] }),
+      JSON.stringify({ submissionId: 'sub-0007', visited: ['project', 'reservoir', 'location'] }),
     );
 
     expect(loadDraft(MODEL)?.visited).toEqual(['project', 'location']);
