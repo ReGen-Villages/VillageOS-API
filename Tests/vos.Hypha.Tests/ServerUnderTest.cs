@@ -20,12 +20,19 @@ public sealed class ServerUnderTest : IAsyncDisposable
 
     private readonly RecordingStream _sentToClient;
 
+    private readonly CancellationTokenSource _ceiling = new CancellationTokenSource(Settle.Ceiling);
+
+    private readonly CancellationTokenRegistration _whenTheCeilingPasses;
+
+    private volatile Task? _clientStoppedAtTheCeiling;
+
     private ServerUnderTest(IHost host, McpClient client, MockHttpMessageHandler mycelium, RecordingStream sentToClient)
     {
         _host = host;
         _sentToClient = sentToClient;
         Client = client;
         Mycelium = mycelium;
+        _whenTheCeilingPasses = _ceiling.Token.Register(() => _clientStoppedAtTheCeiling = Client.DisposeAsync().AsTask());
     }
 
     public McpClient Client { get; }
@@ -78,8 +85,14 @@ public sealed class ServerUnderTest : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await Client.DisposeAsync();
+        // Disposing the registration waits for a callback already running, so the client is disposed only once.
+        await _whenTheCeilingPasses.DisposeAsync();
+        _ceiling.Dispose();
+        await (_clientStoppedAtTheCeiling ?? Client.DisposeAsync().AsTask());
         await _host.StopAsync();
         _host.Dispose();
+        if (_clientStoppedAtTheCeiling is not null)
+            throw new TimeoutException(
+                $"Settle.Ceiling passed with a call still waiting: the client was stopped after {Settle.Ceiling.TotalSeconds:0} seconds.");
     }
 }
