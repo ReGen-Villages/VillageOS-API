@@ -217,6 +217,34 @@ describe('serviceEdgesOn', () => {
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
+
+  it.each([
+    ['call record', CALL_RECORD_ROLE_ID, 'spring'],
+    ['notified connection', NOTIFIED_CONNECTION_ROLE_ID, 'well'],
+  ])('a role bound twice wires nothing: the %s role', (_role, roleId, subjectId) => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('rival', 'rival predicate')],
+      [...base.relationships, relationship('b6', roleId, 'binds', 'rival')],
+    );
+
+    expect(serviceEdgesOn(subjectId, base)).not.toEqual([]);
+    expect(serviceEdgesOn(subjectId, index)).toEqual([]);
+  });
+
+  it.each([
+    ['call record', 'record', 'spring'],
+    ['notified connection', 'tells', 'well'],
+  ])('a role bound to a Thing the model does not hold wires nothing: the %s role', (_role, predicateId, subjectId) => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values()].filter((each) => each.Id !== predicateId),
+      base.relationships,
+    );
+
+    expect(serviceEdgesOn(subjectId, base)).not.toEqual([]);
+    expect(serviceEdgesOn(subjectId, index)).toEqual([]);
+  });
 });
 
 describe('serviceCallsFrom', () => {
