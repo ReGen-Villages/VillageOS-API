@@ -320,6 +320,22 @@ public sealed class ReadFileEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task A_model_choosing_no_area_method_is_answered_as_a_service_that_cannot_answer_and_the_reason_is_logged()
+    {
+        var (factory, _) = Holding(DeclaredModel.Seeded().Unrelate("Parcel", "measuresAreaWith"));
+        await using var _factory = factory;
+        using var client = factory.CreateClient();
+        var ticket = await TicketFor(factory, client, Address);
+
+        var response = await ReadAsync(client, ticket, Encoding.UTF8.GetBytes(ReferenceBorderFile), "border.kml");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
+        response.Headers.Contains(SubmissionTicket.HeaderName).Should().BeFalse();
+        factory.Log.Lines.Should().Contain(line => line.Contains("measuresAreaWith"));
+    }
+
+    [Fact]
     public async Task A_read_naming_no_address_is_refused_saying_so()
     {
         var (factory, _) = Holding();

@@ -97,6 +97,22 @@ public class BorderAreaTests
         BorderArea.Hectares(notched, method).Should().BeApproximately(threeQuarters, threeQuarters * 1e-3);
     }
 
+    [Theory]
+    [InlineData(AreaMethod.MeanSphere)]
+    [InlineData(AreaMethod.Wgs84Ellipsoid)]
+    public void A_border_of_fewer_than_three_corners_encloses_nothing(AreaMethod method)
+    {
+        BorderArea.Hectares([(39.5, 0), (39.5, 0.01)], method).Should().Be(0);
+    }
+
+    [Fact]
+    public void A_method_no_formula_measures_with_is_refused()
+    {
+        var measuring = () => BorderArea.Hectares(Box(latitude: 39.5, side: 0.01), (AreaMethod)99);
+
+        measuring.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("method");
+    }
+
     [Fact]
     public void Each_method_the_platform_implements_is_bound_by_its_own_role()
     {
