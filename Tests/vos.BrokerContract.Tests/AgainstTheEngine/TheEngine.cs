@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using FluentAssertions;
 #if VOS_ENGINE_IS_STAGED
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,7 +96,8 @@ public sealed class TheEngine : IAsyncLifetime
 
         var identifier = Guid.NewGuid();
         var made = await Admin.PostAsJsonAsync("/api/models", new { Name = modelName, Template = template, ModelId = identifier });
-        made.EnsureSuccessStatusCode();
+        made.IsSuccessStatusCode.Should().BeTrue(
+            "the engine makes a model from the template, but it answered {0}: {1}", (int)made.StatusCode, await made.Content.ReadAsStringAsync());
         return identifier;
     }
 
