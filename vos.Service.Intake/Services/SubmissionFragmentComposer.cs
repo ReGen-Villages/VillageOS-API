@@ -242,17 +242,23 @@ public static class SubmissionFragmentComposer
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
 
-        // Discovery reads a site's soil once per horizon the site has, as it grades a hazard once per assessment.
-        if (archetypes.SoilHorizon is { } horizonArchetype && vocabulary.SoilDepths is { } soilDepths)
-            foreach (var depth in soilDepths.Terms)
+        // The site has one Thing per declared term, so each soil depth and each land-cover class is read on its own, as each hazard is graded on its own assessment.
+        void OnePerTerm(DeclaredTerm? archetype, DeclaredTerms? declared, string kind)
+        {
+            if (archetype is null || declared is null) return;
+            foreach (var term in declared.Terms)
             {
-                var horizon = new NamedThing(
-                    StableIdentity.Derive(submissionId, $"soil:{Key(depth.Name)}"), $"{siteName} {depth.Name}");
-                things.Add(new FragmentThing(horizon.Id, horizon.Name, new Dictionary<string, TypedValue>()));
-                Relate(siteThing, predicates.Has, horizon);
-                BeArchetype(horizon, horizonArchetype);
-                RelateToTerm(horizon, soilDepths, depth);
+                var held = new NamedThing(
+                    StableIdentity.Derive(submissionId, $"{kind}:{Key(term.Name)}"), $"{siteName} {term.Name}");
+                things.Add(new FragmentThing(held.Id, held.Name, new Dictionary<string, TypedValue>()));
+                Relate(siteThing, predicates.Has, held);
+                BeArchetype(held, archetype);
+                RelateToTerm(held, declared, term);
             }
+        }
+
+        OnePerTerm(archetypes.SoilHorizon, vocabulary.SoilDepths, "soil");
+        OnePerTerm(archetypes.LandCoverShare, vocabulary.LandCoverClasses, "landcover");
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",

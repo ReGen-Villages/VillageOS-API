@@ -44,6 +44,9 @@ public static class WillowBend
     public static readonly Guid SoilHorizonArchetypeId = new("50505050-5050-5050-5050-505050505050");
 
     public static readonly string[] SoilDepthNames = ["0-5cm", "5-15cm", "15-30cm"];
+    public static readonly Guid LandCoverShareArchetypeId = new("60606060-6060-6060-6060-606060606060");
+
+    public static readonly string[] LandCoverClassNames = ["tree-cover", "cropland", "built-up"];
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),
