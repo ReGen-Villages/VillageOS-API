@@ -291,7 +291,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
         notified = {r["Target"] for r in self.kit.rels.values() if r["Predicate"] in self.bound("notifiedConnection")}
-        for connection in connections - notified:
+        for connection in connections - set(self.told_through().values()) - notified:
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
     def notified_connection_of(self, predicate):
@@ -313,18 +313,30 @@ class CatalystVocabularyTests(unittest.TestCase):
         [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
         return [r["Target"] for r in self.kit.rels.values() if r["Subject"] == holder and r["Predicate"] == has]
 
-    def test_stops_and_each_told_through_predicate_are_predicates_that_name_a_connection_and_are_no_connection(self):
+    def test_stops_is_a_predicate_that_names_a_connection_and_is_no_connection(self):
         [connection_archetype] = self.bound("connection")
         [predicate_root] = self.bound("predicate")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
-        for predicate in [*self.bound("runStopping"), *self.told_through().values()]:
+        [stops] = self.bound("runStopping")
+        connection = self.notified_connection_of(stops)
+        self.assertEqual(self.kit.things[connection]["Name"], "stops connection")
+        self.assertIn((connection, is_, connection_archetype), self.kit.rels)
+        self.assertIn((stops, is_, predicate_root), self.kit.rels)
+        self.assertNotIn((stops, is_, connection_archetype), self.kit.rels)
+        self.assertEqual(self.triggers_of(stops), [])
+        self.assertEqual(self.held_by(stops), [])
+
+    # The orchestrator, the Pipelines page and the fragment validator find a system's told-through connection as a
+    # connection itself, until VillageOS-API Task 8624 has them read the one it names.
+    def test_each_told_through_predicate_is_a_connection_and_names_one_with_its_trigger_and_service(self):
+        [connection_archetype] = self.bound("connection")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        for predicate in self.told_through().values():
             name, connection = self.kit.things[predicate]["Name"], self.notified_connection_of(predicate)
             self.assertEqual(self.kit.things[connection]["Name"], f"{name} connection")
-            self.assertIn((connection, is_, connection_archetype), self.kit.rels, name)
-            self.assertIn((predicate, is_, predicate_root), self.kit.rels, name)
-            self.assertNotIn((predicate, is_, connection_archetype), self.kit.rels, name)
-            self.assertEqual(self.triggers_of(predicate), [], name)
-            self.assertEqual(self.held_by(predicate), [], name)
+            self.assertIn((predicate, is_, connection_archetype), self.kit.rels, name)
+            self.assertEqual(self.triggers_of(connection), self.triggers_of(predicate), name)
+            self.assertEqual(self.held_by(connection), self.held_by(predicate), name)
 
     def test_merge_adds_no_connection_for_a_stopping_predicate_the_target_binds(self):
         seed = {"Name": "Target",

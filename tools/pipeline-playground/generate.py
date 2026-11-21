@@ -277,8 +277,7 @@ def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, req
 
 
 def graph_connection_notified_by(k, v, predicate, graph, service, connection_id):
-    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`. Until the
-    platform reads it there, the predicate stays a connection too, with the same trigger and service."""
+    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`."""
     connection = k.thing(connection_id, f"{k.things[predicate]['Name']} connection")
     k.rel(connection, v.is_, v.Connection)
     k.rel(connection, v.triggered_by, graph)
@@ -364,15 +363,13 @@ def build():
                                               ("requested", "out", "number", False)):
         k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
 
-    # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
-    # subdomain, so no HTTP request reaches it.
+    # A stop request is related along this predicate, and the broker sends it to the orchestrator through the
+    # connection the predicate names; that connection has no subdomain, so no HTTP request reaches it.
     stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
+    k.predicates.add(stops)
     orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
     k.held_by_shared[orchestrator] = stops
     k.rel(orchestrator, is_, Service)
-    k.rel(stops, is_, Connection)
-    k.rel(stops, triggered_by, graph)
-    k.rel(stops, has, orchestrator)
     stops_connection = graph_connection_notified_by(k, v, stops, graph, orchestrator, stable_id(_TAG, "connection", "stops connection"))
     k.held_by_shared[stops_connection] = stops
 
@@ -423,7 +420,8 @@ def build():
         for key in system["told"]:
             k.rel(system_id, told, kind_by_key[key])
         # A system that is told something names the connection its messages go out through: a predicate the
-        # orchestrator writes a sent message along, bound to the service that sends it.
+        # orchestrator writes a sent message along, bound to the service that sends it. It stays a connection
+        # itself because the orchestrator and the Pipelines page find it as one (VillageOS-API Task 8624).
         if system.get("toldThrough"):
             through_id = k.thing(stable_id(_TAG, "told-through", system["key"]), f"tells {system['label']}")
             k.rel(through_id, is_, Connection)
