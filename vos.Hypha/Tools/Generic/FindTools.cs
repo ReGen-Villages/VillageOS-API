@@ -14,6 +14,8 @@ public sealed record ThingsFound(IReadOnlyList<ThingFound> Things, bool MoreExis
 [McpServerToolType]
 public sealed class FindTools(ModelClients clients)
 {
+    private const string AnsweredOtherThanAList = "The platform answered the list of Things with something other than a list.";
+
     [McpServerTool(
         Name = "find_things", Title = "Find Things", ReadOnly = true, Idempotent = true, OpenWorld = false,
         UseStructuredContent = true)]
@@ -46,11 +48,14 @@ public sealed class FindTools(ModelClients clients)
 
         if (name_contains is not null)
         {
-            var found = (await ThingSearch.ByPartOfANameAsync(mycelium, name_contains, narrowing, most))!;
+            var found = await ThingSearch.ByPartOfANameAsync(mycelium, name_contains, narrowing, most)
+                ?? throw new McpException(AnsweredOtherThanAList);
             return Answer(found.Things.Select(thing => new ThingFound(thing.Id, thing.Name, null)), found.MoreExist);
         }
 
-        var listed = (await mycelium.GetThingsAsync(narrowing with { Limit = most + 1 })).EnumerateArray().ToList();
+        var answered = await mycelium.GetThingsAsync(narrowing with { Limit = most + 1 });
+        if (answered.ValueKind != JsonValueKind.Array) throw new McpException(AnsweredOtherThanAList);
+        var listed = answered.EnumerateArray().ToList();
         return Answer(
             listed.Take(most).Select(thing => new ThingFound(
                 Text(thing, "Id"), Text(thing, "Name"),
