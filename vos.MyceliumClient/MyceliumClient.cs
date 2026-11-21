@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-namespace vos.Taproot;
+namespace vos.PlatformClient;
 
 public readonly record struct LogDownload(string FileName, Stream Content);
 

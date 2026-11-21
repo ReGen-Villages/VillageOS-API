@@ -63,6 +63,24 @@ class AnImportItAllows(unittest.TestCase):
         self.assertIsNone(imports_an_engine_namespace('// using vos.Core; would be refused'))
 
 
+class TheSharedClientLibrary(unittest.TestCase):
+    """The library every program reaches the platform through is named for the platform, so the guard must
+    tell it from the engine by the whole name."""
+
+    def test_its_namespace_is_not_an_engine_one(self):
+        self.assertIsNone(imports_an_engine_namespace('using vos.PlatformClient;'))
+
+    def test_its_folder_project_and_imports_pass(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.mkdir(os.path.join(root, 'vos.MyceliumClient'))
+            with open(os.path.join(root, 'A.csproj'), 'w', encoding='utf-8') as handle:
+                handle.write('<ProjectReference Include="..\\vos.MyceliumClient\\vos.MyceliumClient.csproj" />\n')
+            with open(os.path.join(root, 'A.cs'), 'w', encoding='utf-8') as handle:
+                handle.write('using vos.PlatformClient;\nglobal using vos.PlatformClient;\n')
+
+            self.assertEqual([], problems(root))
+
+
 class AFileHoldingBoth(unittest.TestCase):
     """A check reading whole files is satisfied by the allowed import and never sees the refused one
     beside it. This is the case that decided the shape of the guard."""
