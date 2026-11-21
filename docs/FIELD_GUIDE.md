@@ -1745,16 +1745,9 @@ service's address; otherwise the submit button says so and stays disabled.
 - **Sending.** The submission goes once the contact's address is verified: **Send a code** asks the
   intake service to mail one, and entering it posts the submission.
 
-**From the public site**, a member of the public fills in the same steps on a page that holds no
-sign-in and talks to the intake service alone; it is the same wizard, so a field added to one appears
-on the other. A second, plot-first page runs beside it: the map comes first with an address search,
-the land register's boundary is fetched where one covers the clicked point, the report appears as a
-grid of themed tiles before any question is asked, and the programme, population and household size
-are dials on the report. A re-post waits while a typed population or household size cannot be read,
-with the reason under the dial, and goes once the field is mended or cleared. A submitter receives a code at the address they gave, answers it, and
-afterwards can open a **findings page** to read what the platform worked out about their land — the
-model's own dashboard, with every personal detail withheld — share survey files, and open the parcel
-on the satellite imagery the model declares with the report's sections as tabs along the bottom.
+**From the public site**, a member of the public will submit through the site study's pages, which
+hold no sign-in and talk to the intake service alone. Until the first of them ships, the public site
+serves one empty page.
 
 ### 58. Reviewing what has arrived
 The land-intake template declares a **Submissions** page, listed in the rail with the model's other
@@ -2422,8 +2415,8 @@ intake service's Thing, so it never expires, carries that service's grants and r
 model. The proxy passes the caller's address on, because submissions are rate
 limited per source.
 
-**The public pages** — the form, the plot-first page and the findings page — are a build of their
-own that carries no sign-in and no part of the signed-in console:
+**The public pages** are a build of their own that carries no sign-in and no part of the signed-in
+console. Until the site study's first pages ship, the build is one empty page:
 
 ```bash
 cd vos.Trellis
@@ -2502,8 +2495,8 @@ One directory, one job; tests sit beside the code they test.
 ```text
 vos.Trellis/
 ├── index.html, vite.config.ts     the signed-in application, and its development proxy
-├── public-form.html, findings.html, explore.html, vite.public.config.ts
-│                                  the three public pages, built on their own
+├── public-empty.html, vite.public.config.ts
+│                                  the public pages, built on their own
 └── src/
     ├── main.tsx, App.tsx          the root, the router, the sign-in gate, the theme
     ├── types/                     the wire shapes Tendril does not hold: basemaps,
@@ -2515,9 +2508,9 @@ vos.Trellis/
     ├── utils/                     pure functions: the graph mapper, search, clustering,
     │                              formatters, parcel geometry, map links, the composer
     ├── pages/                     one component per route
-    ├── intake/                    the land-intake wizard, shared with the public form
-    ├── publicForm/, publicFindings/, explore/
-    │                              the three public pages' entries
+    ├── intake/                    the land-intake wizard
+    ├── publicPages/               what a public page reads its findings with, and the
+    │                              test that keeps signed-in code out of the public build
     ├── feedback/                  the report panel, also built on its own
     ├── pipeline/                  the pipeline editor's model, validation, undo history
     ├── i18n/                      one file per language
@@ -2590,18 +2583,16 @@ effects on a live change, the decimal precisions, and which properties a load se
 Every address renders only after sign-in; an unauthenticated visitor sees the sign-in form whatever
 they opened.
 
-**The public pages are a build of their own.** The submission form, the findings page and the
-plot-first explore page share this application's wizard, map, widgets and translations, but are
-built separately (`npm run build:public`) with their own entries, have no router, and reach the
-intake service and nothing else: the form and the explore page draw themselves from the service's
-form route, the findings page from its findings route, and the explore page asks it for a place
-search and the parcel at a position. A test walks every import of every public entry and fails if
-one leads to the server client, the signed-in state, or anything behind sign-in. The findings page
-draws the model's own dashboard through the same resolver and widgets the operations page uses;
-what makes that possible is that the resolver opens no connection itself — the reads a loaded
-model cannot answer (state membership, a Thing's ranges, the two temporal reductions, a service)
-are asked of a small interface the application answers from the server and the public pages answer
-from the document they were handed, through the intake service under the page's ticket.
+**The public pages are a build of their own** (`npm run build:public`), with their own entries and no
+router, reaching the intake service and nothing else. Until the site study's first pages ship, the
+build is one empty page. A test reads the build's pages from `vite.public.config.ts` and walks every
+import of every script they load, and fails if one leads to the server client, the signed-in state,
+or anything behind sign-in. A public page can draw the model's own dashboard through the same
+resolver and widgets the operations page uses, because the resolver opens no connection itself — the
+reads a loaded model cannot answer (state membership, a Thing's ranges, the two temporal reductions,
+a service) are asked of a small interface the application answers from the server and a public page
+answers from the findings document it was handed (`src/publicPages/answeredFindings.ts`), through the
+intake service under the page's ticket.
 
 ### 86. Reading properties in the client
 The model store holds each Thing's **own** properties and its **stored overrides** — the shape the

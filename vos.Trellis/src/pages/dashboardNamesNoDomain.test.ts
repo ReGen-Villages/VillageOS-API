@@ -18,8 +18,7 @@ const TENDRIL = join(SOURCE, '../../vos.Tendril/src');
 const ALSO = [
   'pages/OperationsPage.tsx',
   'components/dashboard/DashboardSections.tsx',
-  'publicFindings/PublicFindingsPage.tsx',
-  'publicFindings/answeredFindings.ts',
+  'publicPages/answeredFindings.ts',
   'api/dashboardSubscription.ts',
   'api/bindingVocabulary.ts',
   'api/dashboardLocalization.ts',

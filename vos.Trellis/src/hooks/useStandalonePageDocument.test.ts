@@ -10,19 +10,19 @@ describe('useStandalonePageDocument', () => {
 
   it('names the browser tab in the chosen language, and follows a change of language', async () => {
     await act(() => i18n.changeLanguage('de'));
-    renderHook(() => useStandalonePageDocument('publicForm.title'));
+    renderHook(() => useStandalonePageDocument('changePassword.required'));
 
-    expect(document.title).toBe(i18n.t('publicForm.title', { lng: 'de' }));
-    expect(document.title).not.toBe(i18n.t('publicForm.title', { lng: 'en' }));
+    expect(document.title).toBe(i18n.t('changePassword.required', { lng: 'de' }));
+    expect(document.title).not.toBe(i18n.t('changePassword.required', { lng: 'en' }));
 
     await act(() => i18n.changeLanguage('fr'));
 
-    expect(document.title).toBe(i18n.t('publicForm.title', { lng: 'fr' }));
+    expect(document.title).toBe(i18n.t('changePassword.required', { lng: 'fr' }));
   });
 
   it('sets the language and reading direction on the page', async () => {
     await act(() => i18n.changeLanguage('ar-SA'));
-    renderHook(() => useStandalonePageDocument('explore.title'));
+    renderHook(() => useStandalonePageDocument('changePassword.required'));
 
     expect(document.documentElement.getAttribute('lang')).toBe('ar-SA');
     expect(document.documentElement.getAttribute('dir')).toBe('rtl');
