@@ -11,7 +11,7 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 /** A dashboard's subscription carries only what its widgets draw, so a detail card asks for this itself. The
  *  Things waiting for this one come with what they are, because a waiting Thing's archetype can name the
  *  connection it is answered through. Every Thing that names a connection comes too, because a handled predicate
- *  is not a connection itself. */
+ *  need not be a connection itself. */
 export function serviceWiringOf(thingId: string): SubscriptionSelector {
   return {
     ids: [thingId, ROLE.Connection, ROLE.Service, AWAITED_THING_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID],
