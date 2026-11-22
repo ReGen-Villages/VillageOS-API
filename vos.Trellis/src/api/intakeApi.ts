@@ -213,11 +213,11 @@ export const intakeApi = {
   },
 
   /** None where the model registers no gazetteer. */
-  searchPlaces: async (query: string): Promise<FoundPlace[]> => {
-    const response = await intakeRequest('/submissions/place-search', { body: { query }, passNotFound: true });
-    if (response.status === 404) return [];
+  searchPlaces: async (query: string, ticket: string): Promise<{ places: FoundPlace[]; ticket: string }> => {
+    const response = await intakeRequest('/submissions/place-search', { body: { query }, ticket, passNotFound: true });
+    if (response.status === 404) return { places: [], ticket };
     const answered = (await response.json()) as { places?: FoundPlace[] };
-    return answered.places ?? [];
+    return { places: answered.places ?? [], ticket: renewedTicket(response, ticket) };
   },
 
   /** The code proves somebody reads what is sent to the address. */

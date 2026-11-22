@@ -1746,9 +1746,9 @@ service's address; otherwise the submit button says so and stays disabled.
 - **Sending.** The submission goes once the contact's address is verified: **Send a code** asks the
   intake service to mail one, and entering it posts the submission.
 
-**From the public site**, a member of the public will submit through the site study's pages, which
-hold no sign-in and talk to the intake service alone. Until the first of them ships, the public site
-serves one empty page.
+**From the public site**, a member of the public submits through the site study's pages, which hold
+no sign-in to the console and talk to the intake service alone. The Location page posts the
+submission when its site is confirmed.
 
 ### 58. Reviewing what has arrived
 The land-intake template declares a **Submissions** page, listed in the rail with the model's other
@@ -2590,7 +2590,17 @@ router, reaching the intake service and nothing else. Its one page is the site s
 (`public-study.html`, built as `index.html`), whose steps are Location, Data, Village, Layout and
 Timeline in Pro and Location, Data, Village layout and Timeline in Lite. The edition is chosen in the
 footer and kept per browser, Lite until Pro is chosen, and a step whose page is not built yet is
-shown greyed. A test reads the build's pages from `vite.public.config.ts` and walks every
+shown greyed. **Location**, the same in both editions, finds the site from one box that takes an
+address or coordinates, then gives it a border in one of three ways: drawn on the map (a border that
+crosses itself is refused), imported from a parcel file the intake reads (its largest area; a border
+whose centre is more than 300 m from the site moves the site there), or a plot pressed among the
+register's plots in view from zoom 15. A drawn border is measured with the area method the form
+names, an imported one reads the intake's own measure, and a plot reads the register's area. The
+elevation is looked up for each finished border. **Confirm site** posts the submission, with the
+email as the contact's name until a later step asks for one and the site named after the parcel,
+else the address, else the project, and keeps an imported file as a document of the submission.
+Every request after sign-in carries the ticket, renewed from each answer, so the page is counted
+against the signed-in budget. A test reads the build's pages from `vite.public.config.ts` and walks every
 import of every script they load, and fails if one leads to the server client, the signed-in state,
 or anything behind sign-in. A public page can draw the model's own dashboard through the same
 resolver and widgets the operations page uses, because the resolver opens no connection itself — the
