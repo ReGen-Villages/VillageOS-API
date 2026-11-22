@@ -27,8 +27,8 @@ async function signIn() {
   typeInto('Email', 'ana.ferreira@example.pt');
   typeInto('Project name', 'Willow Bend');
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-  typeInto('Code', '314159');
-  fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+  fireEvent.change(await screen.findByLabelText('Code'), { target: { value: '314159' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
   await screen.findByRole('navigation', { name: 'Study steps' });
 }
 
@@ -109,9 +109,9 @@ describe('signing in', () => {
     typeInto('Email', 'ana.ferreira@example.pt');
     typeInto('Project name', 'Willow Bend');
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    typeInto('Code', '000000');
+    fireEvent.change(await screen.findByLabelText('Code'), { target: { value: '000000' } });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
     expect(await screen.findByText('That code is not the one sent, or it has expired.')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Study steps' })).not.toBeInTheDocument();

@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SignIn, type StudySession } from './SignIn';
-import { canOpen, chooseEdition, editionChosen, stepsFor, type Edition, type StudyStep } from './studySteps';
-
-const EDITIONS: readonly Edition[] = ['lite', 'pro'];
+import { canOpen, chooseEdition, EDITIONS, editionChosen, stepsFor, type Edition, type StudyStep } from './studySteps';
 
 export function StudyPage() {
   const [session, setSession] = useState<StudySession | null>(null);

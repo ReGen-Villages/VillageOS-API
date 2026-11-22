@@ -2,6 +2,10 @@ export type Edition = 'lite' | 'pro';
 
 export type StudyStep = 'location' | 'data' | 'village' | 'layout' | 'villageLayout' | 'timeline';
 
+export const EDITIONS: readonly Edition[] = ['lite', 'pro'];
+
+export const STUDY_STEPS: readonly StudyStep[] = ['location', 'data', 'village', 'layout', 'villageLayout', 'timeline'];
+
 const STEPS: Record<Edition, StudyStep[]> = {
   pro: ['location', 'data', 'village', 'layout', 'timeline'],
   lite: ['location', 'data', 'villageLayout', 'timeline'],
