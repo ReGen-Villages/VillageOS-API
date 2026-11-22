@@ -38,6 +38,9 @@ public sealed class TheEngine : IAsyncLifetime
     // what a service wrote.
     public HttpClient Admin { get; private set; } = null!;
 
+    // Read once at start, while the engine holds only the model it starts with, because a case may make more.
+    private (Guid Id, string Name) _firstModel;
+
 #if !VOS_ENGINE_IS_STAGED
     public Task InitializeAsync() => throw new InvalidOperationException(
         "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
@@ -64,6 +67,9 @@ public sealed class TheEngine : IAsyncLifetime
         ClientFactory = new PerCallHttpClientFactory(Transport);
         Admin = _host.CreateClient();
         Admin.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+
+        var first = (await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single();
+        _firstModel = (Field(first, "id").GetGuid(), Field(first, "name").GetString()!);
     }
 
     public Task DisposeAsync()
@@ -115,7 +121,8 @@ public sealed class TheEngine : IAsyncLifetime
             Properties = TypedProperties.Typed(properties),
         });
 
-        written.EnsureSuccessStatusCode();
+        written.IsSuccessStatusCode.Should().BeTrue(
+            "the engine takes the Thing, but it answered {0}: {1}", (int)written.StatusCode, await written.Content.ReadAsStringAsync());
         return id;
     }
 
@@ -189,11 +196,7 @@ public sealed class TheEngine : IAsyncLifetime
 
     private async Task<Guid> TheModelIdAsync() => (await TheModelAsync()).Id;
 
-    public async Task<(Guid Id, string Name)> TheModelAsync()
-    {
-        var model = (await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single();
-        return (Field(model, "id").GetGuid(), Field(model, "name").GetString()!);
-    }
+    public Task<(Guid Id, string Name)> TheModelAsync() => Task.FromResult(_firstModel);
 
     private async Task<string> TokenOfANewKeyAsync(object key)
     {

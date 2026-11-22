@@ -21,33 +21,35 @@ public class AModelIsDescribedAndThingsAreFoundOnTheTestSeedTests : IClassFixtur
         listed.EnumerateArray().Select(entry => entry.GetProperty(field).GetString()!);
 
     [FactAgainstTheEngine]
-    public async Task The_test_seed_is_described_by_its_own_kinds_and_the_servers_own_model_is_not()
+    public async Task The_test_seed_is_described_by_its_own_kinds_and_the_engines_first_model_is_not()
     {
         var seed = await TheTestSeedAsAModelAsync();
+        var first = await _engine.TheModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
         var described = await server.CallAsync("describe_model", new() { ["model"] = seed.Id.ToString() });
-        var own = await server.CallAsync("describe_model");
+        var inTheFirst = await server.CallAsync("describe_model", new() { ["model"] = first.Id.ToString() });
 
         described.IsError.Should().BeFalse(described.Text);
         Names(described.Structured.GetProperty("kinds"), "Name").Should().Contain(["Catchment", "Reservoir", "Spring"]);
-        own.IsError.Should().BeFalse(own.Text);
-        Names(own.Structured.GetProperty("kinds"), "Name").Should().NotContain("Catchment");
+        inTheFirst.IsError.Should().BeFalse(inTheFirst.Text);
+        Names(inTheFirst.Structured.GetProperty("kinds"), "Name").Should().NotContain("Catchment");
     }
 
     [FactAgainstTheEngine]
     public async Task Things_are_found_by_part_of_a_name_in_the_model_asked_and_not_in_another()
     {
         var seed = await TheTestSeedAsAModelAsync();
+        var first = await _engine.TheModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
         var inTheSeed = await server.CallAsync("find_things", new() { ["name_contains"] = "SLOPE", ["model"] = seed.Name });
-        var inTheOwn = await server.CallAsync("find_things", new() { ["name_contains"] = "SLOPE" });
+        var inTheFirst = await server.CallAsync("find_things", new() { ["name_contains"] = "SLOPE", ["model"] = first.Id.ToString() });
 
         inTheSeed.IsError.Should().BeFalse(inTheSeed.Text);
         Names(inTheSeed.Structured.GetProperty("things")).Should().BeEquivalentTo(["Ålvik north slope", "Ålvik south slope"]);
-        inTheOwn.IsError.Should().BeFalse(inTheOwn.Text);
-        inTheOwn.Structured.GetProperty("things").GetArrayLength().Should().Be(0);
+        inTheFirst.IsError.Should().BeFalse(inTheFirst.Text);
+        inTheFirst.Structured.GetProperty("things").GetArrayLength().Should().Be(0);
     }
 
     [FactAgainstTheEngine]
