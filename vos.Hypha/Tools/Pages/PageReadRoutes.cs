@@ -3,15 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace vos.Hypha.Tools.Pages;
 
-/// <summary>
-/// The routes on Mycelium a page read or a press may be sent to with the key this server holds, and no others.
-/// <para>
-/// The path comes out of a page description, which is the model's data: a service binding names the
-/// route it posts to. Sent unchecked, a tool marked as only reading would post to any route a
-/// description named. So a path is taken only when it is, character for character, one of the shapes
-/// below, and anything that is not a plain path on this Mycelium is refused before it is looked at.
-/// </para>
-/// </summary>
+// A path comes out of a page description, so it is taken only when it matches one of these shapes character for character; otherwise a tool marked as only reading could post to any route a description named.
 public static partial class PageReadRoutes
 {
     private const string Identifier = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";

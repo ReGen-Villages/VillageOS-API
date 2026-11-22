@@ -94,11 +94,7 @@ public sealed class PageReader : IDisposable
         }
     }
 
-    /// <summary>
-    /// The inputs at the bottom of a Thing's derived figures, of the one figure named or of all of them,
-    /// as JSON: each with where its value is held, which way the figure moves with it, and the way out of
-    /// each state the Thing holds that judges the figure; and the inputs left out, with the reason.
-    /// </summary>
+    // Each input says where its value is held, which way the figure moves with it, and the way out of each state that judges the figure; the inputs left out come with the reason.
     public Task<string> InputsOfAsync(string thingId, string? figure, string language, IPageReads reads, CancellationToken cancellation) =>
         WithTheThingHeldAsync(thingId, reads, cancellation, async held =>
         {
@@ -106,15 +102,11 @@ public sealed class PageReader : IDisposable
             return (string)await (Task<object>)_engine.Script.pageReader.inputsOfThing(held, thingId, figure, language, host);
         });
 
-    /// <summary>Where a Thing's value for one property came from, as JSON.</summary>
     public Task<string> OriginOfAsync(string thingId, string property, IPageReads reads, CancellationToken cancellation) =>
         WithTheThingHeldAsync(thingId, reads, cancellation, held =>
             Task.FromResult((string)_engine.Script.pageReader.originOf(held, thingId, property)));
 
-    /// <summary>
-    /// One figure of a Thing from the model alone, as JSON: its value, the ranges that judge it, what it
-    /// was worked out from, and its inputs. The model's own sentence for a figure is in a page.
-    /// </summary>
+    // The figure is explained from the model alone; the model's own sentence for it is read from a page.
     public Task<string> ExplainAsync(string thingId, string figure, string language, IPageReads reads, CancellationToken cancellation) =>
         WithTheThingHeldAsync(thingId, reads, cancellation, async held =>
         {
@@ -122,33 +114,20 @@ public sealed class PageReader : IDisposable
             return (string)await (Task<object>)_engine.Script.pageReader.explain(held, thingId, figure, language, host);
         });
 
-    /// <summary>
-    /// The choices an action widget offers on one of its rows, as JSON, each with its key, its label in the
-    /// language, the Thing it stands for where the model offers it, the fields it asks with the Things a field
-    /// is chosen from, and whether it may be pressed here. The widget is given by its title; the row by its
-    /// identifier, or by a name only one row has. A listed choice is keyed by its place in the page
-    /// description, so its key holds only while the description is unchanged.
-    /// </summary>
+    // A listed choice is keyed by its place in the page description, so its key holds only while the description is unchanged.
     public Task<string> OfferedChoicesAsync(
         string pageId, string widget, string? scopeId, string row, string language, IPageReads reads, CancellationToken cancellation) =>
         WithThePageHeldAsync(pageId, scopeId, reads, cancellation, async (held, host) =>
             (string)await (Task<object>)_engine.Script.pageReader.offeredChoices(held, pageId, widget, scopeId, row, language, host));
 
-    /// <summary>
-    /// The writes a press of one choice on one row would make, in order, as JSON, and nothing sent. Refused
-    /// where the choice asks a secret, before the answers are read; where an answer is missing, is not asked
-    /// for, or names a Thing its field does not offer.
-    /// </summary>
+    // Nothing is sent, and a choice that asks a secret is refused before its answers are read.
     public Task<string> ComposePressAsync(
         string pageId, string widget, string? scopeId, string row, string choice, string answersJson, string language,
         IPageReads reads, CancellationToken cancellation) =>
         WithThePageHeldAsync(pageId, scopeId, reads, cancellation, async (held, host) =>
             (string)await (Task<object>)_engine.Script.pageReader.composePress(held, pageId, widget, scopeId, row, choice, answersJson, language, host));
 
-    /// <summary>
-    /// Sends the writes a press composed, in order, as the console sends them, and stops at the first one
-    /// refused. Answers what the endpoint said on taking a post, or the refusal, as JSON.
-    /// </summary>
+    // Stops at the first write refused.
     public Task<string> SendPressAsync(string writesJson, IPageWrites writes) =>
         InTheReadersWordsAsync(async () =>
             (string)await (Task<object>)_engine.Script.pageReader.sendPress(writesJson, new WritesForTheEngine(writes)));
@@ -218,7 +197,7 @@ public sealed class PageReader : IDisposable
         }
     }
 
-    /// <summary>The reader refuses by throwing inside the engine; its words are what a caller is given.</summary>
+    // The reader refuses by throwing inside the engine, and its words are what a caller is given.
     private static async Task<T> InTheReadersWordsAsync<T>(Func<Task<T>> read)
     {
         try

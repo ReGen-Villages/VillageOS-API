@@ -6,10 +6,7 @@ using vos.PlatformClient;
 
 namespace vos.Hypha.Tools.Pages;
 
-/// <summary>
-/// Every path and identifier a press sends comes out of a page description, which is the model's data, so each
-/// is checked here before it is sent. Each write is reported in the console's words, with the caller's reason.
-/// </summary>
+// Every path and identifier a press sends comes out of a page description, which is the model's data, so each is checked again here as it is sent.
 public sealed class MyceliumPageWrites(MyceliumClient mycelium, ActivityReport report, string reason) : IPageWrites
 {
     private const string TimeType = "vos.DateTime";
@@ -18,7 +15,7 @@ public sealed class MyceliumPageWrites(MyceliumClient mycelium, ActivityReport r
 
     public async Task<bool> EveryReportTakenAsync() => (await Task.WhenAll(_reports)).All(taken => taken);
 
-    /// <summary>The first write of a composed press that would not be sent, so a press is refused before any of it is.</summary>
+    // Checked over the whole press first, so a press is refused before any of its writes is sent.
     public static string? RefusalToSend(JsonArray writes)
     {
         foreach (var write in writes)

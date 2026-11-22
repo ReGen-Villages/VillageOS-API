@@ -1,6 +1,5 @@
 namespace vos.Pages;
 
-/// <summary>The object the bundle sends a press's writes through.</summary>
 public sealed class WritesForTheEngine(IPageWrites writes)
 {
     // Lower case because JavaScript calls them by these names.

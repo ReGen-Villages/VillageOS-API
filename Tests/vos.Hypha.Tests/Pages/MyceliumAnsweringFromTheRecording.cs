@@ -3,10 +3,7 @@ using System.Text.Json;
 
 namespace vos.Hypha.Tests.Pages;
 
-/// <summary>
-/// Stands in for Mycelium with what a running one answered for the shared test seed: the recording the
-/// page reader's own tests read. A request the recording holds no answer for is answered 404.
-/// </summary>
+// A request the recording holds no answer for is answered 404.
 internal static class MyceliumAnsweringFromTheRecording
 {
     private static readonly JsonElement s_recording = JsonDocument.Parse(

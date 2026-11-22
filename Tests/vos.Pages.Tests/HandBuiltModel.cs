@@ -174,7 +174,6 @@ internal static class HandBuiltModel
     public const string UsableCapacity = "usableCubicMetres";
     public const string Inflow = "inflowLitresPerDay";
 
-    /// <summary>A figure worked out from the Thing's own values, and one totalled over the springs that feed it.</summary>
     private static JsonObject WithFigures(JsonObject kind)
     {
         kind["DerivedProperties"] = new JsonObject

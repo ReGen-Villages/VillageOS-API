@@ -1,6 +1,5 @@
 namespace vos.Pages.Tests;
 
-/// <summary>Takes the writes a press sends and keeps them, refusing the one it is told to.</summary>
 internal sealed class WritesKeptInMemory : IPageWrites
 {
     public List<string> Made { get; } = [];

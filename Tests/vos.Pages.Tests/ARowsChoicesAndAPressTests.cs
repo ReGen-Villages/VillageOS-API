@@ -3,10 +3,6 @@ using Xunit;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// What an action widget offers on one row and the writes a press on it makes, read with the console's own
-/// functions against the recorded seed; and the sending of those writes, which stops at the first refusal.
-/// </summary>
 public class ARowsChoicesAndAPressTests
 {
     private const string English = "en";

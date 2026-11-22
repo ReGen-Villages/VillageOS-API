@@ -56,7 +56,6 @@ internal sealed class RecordedPage(JsonElement page)
     public JsonElement AnswerFor(string? scopeId) => page.GetProperty("answers").GetProperty(scopeId ?? "");
 }
 
-/// <summary>One Thing with derived figures, as the reader in Node answered each question about it.</summary>
 internal sealed class RecordedThing(JsonElement thing)
 {
     public string Id => thing.GetProperty("thingId").GetString()!;

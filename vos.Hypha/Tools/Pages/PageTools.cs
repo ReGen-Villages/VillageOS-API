@@ -100,7 +100,6 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
             return Answered(JsonNode.Parse(explained)!.AsObject(), reads);
         });
 
-    /// <summary>A refusal by the reader reaches the chat application in the reader's words.</summary>
     internal static async Task<JsonElement> InWordsAsync(Func<Task<JsonElement>> read)
     {
         try
@@ -113,7 +112,6 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         }
     }
 
-    /// <summary>With no Thing named, the page is read across everything it compares.</summary>
     internal static async Task<(string PageId, IReadOnlyList<string?> ScopeIds)> PageAndScopesAsync(
         PageReader reader, string page, IReadOnlyList<string> scopes, string language, MyceliumPageReads reads, CancellationToken cancellation)
     {

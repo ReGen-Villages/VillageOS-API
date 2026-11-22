@@ -5,15 +5,10 @@ using vos.PlatformClient;
 
 namespace vos.Hypha.Tools.Pages;
 
-/// <summary>
-/// Answers a page read from Mycelium with the key this server holds. It sends only the routes a page
-/// read needs and refuses every other path, because the path comes out of a page description, which is
-/// the model's data.
-/// </summary>
+// Every path comes out of a page description, which is the model's data, so each is checked against PageReadRoutes before it is sent.
 public sealed class MyceliumPageReads(MyceliumClient mycelium) : IPageReads
 {
-    /// <summary>What was refused during the call, for the tool to say in its answer: the reader itself
-    /// reads a binding it could not ask as nothing.</summary>
+    // The reader reads a binding it could not ask as nothing, so the tool says from here what was refused.
     public ConcurrentQueue<string> Refused { get; } = new();
 
     public async Task<SelectedThings> SelectAsync(string selectorJson, CancellationToken cancellation)

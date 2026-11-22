@@ -2,7 +2,6 @@ using System.Text.Json.Nodes;
 
 namespace vos.Hypha.Tests.Pages;
 
-/// <summary>The Things a selection answers with for a model that publishes the given pages and holds nothing else.</summary>
 internal static class HandMadePages
 {
     public const string FirstPageId = "00000000-0000-4000-8000-000000000101";
