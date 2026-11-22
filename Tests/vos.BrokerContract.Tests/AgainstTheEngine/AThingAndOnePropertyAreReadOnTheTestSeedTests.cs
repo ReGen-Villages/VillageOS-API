@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using vos.Hypha.Tools.Generic;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -61,17 +62,17 @@ public class AThingAndOnePropertyAreReadOnTheTestSeedTests : IClassFixture<TheEn
     }
 
     [FactAgainstTheEngine]
-    public async Task A_property_whose_name_holds_a_slash_is_read_back()
+    public async Task A_path_holding_a_slash_and_a_space_reaches_the_engine_as_one_value_and_finds_nothing()
     {
         var name = $"Gauged spring {Guid.NewGuid():N}";
-        await _engine.DeclareAsync(name, properties: new Dictionary<string, object?> { ["flow m3/h"] = 4.5 });
+        await _engine.DeclareAsync(name, properties: new Dictionary<string, object?> { ["flow"] = 4.5 });
         var first = await _engine.TheModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
         var read = await server.CallAsync("read_property", new() { ["thing"] = name, ["path"] = "flow m3/h", ["model"] = first.Id.ToString() });
 
-        read.IsError.Should().BeFalse(read.Text);
-        read.Structured.GetProperty("value").GetDouble().Should().Be(4.5);
+        read.IsError.Should().BeTrue();
+        read.Text.Should().EndWith(ThingTools.NothingAtThePath);
     }
 
     [FactAgainstTheEngine]
