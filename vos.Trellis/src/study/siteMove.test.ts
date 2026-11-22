@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { siteAfterImport } from './siteMove';
 import type { BoundaryPoint } from '../utils/parcelGeometry';
 
-// A thousandth of a degree of latitude is 111.2 m, so these offsets put the border's centre at a known distance north.
+// On the mean sphere, so a latitude offset puts the border's centre a known distance north of the site.
 const metresPerDegreeOfLatitude = 111194.9;
 
 function squareCentredAt(latitude: number, longitude: number): BoundaryPoint[] {
