@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { findingsApi } from './findingsApi';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 
 const fetchMock = vi.fn();
 
 const REFERENCE = '9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048';
 const ADDRESS = 'ana.ferreira@example.pt';
+const PAGE = LAND_INTAKE_ROLE.SubmitterProDataPage;
 
 const ANSWER = { specification: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} };
 
@@ -31,7 +33,7 @@ describe('asking the intake service for one submission\'s findings', () => {
   it('spends the code on a ticket and the ticket on the read', async () => {
     answering({ ok: true, json: () => Promise.resolve(ANSWER) });
 
-    await findingsApi.read(REFERENCE, ADDRESS, '123456');
+    await findingsApi.read(REFERENCE, ADDRESS, PAGE, '123456');
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -43,7 +45,7 @@ describe('asking the intake service for one submission\'s findings', () => {
       'http://localhost:6200/submissions/findings',
       expect.objectContaining({
         headers: expect.objectContaining({ 'X-Submission-Ticket': 'ticket-1' }),
-        body: JSON.stringify({ submissionId: REFERENCE, emailAddress: ADDRESS }),
+        body: JSON.stringify({ submissionId: REFERENCE, emailAddress: ADDRESS, page: PAGE }),
       }),
     );
   });
@@ -51,7 +53,7 @@ describe('asking the intake service for one submission\'s findings', () => {
   it('answers with what the service read, and the ticket the page carries on with', async () => {
     answering({ ok: true, headers: new Headers({ 'X-Submission-Ticket': 'ticket-2' }), json: () => Promise.resolve(ANSWER) });
 
-    await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).resolves.toEqual({ findings: ANSWER, ticket: 'ticket-2' });
+    await expect(findingsApi.read(REFERENCE, ADDRESS, PAGE, '123456')).resolves.toEqual({ findings: ANSWER, ticket: 'ticket-2' });
   });
 
   // The service's words, not the status, because they say whether the reference or the address was wrong.
@@ -62,7 +64,7 @@ describe('asking the intake service for one submission\'s findings', () => {
       json: () => Promise.resolve({ error: 'No submission was found for that reference and address.' }),
     });
 
-    await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).rejects.toThrow(
+    await expect(findingsApi.read(REFERENCE, ADDRESS, PAGE, '123456')).rejects.toThrow(
       'No submission was found for that reference and address.',
     );
   });
@@ -70,14 +72,14 @@ describe('asking the intake service for one submission\'s findings', () => {
   it('does not ask for findings when the code bought no ticket', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: 'Not the code.' }) });
 
-    await expect(findingsApi.read(REFERENCE, ADDRESS, '000000')).rejects.toThrow('Not the code.');
+    await expect(findingsApi.read(REFERENCE, ADDRESS, PAGE, '000000')).rejects.toThrow('Not the code.');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('refuses to ask a service whose address is not configured', async () => {
     (import.meta.env as Record<string, string>).VITE_INTAKE_URL = '';
 
-    await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).rejects.toThrow(/VITE_INTAKE_URL/);
+    await expect(findingsApi.read(REFERENCE, ADDRESS, PAGE, '123456')).rejects.toThrow(/VITE_INTAKE_URL/);
   });
 });
 

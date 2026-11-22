@@ -1645,6 +1645,7 @@ export const fr: PartialResources = {
     boundaryTooFewCorners: "La limite a {{corners}} sommets ; il en faut au moins trois.",
     modelRefused: "Le modèle a refusé la soumission : {{refusal}}",
     referenceAndAddressNeeded: "La référence et l’adresse e-mail sont toutes deux nécessaires.",
+    pageNotOffered: "Cette page ne peut pas être affichée ici. Ouvrez la page de données Lite ou Pro.",
     notYourSubmission: "Aucune soumission n’a été trouvée pour cette référence et cette adresse. Vérifiez les deux ; une soumission est effacée une fois traitée.",
     reductionMalformed: "Cette page a demandé un historique qu’elle n’a pas su décrire.",
     fileNotAForm: "Le fichier n’a pas été envoyé sous forme de formulaire.",

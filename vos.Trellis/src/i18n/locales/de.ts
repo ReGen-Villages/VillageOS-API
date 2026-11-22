@@ -1645,6 +1645,7 @@ export const de: PartialResources = {
     boundaryTooFewCorners: "Die Grenze hat {{corners}} Eckpunkte; sie braucht mindestens drei.",
     modelRefused: "Das Modell hat die Einreichung abgelehnt: {{refusal}}",
     referenceAndAddressNeeded: "Sowohl die Referenz als auch die E-Mail-Adresse werden benötigt.",
+    pageNotOffered: "Diese Seite kann hier nicht angezeigt werden. Öffnen Sie die Lite- oder die Pro-Datenseite.",
     notYourSubmission: "Zu dieser Referenz und Adresse wurde keine Einreichung gefunden. Prüfen Sie beides; eine Einreichung wird gelöscht, sobald sie bearbeitet wurde.",
     reductionMalformed: "Diese Seite hat einen Verlauf angefordert, den sie nicht beschreiben konnte.",
     fileNotAForm: "Die Datei wurde nicht als Formular gesendet.",

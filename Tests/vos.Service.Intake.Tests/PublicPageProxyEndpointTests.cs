@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -134,6 +135,22 @@ public class PublicPageProxyEndpointTests
         asked.GetProperty("property").GetString().Should().Be("temperatureCelsius");
         asked.GetProperty("steps").GetArrayLength().Should().Be(2);
         response.Headers.GetValues(TicketHeader).Single().Should().NotBeNullOrEmpty("every act with a live ticket hands a fresh one back");
+    }
+
+    // Whose submission it is follows from the contact's address alone, not from any page binding.
+    [Fact]
+    public async Task A_submitter_reduces_a_series_of_their_own_site_though_the_model_binds_no_page()
+    {
+        var (factory, broker) = Holding(ModelWithTiles()
+            .Unbound(LandIntakeRoles.SubmitterProDataPage).Unbound(LandIntakeRoles.SubmitterLiteDataPage));
+        await using var _ = factory;
+        using var client = factory.CreateClient();
+        var ticket = await TicketFor(factory, client, ThisAddress);
+
+        var response = await ReduceAsync(client, WillowBend.SubmissionId, ticket);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        broker.ReduceCalls.Should().ContainSingle();
     }
 
     [Fact]

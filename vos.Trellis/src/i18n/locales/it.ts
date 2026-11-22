@@ -1645,6 +1645,7 @@ export const it: PartialResources = {
     boundaryTooFewCorners: "Il confine ha {{corners}} vertici; ne servono almeno tre.",
     modelRefused: "Il modello ha rifiutato l’invio: {{refusal}}",
     referenceAndAddressNeeded: "Servono sia il riferimento sia l’indirizzo email.",
+    pageNotOffered: "Questa pagina non può essere mostrata qui. Apri la pagina dei dati Lite o Pro.",
     notYourSubmission: "Nessun invio trovato per quel riferimento e quell’indirizzo. Controlla entrambi; un invio viene cancellato una volta gestito.",
     reductionMalformed: "Questa pagina ha chiesto una cronologia che non è riuscita a descrivere.",
     fileNotAForm: "Il file non è stato inviato come modulo.",

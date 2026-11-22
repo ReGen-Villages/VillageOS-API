@@ -281,6 +281,23 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         broker.Fragments.Should().BeEmpty();
     }
 
+    // Whose submission it is follows from the contact's address alone, not from any page binding.
+    [Fact]
+    public async Task A_submitter_lists_their_files_though_the_model_binds_no_page()
+    {
+        var (factory, _) = Holding(ModelWithDocuments()
+            .Unbound(LandIntakeRoles.SubmitterProDataPage).Unbound(LandIntakeRoles.SubmitterLiteDataPage));
+        await using var __ = factory;
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/submissions/{WillowBend.SubmissionId}/documents");
+        request.Headers.Add(TicketHeader, await TicketFor(factory, client, ThisAddress));
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documents").GetArrayLength().Should().Be(1);
+    }
+
     [Fact]
     public async Task A_submitter_lists_the_files_their_project_shares()
     {
