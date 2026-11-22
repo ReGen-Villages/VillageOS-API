@@ -43,7 +43,7 @@ public sealed class ServiceCallTools(ModelClients clients, TimeProvider? clock =
         [Description("The Thing, by its identifier or by its name where one Thing holds that name.")] string thing,
         CancellationToken cancellationToken,
         [Description("Seconds to keep reading until no call is still going, from 0 to 120. 0 reads once.")] int wait_seconds = 0,
-        [Description("The model to read, by name or identifier. Left out, the model the key is for.")] string? model = null)
+        [Description(ModelClients.ParameterDescription)] string? model = null)
     {
         if (wait_seconds is < 0 or > LongestWaitSeconds)
             throw new McpException($"wait_seconds is from 0 to {LongestWaitSeconds}; {wait_seconds} was given.");
