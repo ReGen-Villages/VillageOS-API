@@ -1727,6 +1727,8 @@ export const it: PartialResources = {
       choosePlot: 'Scegli particella',
       plotsComingSoon: 'In arrivo: servono i dati catastali delle particelle',
       confirmSite: 'Conferma terreno',
+      siteLabel: 'Terreno',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };

@@ -1,4 +1,4 @@
-import type { BoundaryPoint } from '../utils/parcelGeometry';
+import { middleOfExtent, type BoundaryPoint } from '../utils/parcelGeometry';
 
 export interface SiteAfterImport {
   readonly position: BoundaryPoint;
@@ -13,15 +13,6 @@ export function siteAfterImport(site: BoundaryPoint | null, border: readonly Bou
   const centre = middleOfExtent(border);
   if (site === null || metresBetween(site, centre) > SITE_MOVES_BEYOND_METRES) return { position: centre, moved: true };
   return { position: site, moved: false };
-}
-
-function middleOfExtent(border: readonly BoundaryPoint[]): BoundaryPoint {
-  const latitudes = border.map((corner) => corner.latitude);
-  const longitudes = border.map((corner) => corner.longitude);
-  return {
-    latitude: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
-    longitude: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
-  };
 }
 
 function metresBetween(from: BoundaryPoint, to: BoundaryPoint): number {

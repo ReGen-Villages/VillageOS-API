@@ -20,7 +20,7 @@ import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource, RaisedGround } from '../../types/basemap';
 import type { ViewBox } from '../../api/intakeApi';
-import { circleOfAreaAround, enclosesLand, type BoundaryPoint } from '../../utils/parcelGeometry';
+import { circleOfAreaAround, enclosesLand, middleOfExtent, type BoundaryPoint } from '../../utils/parcelGeometry';
 import { sideMidpoints, type BorderEdit } from './borderEdit';
 
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
@@ -108,6 +108,8 @@ interface MapViewProps {
   /** A polygon drawn over the basemap. Fewer than three corners enclose nothing and draw nothing,
    *  though each corner still gets its handle while the boundary is editable. */
   boundary?: readonly BoundaryPoint[];
+  /** Shown at the middle of the boundary while it encloses land. */
+  boundaryLabel?: string;
   borderColours?: BorderColours;
   borderEditing?: BorderEditing;
   /** Drawn as a dashed circle round the position while no boundary encloses land. */
@@ -133,6 +135,7 @@ export function MapView({
   initialZoom = DEFAULT_ZOOM,
   focusZoom,
   boundary,
+  boundaryLabel,
   borderColours = CONSOLE_BORDER_COLOURS,
   borderEditing,
   approximateHectares,
@@ -221,6 +224,21 @@ export function MapView({
   );
   const boundaryLayers = useMemo(() => borderLayers(borderColours), [borderColours]);
   useOverlay(map, mapGeneration, BOUNDARY_SOURCE_ID, boundaryOutline, boundaryLayers);
+
+  // A marker rather than a text layer, because a basemap style need not carry the fonts a text layer draws with.
+  useEffect(() => {
+    const current = map.current;
+    if (!current || !boundaryLabel || !boundary || !enclosesLand(boundary)) return;
+    const element = document.createElement('div');
+    element.textContent = boundaryLabel;
+    element.style.color = borderColours.outline;
+    element.className = 'rounded bg-white/90 px-1 text-xs font-semibold shadow';
+    const middle = middleOfExtent(boundary);
+    const label = new Marker({ element }).setLngLat([middle.longitude, middle.latitude]).addTo(current);
+    return () => {
+      label.remove();
+    };
+  }, [boundaryLabel, boundary, borderColours.outline, mapGeneration]);
 
   const approximateCircle = useMemo(
     () =>

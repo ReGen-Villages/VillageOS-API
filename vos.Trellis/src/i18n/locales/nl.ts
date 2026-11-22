@@ -1727,6 +1727,8 @@ export const nl: PartialResources = {
       choosePlot: 'Perceel kiezen',
       plotsComingSoon: 'Binnenkort: vraagt kadastrale perceelgegevens',
       confirmSite: 'Terrein bevestigen',
+      siteLabel: 'Terrein',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };

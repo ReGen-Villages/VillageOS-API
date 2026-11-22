@@ -1726,6 +1726,8 @@ export const en = {
       choosePlot: 'Choose plot',
       plotsComingSoon: 'Coming soon: needs cadastral plot data',
       confirmSite: 'Confirm site',
+      siteLabel: 'Site',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };
