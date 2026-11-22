@@ -115,6 +115,27 @@ describe('before a site', () => {
     expect(screen.getByRole('button', { name: 'Import file' })).toBeInTheDocument();
     expect(map()).toMatchObject({ latitude: 24, longitude: 47, showMarker: false });
   });
+
+  it('opens the file chooser from Import file, before a site and after one', async () => {
+    const chooserOpened = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      await opened();
+      press('Import file');
+      await findSiteByCoordinates();
+      press('Import file');
+
+      expect(chooserOpened).toHaveBeenCalledTimes(2);
+    } finally {
+      chooserOpened.mockRestore();
+    }
+  });
+
+  it('shows what the intake said when it cannot give the form', async () => {
+    vi.mocked(intakeApi.formOptions).mockRejectedValue(new Error('The intake cannot read the model.'));
+    await opened();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The intake cannot read the model.');
+  });
 });
 
 describe('finding the site', () => {
@@ -236,6 +257,30 @@ describe('drawing the border', () => {
     expect(sitesShown.at(-1)?.border[2]).toEqual(at(25.16, 55.56));
   });
 
+  it('finishes editing on Esc, keeping the moved corner', async () => {
+    await opened();
+    await findSiteByCoordinates();
+    await drawBorder();
+    press('Edit border');
+    edit({ kind: 'move', index: 2, to: at(25.16, 55.56) });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(await screen.findByRole('button', { name: 'Redraw' })).toBeInTheDocument();
+    expect(sitesShown.at(-1)?.border[2]).toEqual(at(25.16, 55.56));
+  });
+
+  it('starts a new border on Redraw', async () => {
+    await opened();
+    await findSiteByCoordinates();
+    await drawBorder();
+
+    press('Redraw');
+
+    expect(map().boundary).toEqual([]);
+    expect(map().borderEditing).toMatchObject({ placesCorners: true, movesCorners: false });
+  });
+
   it('clears the border', async () => {
     await opened();
     await findSiteByCoordinates();
@@ -339,6 +384,29 @@ describe('choosing a plot', () => {
 
     expect(await screen.findByRole('definition', { name: 'Site area' })).toHaveTextContent('9.0 ha (Plot 7)');
     expect(map().plots).toBeUndefined();
+  });
+
+  it('greys Choose plot once the intake says no register covers the view', async () => {
+    vi.mocked(intakeApi.plotsInView).mockResolvedValue({ plots: null, attributions: [], ticket: 'ticket-1' });
+    await opened();
+    await findSiteByCoordinates();
+    act(() => map().onViewSettle!(VIEW, 16));
+
+    press('Choose plot');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose plot' })).toBeDisabled());
+    expect(intakeApi.plotsInView).toHaveBeenCalledWith(VIEW, 16, 'ticket-1');
+  });
+
+  it('shows what the intake said when it refuses the plots', async () => {
+    vi.mocked(intakeApi.plotsInView).mockRejectedValue(new Error('Too many requests for now.'));
+    await opened();
+    await findSiteByCoordinates();
+    act(() => map().onViewSettle!(VIEW, 16));
+
+    press('Choose plot');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests for now.');
   });
 });
 
