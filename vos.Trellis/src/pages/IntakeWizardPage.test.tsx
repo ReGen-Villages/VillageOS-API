@@ -103,6 +103,14 @@ const THINGS: VosThing[] = [
   thing('severity', 'Severity', true),
   thing('bad', 'bad'),
   thing('mild', 'mild'),
+  thing(LAND_INTAKE_ROLE.Parcel, 'parcel'),
+  thing(LAND_INTAKE_ROLE.MeasuresAreaWith, 'measuresAreaWith'),
+  thing(LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'meanSphereAreaMethod'),
+  thing(LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'wgs84EllipsoidAreaMethod'),
+  thing('plot', 'Plot', true),
+  thing('measured-with', 'measuredWithMethod'),
+  thing('round', 'Round earth'),
+  thing('oblate', 'Flattened earth'),
   {
     Id: 'aerial',
     Name: 'Aerial imagery',
@@ -123,7 +131,17 @@ const EDGES: VosRelationship[] = [
   edge('e6', 'slippage', 'is', 'peril'),
   edge('e7', 'bad', 'is', 'severity'),
   edge('e8', 'mild', 'is', 'severity'),
+  edge('b5', LAND_INTAKE_ROLE.Parcel, 'binds', 'plot'),
+  edge('b6', LAND_INTAKE_ROLE.MeasuresAreaWith, 'binds', 'measured-with'),
+  edge('b7', LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'binds', 'round'),
+  edge('b8', LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'binds', 'oblate'),
+  edge('m1', 'plot', 'measured-with', 'round'),
 ];
+
+function measuringWith(method: 'round' | 'oblate' | null): VosRelationship[] {
+  const others = EDGES.filter((held) => held.Id !== 'm1');
+  return method === null ? others : [...others, edge('m1', 'plot', 'measured-with', method)];
+}
 
 const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {};
 
@@ -478,6 +496,40 @@ describe('the parcel step', () => {
     goToStep(4);
 
     expect(screen.getByText(/away from the stated area/)).toBeInTheDocument();
+  });
+
+  describe('measuring the drawn border with the method the model configures', () => {
+    // A box a hundredth of a degree square at the equator, against a stated 100 ha: 123.64 ha on the mean sphere,
+    // 123.09 ha on the WGS84 ellipsoid.
+    const box = [
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 0.01 },
+      { latitude: 0.01, longitude: 0.01 },
+      { latitude: 0.01, longitude: 0 },
+    ];
+
+    it.each([
+      ['round', '23.6%'],
+      ['oblate', '23.1%'],
+    ] as const)('measures with the method the parcel archetype chooses (%s)', async (method, apart) => {
+      vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(method)));
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      render(<IntakeWizardPage />);
+      goToStep(4);
+
+      expect(await screen.findByText(`The drawn area is ${apart} away from the stated area.`)).toBeInTheDocument();
+    });
+
+    it('compares no areas where the model chooses no method', async () => {
+      vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(null)));
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      render(<IntakeWizardPage />);
+      goToStep(4);
+      await act(() => new Promise((resolve) => setTimeout(resolve, ANSWER_DELAY_MILLISECONDS * 3)));
+
+      expect(screen.queryByText(/away from the stated area/)).not.toBeInTheDocument();
+      expect(screen.queryByText('The drawn and stated areas agree within tolerance.')).not.toBeInTheDocument();
+    });
   });
 
   it('clears the boundary from the map and the stored draft together', async () => {
