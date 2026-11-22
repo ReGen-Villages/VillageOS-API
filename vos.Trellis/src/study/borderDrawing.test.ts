@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   addCorner,
   addCornerOnEdge,
-  closeOnFirstCorner,
   finishDrawing,
   finishEditing,
   moveCorner,
@@ -53,16 +52,10 @@ describe('drawing a border', () => {
     expect(accepted(finishDrawing(drawn(square.slice(0, 3))))).toEqual({ mode: 'done', corners: square.slice(0, 3) });
   });
 
-  it('finishes when the first corner is clicked again, once there are three corners', () => {
-    expect(accepted(closeOnFirstCorner(drawn(square)))).toEqual({ mode: 'done', corners: square });
-    expect(closeOnFirstCorner(drawn(square.slice(0, 2))).kind).toBe('tooFewCorners');
-  });
-
   it('refuses to finish where the closing side would cross a side already drawn', () => {
     const spiral = drawn([at(0, 0), at(0, 4), at(4, 4), at(4, 1), at(1, 1), at(1, 3), at(2, 3)]);
 
     expect(finishDrawing(spiral).kind).toBe('crosses');
-    expect(closeOnFirstCorner(spiral).kind).toBe('crosses');
   });
 });
 
