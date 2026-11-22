@@ -32,7 +32,8 @@ public class ThePressToolsTests
 
         var tools = (await server.Client.ListToolsAsync()).ToDictionary(tool => tool.Name, tool => tool.ProtocolTool.Annotations!);
 
-        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models", "list_pages", "read_page", "explain", "offered_choices", "press"]);
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(
+            ["list_models", "describe_model", "find_things", "get_thing", "read_property", "list_pages", "read_page", "explain", "offered_choices", "press"]);
         tools["offered_choices"].ReadOnlyHint.Should().BeTrue();
         tools["press"].ReadOnlyHint.Should().BeFalse();
         tools["press"].DestructiveHint.Should().BeTrue();
@@ -43,7 +44,8 @@ public class ThePressToolsTests
     {
         await using var server = await StartAsync(MyceliumFor(() => "viewer", ModelTakingPresses().Answer));
 
-        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models", "list_pages", "read_page", "explain", "offered_choices"]);
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(
+            ["list_models", "describe_model", "find_things", "get_thing", "read_property", "list_pages", "read_page", "explain", "offered_choices"]);
     }
 
     [Fact]
@@ -51,7 +53,8 @@ public class ThePressToolsTests
     {
         await using var server = await StartAsync(MyceliumFor(() => "editor", ModelTakingPresses(bindsThePageRole: false).Answer));
 
-        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(["list_models", "list_pages", "read_page", "explain"]);
+        (await server.ListedToolNamesAsync()).Should().BeEquivalentTo(
+            ["list_models", "describe_model", "find_things", "get_thing", "read_property", "list_pages", "read_page", "explain"]);
     }
 
     [Fact]
