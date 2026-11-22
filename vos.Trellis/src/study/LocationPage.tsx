@@ -41,17 +41,20 @@ const PARCEL_FILE_TYPES = '.kml,.kmz,.geojson,.json,.gpx';
 
 type ElevationLookup = { readonly kind: 'loading' } | { readonly kind: 'found'; readonly elevation: Elevation } | { readonly kind: 'none' };
 
-interface LocationPageProps {
+export function LocationPage({
+  session,
+  site,
+  onSiteChange,
+  onConfirmed,
+}: {
   session: StudySession;
-  /** Renewed from every answer the intake gives, so each request carries the newest. */
-  ticketRef: { current: string };
   site: LocationSite | null;
   onSiteChange: (site: LocationSite) => void;
   onConfirmed: (submissionId: string) => void;
-}
-
-export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirmed }: LocationPageProps) {
+}) {
   const { t } = useTranslation();
+  // Renewed from every answer the intake gives, so each request carries the newest.
+  const ticket = useRef(session.ticket);
   const [form, setForm] = useState<FormOptions | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -108,8 +111,8 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
     await new Promise((resolve) => setTimeout(resolve, decision.afterMilliseconds));
     lastSearchAt.current = Date.now();
     try {
-      const { places, ticket } = await intakeApi.searchPlaces(decision.query, ticketRef.current);
-      ticketRef.current = ticket;
+      const { places, ticket: renewed } = await intakeApi.searchPlaces(decision.query, ticket.current);
+      ticket.current = renewed;
       const first = places[0];
       if (first === undefined) return setSearchNotice(t('study.location.searchNoMatch'));
       setSearchNotice(null);
@@ -162,8 +165,8 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
   async function importFile(file: File) {
     setFileNotice(null);
     try {
-      const { largestArea, ticket } = await intakeApi.readFile(file, session.emailAddress, ticketRef.current);
-      ticketRef.current = ticket;
+      const { largestArea, ticket: renewed } = await intakeApi.readFile(file, session.emailAddress, ticket.current);
+      ticket.current = renewed;
       if (largestArea === null) return setFileNotice(t('study.location.noPolygon'));
       setImportedFile(file);
       choose(borderImported(site, largestArea));
@@ -177,8 +180,8 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
     if (zoom < PLOTS_FROM_ZOOM) return setPlots([]);
     plotsTimer.current = setTimeout(async () => {
       try {
-        const answered = await intakeApi.plotsInView(view, zoom, ticketRef.current);
-        ticketRef.current = answered.ticket;
+        const answered = await intakeApi.plotsInView(view, zoom, ticket.current);
+        ticket.current = answered.ticket;
         if (answered.plots === null) {
           setNoPlotRegister(true);
           setChoosingPlot(false);
@@ -206,9 +209,9 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
   useEffect(() => {
     if (border === undefined || !enclosesLand(border)) return;
     let live = true;
-    intakeApi.borderElevation(border, ticketRef.current).then(
-      ({ elevation: found, ticket }) => {
-        ticketRef.current = ticket;
+    intakeApi.borderElevation(border, ticket.current).then(
+      ({ elevation: found, ticket: renewed }) => {
+        ticket.current = renewed;
         if (live) setElevation({ border, lookup: found === null ? { kind: 'none' } : { kind: 'found', elevation: found } });
       },
       () => live && setElevation({ border, lookup: { kind: 'none' } }),
@@ -216,7 +219,7 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
     return () => {
       live = false;
     };
-  }, [border, ticketRef]);
+  }, [border]);
   const elevationShown: ElevationLookup | null =
     border === undefined || !enclosesLand(border)
       ? null
@@ -230,9 +233,9 @@ export function LocationPage({ session, ticketRef, site, onSiteChange, onConfirm
     setRefusal(null);
     try {
       const submissionId = crypto.randomUUID();
-      const posted = await intakeApi.submitWithTicket(siteDocument(site, session, submissionId), ticketRef.current);
-      ticketRef.current = posted.ticket;
-      if (importedFile !== null) ticketRef.current = await intakeApi.sendDocument(submissionId, importedFile, ticketRef.current);
+      const posted = await intakeApi.submitWithTicket(siteDocument(site, session, submissionId), ticket.current);
+      ticket.current = posted.ticket;
+      if (importedFile !== null) ticket.current = await intakeApi.sendDocument(submissionId, importedFile, ticket.current);
       onConfirmed(submissionId);
     } catch (error) {
       setRefusal(messageOf(error));

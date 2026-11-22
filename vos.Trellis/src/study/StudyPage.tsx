@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LocationPage } from './LocationPage';
 import type { LocationSite } from './locationSite';
@@ -15,7 +15,6 @@ function StudyFrame({ session }: { session: StudySession }) {
   const [edition, setEdition] = useState<Edition>(() => editionChosen(localStorage));
   // Location is the one step with a page so far.
   const current: StudyStep = 'location';
-  const ticketRef = useRef(session.ticket);
   const [site, setSite] = useState<LocationSite | null>(null);
   const [confirmedSubmission, setConfirmedSubmission] = useState<string | null>(null);
   const locationConfirmed = confirmedSubmission !== null;
@@ -54,7 +53,6 @@ function StudyFrame({ session }: { session: StudySession }) {
         )}
         <LocationPage
           session={session}
-          ticketRef={ticketRef}
           site={site}
           onSiteChange={siteChanged}
           onConfirmed={setConfirmedSubmission}

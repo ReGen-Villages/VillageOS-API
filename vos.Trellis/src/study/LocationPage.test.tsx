@@ -57,11 +57,9 @@ const sitesShown: (LocationSite | null)[] = [];
 
 function Page() {
   const [site, setSite] = useState<LocationSite | null>(null);
-  const [ticket] = useState(() => ({ current: SESSION.ticket }));
   return (
     <LocationPage
       session={SESSION}
-      ticketRef={ticket}
       site={site}
       onSiteChange={(changed) => {
         sitesShown.push(changed);
