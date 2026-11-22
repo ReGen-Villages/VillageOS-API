@@ -25,6 +25,7 @@ interface RecordedMap {
   maxPitch: number;
   bearing: number;
   addedLayers: { id: string; [key: string]: unknown }[];
+  zoom: number;
 }
 
 interface RecordedMarker {
@@ -241,7 +242,9 @@ const maps = mocks.mapInstances as RecordedMap[];
 const markers = mocks.markerInstances as RecordedMarker[];
 const markerPositions = mocks.markerPositions;
 
-const draggable = () => markers.filter((marker) => marker.options.draggable === true);
+/** Handles are built again for each new map, the first one included, so only those not taken off are on it. */
+const onTheMap = (marker: RecordedMarker) => marker.remove.mock.calls.length === 0;
+const draggable = () => markers.filter((marker) => marker.options.draggable === true && onTheMap(marker));
 
 /** A map draws nothing until its style is in, so a test about what is drawn has to let it arrive. */
 const theStyleArrives = () => act(() => maps[0].finishLoadingTheStyle());
@@ -537,8 +540,8 @@ describe('editing the border', () => {
     { latitude: 41.382, longitude: -70.64 },
     { latitude: 41.382, longitude: -70.638 },
   ];
-  const corners = () => markers.filter((marker) => marker.options.className === 'border-corner');
-  const midpoints = () => markers.filter((marker) => marker.options.className === 'border-midpoint');
+  const corners = () => markers.filter((marker) => marker.options.className === 'border-corner' && onTheMap(marker));
+  const midpoints = () => markers.filter((marker) => marker.options.className === 'border-midpoint' && onTheMap(marker));
   const pressed = () => ({ originalEvent: { stopPropagation: vi.fn() } });
 
   function drawing(onEdit = vi.fn()) {
@@ -646,7 +649,7 @@ describe('editing the border', () => {
     );
 
     before.forEach((handle) => expect(handle.remove).toHaveBeenCalled());
-    expect(corners().filter((corner) => !corner.remove.mock.calls.length)).toHaveLength(4);
+    expect(corners()).toHaveLength(4);
   });
 });
 
@@ -672,7 +675,7 @@ describe('the colours of the border', () => {
 
     expect(paintOf('boundary-line')).toMatchObject({ 'line-color': '#a9413d' });
     expect(paintOf('boundary-fill')).toMatchObject({ 'fill-color': '#f08a24', 'fill-opacity': 0.45 });
-    expect(markers.filter((marker) => marker.options.className === 'border-corner')[0].options.color).toBe('#a9413d');
+    expect(markers.filter((marker) => marker.options.className === 'border-corner' && onTheMap(marker))[0].options.color).toBe('#a9413d');
   });
 
   it('draws it in the console’s green where the page gives none', () => {
