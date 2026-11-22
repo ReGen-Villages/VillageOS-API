@@ -14,6 +14,22 @@ public class NameResolverTests
     }
 
     [Fact]
+    public async Task ResolveNameAsync_TwiceOnOneResolver_BuildsTheMapOfNamesOnceAndReadsEveryThingOnce()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{first}\",\"Name\":\"Cold spring\"}},{{\"Id\":\"{second}\",\"Name\":\"Fern spring\"}}]"));
+        var resolver = new NameResolver(_myceliumMock.Object);
+
+        Assert.Equal("Cold spring", await resolver.ResolveNameAsync(first));
+        var built = await resolver.GetGuidToNameMapAsync();
+        Assert.Equal("Fern spring", await resolver.ResolveNameAsync(second));
+        Assert.Same(built, await resolver.GetGuidToNameMapAsync());
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task ResolveThingAsync_WithValidGuid_ReturnsGuidDirectly()
     {
         var expectedId = Guid.NewGuid();

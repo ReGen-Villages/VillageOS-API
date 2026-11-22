@@ -50,8 +50,7 @@ public class GetCommandHandlerTests
     [Fact]
     public async Task GetThing_InvalidNameOrGuid_ShowsError()
     {
-        var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetThingByNameAsync("invalid-name")).ReturnsAsync(new ThingByName(null, []));
 
         await ExecuteHandler("thing invalid-name");
 
@@ -62,10 +61,8 @@ public class GetCommandHandlerTests
     public async Task GetThing_WithName_ReturnsJson()
     {
         var thingId = Guid.NewGuid();
-        var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-
         var thingJson = JsonSerializer.Deserialize<JsonElement>($"{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}");
+        _myceliumMock.Setup(b => b.GetThingByNameAsync("MyThing")).ReturnsAsync(new ThingByName(thingJson, []));
         _myceliumMock.Setup(b => b.GetThingAsync(thingId)).ReturnsAsync(thingJson);
 
         await ExecuteHandler("thing MyThing");

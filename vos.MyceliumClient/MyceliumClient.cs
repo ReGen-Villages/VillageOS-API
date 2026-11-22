@@ -332,6 +332,43 @@ public partial class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement> GetPropertiesAsync(Guid thingId)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetInheritedPropertiesAsync(Guid thingId)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/inherited-properties");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Null where nothing is at the path, or the Thing cannot be read; the platform answers both alike.
+    public virtual Task<PropertyAtPath?> GetThingPropertyByPathAsync(Guid thingId, string path) =>
+        PropertyByPathAsync($"/api/things/{thingId}/properties/by-path/{PlatformRoute.CatchAll(path)}");
+
+    public virtual Task<PropertyAtPath?> GetRelationshipPropertyByPathAsync(Guid relationshipId, string path) =>
+        PropertyByPathAsync($"/api/relationships/{relationshipId}/properties/by-path/{PlatformRoute.CatchAll(path)}");
+
+    private async Task<PropertyAtPath?> PropertyByPathAsync(string route)
+    {
+        var response = await _httpClient.GetAsync(PlatformRoute.AddressOf(_myceliumUrl, route));
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var refusal = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return PropertyAtPath.MatchingMoreThanOne(
+                [.. refusal.GetProperty("matchingPaths").EnumerateArray().Select(path => path.GetString()!)]);
+        }
+
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return PropertyAtPath.From(await response.Content.ReadFromJsonAsync<JsonElement>());
+    }
+
     // The platform reads a comma in the name as separating several names, so a name holding one cannot be asked for.
     public virtual async Task<ThingByName> GetThingByNameAsync(string name)
     {

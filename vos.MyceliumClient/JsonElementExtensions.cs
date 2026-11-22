@@ -35,6 +35,13 @@ namespace vos.PlatformClient
                 : null;
         }
 
+        public static Guid? GetNullableGuid(this JsonElement element, string propertyName)
+        {
+            return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String
+                ? prop.GetGuid()
+                : null;
+        }
+
         public static bool HasObjectProperty(this JsonElement element, string propertyName)
         {
             return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.Object;
