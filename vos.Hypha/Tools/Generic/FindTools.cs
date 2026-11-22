@@ -33,7 +33,7 @@ public sealed class FindTools(ModelClients clients)
         [Description("The exact text the property must hold.")] string? property_value = null,
         [Description("The properties to answer with each Thing. Not answered when name_contains is given.")] string[]? properties = null,
         [Description("The most Things to answer.")] int? limit = null,
-        [Description("The model to ask, as an identifier or a name; the server's own when left out.")] string? model = null)
+        [Description(ModelClients.ParameterDescription)] string? model = null)
     {
         var mycelium = await clients.ForAsync(model);
         var most = ListingLimits.For(limit);

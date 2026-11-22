@@ -37,7 +37,7 @@ public sealed class ModelTools(ModelClients clients)
     [RequiresPolicy(MyceliumPolicy.ReadModel)]
     public async Task<ModelDescribed> DescribeModelAsync(
         [Description("Also answer, for each name, which kinds of reader ask for it. Long, and for diagnosis.")] bool include_readers = false,
-        [Description("The model to ask, as an identifier or a name; the server's own when left out.")] string? model = null)
+        [Description(ModelClients.ParameterDescription)] string? model = null)
     {
         var asked = await clients.ForAsync(model);
         if (await asked.GetModelDeclarationsAsync() is not { } answered)
