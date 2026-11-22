@@ -49,6 +49,19 @@ describe('signing in', () => {
     expect(screen.getByLabelText('Email')).toHaveValue('ana.ferreira@example.pt');
   });
 
+  it('starts with an empty address where the browser keeps nothing', () => {
+    const refusing = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage is off');
+    });
+    try {
+      render(<StudyPage />);
+
+      expect(screen.getByLabelText('Email')).toHaveValue('');
+    } finally {
+      refusing.mockRestore();
+    }
+  });
+
   it('says what is missing and sends nothing', () => {
     render(<StudyPage />);
 

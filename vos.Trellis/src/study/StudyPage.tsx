@@ -55,7 +55,7 @@ function StudyFrame({ session }: { session: StudySession }) {
                   onClick={() => open(step)}
                   aria-current={step === current ? 'step' : undefined}
                   title={canOpen(step, true) === 'notBuilt' ? t('study.comingSoon') : undefined}
-                  className={`rounded-md px-3 py-1 text-sm ${step === current ? 'bg-zinc-800 text-white' : canOpen(step, true) === 'notBuilt' ? 'text-zinc-400' : ''}`}
+                  className={`rounded-md px-3 py-1 text-sm ${step === current ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`}
                 >
                   {t(`study.steps.${step}`)}
                 </button>

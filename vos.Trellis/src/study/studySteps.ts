@@ -11,8 +11,6 @@ const STEPS: Record<Edition, StudyStep[]> = {
   lite: ['location', 'data', 'villageLayout', 'timeline'],
 };
 
-const STEPS_WITH_A_PAGE: ReadonlySet<StudyStep> = new Set(['location']);
-
 const EDITION_KEY = 'studyEdition';
 
 export function stepsFor(edition: Edition): StudyStep[] {
@@ -21,8 +19,7 @@ export function stepsFor(edition: Edition): StudyStep[] {
 
 export function canOpen(step: StudyStep, locationConfirmed: boolean): true | 'locationNeeded' | 'notBuilt' {
   if (step === 'location') return true;
-  if (!locationConfirmed) return 'locationNeeded';
-  return STEPS_WITH_A_PAGE.has(step) ? true : 'notBuilt';
+  return locationConfirmed ? 'notBuilt' : 'locationNeeded';
 }
 
 // A browser that keeps nothing, as in a private window, is given Lite, as the demo gives it.
