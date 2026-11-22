@@ -1,7 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using FluentAssertions;
 #if VOS_ENGINE_IS_STAGED
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using vos.Mycelium.Testing;
 #endif
 using vos.Service.Shared;
@@ -40,6 +43,8 @@ public sealed class TheEngine : IAsyncLifetime
         "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
 
     public Task DisposeAsync() => Task.CompletedTask;
+
+    private string SeedsDirectory => throw new InvalidOperationException("No engine is staged.");
 #else
     private MyceliumTestHost _host = null!;
 
@@ -67,6 +72,8 @@ public sealed class TheEngine : IAsyncLifetime
         _host.Dispose();
         return Task.CompletedTask;
     }
+
+    private string SeedsDirectory => _host.Services.GetRequiredService<IConfiguration>()["Seeds:Directory"]!;
 #endif
 
     public async Task<HttpClient> EditorAsync()
@@ -78,6 +85,21 @@ public sealed class TheEngine : IAsyncLifetime
     }
 
     private const string EditorRole = "editor";
+
+    // Templates sit below the seeds directory, which startup has already loaded, so the copy is read only when the model is made.
+    public async Task<Guid> CreateModelFromAsync(string seedFile, string modelName)
+    {
+        var templates = Path.Combine(SeedsDirectory, "templates");
+        Directory.CreateDirectory(templates);
+        var template = $"{Guid.NewGuid():N}.seed.json";
+        File.Copy(seedFile, Path.Combine(templates, template));
+
+        var identifier = Guid.NewGuid();
+        var made = await Admin.PostAsJsonAsync("/api/models", new { Name = modelName, Template = template, ModelId = identifier });
+        made.IsSuccessStatusCode.Should().BeTrue(
+            "the engine makes a model from the template, but it answered {0}: {1}", (int)made.StatusCode, await made.Content.ReadAsStringAsync());
+        return identifier;
+    }
 
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.
@@ -165,8 +187,13 @@ public sealed class TheEngine : IAsyncLifetime
         return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
     }
 
-    private async Task<Guid> TheModelIdAsync() =>
-        Field((await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single(), "id").GetGuid();
+    private async Task<Guid> TheModelIdAsync() => (await TheModelAsync()).Id;
+
+    public async Task<(Guid Id, string Name)> TheModelAsync()
+    {
+        var model = (await Admin.GetFromJsonAsync<JsonElement>("/api/models")).EnumerateArray().Single();
+        return (Field(model, "id").GetGuid(), Field(model, "name").GetString()!);
+    }
 
     private async Task<string> TokenOfANewKeyAsync(object key)
     {

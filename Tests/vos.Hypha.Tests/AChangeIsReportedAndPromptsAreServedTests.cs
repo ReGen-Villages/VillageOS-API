@@ -14,7 +14,7 @@ namespace vos.Hypha.Tests;
 public class AChangeIsReportedAndPromptsAreServedTests
 {
     private static ActivityReport AReportTo(MockHttpMessageHandler mycelium) =>
-        new(ServerProgram.ClientFor(MyceliumUrl, ApiKey, new HttpClient(mycelium)), NullLogger<ActivityReport>.Instance);
+        new(ServerProgram.ClientFor(MyceliumUrl, ApiKey, mycelium), NullLogger<ActivityReport>.Instance);
 
     [Fact]
     public async Task A_change_is_reported_to_Mycelium_as_an_action_made_through_this_program()
