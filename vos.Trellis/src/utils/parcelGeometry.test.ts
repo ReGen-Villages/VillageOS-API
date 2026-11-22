@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { borderAreaHectares } from './borderArea';
-import { AREA_MATCH_TOLERANCE, areaMatch, circleOfAreaAround, draftSquareAround } from './parcelGeometry';
+import { AREA_MATCH_TOLERANCE, areaMatch, circleOfAreaAround, draftSquareAround, middleOfExtent } from './parcelGeometry';
+
+describe('the middle of a border', () => {
+  it('is the middle of the box round it, however its corners are spread', () => {
+    const border = [
+      { latitude: 25.1, longitude: 55.5 },
+      { latitude: 25.1, longitude: 55.6 },
+      { latitude: 25.3, longitude: 55.6 },
+      { latitude: 25.12, longitude: 55.52 },
+    ];
+
+    expect(middleOfExtent(border).latitude).toBeCloseTo(25.2, 9);
+    expect(middleOfExtent(border).longitude).toBeCloseTo(55.55, 9);
+  });
+});
 
 describe('the circle of an approximate area', () => {
   it.each([0, 45, 60])('placed at latitude %d° measures back the area it was placed from', (latitude) => {

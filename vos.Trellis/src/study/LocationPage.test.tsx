@@ -14,6 +14,7 @@ interface ShownMap {
   onPlotPress?: (index: number) => void;
   onViewSettle?: (view: object, zoom: number) => void;
   showMarker?: boolean;
+  boundaryLabel?: string;
 }
 
 const shown = vi.hoisted(() => ({ map: null as ShownMap | null }));
@@ -407,6 +408,32 @@ describe('choosing a plot', () => {
     press('Choose plot');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests for now.');
+  });
+});
+
+describe('the label on the border', () => {
+  it('names the parcel and its area', async () => {
+    vi.mocked(intakeApi.readFile).mockResolvedValue({
+      largestArea: { name: 'North field', boundary: BORDER, hectares: 10.14 },
+      ticket: 'ticket-2',
+    });
+    await opened();
+
+    fireEvent.change(screen.getByLabelText('Parcel file'), { target: { files: [new File(['<kml/>'], 'site.kml')] } });
+
+    await waitFor(() => expect(map().boundaryLabel).toBe('North field · 10.1 ha'));
+  });
+
+  it('says Site for a border with no parcel or plot name, and is not shown while the border is being drawn', async () => {
+    await opened();
+    await findSiteByCoordinates();
+    press('Draw border');
+    BORDER.forEach((corner) => edit({ kind: 'place', corner }));
+    expect(map().boundaryLabel).toBeUndefined();
+
+    edit({ kind: 'close' });
+
+    await waitFor(() => expect(map().boundaryLabel).toMatch(/^Site · \d+\.\d ha$/));
   });
 });
 
