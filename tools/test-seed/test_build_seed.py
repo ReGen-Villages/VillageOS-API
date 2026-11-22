@@ -154,7 +154,7 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
         declared = {name: each["value"] for name, each in service_kind["Properties"].items()}
         self.assertEqual({
             "ExecutablePath": "",
-            "ExecutablePathTemplate": "../../VillageOS-API/{service}/bin/Debug/net10.0/{service}.dll",
+            "ExecutablePathTemplate": "",
             "ServicePort": 0,
             "ServiceArgs": "",
             "AutoStart": False,

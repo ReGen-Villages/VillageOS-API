@@ -29,8 +29,6 @@ COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE = SEED_FOLDER / f"{SEED_NAME}WithAnUnread
 
 ECHO_SUBDOMAIN = "echo"
 ECHO_PORT = 5790
-# The platform fills {service} from a service's ServiceAssembly and reads the path from its own working folder.
-WHERE_A_SERVICE_IS_BUILT = "../../VillageOS-API/{service}/bin/Debug/net10.0/{service}.dll"
 TARGET_DAYS_OF_SUPPLY = 14
 
 LANGUAGES_WORDED = ("en", "de", "ar")
@@ -279,7 +277,8 @@ def declare_service_calls(model, ranges):
     service_kind = kit.archetype("Service")
     kit.things[service_kind]["Properties"] = {
         "ExecutablePath": typed("", "vos.String"),
-        "ExecutablePathTemplate": typed(WHERE_A_SERVICE_IS_BUILT, "vos.String"),
+        # Empty, because where a service is built depends on the machine, so whoever runs the seed with a live service writes it in.
+        "ExecutablePathTemplate": typed("", "vos.String"),
         "ServicePort": typed(0, "vos.LongInteger"),
         "ServiceArgs": typed("", "vos.String"),
         "AutoStart": typed(False, "vos.Boolean"),
