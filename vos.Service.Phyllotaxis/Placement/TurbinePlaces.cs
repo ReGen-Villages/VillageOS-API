@@ -4,18 +4,13 @@ public sealed record KeepClear(Point Centre, double RadiusMetres);
 
 public sealed record TurbinePlace(Cell Cell, Point Centre, double HeightMetres);
 
-// The highest gentle buildable ground, spaced by rotor and clear of the village and the reservoirs.
 public static class TurbinePlaces
 {
-    public static double SpacingMetres(double rotorDiameterMetres, TurbineAssumptions assumptions)
-    {
-        throw new NotImplementedException();
-    }
+    public static double SpacingMetres(double rotorDiameterMetres, TurbineAssumptions assumptions) =>
+        Math.Max(assumptions.SmallestSpacingMetres, assumptions.SpacingRotorDiameters * rotorDiameterMetres);
 
-    public static int PlacesWanted(int turbinesNeeded, TurbineAssumptions assumptions)
-    {
-        throw new NotImplementedException();
-    }
+    public static int PlacesWanted(int turbinesNeeded, TurbineAssumptions assumptions) =>
+        Math.Min(assumptions.PlacesMost, Math.Max(assumptions.PlacesLeast, turbinesNeeded));
 
     public static IReadOnlyList<KeepClear> AroundVillageAndReservoirs(
         TerrainGrid grid,
@@ -24,7 +19,12 @@ public static class TurbinePlaces
         IReadOnlyList<ReservoirPlace> reservoirs,
         ClearanceAssumptions assumptions)
     {
-        throw new NotImplementedException();
+        KeepClear[] aroundVillage = village is { } core
+            ? [new KeepClear(grid.CentreOf(core), builtRadiusMetres + assumptions.ClearOfVillageMetres)]
+            : [];
+        return aroundVillage
+            .Concat(reservoirs.Select(reservoir => new KeepClear(grid.CentreOf(reservoir.Cell), reservoir.RadiusMetres + assumptions.ClearOfReservoirMetres)))
+            .ToList();
     }
 
     public static IReadOnlyList<TurbinePlace> Pick(
@@ -34,6 +34,21 @@ public static class TurbinePlaces
         IReadOnlyList<KeepClear> keepClear,
         TurbineAssumptions assumptions)
     {
-        throw new NotImplementedException();
+        var picked = new List<TurbinePlace>();
+        var highestFirst = Enumerable.Range(0, grid.CellCount)
+            .Where(index => grid.Inside[index] && grid.Ground[index] == Ground.Buildable && grid.SlopePercent[index] < assumptions.SteepestSlopePercent)
+            .OrderByDescending(index => grid.HeightMetres[index]);
+
+        foreach (var index in highestFirst)
+        {
+            if (picked.Count >= places) break;
+            var cell = grid.CellAt(index);
+            var centre = grid.CentreOf(cell);
+            if (keepClear.Any(circle => circle.Centre.DistanceTo(centre) < circle.RadiusMetres)) continue;
+            if (picked.All(other => other.Centre.DistanceTo(centre) >= spacingMetres))
+                picked.Add(new TurbinePlace(cell, centre, grid.HeightMetres[index]));
+        }
+
+        return picked;
     }
 }

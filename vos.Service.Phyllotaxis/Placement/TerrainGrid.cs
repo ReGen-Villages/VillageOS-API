@@ -31,6 +31,13 @@ public sealed class TerrainGrid
         IReadOnlyList<bool> inside,
         IReadOnlyList<Ground> ground)
     {
+        var cells = columns * rows;
+        RefuseUnlessOnePerCell(heightMetres.Count, cells, nameof(heightMetres));
+        RefuseUnlessOnePerCell(slopePercent.Count, cells, nameof(slopePercent));
+        RefuseUnlessOnePerCell(drainageCells.Count, cells, nameof(drainageCells));
+        RefuseUnlessOnePerCell(inside.Count, cells, nameof(inside));
+        RefuseUnlessOnePerCell(ground.Count, cells, nameof(ground));
+
         Columns = columns;
         Rows = rows;
         CellMetres = cellMetres;
@@ -68,6 +75,16 @@ public sealed class TerrainGrid
     public double LargestDrainageInside() =>
         Enumerable.Range(0, CellCount).Where(index => Inside[index]).Select(index => DrainageCells[index]).DefaultIfEmpty(0).Max();
 
+    // Logarithmic, so a cell that drains a small share of the site still scores well above nothing.
+    internal static double DrainageShare(double drainageCells, double largestDrainage) =>
+        largestDrainage > 1 ? Math.Log(Math.Max(1, drainageCells)) / Math.Log(largestDrainage) : 0;
+
     // The demo rounds as JavaScript's Math.round does, half towards positive infinity, not to the even neighbour.
     internal static int RoundHalfUp(double value) => (int)Math.Floor(value + 0.5);
+
+    private static void RefuseUnlessOnePerCell(int count, int cells, string name)
+    {
+        if (count != cells)
+            throw new ArgumentException($"{name} holds {count} values for a grid of {cells} cells", name);
+    }
 }
