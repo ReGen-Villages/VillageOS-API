@@ -456,7 +456,7 @@ describe('the parcel step', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Place a draft boundary' }));
 
-    expect(screen.getByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
+    expect(await screen.findByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
     expect(loadDraft('model-1')?.boundarySource).toBe('generated-from-stated-area');
     expect(loadDraft('model-1')?.boundary).toHaveLength(4);
     expect((await screen.findByTestId('site-map')).dataset.corners).toBe('4');
@@ -483,7 +483,7 @@ describe('the parcel step', () => {
     expect(loadDraft('model-1')?.boundary).toHaveLength(3);
   });
 
-  it('says how far apart the drawn and stated areas are when they disagree', () => {
+  it('says how far apart the drawn and stated areas are when they disagree', async () => {
     located({
       boundary: [
         { latitude: 39.5, longitude: -8.41 },
@@ -495,7 +495,7 @@ describe('the parcel step', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByText(/away from the stated area/)).toBeInTheDocument();
+    expect(await screen.findByText(/away from the stated area/)).toBeInTheDocument();
   });
 
   describe('measuring the drawn border with the method the model configures', () => {
