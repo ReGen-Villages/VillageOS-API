@@ -16,7 +16,6 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
     public const int LongestReason = 500;
 
     private const string DefaultLanguage = "en";
-    private const string WhichModel = "The model, by its identifier or its name, as list_models gives them. The key's own model where none is given.";
     private const string WhichPage = "The page, by its identifier or its name, as list_pages gives them.";
     private const string WhichWidget = "The action widget, by its title as read_page gives it.";
     private const string WhichRow = "The row, by its identifier, or by a name only one row of the widget has.";
@@ -36,7 +35,7 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
         [Description(WhichRow)] string row,
         [Description(WhichScope)] string? scope = null,
         [Description("The language labels are given in, as a language tag such as en or de. English where none is given.")] string? language = null,
-        [Description(WhichModel)] string? model = null,
+        [Description(ModelClients.ParameterDescription)] string? model = null,
         CancellationToken cancellation = default) =>
         PageTools.InWordsAsync(async () =>
         {
@@ -69,7 +68,7 @@ public sealed class PressTools(ModelClients clients, PageReader reader, ILogger<
         [Description("The digest a call answered with, where the person was shown the writes and agreed to them.")] string? confirm_digest = null,
         [Description(WhichScope)] string? scope = null,
         [Description("The language the page is read in, as a language tag such as en or de. English where none is given.")] string? language = null,
-        [Description(WhichModel)] string? model = null,
+        [Description(ModelClients.ParameterDescription)] string? model = null,
         CancellationToken cancellation = default) =>
         PageTools.InWordsAsync(async () =>
         {

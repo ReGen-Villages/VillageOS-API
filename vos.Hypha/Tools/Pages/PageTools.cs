@@ -13,7 +13,6 @@ namespace vos.Hypha.Tools.Pages;
 public sealed class PageTools(ModelClients clients, PageReader reader)
 {
     private const string DefaultLanguage = "en";
-    private const string WhichModel = "The model to read, by its identifier or its name, as list_models gives them. The key's own model where none is given.";
 
     [McpServerTool(Name = "list_pages", Title = "List pages", ReadOnly = true, Idempotent = true, OpenWorld = false)]
     [Description(
@@ -23,7 +22,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
     public Task<JsonElement> ListPagesAsync(
         [Description("The language names are ordered in, as a language tag such as en or de. English where none is given.")]
         string? language = null,
-        [Description(WhichModel)]
+        [Description(ModelClients.ParameterDescription)]
         string? model = null,
         CancellationToken cancellation = default) =>
         InWordsAsync(async () =>
@@ -61,7 +60,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         string[]? scopes = null,
         [Description("The language the page is worded in, as a language tag such as en or de. English where none is given.")]
         string? language = null,
-        [Description(WhichModel)]
+        [Description(ModelClients.ParameterDescription)]
         string? model = null,
         CancellationToken cancellation = default) =>
         InWordsAsync(async () =>
@@ -87,7 +86,7 @@ public sealed class PageTools(ModelClients clients, PageReader reader)
         string figure,
         [Description("The language numbers and input names are written in, as a language tag such as en or de. English where none is given.")]
         string? language = null,
-        [Description(WhichModel)]
+        [Description(ModelClients.ParameterDescription)]
         string? model = null,
         CancellationToken cancellation = default) =>
         InWordsAsync(async () =>
