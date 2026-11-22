@@ -3,6 +3,8 @@ import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '@tendril-ui/tendril';
 import { basemapSourcesFrom } from '../utils/basemapSources';
 import type { TermWording } from '@tendril-ui/tendril';
+import type { AreaMethod } from '../utils/borderArea';
+import type { BoundaryPoint } from '../utils/parcelGeometry';
 import i18n from '../i18n';
 import { refusalFrom } from './refusals';
 
@@ -46,6 +48,37 @@ export interface FormOptions {
   layerKinds: { name: string; colour: string | null; themes: string[] }[];
   /** Keyed by the names the lists above offer. A term the model words in no language is absent and shown by its name. */
   wording: TermWording;
+  /** Null where the service names a method this page does not measure with, so the page shows no area rather than
+   *  one the submission would then disagree with. */
+  areaMethod: AreaMethod | null;
+}
+
+const AREA_METHODS: readonly AreaMethod[] = ['meanSphereAreaMethod', 'wgs84EllipsoidAreaMethod'];
+
+export interface ViewBox {
+  southLatitude: number;
+  westLongitude: number;
+  northLatitude: number;
+  eastLongitude: number;
+}
+
+export interface RegisteredPlot {
+  boundary: BoundaryPoint[];
+  identifier: string | null;
+  areaHectares: number | null;
+}
+
+export interface BorderElevation {
+  siteMetres: number;
+  lowestMetres: number | null;
+  highestMetres: number | null;
+  attribution: string | null;
+}
+
+export interface LargestArea {
+  name: string | null;
+  boundary: BoundaryPoint[];
+  hectares: number;
 }
 
 /** The register's credit is shown wherever the boundary is drawn, as a basemap's credit is. */
@@ -77,6 +110,7 @@ export const intakeApi = {
       themes?: Partial<DeclaredTheme>[];
       layerKinds?: { name?: string; colour?: string | null; themes?: string[] }[];
       wording?: TermWording;
+      areaMethod?: string;
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
@@ -98,7 +132,75 @@ export const intakeApi = {
         colour: kind.colour ?? null,
         themes: kind.themes ?? [],
       })),
+      areaMethod: AREA_METHODS.find((method) => method === answered.areaMethod) ?? null,
     };
+  },
+
+  /** No plots where the model has no register for the view, which the page shows as a step it cannot take yet. */
+  plotsInView: async (
+    view: ViewBox,
+    zoom: number,
+    ticket: string,
+  ): Promise<{ plots: RegisteredPlot[] | null; attributions: string[]; ticket: string }> => {
+    const response = await intakeRequest('/submissions/plots-in-view', { body: { ...view, zoom }, ticket, passNotFound: true });
+    if (response.status === 404) return { plots: null, attributions: [], ticket };
+    const answered = (await response.json()) as { plots: RegisteredPlot[]; attributions: string[] };
+    return { plots: answered.plots, attributions: answered.attributions, ticket: renewedTicket(response, ticket) };
+  },
+
+  borderElevation: async (
+    boundary: readonly BoundaryPoint[],
+    ticket: string,
+  ): Promise<{ elevation: BorderElevation | null; ticket: string }> => {
+    const response = await intakeRequest('/submissions/border-elevation', { body: { boundary }, ticket, passNotFound: true });
+    if (response.status === 404) return { elevation: null, ticket };
+    const answered = (await response.json()) as {
+      elevationMetres: number;
+      elevationMinimumMetres: number | null;
+      elevationMaximumMetres: number | null;
+      attribution: string | null;
+    };
+    return {
+      elevation: {
+        siteMetres: answered.elevationMetres,
+        lowestMetres: answered.elevationMinimumMetres,
+        highestMetres: answered.elevationMaximumMetres,
+        attribution: answered.attribution,
+      },
+      ticket: renewedTicket(response, ticket),
+    };
+  },
+
+  /** The service reads the file and picks its largest area, measured with the model's method, so the page reads no
+   *  file format itself. The address is sent because a ticket is renewed against one. */
+  readFile: async (
+    file: File,
+    emailAddress: string,
+    ticket: string,
+  ): Promise<{ largestArea: LargestArea | null; ticket: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('emailAddress', emailAddress);
+    const response = await intakeRequest('/submissions/read-file', { body: form, ticket });
+    const answered = (await response.json()) as {
+      shapes: { name: string | null }[];
+      largestArea: { shape: number; boundary: BoundaryPoint[]; hectares: number } | null;
+    };
+    const largest = answered.largestArea;
+    return {
+      largestArea:
+        largest === null
+          ? null
+          : { name: answered.shapes[largest.shape].name, boundary: largest.boundary, hectares: largest.hectares },
+      ticket: renewedTicket(response, ticket),
+    };
+  },
+
+  sendDocument: async (submissionId: string, file: File, ticket: string): Promise<string> => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await intakeRequest(`/submissions/${encodeURIComponent(submissionId)}/documents`, { body: form, ticket });
+    return renewedTicket(response, ticket);
   },
 
   /** Null for no register, a position outside every register, or no parcel there, because in each case the
@@ -159,13 +261,15 @@ export async function intakeRequest(
   path: string,
   { body, ticket, passNotFound = false }: { body?: unknown; ticket?: string; passNotFound?: boolean } = {},
 ): Promise<Response> {
+  // A form sets its own content type, with the boundary between its parts.
+  const isForm = body instanceof FormData;
   const response = await fetch(`${intakeServiceAddress()}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined || isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(ticket === undefined ? {} : { [TICKET_HEADER]: ticket }),
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined ? {} : { body: isForm ? body : JSON.stringify(body) }),
   });
   if (passNotFound && response.status === 404) return response;
   if (!response.ok) throw await refusalFrom(response);

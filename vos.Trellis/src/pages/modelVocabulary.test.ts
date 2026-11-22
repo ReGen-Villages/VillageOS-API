@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
-import { ALLOCATION_CATEGORY_ROLE, boundBy, termsBound, type ModelReading } from './modelVocabulary';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import { ALLOCATION_CATEGORY_ROLE, areaMethodConfigured, boundBy, termsBound, type ModelReading } from './modelVocabulary';
 
 // Every name here is spelled differently from the shipped land-intake template, so a reader answering
 // only to that spelling fails rather than passes.
@@ -144,5 +145,49 @@ describe('what a role binds', () => {
     const relationships = [edge('x1', ROLE, 'is', 'land-use')];
 
     expect(boundBy(reading({ relationships }), ROLE)).toBeNull();
+  });
+});
+
+describe('how the model measures a border', () => {
+  const methodThings: VosThing[] = [
+    thing('binds', 'binds'),
+    thing(LAND_INTAKE_ROLE.Parcel, 'parcel'),
+    thing(LAND_INTAKE_ROLE.MeasuresAreaWith, 'measuresAreaWith'),
+    thing(LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'meanSphereAreaMethod'),
+    thing(LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'wgs84EllipsoidAreaMethod'),
+    thing('plot', 'Plot', true),
+    thing('chooses', 'choosesMeasure'),
+    thing('round', 'Round earth'),
+    thing('oblate', 'Flattened earth'),
+  ];
+  const bindings: VosRelationship[] = [
+    edge('m1', LAND_INTAKE_ROLE.Parcel, 'binds', 'plot'),
+    edge('m2', LAND_INTAKE_ROLE.MeasuresAreaWith, 'binds', 'chooses'),
+    edge('m3', LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'binds', 'round'),
+    edge('m4', LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'binds', 'oblate'),
+  ];
+  const measuring = (...choices: string[]): ModelReading => ({
+    things: methodThings,
+    relationships: [...bindings, ...choices.map((target, at) => edge(`c${at}`, 'plot', 'chooses', target))],
+    properties: {},
+  });
+
+  it.each([
+    ['round', 'meanSphereAreaMethod'],
+    ['oblate', 'wgs84EllipsoidAreaMethod'],
+  ])('reads the method the parcel archetype measures with, %s, through the roles', (chosen, method) => {
+    expect(areaMethodConfigured(measuring(chosen))).toBe(method);
+  });
+
+  it('reads no method where the parcel archetype chooses none', () => {
+    expect(areaMethodConfigured(measuring())).toBeNull();
+  });
+
+  it('reads no method where the parcel archetype chooses two', () => {
+    expect(areaMethodConfigured(measuring('round', 'oblate'))).toBeNull();
+  });
+
+  it('reads no method where the chosen Thing is no method a role binds', () => {
+    expect(areaMethodConfigured(measuring('plot'))).toBeNull();
   });
 });
