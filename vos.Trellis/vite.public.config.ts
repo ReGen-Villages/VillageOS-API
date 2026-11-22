@@ -12,12 +12,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
     {
-      name: 'public-empty-entry-as-index',
+      name: 'public-study-entry-as-index',
       enforce: 'post',
       generateBundle(_options, bundle) {
-        const entry = bundle['public-empty.html']
+        const entry = bundle['public-study.html']
         if (!entry) return
-        delete bundle['public-empty.html']
+        delete bundle['public-study.html']
         entry.fileName = 'index.html'
         bundle['index.html'] = entry
       },
@@ -29,7 +29,7 @@ export default defineConfig({
     outDir: 'dist-public',
     emptyOutDir: true,
     rollupOptions: {
-      input: [resolve(__dirname, 'public-empty.html')],
+      input: [resolve(__dirname, 'public-study.html')],
     },
   },
 })
