@@ -4,8 +4,6 @@ public static class PlatformRoute
 {
     private const string Root = "/api/";
 
-    // An address is built from the text and then normalised, so a step up the path, written plainly or
-    // encoded, would leave /api/ after the check on the text had passed. Both are checked.
     public static Uri AddressOf(string myceliumUrl, string path)
     {
         var route = path.Split('?', 2)[0];
@@ -15,6 +13,7 @@ public static class PlatformRoute
             throw NotARoute(path);
 
         var address = new Uri(myceliumUrl.TrimEnd('/') + path);
+        // Checked again once built, because the request carries the model's token wherever the address leads.
         return address.AbsolutePath.StartsWith(Root, StringComparison.Ordinal) ? address : throw NotARoute(path);
     }
 
