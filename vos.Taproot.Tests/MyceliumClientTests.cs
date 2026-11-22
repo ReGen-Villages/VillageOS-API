@@ -40,22 +40,18 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_NullApiKey_FallsBackToVosApiKeyEnvVar()
+    public async Task Ctor_NullApiKey_IsRefusedWithoutReadingVosApiKey()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         try
         {
             Environment.SetEnvironmentVariable("VOS_API_KEY", "from-env");
-            HttpRequestMessage? captured = null;
-            var (client, _) = NewClient(req =>
-            {
-                captured = req;
-                return TokenResponse(ServiceToken);
-            }, apiKey: null);
+            var (client, mycelium) = NewClient(_ => TokenResponse(ServiceToken), apiKey: null);
 
-            await client.GetTokenAsync();
+            var act = async () => await client.GetTokenAsync();
 
-            captured!.Headers.GetValues("X-API-Key").Should().ContainSingle("from-env");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*VOS_API_KEY*");
+            mycelium.Requests.Should().BeEmpty();
         }
         finally
         {
@@ -108,7 +104,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_PublicNoApiKeyOverload_SendsTheKeyFromVosApiKey()
+    public async Task Ctor_PublicNoApiKeyOverload_IsRefusedWithoutReadingVosApiKey()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         using var broker = new TcpListener(IPAddress.Loopback, 0);
@@ -118,35 +114,15 @@ public class MyceliumClientTests
             Environment.SetEnvironmentVariable("VOS_API_KEY", "from-env");
             var client = new MyceliumClient($"http://127.0.0.1:{((IPEndPoint)broker.LocalEndpoint).Port}");
 
-            var asking = client.GetTokenAsync();
-            var connecting = broker.AcceptTcpClientAsync();
-            await Settle.ForAsync(connecting, "the client calls the broker");
-            using var connection = await connecting;
-            var request = await AnswerWithATokenAsync(connection.GetStream());
+            var act = async () => await client.GetTokenAsync();
 
-            await Settle.ForAsync(asking, "the client reads the token");
-            (await asking).Should().Be(ServiceToken);
-            request.Should().Contain("X-API-Key: from-env");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*VOS_API_KEY*");
+            broker.Pending().Should().BeFalse("a client given no key calls nothing");
         }
         finally
         {
             Environment.SetEnvironmentVariable("VOS_API_KEY", original);
         }
-    }
-
-    private static async Task<string> AnswerWithATokenAsync(NetworkStream stream)
-    {
-        var buffer = new byte[4096];
-        var request = new StringBuilder();
-        int read;
-        while (!request.ToString().Contains("\r\n\r\n") && (read = await stream.ReadAsync(buffer)) > 0)
-            request.Append(Encoding.ASCII.GetString(buffer, 0, read));
-
-        var body = $"{{\"token\":\"{ServiceToken}\"}}";
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-            + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}"));
-        return request.ToString();
     }
 
     [Fact]
