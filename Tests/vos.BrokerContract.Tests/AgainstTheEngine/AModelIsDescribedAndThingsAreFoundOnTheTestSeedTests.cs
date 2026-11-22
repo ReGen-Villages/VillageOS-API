@@ -51,17 +51,17 @@ public class AModelIsDescribedAndThingsAreFoundOnTheTestSeedTests : IClassFixtur
     }
 
     [FactAgainstTheEngine]
-    public async Task A_name_written_in_another_script_is_found_whole_by_exact_name()
+    public async Task A_name_written_in_another_script_is_found_whole_by_part_of_it()
     {
         var seed = await TheTestSeedAsAModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
         var found = await server.CallAsync("find_things", new()
         {
-            ["names"] = new[] { "وادي النبع", "Ålvik" }, ["model"] = seed.Id.ToString(),
+            ["name_contains"] = "النبع", ["model"] = seed.Id.ToString(),
         });
 
         found.IsError.Should().BeFalse(found.Text);
-        Names(found.Structured.GetProperty("things")).Should().BeEquivalentTo(["وادي النبع", "Ålvik"]);
+        Names(found.Structured.GetProperty("things")).Should().BeEquivalentTo(["وادي النبع"]);
     }
 }
