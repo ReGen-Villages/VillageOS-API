@@ -25,13 +25,13 @@ vi.mock('../components/map/MapView', () => ({
     longitude,
     sources,
     boundary,
-    onBoundaryChange,
+    borderEditing,
   }: {
     latitude: number;
     longitude: number;
     sources: BasemapSource[];
     boundary?: { latitude: number; longitude: number }[];
-    onBoundaryChange?: (boundary: { latitude: number; longitude: number }[]) => void;
+    borderEditing?: { onEdit: (edit: { kind: 'place'; corner: { latitude: number; longitude: number } }) => void };
   }) => (
     <div
       data-testid="site-map"
@@ -40,13 +40,13 @@ vi.mock('../components/map/MapView', () => ({
       data-sources={sources.map((source) => source.name).join(',')}
       data-corners={boundary?.length ?? ''}
     >
-      {onBoundaryChange && (
+      {borderEditing && (
         <button
           onClick={() =>
-            onBoundaryChange([
-              ...(boundary ?? []),
-              { latitude: 39.5 + (boundary?.length ?? 0) / 500, longitude: -8.41 },
-            ])
+            borderEditing.onEdit({
+              kind: 'place',
+              corner: { latitude: 39.5 + (boundary?.length ?? 0) / 500, longitude: -8.41 },
+            })
           }
         >
           stub-place-corner

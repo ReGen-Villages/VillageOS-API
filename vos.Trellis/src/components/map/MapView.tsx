@@ -1,10 +1,12 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Map as MapLibreMap,
   Marker,
   config as maplibreConfiguration,
+  type AddLayerObject,
   type GeoJSONSource,
+  type MapLayerMouseEvent,
   type MapMouseEvent,
   type ProjectionSpecification,
   type SkySpecification,
@@ -13,11 +15,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { carryingOwnServerHeaders, OwnServerRequestHeaders } from './ownServerRequests';
 import { Navigation2 } from 'lucide-react';
-import type { Feature } from 'geojson';
+import type { Feature, FeatureCollection, Polygon } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource, RaisedGround } from '../../types/basemap';
-import type { BoundaryPoint } from '../../utils/parcelGeometry';
+import type { ViewBox } from '../../api/intakeApi';
+import { circleOfAreaAround, enclosesLand, type BoundaryPoint } from '../../utils/parcelGeometry';
+import { sideMidpoints, type BorderEdit } from './borderEdit';
 
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
 // run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
@@ -36,7 +40,28 @@ const DEFAULT_ZOOM = 15;
 const CONTROL_CLASSES = 'rounded bg-white/90 px-2 py-1 text-xs text-zinc-900 shadow';
 
 const BOUNDARY_SOURCE_ID = 'boundary';
-const BOUNDARY_COLOUR = '#059669';
+const APPROXIMATE_AREA_SOURCE_ID = 'approximate-area';
+const PLOTS_SOURCE_ID = 'plots';
+const PLOTS_FILL_LAYER_ID = `${PLOTS_SOURCE_ID}-fill`;
+const PLOT_OUTLINE_COLOUR = '#f5f5f4';
+
+export interface BorderColours {
+  readonly outline: string;
+  readonly fill: string;
+  readonly fillOpacity: number;
+}
+
+const CONSOLE_BORDER_COLOURS: BorderColours = { outline: '#059669', fill: '#059669', fillOpacity: 0.15 };
+
+export interface BorderEditing {
+  /** A click on the map places a corner, and a press on the first corner closes the border. */
+  readonly placesCorners: boolean;
+  /** Each corner can be dragged, and so can a handle at the middle of each side, which becomes a new corner. */
+  readonly movesCorners: boolean;
+  /** A dragged handle goes back where it was, so the page decides whether the edit stands by drawing the border it
+   *  makes. */
+  readonly onEdit: (edit: BorderEdit) => void;
+}
 
 const TERRAIN_SOURCE_ID = 'terrain';
 const BUILDINGS_LAYER_ID = 'buildings-raised';
@@ -83,11 +108,16 @@ interface MapViewProps {
   /** A polygon drawn over the basemap. Fewer than three corners enclose nothing and draw nothing,
    *  though each corner still gets its handle while the boundary is editable. */
   boundary?: readonly BoundaryPoint[];
-  /** Handed the whole boundary after a click places a corner or a drag moves one. Giving it is what
-   *  makes the boundary editable. */
-  onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  borderColours?: BorderColours;
+  borderEditing?: BorderEditing;
+  /** Drawn as a dashed circle round the position while no boundary encloses land. */
+  approximateHectares?: number;
+  plots?: readonly (readonly BoundaryPoint[])[];
+  chosenPlot?: number;
+  onPlotPress?: (index: number) => void;
+  onViewSettle?: (view: ViewBox, zoom: number) => void;
   /** Handed where a click landed, for a page whose position comes from the map rather than the map
-   *  from the position. Boundary editing wins the click: a page offering both is placing corners. */
+   *  from the position. Placing corners wins the click: a page offering both is drawing a border. */
   onPositionPick?: (position: BoundaryPoint) => void;
   /** False while the position props are a stand-in rather than anywhere anybody chose — the pin, the
    *  recentre control and the coordinate readout would all present the stand-in as an answer. */
@@ -103,7 +133,13 @@ export function MapView({
   initialZoom = DEFAULT_ZOOM,
   focusZoom,
   boundary,
-  onBoundaryChange,
+  borderColours = CONSOLE_BORDER_COLOURS,
+  borderEditing,
+  approximateHectares,
+  plots,
+  chosenPlot,
+  onPlotPress,
+  onViewSettle,
   onPositionPick,
   showMarker = true,
 }: MapViewProps) {
@@ -179,36 +215,70 @@ export function MapView({
     current.setStyle(styleForSource(selected));
   }, [selected, mapGeneration]);
 
-  // A style swap wipes every source and layer the style did not bring, so the boundary is drawn again
-  // as the style comes in, not only when it changes. What the map shows is remembered, because
-  // rewriting the boundary's data repaints the map, which settles into another idle: a map rewriting it
-  // on each of those would never stop drawing.
-  const shownBoundary = useRef<readonly BoundaryPoint[] | undefined>(undefined);
+  const boundaryOutline = useMemo(
+    () => (boundary && enclosesLand(boundary) ? polygonOf(boundary) : null),
+    [boundary],
+  );
+  const boundaryLayers = useMemo(() => borderLayers(borderColours), [borderColours]);
+  useOverlay(map, mapGeneration, BOUNDARY_SOURCE_ID, boundaryOutline, boundaryLayers);
+
+  const approximateCircle = useMemo(
+    () =>
+      boundaryOutline === null && approximateHectares
+        ? polygonOf(circleOfAreaAround({ latitude, longitude }, approximateHectares))
+        : null,
+    [boundaryOutline, approximateHectares, latitude, longitude],
+  );
+  const approximateLayers = useMemo(() => approximateAreaLayers(borderColours), [borderColours]);
+  useOverlay(map, mapGeneration, APPROXIMATE_AREA_SOURCE_ID, approximateCircle, approximateLayers);
+
+  const plotOutlines = useMemo<FeatureCollection | null>(
+    () =>
+      plots?.length
+        ? {
+            type: 'FeatureCollection',
+            features: plots.map((plot, index) => ({ ...polygonOf(plot), properties: { index, chosen: index === chosenPlot } })),
+          }
+        : null,
+    [plots, chosenPlot],
+  );
+  const plotLayers = useMemo(() => plotsLayers(borderColours), [borderColours]);
+  useOverlay(map, mapGeneration, PLOTS_SOURCE_ID, plotOutlines, plotLayers);
+
+  const plotsShown = plotOutlines !== null;
   useEffect(() => {
     const current = map.current;
-    if (!current) return;
-    // Changing a style maplibre has not finished loading throws, and a throw in an effect takes the
-    // whole page down with it. Leaving this step and coming back builds a second map with the
-    // boundary already in hand, which is how a draw arrives that early. Every styledata a live map
-    // fires can come while its sources are still loading, and none need follow once they are in,
-    // so the idle below is what draws it once the style is in.
-    const draw = () => {
-      if (!current.isStyleLoaded()) return;
-      const drawn = current.getSource(BOUNDARY_SOURCE_ID) !== undefined;
-      const nothingToDraw = (boundary?.length ?? 0) < 3;
-      if (!drawn && nothingToDraw) return;
-      if (drawn && shownBoundary.current === boundary) return;
-      drawBoundary(current, boundary ?? []);
-      shownBoundary.current = boundary;
+    if (!current || !onPlotPress || !plotsShown) return;
+    const press = (event: MapLayerMouseEvent) => {
+      const index = event.features?.[0]?.properties?.index;
+      if (typeof index === 'number') onPlotPress(index);
     };
-    draw();
-    current.on('styledata', draw);
-    current.on('idle', draw);
+    current.on('click', PLOTS_FILL_LAYER_ID, press);
     return () => {
-      current.off('styledata', draw);
-      current.off('idle', draw);
+      current.off('click', PLOTS_FILL_LAYER_ID, press);
     };
-  }, [boundary, hasSource]);
+  }, [onPlotPress, plotsShown, mapGeneration]);
+
+  useEffect(() => {
+    const current = map.current;
+    if (!current || !onViewSettle) return;
+    const report = () => {
+      const bounds = current.getBounds();
+      onViewSettle(
+        {
+          southLatitude: bounds.getSouth(),
+          westLongitude: bounds.getWest(),
+          northLatitude: bounds.getNorth(),
+          eastLongitude: bounds.getEast(),
+        },
+        current.getZoom(),
+      );
+    };
+    current.on('moveend', report);
+    return () => {
+      current.off('moveend', report);
+    };
+  }, [onViewSettle, mapGeneration]);
 
   // The land itself: on a globe, under a sky, and where the model declares it, raised from the elevation
   // tiles with the buildings the basemap already carries raised out of it. Drawn on styledata for the
@@ -272,45 +342,65 @@ export function MapView({
 
   useEffect(() => {
     const current = map.current;
-    if (!current || !onBoundaryChange || !boundary) return;
-    const corners = boundary.map((corner, held) => {
-      const handle = new Marker({ draggable: true, scale: 0.7, color: BOUNDARY_COLOUR })
-        .setLngLat([corner.longitude, corner.latitude])
+    if (!current || !borderEditing || !boundary) return;
+    const { placesCorners, movesCorners, onEdit } = borderEditing;
+    const handleAt = (point: BoundaryPoint, options: { className: string; scale: number }) =>
+      new Marker({ ...options, draggable: movesCorners, color: borderColours.outline })
+        .setLngLat([point.longitude, point.latitude])
         .addTo(current);
-      handle.on('dragend', () => {
-        const at = handle.getLngLat();
-        onBoundaryChange(
-          boundary.map((kept, index) =>
-            index === held ? { latitude: at.lat, longitude: at.lng } : kept,
-          ),
-        );
-      });
+    const droppedAndPutBack = (handle: Marker, point: BoundaryPoint): BoundaryPoint => {
+      const at = handle.getLngLat();
+      handle.setLngLat([point.longitude, point.latitude]);
+      return { latitude: at.lat, longitude: at.lng };
+    };
+
+    const corners = boundary.map((corner, index) => {
+      const handle = handleAt(corner, { className: 'border-corner', scale: 0.7 });
+      if (movesCorners) {
+        handle.on('dragend', () => onEdit({ kind: 'move', index, to: droppedAndPutBack(handle, corner) }));
+      }
+      if (placesCorners && index === 0 && enclosesLand(boundary)) {
+        // The press would reach the map as a click too, and place a corner on top of the first.
+        handle.on('click', (event: { originalEvent: MouseEvent }) => {
+          event.originalEvent.stopPropagation();
+          onEdit({ kind: 'close' });
+        });
+      }
       return handle;
     });
-    return () => corners.forEach((handle) => handle.remove());
-  }, [boundary, onBoundaryChange, hasSource]);
+    const midpoints = movesCorners
+      ? sideMidpoints(boundary).map((midpoint, side) => {
+          const handle = handleAt(midpoint, { className: 'border-midpoint', scale: 0.5 });
+          handle.on('dragend', () => onEdit({ kind: 'insert', side, corner: droppedAndPutBack(handle, midpoint) }));
+          return handle;
+        })
+      : [];
+    return () => [...corners, ...midpoints].forEach((handle) => handle.remove());
+  }, [boundary, borderEditing, borderColours.outline, mapGeneration]);
 
+  const placesCorners = borderEditing?.placesCorners === true;
+  const onEdit = borderEditing?.onEdit;
   useEffect(() => {
     const current = map.current;
-    if (!current || !onBoundaryChange) return;
+    if (!current || !placesCorners || !onEdit) return;
     const place = (event: MapMouseEvent) =>
-      onBoundaryChange([...(boundary ?? []), { latitude: event.lngLat.lat, longitude: event.lngLat.lng }]);
+      onEdit({ kind: 'place', corner: { latitude: event.lngLat.lat, longitude: event.lngLat.lng } });
     current.on('click', place);
     return () => {
       current.off('click', place);
     };
-  }, [boundary, onBoundaryChange, hasSource]);
+  }, [placesCorners, onEdit, mapGeneration]);
 
   useEffect(() => {
     const current = map.current;
-    if (!current || !onPositionPick || onBoundaryChange) return;
+    if (!current || !onPositionPick || placesCorners) return;
     const pick = (event: MapMouseEvent) =>
       onPositionPick({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
     current.on('click', pick);
     return () => {
       current.off('click', pick);
     };
-  }, [onPositionPick, onBoundaryChange, hasSource]);
+  }, [onPositionPick, placesCorners, mapGeneration]);
 
   // The pin is built with the map, so hiding it is taking it off rather than never making it.
   useEffect(() => {
@@ -440,38 +530,110 @@ function raiseTheBuildings(map: MapLibreMap, sourceLayer: string): void {
   });
 }
 
-function drawBoundary(map: MapLibreMap, boundary: readonly BoundaryPoint[]): void {
-  const drawn = map.getSource(BOUNDARY_SOURCE_ID) as GeoJSONSource | undefined;
-  if (boundary.length < 3) {
-    if (drawn) {
-      map.removeLayer(`${BOUNDARY_SOURCE_ID}-fill`);
-      map.removeLayer(`${BOUNDARY_SOURCE_ID}-line`);
-      map.removeSource(BOUNDARY_SOURCE_ID);
-    }
-    return;
-  }
+type Overlay = Feature | FeatureCollection | null;
 
-  const ring = [...boundary, boundary[0]].map((corner) => [corner.longitude, corner.latitude]);
-  const outline: Feature = {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'Polygon', coordinates: [ring] },
-  };
-  if (drawn) {
-    drawn.setData(outline);
+/** Keeps one source and its layers on the map, through every style swap, for as long as there is something to
+ *  show. */
+function useOverlay(
+  map: RefObject<MapLibreMap | null>,
+  mapGeneration: number,
+  sourceId: string,
+  data: Overlay,
+  layers: readonly AddLayerObject[],
+): void {
+  // Remembered because rewriting a source's data repaints the map, which settles into another idle: a map
+  // rewriting it on each of those would never stop drawing.
+  const shown = useRef<Overlay | undefined>(undefined);
+  useEffect(() => {
+    const current = map.current;
+    if (!current) return;
+    // Changing a style maplibre has not finished loading throws, and a throw in an effect takes the whole page
+    // down with it. A style swap wipes every source the style did not bring, and every styledata can come while
+    // the sources are still loading, so the idle is what draws once the style is in.
+    const draw = () => {
+      if (!current.isStyleLoaded()) return;
+      const onTheMap = current.getSource(sourceId) !== undefined;
+      if (!onTheMap && data === null) return;
+      if (onTheMap && shown.current === data) return;
+      showOverlay(current, sourceId, data, layers);
+      shown.current = data;
+    };
+    draw();
+    current.on('styledata', draw);
+    current.on('idle', draw);
+    return () => {
+      current.off('styledata', draw);
+      current.off('idle', draw);
+    };
+  }, [map, mapGeneration, sourceId, data, layers]);
+}
+
+function showOverlay(map: MapLibreMap, sourceId: string, data: Overlay, layers: readonly AddLayerObject[]): void {
+  const drawn = map.getSource(sourceId) as GeoJSONSource | undefined;
+  if (data === null) {
+    if (!drawn) return;
+    layers.forEach((layer) => map.removeLayer(layer.id));
+    map.removeSource(sourceId);
     return;
   }
-  map.addSource(BOUNDARY_SOURCE_ID, { type: 'geojson', data: outline });
-  map.addLayer({
-    id: `${BOUNDARY_SOURCE_ID}-fill`,
-    type: 'fill',
-    source: BOUNDARY_SOURCE_ID,
-    paint: { 'fill-color': BOUNDARY_COLOUR, 'fill-opacity': 0.15 },
-  });
-  map.addLayer({
-    id: `${BOUNDARY_SOURCE_ID}-line`,
-    type: 'line',
-    source: BOUNDARY_SOURCE_ID,
-    paint: { 'line-color': BOUNDARY_COLOUR, 'line-width': 2 },
-  });
+  if (drawn) {
+    drawn.setData(data);
+    return;
+  }
+  map.addSource(sourceId, { type: 'geojson', data });
+  layers.forEach((layer) => map.addLayer(layer));
+}
+
+function polygonOf(corners: readonly BoundaryPoint[]): Feature<Polygon> {
+  const ring = [...corners, corners[0]].map((corner) => [corner.longitude, corner.latitude]);
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
+}
+
+function borderLayers(colours: BorderColours): AddLayerObject[] {
+  return [
+    {
+      id: `${BOUNDARY_SOURCE_ID}-fill`,
+      type: 'fill',
+      source: BOUNDARY_SOURCE_ID,
+      paint: { 'fill-color': colours.fill, 'fill-opacity': colours.fillOpacity },
+    },
+    {
+      id: `${BOUNDARY_SOURCE_ID}-line`,
+      type: 'line',
+      source: BOUNDARY_SOURCE_ID,
+      paint: { 'line-color': colours.outline, 'line-width': 2 },
+    },
+  ];
+}
+
+function approximateAreaLayers(colours: BorderColours): AddLayerObject[] {
+  return [
+    {
+      id: `${APPROXIMATE_AREA_SOURCE_ID}-line`,
+      type: 'line',
+      source: APPROXIMATE_AREA_SOURCE_ID,
+      paint: { 'line-color': colours.outline, 'line-width': 2, 'line-dasharray': [2, 2] },
+    },
+  ];
+}
+
+function plotsLayers(colours: BorderColours): AddLayerObject[] {
+  return [
+    {
+      // A plot is pressed anywhere inside it, so every plot has a fill, seen only on the chosen one.
+      id: PLOTS_FILL_LAYER_ID,
+      type: 'fill',
+      source: PLOTS_SOURCE_ID,
+      paint: { 'fill-color': colours.fill, 'fill-opacity': ['case', ['get', 'chosen'], colours.fillOpacity, 0] },
+    },
+    {
+      id: `${PLOTS_SOURCE_ID}-line`,
+      type: 'line',
+      source: PLOTS_SOURCE_ID,
+      paint: {
+        'line-color': ['case', ['get', 'chosen'], colours.outline, PLOT_OUTLINE_COLOUR],
+        'line-width': ['case', ['get', 'chosen'], 3, 1],
+      },
+    },
+  ];
 }

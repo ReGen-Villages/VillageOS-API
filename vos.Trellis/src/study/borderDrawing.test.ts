@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addCorner,
   addCornerOnEdge,
+  applyBorderEdit,
   finishDrawing,
   finishEditing,
   moveCorner,
@@ -86,5 +87,33 @@ describe('editing a border', () => {
     const moved = accepted(moveCorner(editing, 2, at(1.5, 1.5)));
 
     expect(finishEditing(moved)).toEqual({ mode: 'done', corners: moved.corners });
+  });
+});
+
+describe('an edit made on the map', () => {
+  it('places a corner while drawing, under the rule against crossing', () => {
+    const open = drawn([at(0, 0), at(0, 2), at(2, 1)]);
+
+    expect(accepted(applyBorderEdit(open, { kind: 'place', corner: at(2, 0) })).corners).toHaveLength(4);
+    expect(applyBorderEdit(open, { kind: 'place', corner: at(-1, 1) }).kind).toBe('crosses');
+  });
+
+  it('closes on the first corner, as finishing does', () => {
+    expect(accepted(applyBorderEdit(drawn(square), { kind: 'close' }))).toEqual({ mode: 'done', corners: square });
+    expect(applyBorderEdit(drawn(square.slice(0, 2)), { kind: 'close' }).kind).toBe('tooFewCorners');
+  });
+
+  it('moves a corner while editing, and refuses a move that crosses', () => {
+    const editing = startEditing(accepted(finishDrawing(drawn(square))));
+
+    expect(accepted(applyBorderEdit(editing, { kind: 'move', index: 2, to: at(1.5, 1.5) })).corners[2]).toEqual(at(1.5, 1.5));
+    expect(applyBorderEdit(editing, { kind: 'move', index: 2, to: at(-0.5, 0.5) }).kind).toBe('crosses');
+  });
+
+  it('adds a corner dragged out of a side, and refuses one that crosses', () => {
+    const editing = startEditing(accepted(finishDrawing(drawn(square))));
+
+    expect(accepted(applyBorderEdit(editing, { kind: 'insert', side: 1, corner: at(0.5, 1.2) })).corners[2]).toEqual(at(0.5, 1.2));
+    expect(applyBorderEdit(editing, { kind: 'insert', side: 1, corner: at(0.5, -0.5) }).kind).toBe('crosses');
   });
 });

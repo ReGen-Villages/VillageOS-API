@@ -1736,7 +1736,7 @@ service's address; otherwise the submit button says so and stays disabled.
   dropping one gives its share back; setting one moves the difference across the others. The shares
   always describe the whole parcel, as whole numbers that add to a hundred.
 - **Parcel.** Place a draft square of the stated area and drag its corners, or click corners onto
-  the map. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
+  the map; dragging the handle at the middle of a side adds a corner there. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
   nearly twice its size — and compared with the stated area; within tolerance the two read as a
   match, outside it the page says how far apart they are. The boundary is posted with how it was
   obtained, as a term the model declares, so a generated square never reads as a surveyed boundary.
@@ -3155,8 +3155,13 @@ address. A relative `tileUrl` — a path such as `/basemaps/satellite-tiles/{z}/
 the server that served the page: the intake service for the public pages, the server itself for the
 signed-in console. A signed-in map sends its sign-in with tile requests to its own server and to no
 other, so no map provider is ever handed a pass. Anything put onto the
-style — the boundary, the ground, the globe, the sky — goes on once the map has settled, and once
-only, because each repaints the map. The map library is chunked on its own and loaded when a map
+style — the boundary, an approximate area's dashed circle, a register's plots, the ground, the globe,
+the sky — goes on once the map has settled, and once only, because each repaints the map. The map
+draws a border's handles and reports each edit: a corner placed, the border closed on its first
+corner, a corner moved, a corner dragged out of a side. A dragged handle goes back where it was, and
+the page decides whether the edit stands, so the study's Location page refuses a border that crosses
+itself while the intake wizard takes every corner where it is put. The page gives the border's
+colours; the console keeps its green. The map library is chunked on its own and loaded when a map
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 

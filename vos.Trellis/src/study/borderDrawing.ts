@@ -1,3 +1,4 @@
+import type { BorderEdit } from '../components/map/borderEdit';
 import { enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 
 export interface BorderDrawing {
@@ -47,6 +48,19 @@ export function addCornerOnEdge(drawing: BorderDrawing, edge: number, corner: Bo
 
 export function finishEditing(drawing: BorderDrawing): BorderDrawing {
   return { mode: 'done', corners: drawing.corners };
+}
+
+export function applyBorderEdit(drawing: BorderDrawing, edit: BorderEdit): DrawingStep {
+  switch (edit.kind) {
+    case 'place':
+      return addCorner(drawing, edit.corner);
+    case 'close':
+      return finishDrawing(drawing);
+    case 'move':
+      return moveCorner(drawing, edit.index, edit.to);
+    case 'insert':
+      return addCornerOnEdge(drawing, edit.side, edit.corner);
+  }
 }
 
 function accepted(mode: BorderDrawing['mode'], corners: readonly BoundaryPoint[]): DrawingStep {
