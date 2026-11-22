@@ -37,9 +37,10 @@ public class AThingAndOnePropertyAreReadOnTheTestSeedTests : IClassFixture<TheEn
     public async Task A_Thing_of_one_model_is_not_answered_from_another()
     {
         await TheTestSeedAsAModelAsync();
+        var first = await _engine.TheModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
-        var refused = await server.CallAsync("get_thing", new() { ["thing"] = "Ålvik south slope" });
+        var refused = await server.CallAsync("get_thing", new() { ["thing"] = "Ålvik south slope", ["model"] = first.Id.ToString() });
 
         refused.IsError.Should().BeTrue();
         refused.Text.Should().Contain("No thing found with name 'Ålvik south slope'.");
@@ -64,9 +65,10 @@ public class AThingAndOnePropertyAreReadOnTheTestSeedTests : IClassFixture<TheEn
     {
         var name = $"Gauged spring {Guid.NewGuid():N}";
         await _engine.DeclareAsync(name, properties: new Dictionary<string, object?> { ["flow m3/h"] = 4.5 });
+        var first = await _engine.TheModelAsync();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
-        var read = await server.CallAsync("read_property", new() { ["thing"] = name, ["path"] = "flow m3/h" });
+        var read = await server.CallAsync("read_property", new() { ["thing"] = name, ["path"] = "flow m3/h", ["model"] = first.Id.ToString() });
 
         read.IsError.Should().BeFalse(read.Text);
         read.Structured.GetProperty("value").GetDouble().Should().Be(4.5);
@@ -77,10 +79,11 @@ public class AThingAndOnePropertyAreReadOnTheTestSeedTests : IClassFixture<TheEn
     {
         var name = $"Dry spring {Guid.NewGuid():N}";
         await _engine.DeclareAsync(name, properties: new Dictionary<string, object?> { ["flow"] = 1.0 });
+        var first = (await _engine.TheModelAsync()).Id.ToString();
         await using var server = await HyphaAgainstTheEngine.StartAsync(_engine, "viewer");
 
-        var refused = await server.CallAsync("read_property", new() { ["thing"] = name, ["path"] = ".." });
-        var stillThere = await server.CallAsync("get_thing", new() { ["thing"] = name });
+        var refused = await server.CallAsync("read_property", new() { ["thing"] = name, ["path"] = "..", ["model"] = first });
+        var stillThere = await server.CallAsync("get_thing", new() { ["thing"] = name, ["model"] = first });
 
         refused.IsError.Should().BeTrue();
         refused.Text.Should().Contain("is not a path to one of the platform's routes");
