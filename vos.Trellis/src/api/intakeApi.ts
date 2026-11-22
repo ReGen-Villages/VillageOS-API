@@ -144,8 +144,8 @@ export const intakeApi = {
   ): Promise<{ plots: RegisteredPlot[] | null; attributions: string[]; ticket: string }> => {
     const response = await intakeRequest('/submissions/plots-in-view', { body: { ...view, zoom }, ticket, passNotFound: true });
     if (response.status === 404) return { plots: null, attributions: [], ticket };
-    const answered = (await response.json()) as { plots?: RegisteredPlot[]; attributions?: string[] };
-    return { plots: answered.plots ?? [], attributions: answered.attributions ?? [], ticket: renewedTicket(response, ticket) };
+    const answered = (await response.json()) as { plots: RegisteredPlot[]; attributions: string[] };
+    return { plots: answered.plots, attributions: answered.attributions, ticket: renewedTicket(response, ticket) };
   },
 
   borderElevation: async (
@@ -156,16 +156,16 @@ export const intakeApi = {
     if (response.status === 404) return { elevation: null, ticket };
     const answered = (await response.json()) as {
       elevationMetres: number;
-      elevationMinimumMetres?: number | null;
-      elevationMaximumMetres?: number | null;
-      attribution?: string | null;
+      elevationMinimumMetres: number | null;
+      elevationMaximumMetres: number | null;
+      attribution: string | null;
     };
     return {
       elevation: {
         siteMetres: answered.elevationMetres,
-        lowestMetres: answered.elevationMinimumMetres ?? null,
-        highestMetres: answered.elevationMaximumMetres ?? null,
-        attribution: answered.attribution ?? null,
+        lowestMetres: answered.elevationMinimumMetres,
+        highestMetres: answered.elevationMaximumMetres,
+        attribution: answered.attribution,
       },
       ticket: renewedTicket(response, ticket),
     };
@@ -183,15 +183,15 @@ export const intakeApi = {
     form.append('emailAddress', emailAddress);
     const response = await intakeRequest('/submissions/read-file', { body: form, ticket });
     const answered = (await response.json()) as {
-      shapes?: { name?: string | null }[];
-      largestArea?: { shape: number; boundary: BoundaryPoint[]; hectares: number } | null;
+      shapes: { name: string | null }[];
+      largestArea: { shape: number; boundary: BoundaryPoint[]; hectares: number } | null;
     };
-    const largest = answered.largestArea ?? null;
+    const largest = answered.largestArea;
     return {
       largestArea:
         largest === null
           ? null
-          : { name: answered.shapes?.[largest.shape]?.name ?? null, boundary: largest.boundary, hectares: largest.hectares },
+          : { name: answered.shapes[largest.shape].name, boundary: largest.boundary, hectares: largest.hectares },
       ticket: renewedTicket(response, ticket),
     };
   },
