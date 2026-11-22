@@ -61,7 +61,7 @@ function Page() {
   return (
     <LocationPage
       session={SESSION}
-      ticket={ticket}
+      ticketRef={ticket}
       site={site}
       onSiteChange={(changed) => {
         sitesShown.push(changed);
