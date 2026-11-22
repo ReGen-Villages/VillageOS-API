@@ -2416,8 +2416,9 @@ intake service's Thing, so it never expires, carries that service's grants and r
 model. The proxy passes the caller's address on, because submissions are rate
 limited per source.
 
-**The public pages** are a build of their own that carries no sign-in and no part of the signed-in
-console. Until the site study's first pages ship, the build is one empty page:
+**The public pages** are a build of their own that carries no sign-in to the console and no part of
+the signed-in console. The build is the site study, whose `index.html` asks for an address and a
+project name, sends a code to the address, and opens the study under the ticket the code is spent on:
 
 ```bash
 cd vos.Trellis
@@ -2496,7 +2497,7 @@ One directory, one job; tests sit beside the code they test.
 ```text
 vos.Trellis/
 ├── index.html, vite.config.ts     the signed-in application, and its development proxy
-├── public-empty.html, vite.public.config.ts
+├── public-study.html, vite.public.config.ts
 │                                  the public pages, built on their own
 └── src/
     ├── main.tsx, App.tsx          the root, the router, the sign-in gate, the theme
@@ -2585,8 +2586,11 @@ Every address renders only after sign-in; an unauthenticated visitor sees the si
 they opened.
 
 **The public pages are a build of their own** (`npm run build:public`), with their own entries and no
-router, reaching the intake service and nothing else. Until the site study's first pages ship, the
-build is one empty page. A test reads the build's pages from `vite.public.config.ts` and walks every
+router, reaching the intake service and nothing else. Its one page is the site study
+(`public-study.html`, built as `index.html`), whose steps are Location, Data, Village, Layout and
+Timeline in Pro and Location, Data, Village layout and Timeline in Lite. The edition is chosen in the
+footer and kept per browser, Lite until Pro is chosen, and a step whose page is not built yet is
+shown greyed. A test reads the build's pages from `vite.public.config.ts` and walks every
 import of every script they load, and fails if one leads to the server client, the signed-in state,
 or anything behind sign-in. A public page can draw the model's own dashboard through the same
 resolver and widgets the operations page uses, because the resolver opens no connection itself — the

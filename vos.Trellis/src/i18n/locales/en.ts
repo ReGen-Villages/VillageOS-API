@@ -1657,6 +1657,38 @@ export const en = {
     featureNotInFile: "“{{value}}” is not a feature this file holds.",
     documentNotShared: "This file is not one this submission shares.",
   },
+  study: {
+    signIn: {
+      title: 'Sign in',
+      emailAddress: 'Email',
+      projectName: 'Project name',
+      continue: 'Continue',
+      sending: 'Sending a code…',
+      codeSent: 'A code is on its way to {{emailAddress}}. Enter it to continue.',
+      code: 'Code',
+      confirm: 'Confirm',
+      confirming: 'Checking the code…',
+      emailMissing: 'Enter your email.',
+      emailInvalid: 'Enter a valid email address.',
+      projectMissing: 'Enter a project name.',
+    },
+    steps: {
+      location: 'Location',
+      data: 'Data',
+      village: 'Village',
+      layout: 'Layout',
+      villageLayout: 'Village layout',
+      timeline: 'Timeline',
+    },
+    stepsLabel: 'Study steps',
+    next: 'Next',
+    comingSoon: 'Coming soon',
+    completeThisStep: 'Complete this step first',
+    locationNeeded: 'Location needed',
+    noAddress: '—',
+    version: 'Version:',
+    editions: { lite: 'Lite', pro: 'Pro' },
+  },
 };
 
 export type Resources = typeof en;

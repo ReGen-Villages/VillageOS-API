@@ -71,9 +71,9 @@ describe('the public build', () => {
     expect(PAGES).not.toEqual([]);
   });
 
-  it('serves one empty page, loading nothing, until the site study\'s first pages ship', () => {
-    expect(PAGES).toEqual(['public-empty.html']);
-    expect(scriptsOf('public-empty.html')).toEqual([]);
+  it('serves the site study, loading its one entry', () => {
+    expect(PAGES).toEqual(['public-study.html']);
+    expect(scriptsOf('public-study.html')).toEqual([resolve(SOURCE, 'study/main.tsx')]);
   });
 });
 
