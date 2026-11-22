@@ -1727,6 +1727,8 @@ export const de: PartialResources = {
       choosePlot: 'Flurstück wählen',
       plotsComingSoon: 'Demnächst: braucht Katasterdaten der Flurstücke',
       confirmSite: 'Standort bestätigen',
+      siteLabel: 'Standort',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };

@@ -36,6 +36,15 @@ export function draftSquareAround(centre: BoundaryPoint, areaHectares: number): 
   ];
 }
 
+export function middleOfExtent(border: readonly BoundaryPoint[]): BoundaryPoint {
+  const latitudes = border.map((corner) => corner.latitude);
+  const longitudes = border.map((corner) => corner.longitude);
+  return {
+    latitude: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
+    longitude: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
+  };
+}
+
 const CIRCLE_CORNERS = 64;
 
 export function circleOfAreaAround(centre: BoundaryPoint, areaHectares: number): BoundaryPoint[] {

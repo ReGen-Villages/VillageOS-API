@@ -1727,6 +1727,8 @@ export const fr: PartialResources = {
       choosePlot: 'Choisir une parcelle',
       plotsComingSoon: 'Bientôt : nécessite les données cadastrales des parcelles',
       confirmSite: 'Confirmer le terrain',
+      siteLabel: 'Terrain',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };

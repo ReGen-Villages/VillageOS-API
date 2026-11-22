@@ -3171,7 +3171,8 @@ draws a border's handles and reports each edit: a corner placed, the border clos
 corner, a corner moved, a corner dragged out of a side. A dragged handle goes back where it was, and
 the page decides whether the edit stands, so the study's Location page refuses a border that crosses
 itself while the intake wizard takes every corner where it is put. The page gives the border's
-colours; the console keeps its green. The map library is chunked on its own and loaded when a map
+colours; the console keeps its green. A label the page gives, such as the study's "parcel · area",
+sits at the middle of a border that encloses land. The map library is chunked on its own and loaded when a map
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 

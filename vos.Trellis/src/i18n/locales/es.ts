@@ -1727,6 +1727,8 @@ export const es: PartialResources = {
       choosePlot: 'Elegir parcela',
       plotsComingSoon: 'Próximamente: necesita datos catastrales de parcelas',
       confirmSite: 'Confirmar terreno',
+      siteLabel: 'Terreno',
+      borderLabel: '{{name}} · {{hectares}} ha',
     },
   },
 };

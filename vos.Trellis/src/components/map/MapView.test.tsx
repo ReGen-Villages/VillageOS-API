@@ -673,6 +673,53 @@ describe('editing the border', () => {
   });
 });
 
+describe('the label on the border', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 41.38, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.638 },
+  ];
+  const labels = () => markers.filter((marker) => marker.options.element !== undefined && onTheMap(marker));
+
+  it('sits at the middle of a border that encloses land, in the outline’s colour', () => {
+    render(
+      <MapView
+        {...POSITION}
+        sources={[STREETS]}
+        boundary={CORNERS}
+        boundaryLabel="North field · 10.1 ha"
+        borderColours={{ outline: '#a9413d', fill: '#f08a24', fillOpacity: 0.45 }}
+      />,
+    );
+
+    expect(labels()).toHaveLength(1);
+    const element = labels()[0].options.element as HTMLElement;
+    expect(element.textContent).toBe('North field · 10.1 ha');
+    expect(element.style.color).toBe('rgb(169, 65, 61)');
+    expect(labels()[0].position![0]).toBeCloseTo(-70.639, 9);
+    expect(labels()[0].position![1]).toBeCloseTo(41.381, 9);
+  });
+
+  it('is not drawn without a label, or without a border that encloses land', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    expect(labels()).toHaveLength(0);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS.slice(0, 2)} boundaryLabel="North field" />);
+
+    expect(labels()).toHaveLength(0);
+  });
+
+  it('is taken off with the border', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} boundaryLabel="North field" />);
+    const drawn = labels()[0];
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} boundaryLabel="North field" />);
+
+    expect(drawn.remove).toHaveBeenCalled();
+    expect(labels()).toHaveLength(0);
+  });
+});
+
 describe('the colours of the border', () => {
   const CORNERS: readonly BoundaryPoint[] = [
     { latitude: 41.38, longitude: -70.64 },

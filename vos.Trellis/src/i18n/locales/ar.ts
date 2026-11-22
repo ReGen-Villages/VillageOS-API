@@ -1833,6 +1833,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       choosePlot: 'اختيار قطعة',
       plotsComingSoon: 'قريبًا: يحتاج إلى بيانات القطع المساحية',
       confirmSite: 'تأكيد الموقع',
+      siteLabel: 'الموقع',
+      borderLabel: '{{name}} · {{hectares}} هكتار',
     },
   },
 };

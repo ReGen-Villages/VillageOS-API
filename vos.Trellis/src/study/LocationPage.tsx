@@ -261,6 +261,7 @@ export function LocationPage({
             initialZoom={OPENING_ZOOM}
             focusZoom={SITE_ZOOM}
             boundary={shownBorder}
+            boundaryLabel={drawing === null && site !== null ? borderLabel(site) : undefined}
             borderColours={STUDY_BORDER_COLOURS}
             borderEditing={
               drawing === null
@@ -403,6 +404,12 @@ export function LocationPage({
     const hectares = hectaresText(area.hectares);
     if (area.kind === 'register') return t('study.location.areaFromRegister', { hectares, label: area.label ?? t('study.location.plot') });
     return t(area.kind === 'drawn' ? 'study.location.areaDrawn' : 'study.location.areaFromFile', { hectares });
+  }
+
+  function borderLabel(shown: LocationSite): string {
+    const name = shown.parcelName ?? shown.plotLabel ?? t('study.location.siteLabel');
+    const area = siteArea(shown, form?.areaMethod ?? null);
+    return area.kind === 'unknown' ? name : t('study.location.borderLabel', { name, hectares: hectaresText(area.hectares) });
   }
 
   function elevationWording(lookup: ElevationLookup | null): string {
