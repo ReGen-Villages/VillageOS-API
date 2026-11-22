@@ -51,15 +51,21 @@ describe('signing in', () => {
 
   it('starts with an empty address where the browser keeps nothing', () => {
     localStorage.setItem(LAST_ADDRESS_KEY, 'ana.ferreira@example.pt');
-    const refusing = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
-      throw new Error('storage is off');
+    // The whole object is replaced, because a property set on a browser's storage is stored as an item.
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('storage is off');
+      },
+      setItem: () => {
+        throw new Error('storage is off');
+      },
     });
     try {
       render(<StudyPage />);
 
       expect(screen.getByLabelText('Email')).toHaveValue('');
     } finally {
-      refusing.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 
