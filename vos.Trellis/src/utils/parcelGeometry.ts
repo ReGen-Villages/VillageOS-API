@@ -1,4 +1,4 @@
-/** The area is measured on the sphere, as the intake service measures it, because treating latitude and
+/** A border's area is measured in borderArea.ts, as the intake service measures it, because treating latitude and
  *  longitude as flat is wrong away from the equator and every later figure is proportional to it. The flat
  *  reading only places the draft square, where the error cannot be seen. */
 
@@ -19,20 +19,6 @@ export const AREA_MATCH_TOLERANCE = 0.08;
  *  carrying them is refused. */
 export function enclosesLand(boundary: readonly BoundaryPoint[]): boolean {
   return boundary.length >= 3;
-}
-
-export function sphericalAreaHectares(boundary: readonly BoundaryPoint[]): number {
-  if (!enclosesLand(boundary)) return 0;
-  let total = 0;
-  for (let corner = 0; corner < boundary.length; corner += 1) {
-    const here = boundary[corner];
-    const next = boundary[(corner + 1) % boundary.length];
-    total +=
-      toRadians(next.longitude - here.longitude) *
-      (2 + Math.sin(toRadians(here.latitude)) + Math.sin(toRadians(next.latitude)));
-  }
-  const squareMetres = (Math.abs(total) * EARTH_RADIUS_METRES * EARTH_RADIUS_METRES) / 2;
-  return squareMetres / SQUARE_METRES_PER_HECTARE;
 }
 
 /** A square of the given area centred on the given point, for the planner to drag onto the real

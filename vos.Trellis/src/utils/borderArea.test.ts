@@ -85,6 +85,35 @@ describe('borderAreaHectares', () => {
   });
 
   it.each(methods)('finds a border of fewer than three corners encloses nothing (%s)', (method) => {
+    expect(borderAreaHectares([], method)).toBe(0);
     expect(borderAreaHectares([{ latitude: 39.5, longitude: 0 }, { latitude: 39.5, longitude: 0.01 }], method)).toBe(0);
+  });
+
+  it.each(methods)('finds a line of corners in a row encloses nothing (%s)', (method) => {
+    const line: BoundaryPoint[] = [
+      { latitude: 45, longitude: -8.4 },
+      { latitude: 45, longitude: -8.3 },
+      { latitude: 45, longitude: -8.2 },
+    ];
+
+    expectWithin(borderAreaHectares(line, method), 0, 1e-6);
+  });
+
+  // A thousandth of a degree is 111.19 metres along a meridian, and that times the cosine of the latitude along a
+  // parallel; a flat reading would give the same box 1.24 hectares wherever it sat.
+  it.each([
+    [0, 1.23643],
+    [45, 0.87428],
+    [60, 0.61821],
+  ])('measures a thousandth-of-a-degree box at latitude %d° on the mean sphere as the reference figure', (latitude, hectares) => {
+    const side = 0.001;
+    const small: BoundaryPoint[] = [
+      { latitude, longitude: -8.4 },
+      { latitude, longitude: -8.4 + side },
+      { latitude: latitude + side, longitude: -8.4 + side },
+      { latitude: latitude + side, longitude: -8.4 },
+    ];
+
+    expect(borderAreaHectares(small, 'meanSphereAreaMethod')).toBeCloseTo(hectares, 4);
   });
 });

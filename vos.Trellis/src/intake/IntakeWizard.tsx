@@ -20,7 +20,8 @@ import { intakeApi, type SubmissionAccepted } from '../api/intakeApi';
 import { toast } from '../components/common/toastStore';
 import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
-import { areaMatch, sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
+import { borderAreaHectares } from '../utils/borderArea';
+import { areaMatch, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
   STEPS,
   boundaryCleared,
@@ -523,7 +524,7 @@ function ParcelStep({ draft, sources, onChange }: StepProps & { sources: Basemap
   const { t, i18n } = useTranslation();
   const position = coordinatesFrom(draft);
   const stated = statedAreaHectares(draft);
-  const drawn = draft.boundary.length >= 3 ? sphericalAreaHectares(draft.boundary) : null;
+  const drawn = draft.boundary.length >= 3 ? borderAreaHectares(draft.boundary, 'meanSphereAreaMethod') : null;
   const compared = drawn !== null && stated !== null ? areaMatch(drawn, stated) : null;
   const drafted = boundaryDrafted(draft);
   const unit = t(`intake.${draft.areaUnit}`);
