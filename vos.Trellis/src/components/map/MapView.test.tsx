@@ -591,6 +591,26 @@ describe('editing the border', () => {
     expect(press.originalEvent.stopPropagation).not.toHaveBeenCalled();
   });
 
+  it('hands a click to a page picking its position while no border places corners', () => {
+    const onPositionPick = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing()} onPositionPick={onPositionPick} />);
+
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onPositionPick).toHaveBeenCalledWith({ latitude: 41.384, longitude: -70.636 });
+  });
+
+  it('gives a click to the corners, not the position, while the border places corners', () => {
+    const onPositionPick = vi.fn();
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} borderEditing={drawing(onEdit)} onPositionPick={onPositionPick} />);
+
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onPositionPick).not.toHaveBeenCalled();
+  });
+
   it('places nothing on a click while the border only moves corners', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing()} />);
 
