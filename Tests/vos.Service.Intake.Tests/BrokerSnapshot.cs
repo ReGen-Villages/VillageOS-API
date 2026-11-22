@@ -24,7 +24,7 @@ public sealed class BrokerSnapshot
 
     private sealed record Node(
         Guid Id, string Name, bool IsArchetype, Dictionary<string, object> Properties,
-        Dictionary<string, object> InheritedOverrides, string[] States);
+        Dictionary<string, object>? InheritedOverrides, string[] States);
 
     private sealed record Edge(Guid Id, Guid SubjectId, Guid PredicateId, Guid TargetId);
 
@@ -44,9 +44,10 @@ public sealed class BrokerSnapshot
     // Values written for names an archetype declares, in the store the model actually puts
     // them in: the declaration is cloned under the archetype's id and the value written inside it, so a
     // submitted value is never an own property, so a reader looking only at the own map finds nothing.
-    private static Dictionary<string, object> OverridesUnder(Dictionary<string, object>? overriding) =>
+    // A Thing overriding nothing has no store at all, null as the broker writes it, not an empty one.
+    private static Dictionary<string, object>? OverridesUnder(Dictionary<string, object>? overriding) =>
         overriding is null or { Count: 0 }
-            ? []
+            ? null
             : new Dictionary<string, object>
             {
                 [ContactArchetype.ToString()] = new

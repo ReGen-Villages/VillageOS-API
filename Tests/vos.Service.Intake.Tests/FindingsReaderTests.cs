@@ -118,6 +118,44 @@ public class FindingsReaderTests
     }
 
     [Fact]
+    public void A_contact_holding_nothing_has_no_address()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions().Without(ThisContact).Thing(ThisContact, "Willow Bend Contact").Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().BeNull();
+    }
+
+    [Fact]
+    public void A_contact_whose_overrides_name_no_address_has_none()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Without(ThisContact)
+            .Thing(ThisContact, "Willow Bend Contact", overriding: new Dictionary<string, object>
+            {
+                ["preferredLanguage"] = new { typeInfo = "vos.String", value = "pt" },
+            })
+            .Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().BeNull();
+    }
+
+    [Fact]
+    public void It_refuses_a_page_carrying_no_specification()
+    {
+        var bare = Guid.NewGuid();
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Unbound(LandIntakeRoles.SubmitterProDataPage)
+            .Thing(bare, "A page with nothing to draw")
+            .Bound(LandIntakeRoles.SubmitterProDataPage, bare)
+            .Parsed();
+
+        var refusal = Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
+
+        refusal.Message.Should().Contain($"carries no '{FindingsReader.SpecificationProperty}'");
+    }
+
+    [Fact]
     public void A_contact_the_model_does_not_hold_has_no_address()
     {
         using var model = BrokerSnapshot.WithTwoSubmissions().Without(ThisContact).Parsed();
