@@ -20,7 +20,9 @@ import { intakeApi, type SubmissionAccepted } from '../api/intakeApi';
 import { toast } from '../components/common/toastStore';
 import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
-import { areaMatch, sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
+import { borderAreaHectares, type AreaMethod } from '../utils/borderArea';
+import { areaMatch, type BoundaryPoint } from '../utils/parcelGeometry';
+import { freehandBoundary } from '../components/map/borderEdit';
 import {
   STEPS,
   boundaryCleared,
@@ -57,6 +59,7 @@ export function IntakeWizard({
   hazardLevels,
   wording,
   draftOwner,
+  areaMethod,
 }: {
   categories: readonly string[];
   basemapSources: BasemapSource[];
@@ -70,6 +73,8 @@ export function IntakeWizard({
   wording: TermWording;
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
+  /** The model's, so a drawn border reads what the intake will measure; none shows no drawn area. */
+  areaMethod: AreaMethod | null;
 }) {
   const { t } = useTranslation();
   const wordsFor = useTermWords(wording);
@@ -182,7 +187,7 @@ export function IntakeWizard({
         {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
         {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} wordsFor={wordsFor} onChange={change} />}
-        {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
+        {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} areaMethod={areaMethod} onChange={change} />}
         {step === 'hazards' && (
           <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} wordsFor={wordsFor} onChange={change} />
         )}
@@ -407,7 +412,7 @@ function SiteMap({
   position: { latitude: number; longitude: number };
   sources: BasemapSource[];
   boundary?: readonly BoundaryPoint[];
-  onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  onBoundaryChange?: (boundary: readonly BoundaryPoint[]) => void;
 }) {
   return (
     <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
@@ -417,7 +422,13 @@ function SiteMap({
           longitude={position.longitude}
           sources={sources}
           boundary={boundary}
-          onBoundaryChange={onBoundaryChange}
+          borderEditing={
+            onBoundaryChange && {
+              placesCorners: true,
+              movesCorners: true,
+              onEdit: (edit) => onBoundaryChange(freehandBoundary(boundary ?? [], edit)),
+            }
+          }
         />
       </Suspense>
     </div>
@@ -519,11 +530,16 @@ function ProgrammeStep({
   );
 }
 
-function ParcelStep({ draft, sources, onChange }: StepProps & { sources: BasemapSource[] }) {
+function ParcelStep({
+  draft,
+  sources,
+  areaMethod,
+  onChange,
+}: StepProps & { sources: BasemapSource[]; areaMethod: AreaMethod | null }) {
   const { t, i18n } = useTranslation();
   const position = coordinatesFrom(draft);
   const stated = statedAreaHectares(draft);
-  const drawn = draft.boundary.length >= 3 ? sphericalAreaHectares(draft.boundary) : null;
+  const drawn = areaMethod !== null && draft.boundary.length >= 3 ? borderAreaHectares(draft.boundary, areaMethod) : null;
   const compared = drawn !== null && stated !== null ? areaMatch(drawn, stated) : null;
   const drafted = boundaryDrafted(draft);
   const unit = t(`intake.${draft.areaUnit}`);

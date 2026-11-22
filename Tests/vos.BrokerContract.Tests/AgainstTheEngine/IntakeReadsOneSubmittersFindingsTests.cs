@@ -74,4 +74,24 @@ public class IntakeReadsOneSubmittersFindingsTests : IClassFixture<TheEngine>
             edge.Subject == alderRise.Study || edge.Subject == alderRise.Site || edge.Subject == alderRise.Parcel
             || edge.Target == alderRise.Study || edge.Target == alderRise.Site || edge.Target == alderRise.Parcel);
     }
+
+    // The address read names one identifier and walks nothing, so only the engine can say it is answered with that
+    // Thing and its properties alone.
+    [FactAgainstTheEngine]
+    public async Task The_address_read_answers_the_one_contact_and_its_address()
+    {
+        var address = $"willowbend{Guid.NewGuid():N}@example.test";
+        var contact = await _engine.DeclareAsync($"Willow Bend Contact {Guid.NewGuid():N}",
+            properties: new Dictionary<string, object?> { [FindingsReader.EmailAddressProperty] = address });
+        await _engine.DeclareAsync($"Alder Rise Contact {Guid.NewGuid():N}",
+            properties: new Dictionary<string, object?> { [FindingsReader.EmailAddressProperty] = "alderrise@example.test" });
+
+        var mycelium = new IntakeMyceliumClient(
+            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
+        using var reading = await mycelium.ReadAsync(FindingsReader.ContactSelector(contact), CancellationToken.None);
+
+        FindingsReader.ReadContactAddress(reading.RootElement, contact).Should().Be(address);
+        reading.RootElement.GetProperty("things").EnumerateArray().Select(thing => thing.GetProperty("Id").GetGuid())
+            .Should().Equal(contact);
+    }
 }

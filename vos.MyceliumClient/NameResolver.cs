@@ -23,6 +23,23 @@ public class NameResolver
         return await ResolveByNameAsync(nameOrId);
     }
 
+    // Asks the platform for the one name, where ResolveThingAsync reads every Thing to find it. The platform
+    // reads a comma as separating names, so a name holding one is found by reading every Thing.
+    public async Task<ResolveResult> FindThingAsync(string nameOrId)
+    {
+        if (Guid.TryParse(nameOrId, out var id))
+            return ResolveResult.Success(id);
+
+        if (nameOrId.Contains(','))
+            return await ResolveByNameAsync(nameOrId);
+
+        var found = await _mycelium.GetThingByNameAsync(nameOrId);
+        if (found.Thing is { } thing)
+            return ResolveResult.Success(thing.GetProperty("Id").GetGuid());
+
+        return found.Matching.Count == 0 ? NoThingNamed(nameOrId) : Ambiguous(nameOrId, found.Matching);
+    }
+
     public async Task<ResolveResult[]> ResolveThingsAsync(params string[] namesOrIds)
     {
         await EnsureThingsCachedAsync();
@@ -118,12 +135,19 @@ public class NameResolver
 
         return matches.Count switch
         {
-            0 => ResolveResult.Error($"No thing found with name '{name}'."),
+            0 => NoThingNamed(name),
             1 => ResolveResult.Success(matches[0].Id),
-            _ => ResolveResult.Error($"Ambiguous name '{name}': found {matches.Count} things with this name. Use the ID instead:\n" +
-                                     string.Join("\n", matches.Select(m => $"  {m.Id} - {m.Name}")))
+            _ => Ambiguous(name, matches.Select(match => match.Id).ToList())
         };
     }
+
+    private static ResolveResult NoThingNamed(string name) => ResolveResult.Error($"No thing found with name '{name}'.");
+
+    // Names are compared exactly, so every Thing matching holds the name that was asked.
+    private static ResolveResult Ambiguous(string name, IReadOnlyCollection<Guid> matching) =>
+        ResolveResult.Error(
+            $"Ambiguous name '{name}': found {matching.Count} things with this name. Use the ID instead:\n"
+            + string.Join("\n", matching.Select(id => $"  {id} - {name}")));
 
     private static string? GetProperty(JsonElement element, string propertyName)
     {

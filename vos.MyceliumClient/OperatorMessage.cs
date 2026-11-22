@@ -1,6 +1,6 @@
 namespace vos.PlatformClient;
 
-internal static class OperatorMessage
+public static class OperatorMessage
 {
     // .NET keeps the reason in the wrapped exception, so an HttpRequestException that says "see
     // inner exception" is pointing the operator at something the command line never shows them.

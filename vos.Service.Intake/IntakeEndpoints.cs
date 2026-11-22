@@ -403,6 +403,11 @@ internal static class IntakeEndpoints
                         "'submissionId' and 'emailAddress' are both needed: one names the submission, "
                         + "the other is what the ticket was issued against.")));
 
+            if (FindingsReader.OfferedPage(asked.Page) is not { } page)
+                return Refused(context, "the request named no page this service draws",
+                    Results.BadRequest(new Refusal(RefusalCode.PageNotOffered,
+                        "'page' names the role of the page to draw: the Lite or the Pro Data page.")));
+
             if (!tickets.WasIssuedFor(presented, emailAddress))
                 return Refused(context, "the ticket was issued against a different address",
                     Results.Json(
@@ -411,7 +416,7 @@ internal static class IntakeEndpoints
 
             try
             {
-                var read = await findings.ReadAsync(submissionId, emailAddress, context.RequestAborted);
+                var read = await findings.ReadAsync(submissionId, emailAddress, page, context.RequestAborted);
                 if (read is null)
                     return Refused(context, "the reference and the address name no submission",
                         Results.Json(

@@ -1736,7 +1736,7 @@ service's address; otherwise the submit button says so and stays disabled.
   dropping one gives its share back; setting one moves the difference across the others. The shares
   always describe the whole parcel, as whole numbers that add to a hundred.
 - **Parcel.** Place a draft square of the stated area and drag its corners, or click corners onto
-  the map. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
+  the map; dragging the handle at the middle of a side adds a corner there. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
   nearly twice its size — and compared with the stated area; within tolerance the two read as a
   match, outside it the page says how far apart they are. The boundary is posted with how it was
   obtained, as a term the model declares, so a generated square never reads as a surveyed boundary.
@@ -1746,9 +1746,9 @@ service's address; otherwise the submit button says so and stays disabled.
 - **Sending.** The submission goes once the contact's address is verified: **Send a code** asks the
   intake service to mail one, and entering it posts the submission.
 
-**From the public site**, a member of the public will submit through the site study's pages, which
-hold no sign-in and talk to the intake service alone. Until the first of them ships, the public site
-serves one empty page.
+**From the public site**, a member of the public submits through the site study's pages, which hold
+no sign-in to the console and talk to the intake service alone. The Location page posts the
+submission when its site is confirmed.
 
 ### 58. Reviewing what has arrived
 The land-intake template declares a **Submissions** page, listed in the rail with the model's other
@@ -2416,8 +2416,9 @@ intake service's Thing, so it never expires, carries that service's grants and r
 model. The proxy passes the caller's address on, because submissions are rate
 limited per source.
 
-**The public pages** are a build of their own that carries no sign-in and no part of the signed-in
-console. Until the site study's first pages ship, the build is one empty page:
+**The public pages** are a build of their own that carries no sign-in to the console and no part of
+the signed-in console. The build is the site study, whose `index.html` asks for an address and a
+project name, sends a code to the address, and opens the study under the ticket the code is spent on:
 
 ```bash
 cd vos.Trellis
@@ -2496,7 +2497,7 @@ One directory, one job; tests sit beside the code they test.
 ```text
 vos.Trellis/
 ├── index.html, vite.config.ts     the signed-in application, and its development proxy
-├── public-empty.html, vite.public.config.ts
+├── public-study.html, vite.public.config.ts
 │                                  the public pages, built on their own
 └── src/
     ├── main.tsx, App.tsx          the root, the router, the sign-in gate, the theme
@@ -2585,8 +2586,21 @@ Every address renders only after sign-in; an unauthenticated visitor sees the si
 they opened.
 
 **The public pages are a build of their own** (`npm run build:public`), with their own entries and no
-router, reaching the intake service and nothing else. Until the site study's first pages ship, the
-build is one empty page. A test reads the build's pages from `vite.public.config.ts` and walks every
+router, reaching the intake service and nothing else. Its one page is the site study
+(`public-study.html`, built as `index.html`), whose steps are Location, Data, Village, Layout and
+Timeline in Pro and Location, Data, Village layout and Timeline in Lite. The edition is chosen in the
+footer and kept per browser, Lite until Pro is chosen, and a step whose page is not built yet is
+shown greyed. **Location**, the same in both editions, finds the site from one box that takes an
+address or coordinates, then gives it a border in one of three ways: drawn on the map (a border that
+crosses itself is refused), imported from a parcel file the intake reads (its largest area; a border
+whose centre is more than 300 m from the site moves the site there), or a plot pressed among the
+register's plots in view from zoom 15. A drawn border is measured with the area method the form
+names, an imported one reads the intake's own measure, and a plot reads the register's area. The
+elevation is looked up for each finished border. **Confirm site** posts the submission, with the
+email as the contact's name until a later step asks for one and the site named after the parcel,
+else the address, else the project, and keeps an imported file as a document of the submission.
+Every request after sign-in carries the ticket, renewed from each answer, so the page is counted
+against the signed-in budget. A test reads the build's pages from `vite.public.config.ts` and walks every
 import of every script they load, and fails if one leads to the server client, the signed-in state,
 or anything behind sign-in. A public page can draw the model's own dashboard through the same
 resolver and widgets the operations page uses, because the resolver opens no connection itself — the
@@ -3151,8 +3165,14 @@ address. A relative `tileUrl` — a path such as `/basemaps/satellite-tiles/{z}/
 the server that served the page: the intake service for the public pages, the server itself for the
 signed-in console. A signed-in map sends its sign-in with tile requests to its own server and to no
 other, so no map provider is ever handed a pass. Anything put onto the
-style — the boundary, the ground, the globe, the sky — goes on once the map has settled, and once
-only, because each repaints the map. The map library is chunked on its own and loaded when a map
+style — the boundary, an approximate area's dashed circle, a register's plots, the ground, the globe,
+the sky — goes on once the map has settled, and once only, because each repaints the map. The map
+draws a border's handles and reports each edit: a corner placed, the border closed on its first
+corner, a corner moved, a corner dragged out of a side. A dragged handle goes back where it was, and
+the page decides whether the edit stands, so the study's Location page refuses a border that crosses
+itself while the intake wizard takes every corner where it is put. The page gives the border's
+colours; the console keeps its green. A label the page gives, such as the study's "parcel · area",
+sits at the middle of a border that encloses land. The map library is chunked on its own and loaded when a map
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 

@@ -14,11 +14,12 @@ export const findingsApi = {
   /** The same route and limit as a submission's verification. */
   askForCode: intakeApi.askForCode,
 
+  /** `page` is the role of the page to draw, one of LAND_INTAKE_ROLE's Data page roles. */
   read: async (
-    submissionId: string, emailAddress: string, code: string,
+    submissionId: string, emailAddress: string, page: string, code: string,
   ): Promise<{ findings: FindingsAnswer; ticket: string }> => {
     const ticket = await intakeApi.exchangeTicket(emailAddress, code);
-    return findingsApi.readWithTicket(submissionId, emailAddress, ticket);
+    return findingsApi.readWithTicket(submissionId, emailAddress, page, ticket);
   },
 
   /** Under the ticket the submission was posted with, so a page that just submitted opens its findings with
@@ -26,9 +27,10 @@ export const findingsApi = {
   readWithTicket: async (
     submissionId: string,
     emailAddress: string,
+    page: string,
     ticket: string,
   ): Promise<{ findings: FindingsAnswer; ticket: string }> => {
-    const response = await intakeRequest('/submissions/findings', { body: { submissionId, emailAddress }, ticket });
+    const response = await intakeRequest('/submissions/findings', { body: { submissionId, emailAddress, page }, ticket });
     return { findings: await response.json(), ticket: renewedTicket(response, ticket) };
   },
 

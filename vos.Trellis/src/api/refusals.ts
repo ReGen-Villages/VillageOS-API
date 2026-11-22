@@ -11,7 +11,7 @@ export const REFUSAL_CODES = [
   'submissionTooLarge', 'submissionEmpty', 'submissionUnreadable', 'identifierInvalid', 'emailAddressMalformed',
   'fieldMissing', 'fieldTooLong', 'fieldTooMany', 'fieldOutOfRange', 'termUnknown', 'sharesDisagree',
   'hazardsDisagree', 'sourceDescribedTwice', 'boundaryTooFewCorners', 'modelRefused',
-  'referenceAndAddressNeeded', 'notYourSubmission', 'reductionMalformed',
+  'referenceAndAddressNeeded', 'pageNotOffered', 'notYourSubmission', 'reductionMalformed',
   'fileNotAForm', 'noFile', 'fileTooLarge', 'descriptionTooLong', 'filesNotTaken',
   'layerFileUnreadable', 'featuresUnreadable', 'featureNotInFile', 'documentNotShared',
 ] as const;

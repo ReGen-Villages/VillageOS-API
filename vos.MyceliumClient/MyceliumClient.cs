@@ -3,49 +3,56 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace vos.PlatformClient;
 
 public readonly record struct LogDownload(string FileName, Stream Content);
 
-public class MyceliumClient
+public class KeyRefusedException(string message) : InvalidOperationException(message);
+
+public sealed record ReachableModel(Guid Id, string Name);
+
+// The platform refuses a token to a key that names no model while it holds several, listing the models the key may enter.
+public sealed class ModelNotNamedException(string message, IReadOnlyList<ReachableModel> models) : KeyRefusedException(message)
+{
+    public IReadOnlyList<ReachableModel> Models { get; } = models;
+}
+
+// The Thing of a name, or none; Matching lists the Things when more than one holds the name.
+public sealed record ThingByName(JsonElement? Thing, IReadOnlyList<Guid> Matching);
+
+public partial class MyceliumClient
 {
     private readonly HttpClient _httpClient;
     private readonly HttpClient _clientWithNoTimeLimit;
     private readonly string _myceliumUrl;
     private readonly string? _apiKey;
     private readonly Func<DateTime> _clock;
-    private string? _cachedToken;
-    private DateTime _tokenExpiry;
+    private readonly HttpMessageHandler _transport;
+    private readonly HttpMessageHandler _transportWithNoTimeLimit;
+    private readonly string _programName;
+    private readonly Guid? _modelId;
+    private HeldToken? _held;
+
+    private sealed record HeldToken(string Value, DateTime Expiry);
 
     public MyceliumClient(string myceliumUrl) : this(myceliumUrl, null) { }
 
-    public MyceliumClient(string myceliumUrl, string? apiKey)
+    public MyceliumClient(string myceliumUrl, string? apiKey, string programName = ProgramName)
+        : this(myceliumUrl, apiKey, CreateHandler(), clock: null, CreateHandler(), programName)
     {
-        _myceliumUrl = myceliumUrl.TrimEnd('/');
-        _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
-        _clock = () => DateTime.UtcNow;
-
-        _httpClient = new HttpClient(CreateHandler())
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-        _clientWithNoTimeLimit = new HttpClient(CreateHandler())
-        {
-            Timeout = Timeout.InfiniteTimeSpan
-        };
-        NameThisProgram(_httpClient);
-        NameThisProgram(_clientWithNoTimeLimit);
     }
 
+    public const string ApiKeyHeader = "X-API-Key";
     public const string ProgramHeader = "X-Vos-Client";
     public const string ProgramName = "Taproot";
 
     // So the broker can say which program a person was using when it tells the model's recipients.
-    private static void NameThisProgram(HttpClient client)
+    private static void NameThisProgram(HttpClient client, string programName)
     {
         if (!client.DefaultRequestHeaders.Contains(ProgramHeader))
-            client.DefaultRequestHeaders.Add(ProgramHeader, ProgramName);
+            client.DefaultRequestHeaders.Add(ProgramHeader, programName);
     }
 
     // The server's certificate is checked unless VOS_INSECURE_TLS is set, which is for a local broker with a
@@ -61,24 +68,48 @@ public class MyceliumClient
     internal static bool IsInsecureTlsEnabled()
         => Environment.GetEnvironmentVariable("VOS_INSECURE_TLS") is "1" or "true" or "TRUE" or "True";
 
-    internal MyceliumClient(
-        string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null,
-        HttpClient? clientWithNoTimeLimit = null)
+    public MyceliumClient(
+        string myceliumUrl, string? apiKey, HttpMessageHandler transport, Func<DateTime>? clock = null,
+        HttpMessageHandler? transportWithNoTimeLimit = null, string programName = ProgramName)
+        : this(myceliumUrl, apiKey, transport, clock, transportWithNoTimeLimit, programName, modelId: null)
+    {
+    }
+
+    private MyceliumClient(
+        string myceliumUrl, string? apiKey, HttpMessageHandler transport, Func<DateTime>? clock,
+        HttpMessageHandler? transportWithNoTimeLimit, string programName, Guid? modelId)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
-        _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
-        _httpClient = httpClient;
-        _clientWithNoTimeLimit = clientWithNoTimeLimit ?? httpClient;
+        _apiKey = apiKey;
         _clock = clock ?? (() => DateTime.UtcNow);
-        NameThisProgram(_httpClient);
-        NameThisProgram(_clientWithNoTimeLimit);
+        _transport = transport;
+        _transportWithNoTimeLimit = transportWithNoTimeLimit ?? transport;
+        _programName = programName;
+        _modelId = modelId;
+
+        _httpClient = Over(_transport, TimeSpan.FromSeconds(30));
+        _clientWithNoTimeLimit = Over(_transportWithNoTimeLimit, Timeout.InfiniteTimeSpan);
+    }
+
+    // Each model's client holds a token of its own, so a call for one model never carries another's.
+    public virtual MyceliumClient ForModel(Guid modelId) =>
+        new(_myceliumUrl, _apiKey, _transport, _clock, _transportWithNoTimeLimit, _programName, modelId);
+
+    private HttpClient Over(HttpMessageHandler transport, TimeSpan timeout)
+    {
+        var client = new HttpClient(
+            new TokenAttachingHandler(GetTokenAsync, new Uri(_myceliumUrl), transport), disposeHandler: false)
+        {
+            Timeout = timeout,
+        };
+        NameThisProgram(client, _programName);
+        return client;
     }
 
     // Tells the broker what the person did, so it can tell the people the model names. Kind is
     // "sign-in", "sign-out" or "action".
     public virtual async Task ReportActivityAsync(string kind, string? description = null, bool? succeeded = null)
     {
-        await SetAuthHeaderAsync();
         using var response = await _httpClient.PostAsJsonAsync(
             $"{_myceliumUrl}/api/operator-activity",
             new { Kind = kind, Description = description, Succeeded = succeeded });
@@ -87,42 +118,70 @@ public class MyceliumClient
 
     public virtual async Task<string> GetTokenAsync()
     {
-        if (_cachedToken != null && _clock() < _tokenExpiry)
+        if (_held is { } held && _clock() < held.Expiry)
         {
-            return _cachedToken;
+            return held.Value;
         }
 
         if (string.IsNullOrWhiteSpace(_apiKey))
         {
-            throw new InvalidOperationException(
-                "No API key configured. Set the VOS_API_KEY environment variable before starting the CLI.");
+            throw new KeyRefusedException(
+                "No API key configured. Set the VOS_API_KEY environment variable before starting this program.");
         }
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_myceliumUrl}/api/auth/token");
-        request.Headers.Add("X-API-Key", _apiKey);
+        var request = new HttpRequestMessage(
+            HttpMethod.Post, $"{_myceliumUrl}/api/auth/token{Query(("modelId", _modelId?.ToString()))}");
+        request.Headers.Add(ApiKeyHeader, _apiKey);
 
         var response = await _httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException($"API key authentication failed ({response.StatusCode}): {body}");
+            var message = $"API key authentication failed ({response.StatusCode}): {body}";
+            throw ModelsListedIn(response, body) is { } models
+                ? new ModelNotNamedException(message, models)
+                : new KeyRefusedException(message);
         }
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-        _cachedToken = result.GetProperty("token").GetString()!;
-        _tokenExpiry = _clock().AddMinutes(4); // A token minted from a key lasts five minutes, so a new one is fetched a minute early.
-        return _cachedToken;
+        var issued = Hold(result.GetProperty("token").GetString()!);
+        return issued.Value;
     }
 
-    private async Task SetAuthHeaderAsync()
+    // Never an empty list, because a caller reads the key's role through the first model listed.
+    private static IReadOnlyList<ReachableModel>? ModelsListedIn(HttpResponseMessage response, string body)
     {
-        var token = await GetTokenAsync();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest) return null;
+        try
+        {
+            using var answer = JsonDocument.Parse(body);
+            if (answer.RootElement.ValueKind != JsonValueKind.Object
+                || !answer.RootElement.TryGetProperty("models", out var listed) || listed.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var models = new List<ReachableModel>();
+            foreach (var model in listed.EnumerateArray())
+            {
+                if (model.ValueKind != JsonValueKind.Object
+                    || !model.TryGetProperty("Id", out var id) || id.ValueKind != JsonValueKind.String || !id.TryGetGuid(out var identifier)
+                    || !model.TryGetProperty("Name", out var name) || name.ValueKind != JsonValueKind.String)
+                    return null;
+                models.Add(new ReachableModel(identifier, name.GetString()!));
+            }
+
+            return models.Count > 0 ? models : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
+
+    // A token from an API key lasts five minutes, so it is replaced a minute early.
+    private HeldToken Hold(string token) => _held = new HeldToken(token, _clock().AddMinutes(4));
 
     public virtual async Task<JsonElement> GetLogTailAsync(int? lines, string? service)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/logs/tail{Query(("lines", lines?.ToString()), ("service", service))}");
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -131,7 +190,6 @@ public class MyceliumClient
 
     public virtual async Task<LogDownload> DownloadLogAsync(string? service)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/logs/download{Query(("service", service))}", HttpCompletionOption.ResponseHeadersRead);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -146,7 +204,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetLatestRequestsAsync(int? limit, Guid? connection)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/requests{Query(("limit", limit?.ToString()), ("connection", connection?.ToString()))}");
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -157,7 +214,6 @@ public class MyceliumClient
     // throws carrying 410 Gone, so a caller can tell it from one that never was.
     public virtual async Task<JsonElement?> GetRequestAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/requests/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -167,7 +223,6 @@ public class MyceliumClient
     // Null where nothing was recorded in that hour. Without an hour, this hour's file.
     public virtual async Task<LogDownload?> DownloadRequestsAsync(string? hour)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/requests/download{Query(("hour", hour))}", HttpCompletionOption.ResponseHeadersRead);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
@@ -209,12 +264,18 @@ public class MyceliumClient
         return present.Count > 0 ? "?" + string.Join("&", present) : "";
     }
 
+    private static string NameInPath(string name) =>
+        name.Length == 0 || PlatformRoute.IsRemovedFromAnAddress(name)
+            ? throw new ArgumentException(
+                $"'{name}' cannot be asked for by name: a name that is empty, '.' or '..' cannot be put into an address.",
+                nameof(name))
+            : Uri.EscapeDataString(name);
+
     private static string BuildTimeRangeQuery(DateTime? startTime, DateTime? endTime)
         => Query(("startTime", startTime?.ToString("O")), ("endTime", endTime?.ToString("O")));
 
     public virtual async Task<JsonElement> GetAllThingsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -224,13 +285,14 @@ public class MyceliumClient
     // a narrowed list is a list either way to its caller.
     public virtual async Task<JsonElement> GetThingsAsync(ThingListNarrowing narrowing)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things" + Query(
             ("name", narrowing.Names),
             ("type", narrowing.Type),
             ("within", narrowing.Within?.ToString()),
             ("limit", narrowing.Limit?.ToString()),
-            ("properties", narrowing.Properties)));
+            ("properties", narrowing.Properties),
+            ("propertyName", narrowing.PropertyName),
+            ("propertyValue", narrowing.PropertyValue)));
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return JsonDocument.Parse("[]").RootElement;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -240,22 +302,119 @@ public class MyceliumClient
             : answer;
     }
 
+    // Null where the model has no range engine yet, which is the platform's 404 on this route.
+    public virtual async Task<JsonElement?> GetModelDeclarationsAsync()
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/model/declarations");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetPropertyTypesAsync()
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/properties/types");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     // Every Thing's resolved properties in one call, keyed by Thing id. `scope` is effective (own and
     // inherited, with own values and overrides winning), own or inherited. Each property carries IsInherited
     // and InheritedFrom, and an inherited one is keyed by its qualified path ("Device.serialNumber"), so a
     // command reading the whole model sees what each Thing inherits without a request per Thing.
     public virtual async Task<JsonElement> GetAllPropertiesAsync(string scope = "effective")
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties?scope={scope}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties{Query(("scope", scope))}");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     public virtual async Task<JsonElement?> GetThingAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{id}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetPropertiesAsync(Guid thingId)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetInheritedPropertiesAsync(Guid thingId)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/inherited-properties");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Null where nothing is at the path, or the Thing cannot be read; the platform answers both alike.
+    public virtual Task<PropertyAtPath?> GetThingPropertyByPathAsync(Guid thingId, string path) =>
+        PropertyByPathAsync($"/api/things/{thingId}/properties/by-path/{PlatformRoute.CatchAll(path)}");
+
+    public virtual Task<PropertyAtPath?> GetRelationshipPropertyByPathAsync(Guid relationshipId, string path) =>
+        PropertyByPathAsync($"/api/relationships/{relationshipId}/properties/by-path/{PlatformRoute.CatchAll(path)}");
+
+    private async Task<PropertyAtPath?> PropertyByPathAsync(string route)
+    {
+        var response = await _httpClient.GetAsync(PlatformRoute.AddressOf(_myceliumUrl, route));
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var refusal = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return PropertyAtPath.MatchingMoreThanOne(
+                [.. refusal.GetProperty("matchingPaths").EnumerateArray().Select(path => path.GetString()!)]);
+        }
+
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return PropertyAtPath.From(await response.Content.ReadFromJsonAsync<JsonElement>());
+    }
+
+    // The platform reads a comma in the name as separating several names, so a name holding one cannot be asked for.
+    public virtual async Task<ThingByName> GetThingByNameAsync(string name)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things{Query(("name", name))}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return new ThingByName(null, []);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var refusal = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return new ThingByName(null, [.. refusal.GetProperty("matchingIds").EnumerateArray().Select(id => id.GetGuid())]);
+        }
+
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return new ThingByName(await response.Content.ReadFromJsonAsync<JsonElement>(), []);
+    }
+
+    // The selector is taken as a tree and never as text, so a name it holds cannot change what is selected.
+    public virtual async Task<JsonElement> ReadSelectionAsync(JsonNode selector)
+    {
+        var response = await _httpClient.PostAsync(
+            $"{_myceliumUrl}/api/snapshots", new StringContent(selector.ToJsonString(), Encoding.UTF8, "application/json"));
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<string> RequestAsync(HttpMethod method, string path, string? bodyJson = null)
+    {
+        var request = new HttpRequestMessage(method, PlatformRoute.AddressOf(_myceliumUrl, path));
+        if (bodyJson is not null)
+            request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
+        var response = await _httpClient.SendAsync(request);
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    // Null where the model binds nothing to the role, or binds something the caller may not read.
+    public virtual async Task<JsonElement?> GetThingBoundByAsync(Guid roleId)
+    {
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things{Query(("boundBy", roleId.ToString()))}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -264,7 +423,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> CreateThingAsync(string name, bool isArchetype)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(
             JsonSerializer.Serialize(new { Name = name, IsArchetype = isArchetype }),
             Encoding.UTF8,
@@ -276,7 +434,6 @@ public class MyceliumClient
 
     public virtual async Task<bool> DeleteThingAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{id}");
         return await TrueUnlessNotFoundAsync(response);
     }
@@ -285,7 +442,6 @@ public class MyceliumClient
     // NameSet Fact, so it reaches everyone following the model's events and a read at an earlier time shows the old name.
     public virtual async Task<bool> RenameThingAsync(Guid id, string newName)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(
             JsonSerializer.Serialize(new { Name = newName }),
             Encoding.UTF8,
@@ -304,7 +460,6 @@ public class MyceliumClient
 
     private async Task<JsonElement> WritePropertyAsync(HttpMethod method, string url, string name, string type, object? value)
     {
-        await SetAuthHeaderAsync();
         using var request = new HttpRequestMessage(method, url)
         {
             Content = new StringContent(
@@ -319,14 +474,12 @@ public class MyceliumClient
 
     public virtual async Task<bool> DeletePropertyAsync(Guid thingId, string propertyName)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetAllRelationshipsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -334,7 +487,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement?> GetRelationshipAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
@@ -344,7 +496,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetRelationshipRangesAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}/ranges");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -352,7 +503,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetRelationshipStatesAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}/states");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -360,7 +510,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(
             JsonSerializer.Serialize(new { SubjectId = subjectId, PredicateId = predicateId, TargetId = targetId }),
             Encoding.UTF8,
@@ -372,7 +521,6 @@ public class MyceliumClient
 
     public virtual async Task<bool> DeleteRelationshipAsync(Guid id)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{id}");
         return await TrueUnlessNotFoundAsync(response);
     }
@@ -383,14 +531,12 @@ public class MyceliumClient
 
     public virtual async Task<bool> DeleteRelationshipPropertyAsync(Guid relId, string propertyName)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{NameInPath(propertyName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetAllServicesAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/services");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -401,7 +547,6 @@ public class MyceliumClient
     // this client reads the answers and resolves nothing itself.
     public virtual async Task<JsonElement> GetAllConnectionsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/connections");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -409,28 +554,24 @@ public class MyceliumClient
 
     public virtual async Task ShutdownMyceliumAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/shutdown", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
     }
 
     public virtual async Task<bool> StopServiceAsync(Guid handlerId)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/stop", null);
         return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<bool> StartServiceAsync(Guid handlerId)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/start", null);
         return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<string> GetModelJsonAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/model");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadAsStringAsync();
@@ -438,7 +579,6 @@ public class MyceliumClient
 
     public virtual async Task<string> SetModelAsync(string modelJson)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(modelJson, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -447,7 +587,6 @@ public class MyceliumClient
 
     public virtual async Task ClearModelAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/model");
         await EnsureSuccessCarryingTheReasonAsync(response);
     }
@@ -457,7 +596,6 @@ public class MyceliumClient
     // Thing inherits. SetModelAsync replaces the whole model instead.
     public virtual async Task<JsonElement> ApplyFragmentAsync(string fragmentJson)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(fragmentJson, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/fragment", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -471,7 +609,6 @@ public class MyceliumClient
     public virtual async Task<JsonElement> PromoteAsync(
         Guid recordId, string reason, IReadOnlyList<string> followedPredicateNames, string template, string projectName)
     {
-        await SetAuthHeaderAsync();
         var body = JsonSerializer.Serialize(new
         {
             RecordId = recordId,
@@ -492,7 +629,6 @@ public class MyceliumClient
     public virtual async Task<JsonElement> PruneAsync(
         Guid rootThingId, IReadOnlyList<string> followedPredicateNames)
     {
-        await SetAuthHeaderAsync();
         var body = JsonSerializer.Serialize(new
         {
             RootThingId = rootThingId,
@@ -531,7 +667,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetEngineMetricsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -539,7 +674,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetEngineReactorsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics/reactors");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -547,7 +681,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetSnapshotResolutionMetricsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/snapshots/resolution/metrics");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -555,7 +688,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/startup-status");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -563,7 +695,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> ListLibrarySeedsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/library-seeds");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -571,23 +702,20 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> LoadLibrarySeedAsync(string name)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}/load", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{NameInPath(name)}/load", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     public virtual async Task<JsonElement> SaveLibrarySeedAsync(string name)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}", null);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{NameInPath(name)}", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     public virtual async Task<JsonElement> ReloadSeedsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/seeds/reload", null);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -595,7 +723,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetEndpointsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/endpoints");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -603,7 +730,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> ListModelsAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/models");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -611,25 +737,20 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> SwitchModelAsync(Guid modelId)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(
             JsonSerializer.Serialize(new { ModelId = modelId }),
             Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/auth/switch-model", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
-        _cachedToken = null;
+        _held = null;
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-        if (result.TryGetProperty("token", out var tokenElem))
-        {
-            _cachedToken = tokenElem.GetString();
-            _tokenExpiry = _clock().AddMinutes(4);
-        }
+        if (result.TryGetProperty("token", out var tokenElem) && tokenElem.GetString() is { } switched)
+            Hold(switched);
         return result;
     }
 
     public virtual async Task<JsonElement> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(
             JsonSerializer.Serialize(new { CurrentPassword = currentPassword, NewPassword = newPassword }),
             Encoding.UTF8, "application/json");
@@ -643,7 +764,6 @@ public class MyceliumClient
     // refusal carries the route's own words, which is what an operator is told.
     public virtual async Task<JsonElement> AdministerAccountsAsync(object act)
     {
-        await SetAuthHeaderAsync();
         var content = new StringContent(JsonSerializer.Serialize(act), Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/auth/administration", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -651,7 +771,7 @@ public class MyceliumClient
     }
 
     public virtual Task<string> PostToEndpointAsync(string subdomain, string bodyJson)
-        => PostBodyAsync($"{_myceliumUrl}/api/endpoints/{Uri.EscapeDataString(subdomain)}", bodyJson);
+        => PostBodyAsync($"{_myceliumUrl}/api/endpoints/{NameInPath(subdomain)}", bodyJson);
 
     public virtual Task<string> RequestServiceAsync(Guid handlerId, string bodyJson)
         => PostBodyAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/request", bodyJson);
@@ -663,7 +783,6 @@ public class MyceliumClient
 
     private async Task<string> PostBodyAsync(string url, string bodyJson)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync(url, new StringContent(bodyJson, Encoding.UTF8, "application/json"));
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadAsStringAsync();
@@ -671,7 +790,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetDefaultPropertyModeAsync()
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/config/property-mode");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -681,7 +799,6 @@ public class MyceliumClient
         string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null,
         int? fullHistoryVersionsInMemory = null, int? fullHistorySecondsInMemory = null)
     {
-        await SetAuthHeaderAsync();
         var payload = ModePayload(mode, ringBufferSize, sampleRate, sampleSeconds);
         if (fullHistoryVersionsInMemory.HasValue) payload["FullHistoryVersionsInMemory"] = fullHistoryVersionsInMemory.Value;
         if (fullHistorySecondsInMemory.HasValue) payload["FullHistorySecondsInMemory"] = fullHistorySecondsInMemory.Value;
@@ -706,8 +823,7 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetPropertyModeAsync(Guid thingId, string propertyName)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/mode");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -715,14 +831,13 @@ public class MyceliumClient
     public virtual async Task<JsonElement> SetPropertyModeAsync(
         Guid thingId, string propertyName, string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null)
     {
-        await SetAuthHeaderAsync();
         var payload = ModePayload(mode, ringBufferSize, sampleRate, sampleSeconds);
 
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/mode", content);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -751,7 +866,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetModelAtTimeAsync(DateTime? timestamp = null)
     {
-        await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/model";
         if (timestamp.HasValue)
         {
@@ -764,7 +878,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement?> GetThingAtTimeAsync(Guid id, DateTime? timestamp = null)
     {
-        await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/things/{id}";
         if (timestamp.HasValue)
         {
@@ -783,8 +896,7 @@ public class MyceliumClient
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        await SetAuthHeaderAsync();
-        var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{NameInPath(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -795,7 +907,6 @@ public class MyceliumClient
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/things/{thingId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -806,7 +917,6 @@ public class MyceliumClient
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -818,7 +928,6 @@ public class MyceliumClient
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/relationships/{relationshipId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -832,7 +941,6 @@ public class MyceliumClient
         string? property = null,
         object? bounds = null)
     {
-        await SetAuthHeaderAsync();
         var payload = new Dictionary<string, object?> { ["Name"] = name, ["Criteria"] = criteria };
         if (property != null) payload["Property"] = property;
         if (bounds != null) payload["Bounds"] = bounds;
@@ -848,7 +956,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetRangesAsync(Guid thingId)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -856,8 +963,7 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement?> GetRangeAsync(Guid thingId, string rangeName)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{NameInPath(rangeName)}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -866,14 +972,12 @@ public class MyceliumClient
 
     public virtual async Task<bool> DeleteRangeAsync(Guid thingId, string rangeName)
     {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{NameInPath(rangeName)}");
         return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetStatesAsync(Guid thingId)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/states");
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -881,7 +985,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetStateTransitionsAsync(Guid thingId, DateTime? from, DateTime? to)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/things/{thingId}/state-transitions{Query(("from", from?.ToString("O")), ("to", to?.ToString("O")))}");
         await EnsureSuccessCarryingTheReasonAsync(response);
@@ -890,9 +993,8 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> GetStateOccurrencesAsync(Guid thingId, string stateName, DateTime? from, DateTime? to)
     {
-        await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
-            $"{_myceliumUrl}/api/things/{thingId}/states/{Uri.EscapeDataString(stateName)}/occurrences"
+            $"{_myceliumUrl}/api/things/{thingId}/states/{NameInPath(stateName)}/occurrences"
             + Query(("from", from?.ToString("O")), ("to", to?.ToString("O"))));
         await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -900,7 +1002,6 @@ public class MyceliumClient
 
     public virtual async Task<JsonElement> ValidateCriteriaAsync(string criteria)
     {
-        await SetAuthHeaderAsync();
         var payload = new Dictionary<string, string> { ["Criteria"] = criteria };
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
@@ -917,10 +1018,9 @@ public class MyceliumClient
     // nothing.
     public virtual async Task<JsonElement> GetThingsInStateAsync(string stateName, StateListNarrowing? narrowing = null)
     {
-        await SetAuthHeaderAsync();
         var asked = narrowing ?? new StateListNarrowing();
         var response = await _httpClient.GetAsync(
-            $"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things" + Query(
+            $"{_myceliumUrl}/api/states/{NameInPath(stateName)}/things" + Query(
                 ("alsoIn", asked.AlsoIn),
                 ("notIn", asked.NotIn),
                 ("type", asked.Type),
@@ -935,11 +1035,15 @@ public class MyceliumClient
 }
 
 // What a list read may be narrowed by, in the platform's own words: the kind a Thing `is`, the container
-// that reaches it, the most to answer, the properties to send, and the names to look up instead of listing.
+// that reaches it, the most to answer, the properties to send, the names to look up instead of listing, and a
+// property that must hold an exact text.
 public sealed record ThingListNarrowing(
-    string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null)
+    string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null,
+    string? PropertyName = null, string? PropertyValue = null)
 {
-    public bool IsEmpty => Type is null && Within is null && Limit is null && Properties is null && Names is null;
+    public bool IsEmpty =>
+        Type is null && Within is null && Limit is null && Properties is null && Names is null
+        && PropertyName is null && PropertyValue is null;
 }
 
 public sealed record StateListNarrowing(

@@ -1,4 +1,4 @@
-/** The area is measured on the sphere, as the intake service measures it, because treating latitude and
+/** A border's area is measured in borderArea.ts, as the intake service measures it, because treating latitude and
  *  longitude as flat is wrong away from the equator and every later figure is proportional to it. The flat
  *  reading only places the draft square, where the error cannot be seen. */
 
@@ -21,20 +21,6 @@ export function enclosesLand(boundary: readonly BoundaryPoint[]): boolean {
   return boundary.length >= 3;
 }
 
-export function sphericalAreaHectares(boundary: readonly BoundaryPoint[]): number {
-  if (!enclosesLand(boundary)) return 0;
-  let total = 0;
-  for (let corner = 0; corner < boundary.length; corner += 1) {
-    const here = boundary[corner];
-    const next = boundary[(corner + 1) % boundary.length];
-    total +=
-      toRadians(next.longitude - here.longitude) *
-      (2 + Math.sin(toRadians(here.latitude)) + Math.sin(toRadians(next.latitude)));
-  }
-  const squareMetres = (Math.abs(total) * EARTH_RADIUS_METRES * EARTH_RADIUS_METRES) / 2;
-  return squareMetres / SQUARE_METRES_PER_HECTARE;
-}
-
 /** A square of the given area centred on the given point, for the planner to drag onto the real
  *  boundary. */
 export function draftSquareAround(centre: BoundaryPoint, areaHectares: number): BoundaryPoint[] {
@@ -48,6 +34,31 @@ export function draftSquareAround(centre: BoundaryPoint, areaHectares: number): 
     { latitude: centre.latitude + latitudeHalf, longitude: centre.longitude + longitudeHalf },
     { latitude: centre.latitude + latitudeHalf, longitude: centre.longitude - longitudeHalf },
   ];
+}
+
+export function middleOfExtent(border: readonly BoundaryPoint[]): BoundaryPoint {
+  const latitudes = border.map((corner) => corner.latitude);
+  const longitudes = border.map((corner) => corner.longitude);
+  return {
+    latitude: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
+    longitude: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
+  };
+}
+
+const CIRCLE_CORNERS = 64;
+
+export function circleOfAreaAround(centre: BoundaryPoint, areaHectares: number): BoundaryPoint[] {
+  if (areaHectares <= 0) return [];
+  const radiusMetres = Math.sqrt((areaHectares * SQUARE_METRES_PER_HECTARE) / Math.PI);
+  const latitudeRadius = radiusMetres / METRES_PER_DEGREE;
+  const longitudeRadius = radiusMetres / (METRES_PER_DEGREE * Math.cos(toRadians(centre.latitude)));
+  return Array.from({ length: CIRCLE_CORNERS }, (_, corner) => {
+    const angle = (2 * Math.PI * corner) / CIRCLE_CORNERS;
+    return {
+      latitude: centre.latitude + latitudeRadius * Math.sin(angle),
+      longitude: centre.longitude + longitudeRadius * Math.cos(angle),
+    };
+  });
 }
 
 type AreaComparison =

@@ -13,8 +13,10 @@ import { thingApi } from '../api/thingApi';
 import { useAuthentication } from '../hooks/useAuthentication';
 import { IntakeWizard } from '../intake/IntakeWizard';
 import type { BasemapSource } from '../types/basemap';
+import type { AreaMethod } from '../utils/borderArea';
 import {
   ALLOCATION_CATEGORY_ROLE,
+  areaMethodConfigured,
   HAZARD_LEVEL_ROLE,
   HAZARD_TYPE_ROLE,
   termsBound,
@@ -30,6 +32,7 @@ export function IntakeWizardPage() {
   const [hazardTypes, setHazardTypes] = useState<readonly string[]>([]);
   const [hazardLevels, setHazardLevels] = useState<readonly string[]>([]);
   const [wording, setWording] = useState<TermWording>({});
+  const [areaMethod, setAreaMethod] = useState<AreaMethod | null>(null);
 
   useEffect(() => {
     let abandoned = false;
@@ -42,6 +45,7 @@ export function IntakeWizardPage() {
         setHazardTypes(termsBound(read, HAZARD_TYPE_ROLE));
         setHazardLevels(termsBound(read, HAZARD_LEVEL_ROLE));
         setWording(termWordingBound(read, [ALLOCATION_CATEGORY_ROLE, HAZARD_TYPE_ROLE, HAZARD_LEVEL_ROLE]));
+        setAreaMethod(areaMethodConfigured(read));
       })
       .catch(() => {
         if (abandoned) return;
@@ -50,6 +54,7 @@ export function IntakeWizardPage() {
         setHazardTypes([]);
         setHazardLevels([]);
         setWording({});
+        setAreaMethod(null);
       });
     return () => {
       abandoned = true;
@@ -77,6 +82,7 @@ export function IntakeWizardPage() {
             hazardLevels={hazardLevels}
             wording={wording}
             draftOwner={modelId}
+            areaMethod={areaMethod}
           />
         </div>
       </div>

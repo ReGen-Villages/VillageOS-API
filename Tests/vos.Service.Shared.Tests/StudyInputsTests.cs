@@ -76,6 +76,24 @@ public class StudyInputsTests
         act.Should().Throw<InvalidOperationException>().WithMessage("*no value*");
     }
 
+    [Fact]
+    public void A_number_held_as_text_is_read_as_that_number()
+    {
+        var inputs = Reading("""{ "SiteStudy.population": { "Value": "300.5" } }""");
+
+        inputs.Number("population").Should().Be(300.5);
+    }
+
+    [Fact]
+    public void Text_where_a_number_belongs_is_refused_naming_the_input()
+    {
+        var inputs = Reading("""{ "SiteStudy.population": { "Value": "three hundred" } }""");
+
+        var act = () => inputs.Number("population");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage($"{Service} input 'population' is not numeric: String.");
+    }
+
     // An input a study does not carry is a figure that has not arrived rather than a fault, so a
     // handler asks what it is waiting for before it reads a single value.
     [Fact]

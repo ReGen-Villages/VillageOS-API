@@ -1,55 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import {
-  AREA_MATCH_TOLERANCE,
-  areaMatch,
-  draftSquareAround,
-  sphericalAreaHectares,
-  type BoundaryPoint,
-} from './parcelGeometry';
+import { borderAreaHectares } from './borderArea';
+import { AREA_MATCH_TOLERANCE, areaMatch, circleOfAreaAround, draftSquareAround, middleOfExtent } from './parcelGeometry';
 
-/** A box one thousandth of a degree on each side, whose south-west corner sits at the given point. */
-function box(latitude: number, longitude: number): BoundaryPoint[] {
-  const side = 0.001;
-  return [
-    { latitude, longitude },
-    { latitude, longitude: longitude + side },
-    { latitude: latitude + side, longitude: longitude + side },
-    { latitude: latitude + side, longitude },
-  ];
-}
-
-describe('the area a boundary encloses', () => {
-  // A thousandth of a degree is 111.19 metres along a meridian, and that times the cosine of the latitude
-  // along a parallel; a flat reading would give the same box 1.24 hectares wherever it sat.
-  it.each([
-    [0, 1.23643],
-    [45, 0.87428],
-    [60, 0.61821],
-  ])('at latitude %d° matches the reference figure', (latitude, hectares) => {
-    expect(sphericalAreaHectares(box(latitude, -8.4))).toBeCloseTo(hectares, 4);
-  });
-
-  it('measures a ring that repeats its first corner the same as one that does not', () => {
-    const open = box(45, -8.4);
-    const closed = [...open, open[0]];
-
-    expect(sphericalAreaHectares(closed)).toBeCloseTo(sphericalAreaHectares(open), 9);
-  });
-
-  it('encloses nothing with fewer than three corners', () => {
-    expect(sphericalAreaHectares([])).toBe(0);
-    expect(sphericalAreaHectares([{ latitude: 45, longitude: -8.4 }])).toBe(0);
-    expect(sphericalAreaHectares(box(45, -8.4).slice(0, 2))).toBe(0);
-  });
-
-  it('encloses nothing along a line of collinear corners', () => {
-    const line: BoundaryPoint[] = [
-      { latitude: 45, longitude: -8.4 },
-      { latitude: 45, longitude: -8.3 },
-      { latitude: 45, longitude: -8.2 },
+describe('the middle of a border', () => {
+  it('is the middle of the box round it, however its corners are spread', () => {
+    const border = [
+      { latitude: 25.1, longitude: 55.5 },
+      { latitude: 25.1, longitude: 55.6 },
+      { latitude: 25.3, longitude: 55.6 },
+      { latitude: 25.12, longitude: 55.52 },
     ];
 
-    expect(sphericalAreaHectares(line)).toBeCloseTo(0, 6);
+    expect(middleOfExtent(border).latitude).toBeCloseTo(25.2, 9);
+    expect(middleOfExtent(border).longitude).toBeCloseTo(55.55, 9);
+  });
+});
+
+describe('the circle of an approximate area', () => {
+  it.each([0, 45, 60])('placed at latitude %d° measures back the area it was placed from', (latitude) => {
+    const circle = circleOfAreaAround({ latitude, longitude: -8.4 }, 200);
+
+    expect(Math.abs(borderAreaHectares(circle, 'meanSphereAreaMethod') - 200) / 200).toBeLessThan(0.005);
+  });
+
+  it('keeps every corner the same distance from the centre', () => {
+    const centre = { latitude: 24, longitude: 47 };
+    const circle = circleOfAreaAround(centre, 200);
+    const metresPerDegree = (6371008.8 * Math.PI) / 180;
+    const distances = circle.map((corner) =>
+      Math.hypot(
+        (corner.latitude - centre.latitude) * metresPerDegree,
+        (corner.longitude - centre.longitude) * metresPerDegree * Math.cos((centre.latitude * Math.PI) / 180),
+      ),
+    );
+
+    distances.forEach((distance) => expect(distance).toBeCloseTo(Math.sqrt(2_000_000 / Math.PI), 3));
+  });
+
+  it('is nothing when the area is nothing or less', () => {
+    expect(circleOfAreaAround({ latitude: 24, longitude: 47 }, 0)).toEqual([]);
+    expect(circleOfAreaAround({ latitude: 24, longitude: 47 }, -3)).toEqual([]);
   });
 });
 
@@ -58,7 +48,7 @@ describe('the draft square', () => {
     const square = draftSquareAround({ latitude, longitude: -8.4 }, 24);
 
     expect(square).toHaveLength(4);
-    expect(sphericalAreaHectares(square)).toBeCloseTo(24, 2);
+    expect(borderAreaHectares(square, 'meanSphereAreaMethod')).toBeCloseTo(24, 2);
   });
 
   it('is centred on the point it was placed at', () => {

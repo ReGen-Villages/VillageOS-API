@@ -25,12 +25,13 @@ interface RecordedMap {
   maxPitch: number;
   bearing: number;
   addedLayers: { id: string; [key: string]: unknown }[];
+  zoom: number;
 }
 
 interface RecordedMarker {
   options: Record<string, unknown>;
   position: [number, number] | null;
-  handlers: Map<string, () => void>;
+  handlers: Map<string, (event?: unknown) => void>;
   remove: ReturnType<typeof vi.fn>;
 }
 
@@ -80,15 +81,33 @@ const mocks = vi.hoisted(() => {
     private insistStyleIsLoaded() {
       if (!this.styleLoaded) throw new Error('Style is not done loading.');
     }
-    on(event: string, handler: (event?: unknown) => void) {
-      const held = this.handlers.get(event) ?? new Set<(event?: unknown) => void>();
+    /** A handler on one layer's features is held as `click@layer`, which is how a test fires it. */
+    on(event: string, layerOrHandler: string | ((event?: unknown) => void), layerHandler?: (event?: unknown) => void) {
+      const key = typeof layerOrHandler === 'string' ? `${event}@${layerOrHandler}` : event;
+      const handler = typeof layerOrHandler === 'string' ? layerHandler! : layerOrHandler;
+      const held = this.handlers.get(key) ?? new Set<(event?: unknown) => void>();
       held.add(handler);
-      this.handlers.set(event, held);
+      this.handlers.set(key, held);
     }
-    off(event: string, handler: (event?: unknown) => void) {
-      const held = this.handlers.get(event);
+    off(event: string, layerOrHandler: string | ((event?: unknown) => void), layerHandler?: (event?: unknown) => void) {
+      const key = typeof layerOrHandler === 'string' ? `${event}@${layerOrHandler}` : event;
+      const handler = typeof layerOrHandler === 'string' ? layerHandler! : layerOrHandler;
+      const held = this.handlers.get(key);
       held?.delete(handler);
-      if (held?.size === 0) this.handlers.delete(event);
+      if (held?.size === 0) this.handlers.delete(key);
+    }
+    zoom = 5;
+    getZoom() {
+      return this.zoom;
+    }
+    bounds = { south: 23, west: 46, north: 25, east: 48 };
+    getBounds() {
+      return {
+        getSouth: () => this.bounds.south,
+        getWest: () => this.bounds.west,
+        getNorth: () => this.bounds.north,
+        getEast: () => this.bounds.east,
+      };
     }
     // maplibre validates a source against the style specification and, where it fails, fires an error
     // and adds nothing rather than throwing. A caller that then names it is the one that throws.
@@ -179,7 +198,7 @@ const mocks = vi.hoisted(() => {
   class MockMarker {
     options: Record<string, unknown>;
     position: [number, number] | null = null;
-    handlers = new Map<string, () => void>();
+    handlers = new Map<string, (event?: unknown) => void>();
     remove = vi.fn();
     constructor(options: Record<string, unknown> = {}) {
       this.options = options;
@@ -196,7 +215,7 @@ const mocks = vi.hoisted(() => {
     getLngLat() {
       return { lng: this.position![0], lat: this.position![1] };
     }
-    on(event: string, handler: () => void) {
+    on(event: string, handler: (event?: unknown) => void) {
       this.handlers.set(event, handler);
     }
   }
@@ -223,7 +242,9 @@ const maps = mocks.mapInstances as RecordedMap[];
 const markers = mocks.markerInstances as RecordedMarker[];
 const markerPositions = mocks.markerPositions;
 
-const draggable = () => markers.filter((marker) => marker.options.draggable === true);
+/** Handles are built again for each new map, the first one included, so only those not taken off are on it. */
+const onTheMap = (marker: RecordedMarker) => marker.remove.mock.calls.length === 0;
+const draggable = () => markers.filter((marker) => marker.options.draggable === true && onTheMap(marker));
 
 /** A map draws nothing until its style is in, so a test about what is drawn has to let it arrive. */
 const theStyleArrives = () => act(() => maps[0].finishLoadingTheStyle());
@@ -451,29 +472,6 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toContain('boundary-fill');
   });
 
-  it('adds a corner where the map is clicked, when a change handler makes it editable', () => {
-    const onBoundaryChange = vi.fn();
-    render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
-
-    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
-
-    expect(onBoundaryChange).toHaveBeenCalledWith([{ latitude: 41.384, longitude: -70.636 }]);
-  });
-
-  it('reports the whole boundary when one corner is dragged somewhere else', () => {
-    const onBoundaryChange = vi.fn();
-    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />);
-    const corner = draggable()[1];
-
-    corner.position = [-70.637, 41.383];
-    act(() => corner.handlers.get('dragend')!());
-
-    expect(onBoundaryChange).toHaveBeenCalledWith([
-      CORNERS[0],
-      { latitude: 41.383, longitude: -70.637 },
-      CORNERS[2],
-    ]);
-  });
 
   it('redraws a moved boundary in place rather than adding a second one', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
@@ -487,25 +485,25 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
   });
 
-  it('offers no drawing at all without a change handler', () => {
+  it('offers no drawing at all without a way to report an edit', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
 
     expect(maps[0].handlers.has('click')).toBe(false);
-    expect(draggable()).toHaveLength(0);
+    expect(markers.filter((marker) => marker.options.className !== undefined)).toHaveLength(0);
   });
 
   it('takes a cleared boundary off the map, corners and outline both', () => {
-    const onBoundaryChange = vi.fn();
+    const editing = { placesCorners: true, movesCorners: true, onEdit: vi.fn() };
     const { rerender } = render(
-      <MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />,
+      <MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing} />,
     );
     theStyleArrives();
     const corners = draggable();
-    expect(corners).toHaveLength(CORNERS.length);
+    expect(corners).toHaveLength(CORNERS.length * 2);
     // Drawn first, or "it was taken off" passes on a boundary that was never put on.
     expect(maps[0].sources.has('boundary')).toBe(true);
 
-    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} borderEditing={editing} />);
 
     corners.forEach((corner) => expect(corner.remove).toHaveBeenCalled());
     expect(maps[0].sources.has('boundary')).toBe(false);
@@ -533,6 +531,323 @@ describe('the boundary on the map', () => {
 
     expect(maps).toHaveLength(1);
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
+  });
+});
+
+describe('editing the border', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 41.38, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.638 },
+  ];
+  const corners = () => markers.filter((marker) => marker.options.className === 'border-corner' && onTheMap(marker));
+  const midpoints = () => markers.filter((marker) => marker.options.className === 'border-midpoint' && onTheMap(marker));
+  const pressed = () => ({ originalEvent: { stopPropagation: vi.fn() } });
+
+  function drawing(onEdit = vi.fn()) {
+    return { placesCorners: true, movesCorners: false, onEdit };
+  }
+
+  function editing(onEdit = vi.fn()) {
+    return { placesCorners: false, movesCorners: true, onEdit };
+  }
+
+  it('places a corner where the map is clicked while the border places corners', () => {
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} borderEditing={drawing(onEdit)} />);
+
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onEdit).toHaveBeenCalledWith({ kind: 'place', corner: { latitude: 41.384, longitude: -70.636 } });
+  });
+
+  it('shows each corner placed so far, none of them draggable', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS.slice(0, 2)} borderEditing={drawing()} />);
+
+    expect(corners().map((corner) => corner.position)).toEqual([[-70.64, 41.38], [-70.64, 41.382]]);
+    expect(corners().every((corner) => corner.options.draggable === false)).toBe(true);
+    expect(midpoints()).toHaveLength(0);
+  });
+
+  it('closes the border on a press of the first corner, and the press places no corner', () => {
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={drawing(onEdit)} />);
+    const press = pressed();
+
+    act(() => corners()[0].handlers.get('click')!(press));
+
+    expect(onEdit).toHaveBeenCalledWith({ kind: 'close' });
+    expect(press.originalEvent.stopPropagation).toHaveBeenCalled();
+  });
+
+  it('leaves a press of the first corner to the map while there are too few corners to close', () => {
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS.slice(0, 2)} borderEditing={drawing(onEdit)} />);
+    const press = pressed();
+
+    act(() => corners()[0].handlers.get('click')?.(press));
+
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(press.originalEvent.stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it('hands a click to a page picking its position while no border places corners', () => {
+    const onPositionPick = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing()} onPositionPick={onPositionPick} />);
+
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onPositionPick).toHaveBeenCalledWith({ latitude: 41.384, longitude: -70.636 });
+  });
+
+  it('gives a click to the corners, not the position, while the border places corners', () => {
+    const onPositionPick = vi.fn();
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} borderEditing={drawing(onEdit)} onPositionPick={onPositionPick} />);
+
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onPositionPick).not.toHaveBeenCalled();
+  });
+
+  it('places nothing on a click while the border only moves corners', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing()} />);
+
+    expect(maps[0].handlers.has('click')).toBe(false);
+  });
+
+  it('reports a dragged corner as moved, and puts its handle back until the page takes the move', () => {
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing(onEdit)} />);
+    const corner = corners()[1];
+    expect(corner.options.draggable).toBe(true);
+
+    corner.position = [-70.637, 41.383];
+    act(() => corner.handlers.get('dragend')!());
+
+    expect(onEdit).toHaveBeenCalledWith({ kind: 'move', index: 1, to: { latitude: 41.383, longitude: -70.637 } });
+    expect(corner.position).toEqual([-70.64, 41.382]);
+  });
+
+  it('offers a handle at the middle of each side, the closing side last', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing()} />);
+
+    const expected = [
+      [-70.64, 41.381],
+      [-70.639, 41.382],
+      [-70.639, 41.381],
+    ];
+    expect(midpoints()).toHaveLength(expected.length);
+    midpoints().forEach((midpoint, side) => {
+      expect(midpoint.position![0]).toBeCloseTo(expected[side][0], 9);
+      expect(midpoint.position![1]).toBeCloseTo(expected[side][1], 9);
+    });
+  });
+
+  it('reports a side’s handle dragged out as a corner on that side, and puts the handle back', () => {
+    const onEdit = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={editing(onEdit)} />);
+    const midpoint = midpoints()[2];
+    const [longitude, latitude] = midpoint.position!;
+
+    midpoint.position = [-70.6385, 41.3805];
+    act(() => midpoint.handlers.get('dragend')!());
+
+    expect(onEdit).toHaveBeenCalledWith({ kind: 'insert', side: 2, corner: { latitude: 41.3805, longitude: -70.6385 } });
+    expect(midpoint.position![0]).toBeCloseTo(longitude, 9);
+    expect(midpoint.position![1]).toBeCloseTo(latitude, 9);
+  });
+
+  it('takes the old handles off when the page takes an edit', () => {
+    const borderEditing = editing();
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} borderEditing={borderEditing} />);
+    const before = [...corners(), ...midpoints()];
+
+    rerender(
+      <MapView {...POSITION} sources={[STREETS]} boundary={[...CORNERS, { latitude: 41.38, longitude: -70.638 }]} borderEditing={borderEditing} />,
+    );
+
+    before.forEach((handle) => expect(handle.remove).toHaveBeenCalled());
+    expect(corners()).toHaveLength(4);
+  });
+});
+
+describe('the label on the border', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 41.38, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.638 },
+  ];
+  const labels = () => markers.filter((marker) => marker.options.element !== undefined && onTheMap(marker));
+
+  it('sits at the middle of a border that encloses land, in the outline’s colour', () => {
+    render(
+      <MapView
+        {...POSITION}
+        sources={[STREETS]}
+        boundary={CORNERS}
+        boundaryLabel="North field · 10.1 ha"
+        borderColours={{ outline: '#a9413d', fill: '#f08a24', fillOpacity: 0.45 }}
+      />,
+    );
+
+    expect(labels()).toHaveLength(1);
+    const element = labels()[0].options.element as HTMLElement;
+    expect(element.textContent).toBe('North field · 10.1 ha');
+    expect(element.style.color).toBe('rgb(169, 65, 61)');
+    expect(labels()[0].position![0]).toBeCloseTo(-70.639, 9);
+    expect(labels()[0].position![1]).toBeCloseTo(41.381, 9);
+  });
+
+  it('is not drawn without a label, or without a border that encloses land', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    expect(labels()).toHaveLength(0);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS.slice(0, 2)} boundaryLabel="North field" />);
+
+    expect(labels()).toHaveLength(0);
+  });
+
+  it('is taken off with the border', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} boundaryLabel="North field" />);
+    const drawn = labels()[0];
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} boundaryLabel="North field" />);
+
+    expect(drawn.remove).toHaveBeenCalled();
+    expect(labels()).toHaveLength(0);
+  });
+});
+
+describe('the colours of the border', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 41.38, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.638 },
+  ];
+  const paintOf = (id: string) => maps[0].addedLayers.find((layer) => layer.id === id)!.paint;
+
+  it('draws the border in the colours the page gives', () => {
+    render(
+      <MapView
+        {...POSITION}
+        sources={[STREETS]}
+        boundary={CORNERS}
+        borderColours={{ outline: '#a9413d', fill: '#f08a24', fillOpacity: 0.45 }}
+        borderEditing={{ placesCorners: true, movesCorners: false, onEdit: vi.fn() }}
+      />,
+    );
+    theStyleArrives();
+
+    expect(paintOf('boundary-line')).toMatchObject({ 'line-color': '#a9413d' });
+    expect(paintOf('boundary-fill')).toMatchObject({ 'fill-color': '#f08a24', 'fill-opacity': 0.45 });
+    expect(markers.filter((marker) => marker.options.className === 'border-corner' && onTheMap(marker))[0].options.color).toBe('#a9413d');
+  });
+
+  it('draws it in the console’s green where the page gives none', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+
+    expect(paintOf('boundary-line')).toMatchObject({ 'line-color': '#059669' });
+    expect(paintOf('boundary-fill')).toMatchObject({ 'fill-color': '#059669', 'fill-opacity': 0.15 });
+  });
+});
+
+describe('an approximate area without a border', () => {
+  it('draws a dashed circle of the area round the position', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} approximateHectares={200} />);
+    theStyleArrives();
+
+    const circle = maps[0].sources.get('approximate-area')!.data as { geometry: { coordinates: [number, number][][] } };
+    const ring = circle.geometry.coordinates[0];
+    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(maps[0].addedLayers.find((layer) => layer.id === 'approximate-area-line')!.paint).toHaveProperty('line-dasharray');
+  });
+
+  it('takes the circle off once a border encloses land', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} approximateHectares={200} />);
+    theStyleArrives();
+    expect(maps[0].sources.has('approximate-area')).toBe(true);
+
+    rerender(
+      <MapView
+        {...POSITION}
+        sources={[STREETS]}
+        approximateHectares={200}
+        boundary={[
+          { latitude: 41.38, longitude: -70.64 },
+          { latitude: 41.382, longitude: -70.64 },
+          { latitude: 41.382, longitude: -70.638 },
+        ]}
+      />,
+    );
+
+    expect(maps[0].sources.has('approximate-area')).toBe(false);
+    expect(maps[0].sources.has('boundary')).toBe(true);
+  });
+});
+
+describe('plots from a register', () => {
+  const PLOTS: readonly (readonly BoundaryPoint[])[] = [
+    [
+      { latitude: 41.38, longitude: -70.64 },
+      { latitude: 41.381, longitude: -70.64 },
+      { latitude: 41.381, longitude: -70.639 },
+    ],
+    [
+      { latitude: 41.382, longitude: -70.64 },
+      { latitude: 41.383, longitude: -70.64 },
+      { latitude: 41.383, longitude: -70.639 },
+    ],
+  ];
+  type Drawn = { features: { properties: { index: number; chosen: boolean } }[] };
+  const drawnPlots = () => maps[0].sources.get('plots')!.data as Drawn;
+
+  it('draws each plot, marking the one chosen', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} plots={PLOTS} chosenPlot={1} onPlotPress={vi.fn()} />);
+    theStyleArrives();
+
+    expect(drawnPlots().features.map((feature) => feature.properties)).toEqual([
+      { index: 0, chosen: false },
+      { index: 1, chosen: true },
+    ]);
+  });
+
+  it('reports which plot was pressed', () => {
+    const onPlotPress = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} plots={PLOTS} onPlotPress={onPlotPress} />);
+    theStyleArrives();
+
+    act(() => maps[0].fire('click@plots-fill', { features: [{ properties: { index: 1 } }] }));
+
+    expect(onPlotPress).toHaveBeenCalledWith(1);
+  });
+
+  it('takes the plots off when the page stops giving them', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} plots={PLOTS} onPlotPress={vi.fn()} />);
+    theStyleArrives();
+    expect(maps[0].sources.has('plots')).toBe(true);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} />);
+
+    expect(maps[0].sources.has('plots')).toBe(false);
+    expect(maps[0].handlers.has('click@plots-fill')).toBe(false);
+  });
+});
+
+describe('where the map has come to rest', () => {
+  it('reports the area in view and the zoom each time the map stops moving', () => {
+    const onViewSettle = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} onViewSettle={onViewSettle} />);
+    maps[0].zoom = 15.5;
+
+    act(() => maps[0].fire('moveend'));
+
+    expect(onViewSettle).toHaveBeenCalledWith(
+      { southLatitude: 23, westLongitude: 46, northLatitude: 25, eastLongitude: 48 },
+      15.5,
+    );
   });
 });
 

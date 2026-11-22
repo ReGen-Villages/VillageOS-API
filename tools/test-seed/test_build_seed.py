@@ -149,6 +149,29 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
             with self.subTest(word):
                 self.assertEqual(1, len(self.seed.bound_by(word)))
 
+    def test_the_service_kind_declares_what_the_platform_starts_a_service_from_and_starts_none_by_itself(self):
+        (service_kind,) = self.seed.bound_by("service")
+        declared = {name: each["value"] for name, each in service_kind["Properties"].items()}
+        self.assertEqual({
+            "ExecutablePath": "",
+            "ExecutablePathTemplate": "",
+            "ServicePort": 0,
+            "ServiceArgs": "",
+            "AutoStart": False,
+        }, declared)
+
+    def test_the_echo_service_states_its_own_port_and_is_not_started_when_the_model_loads(self):
+        (service_kind,) = self.seed.bound_by("service")
+        service = self.seed.one("Echo service")
+        (prototype,) = self.seed.reached(service["Id"], "is")
+        self.assertEqual("vos.Service.CSharp.Echo", prototype["Properties"]["ServiceAssembly"]["value"])
+        self.assertEqual([prototype["Id"]], list(service["InheritedOverrides"]))
+        through_the_prototype = service["InheritedOverrides"][prototype["Id"]]
+        self.assertEqual({}, through_the_prototype["Properties"])
+        stated = through_the_prototype["Inherited"][service_kind["Id"]]["Properties"]
+        self.assertEqual(B.ECHO_PORT, stated["ServicePort"]["value"])
+        self.assertIs(False, stated["AutoStart"]["value"])
+
     def test_a_connection_started_by_a_state_watches_a_range_and_has_a_service(self):
         (state,) = self.seed.bound_by("stateTrigger")
         (connection,) = self.seed.reaching(state["Id"], "triggeredBy")
@@ -169,7 +192,7 @@ class WhatTheSeedHoldsTests(unittest.TestCase):
         held = {binding["kind"] for binding in bindings_in(self.description)}
         self.assertEqual(BINDING_KINDS_THE_READER_RESOLVES, held)
 
-    def test_the_action_list_draws_its_choices_from_the_model_stamps_and_lists_three_of_its_own(self):
+    def test_the_action_list_draws_its_choices_from_the_model_stamps_and_offers_a_value_an_endpoint_and_a_platform_route_a_press_tool_refuses(self):
         (action,) = [widget for widget in widgets_in(self.description) if widget["type"] == "action"]
         writes = action["writes"]
         drawn = {each["Name"] for each in self.seed.members_of(writes["choicesFrom"]["from"]["archetype"])}
