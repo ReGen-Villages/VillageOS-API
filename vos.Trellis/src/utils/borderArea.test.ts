@@ -89,11 +89,12 @@ describe('borderAreaHectares', () => {
     expect(borderAreaHectares([{ latitude: 39.5, longitude: 0 }, { latitude: 39.5, longitude: 0.01 }], method)).toBe(0);
   });
 
+  // Along a meridian, because the ellipsoid's sides are great circles and three corners on a parallel do enclose land.
   it.each(methods)('finds a line of corners in a row encloses nothing (%s)', (method) => {
     const line: BoundaryPoint[] = [
       { latitude: 45, longitude: -8.4 },
-      { latitude: 45, longitude: -8.3 },
-      { latitude: 45, longitude: -8.2 },
+      { latitude: 45.1, longitude: -8.4 },
+      { latitude: 45.2, longitude: -8.4 },
     ];
 
     expectWithin(borderAreaHectares(line, method), 0, 1e-6);
