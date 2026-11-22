@@ -991,7 +991,8 @@ public partial class MyceliumClient
 }
 
 // What a list read may be narrowed by, in the platform's own words: the kind a Thing `is`, the container
-// that reaches it, the most to answer, the properties to send, and the names to look up instead of listing.
+// that reaches it, the most to answer, the properties to send, the names to look up instead of listing, and a
+// property that must hold an exact text.
 public sealed record ThingListNarrowing(
     string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null,
     string? PropertyName = null, string? PropertyValue = null)
