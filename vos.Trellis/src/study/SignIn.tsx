@@ -57,14 +57,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: (session: StudySession) => 
     }
   }
 
-  async function confirmCode(event: FormEvent) {
+  async function confirmCode(event: FormEvent, sentTo: string) {
     event.preventDefault();
-    if (codeSentTo === null) return;
     setWaiting(true);
     setRefusal(null);
     try {
-      const ticket = await intakeApi.exchangeTicket(codeSentTo, code.trim());
-      onSignedIn({ emailAddress: codeSentTo, projectName: projectName.trim(), ticket });
+      const ticket = await intakeApi.exchangeTicket(sentTo, code.trim());
+      onSignedIn({ emailAddress: sentTo, projectName: projectName.trim(), ticket });
     } catch (error) {
       setRefusal((error as Error).message);
       setWaiting(false);
@@ -113,7 +112,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: (session: StudySession) => 
           </button>
         </form>
       ) : (
-        <form onSubmit={confirmCode} className="space-y-4">
+        <form onSubmit={(event) => confirmCode(event, codeSentTo)} className="space-y-4">
           <p className="text-sm">{t('study.signIn.codeSent', { emailAddress: codeSentTo })}</p>
           <div>
             <label htmlFor="study-code" className="mb-1 block text-sm font-medium">
