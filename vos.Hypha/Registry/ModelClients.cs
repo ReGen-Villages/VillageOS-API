@@ -11,6 +11,10 @@ public sealed class ModelClients(MyceliumClient own)
 {
     public const string Parameter = "model";
 
+    public const string ParameterDescription =
+        "The model to ask, as an identifier or a name, as list_models gives them: the server's own when left out, "
+        + "and required when the key reaches more than one model and names none.";
+
     private readonly ConcurrentDictionary<Guid, MyceliumClient> _byModel = new();
 
     public async Task<MyceliumClient> ForAsync(string? model)
