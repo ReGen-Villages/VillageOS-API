@@ -1,9 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from '../i18n';
+import type { FormOptions } from '../api/intakeApi';
 
 vi.mock('../api/intakeApi', () => ({
-  intakeApi: { askForCode: vi.fn(), exchangeTicket: vi.fn() },
+  intakeApi: {
+    askForCode: vi.fn(),
+    exchangeTicket: vi.fn(),
+    formOptions: vi.fn(),
+    searchPlaces: vi.fn(),
+    borderElevation: vi.fn(),
+    submitWithTicket: vi.fn(),
+  },
+}));
+
+const shown = vi.hoisted(() => ({ onEdit: null as null | ((edit: unknown) => void) }));
+vi.mock('../components/map/MapView', () => ({
+  MapView: ({ borderEditing }: { borderEditing?: { onEdit: (edit: unknown) => void } }) => {
+    shown.onEdit = borderEditing?.onEdit ?? null;
+    return <div data-testid="map" />;
+  },
 }));
 
 import { intakeApi } from '../api/intakeApi';
@@ -17,7 +33,35 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
   vi.mocked(intakeApi.exchangeTicket).mockResolvedValue('ticket-1');
+  vi.mocked(intakeApi.formOptions).mockResolvedValue({
+    basemapSources: [],
+    parcelLookup: false,
+    placeSearch: true,
+    areaMethod: 'meanSphereAreaMethod',
+  } as unknown as FormOptions);
+  vi.mocked(intakeApi.searchPlaces).mockResolvedValue({
+    places: [{ name: 'Willow Bend Farm, Alentejo', latitude: 38.5, longitude: -7.9 }],
+    ticket: 'ticket-2',
+  });
+  vi.mocked(intakeApi.borderElevation).mockResolvedValue({ elevation: null, ticket: 'ticket-3' });
+  vi.mocked(intakeApi.submitWithTicket).mockResolvedValue({ accepted: { reference: 'reference-1' }, ticket: 'ticket-4' });
 });
+
+async function findAndConfirmSite() {
+  fireEvent.change(await screen.findByRole('searchbox', { name: 'Address or coordinates' }), { target: { value: 'Willow Bend' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Find' }));
+  await screen.findByRole('button', { name: 'Draw border' });
+  fireEvent.click(screen.getByRole('button', { name: 'Draw border' }));
+  const corners = [
+    { latitude: 38.5, longitude: -7.9 },
+    { latitude: 38.5, longitude: -7.89 },
+    { latitude: 38.51, longitude: -7.89 },
+  ];
+  corners.forEach((corner) => act(() => shown.onEdit!({ kind: 'place', corner })));
+  act(() => shown.onEdit!({ kind: 'close' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm site' }));
+  await waitFor(() => expect(intakeApi.submitWithTicket).toHaveBeenCalled());
+}
 
 function typeInto(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -182,6 +226,26 @@ describe('the steps', () => {
 
     expect(screen.getByText('Location needed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Location' })).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('shows the site’s address in the header once it is found', async () => {
+    render(<StudyPage />);
+    await signIn();
+
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Address or coordinates' }), { target: { value: 'Willow Bend' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find' }));
+
+    await waitFor(() => expect(screen.getByRole('banner')).toHaveTextContent('Willow Bend Farm, Alentejo'));
+  });
+
+  it('no longer says a location is needed once the site is confirmed', async () => {
+    render(<StudyPage />);
+    await signIn();
+    await findAndConfirmSite();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Data' }));
+
+    await waitFor(() => expect(screen.queryByText('Location needed')).not.toBeInTheDocument());
   });
 });
 

@@ -259,7 +259,7 @@ describe('the lookups a deployment may not register', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, headers: new Headers(), json: () => Promise.resolve({}) });
 
     await expect(intakeApi.parcelAt(39.5, -8.4)).resolves.toBeNull();
-    await expect(intakeApi.searchPlaces('Willow')).resolves.toEqual([]);
+    await expect(intakeApi.searchPlaces('Willow', 'ticket-1')).resolves.toEqual({ places: [], ticket: 'ticket-1' });
   });
 
   it('raises any other refusal of a lookup rather than reading it as nothing there', async () => {
@@ -270,13 +270,13 @@ describe('the lookups a deployment may not register', () => {
     });
 
     await expect(intakeApi.parcelAt(39.5, -8.4)).rejects.toThrow('cannot answer');
-    await expect(intakeApi.searchPlaces('Willow')).rejects.toThrow('cannot answer');
+    await expect(intakeApi.searchPlaces('Willow', 'ticket-1')).rejects.toThrow('cannot answer');
   });
 
   it('posts a lookup as JSON and reads the form options with no body', async () => {
     fetchMock.mockResolvedValue({ ok: true, headers: new Headers(), json: () => Promise.resolve({ places: [] }) });
 
-    await intakeApi.searchPlaces('Willow');
+    await intakeApi.searchPlaces('Willow', 'ticket-1');
     const [, posted] = fetchMock.mock.calls[0];
     expect(posted).toMatchObject({ method: 'POST', body: JSON.stringify({ query: 'Willow' }) });
     expect(posted.headers['Content-Type']).toBe('application/json');
@@ -319,8 +319,21 @@ function answeringWithTicket(status: number, body: object, renewed: string | nul
   });
 }
 
+describe('the place search after sign-in', () => {
+  it('carries the ticket, so it is counted against the signed-in budget, and renews it', async () => {
+    const place = { name: 'Al Awir 2, Dubai', latitude: 25.15, longitude: 55.55 };
+    answeringWithTicket(200, { places: [place] });
+
+    const answered = await intakeApi.searchPlaces('Al Awir', 'ticket-1');
+
+    const [, posted] = fetchMock.mock.calls[0];
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(answered).toEqual({ places: [place], ticket: 'ticket-2' });
+  });
+});
+
 describe('the plots in view', () => {
-  const view = { southLatitude: 25.1, westLongitude: 55.5, northLatitude: 25.2, eastLongitude: 55.6 };
+  const view ={ southLatitude: 25.1, westLongitude: 55.5, northLatitude: 25.2, eastLongitude: 55.6 };
 
   it('asks for the plots inside the view at its zoom under the ticket, and renews the ticket', async () => {
     const plot = { boundary: BORDER, identifier: 'plot 7', areaHectares: 1.2 };
