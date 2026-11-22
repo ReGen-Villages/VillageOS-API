@@ -160,7 +160,8 @@ def test_the_manifest_declares_the_ports(client):
     outputs = [p["portName"] for p in ports if p["direction"] == "out"]
     assert inputs["raster"]["required"] is True
     assert {"lon", "lat", "bbox", "geometry"} <= set(inputs)
-    assert outputs == ["result"]
+    assert outputs == ["result", "written"]
+    assert {"thingId", "observations"} <= set(inputs)
 
 
 def test_handle_requires_a_token_once_a_key_is_configured(client, signing, degrees_grid):
@@ -257,7 +258,7 @@ def test_a_successful_answer_is_the_shape_phloem_reads_and_no_other(client, degr
     assert set(body) == {"result", "outputs", "error"}
     assert body["result"] == "success"
     assert body["error"] is None
-    assert set(body["outputs"]) == {"result"}
+    assert set(body["outputs"]) == {"result", "written"}
 
 
 def test_a_failed_answer_is_the_shape_phloem_reads_and_no_other(client, degrees_grid):

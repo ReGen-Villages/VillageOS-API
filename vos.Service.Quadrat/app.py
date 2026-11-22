@@ -12,7 +12,9 @@ from __future__ import annotations
 import sys
 
 from quadrat import Limits, Sources
+from quadrat.observations import recorded, requested
 from quadrat.operations import OPERATIONS, run_operation
+from quadrat.refusal import Refusal
 from quadrat.point import RESAMPLINGS
 from quadrat.pool import ReadPool
 from quadrat.terrain import ENCODINGS
@@ -38,7 +40,10 @@ PORTS = [
     Port.input("line", "object"),
     Port.input("spacing", "number"),
     Port.input("samples", "number"),
+    Port.input("thingId", "string"),
+    Port.input("observations", "object"),
     Port.output("result", "object"),
+    Port.output("written", "object"),
 ]
 
 
@@ -49,12 +54,33 @@ SETTINGS = [
 ]
 
 
-async def execute(context: NodeContext) -> dict:
-    raster = context.inputs.get("raster")
+async def read(inputs, params):
+    raster = inputs.get("raster")
     if not names_a_ticket(raster):
-        return {"result": await pool.run(run_operation, context.params, context.inputs, sources, limits)}
+        return await pool.run(run_operation, params, inputs, sources, limits)
     async with held(host.mycelium, raster, limits.max_ticket_bytes, sources) as (path, readable):
-        return {"result": await pool.run(run_operation, context.params, {**context.inputs, "raster": path}, readable, limits)}
+        return await pool.run(run_operation, params, {**inputs, "raster": path}, readable, limits)
+
+
+async def record(context: NodeContext, asked, answer) -> dict:
+    thing, observations = asked
+    samples, skipped = recorded(answer, observations)
+    written = {"thingId": thing, "accepted": 0, "properties": [s["property"] for s in samples], "skipped": skipped}
+    if context.rehearsal:
+        return {**written, "rehearsal": True}
+    if not samples:
+        return written
+    try:
+        written["accepted"] = await host.mycelium.record_observations(thing, samples)
+    except RuntimeError as refused:
+        raise Refusal("write_failed", str(refused)) from None
+    return written
+
+
+async def execute(context: NodeContext) -> dict:
+    asked = requested(context.inputs)
+    answer = await read(context.inputs, context.params)
+    return {"result": answer, "written": await record(context, asked, answer) if asked else {"accepted": 0}}
 
 
 node = NodeService(execute, PORTS, rehearses=True, settings=SETTINGS, max_concurrent=limits.max_concurrent_reads)
