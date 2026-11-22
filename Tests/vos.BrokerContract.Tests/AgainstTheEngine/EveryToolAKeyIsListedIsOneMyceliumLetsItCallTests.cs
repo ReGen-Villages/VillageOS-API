@@ -36,12 +36,14 @@ public class EveryToolAKeyIsListedIsOneMyceliumLetsItCallTests : IClassFixture<T
         made.EnsureSuccessStatusCode();
         var key = (await made.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("rawKey").GetString()!;
 
+        // Never disposed, because disposing it would dispose the engine's transport, which every case shares.
+        var answered = new StatusesTheEngineAnswered(_engine.Transport);
         var toServer = new Pipe();
         var toChatApplication = new Pipe();
         var builder = Host.CreateApplicationBuilder();
         builder.Services
             .AddPlatformServer(ServerProgram.ClientFor(
-                TheEngine.Url, key, _engine.Transport))
+                TheEngine.Url, key, answered))
             .WithStreamServerTransport(toServer.Reader.AsStream(), toChatApplication.Writer.AsStream());
 
         using var host = builder.Build();
@@ -54,10 +56,10 @@ public class EveryToolAKeyIsListedIsOneMyceliumLetsItCallTests : IClassFixture<T
 
         foreach (var tool in tools)
         {
-            var answer = await chatApplication.CallToolAsync(tool.Name, ArgumentsFor(tool.ProtocolTool));
-            var said = string.Join("\n", answer.Content.OfType<TextContentBlock>().Select(block => block.Text));
+            answered.Forget();
+            await chatApplication.CallToolAsync(tool.Name, ArgumentsFor(tool.ProtocolTool));
 
-            said.Should().NotContain("403", "{0} is listed for a key whose role is {1}", tool.Name, role);
+            answered.RefusedForWantOfAPolicy.Should().BeFalse("{0} is listed for a key whose role is {1}", tool.Name, role);
         }
 
         await host.StopAsync();
