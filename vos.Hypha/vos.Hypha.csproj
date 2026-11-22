@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\vos.MyceliumClient\vos.MyceliumClient.csproj" />
+    <ProjectReference Include="..\vos.Pages\vos.Pages.csproj" />
   </ItemGroup>
 
   <ItemGroup>

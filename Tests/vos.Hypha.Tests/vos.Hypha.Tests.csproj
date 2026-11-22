@@ -21,6 +21,9 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\vos.Pages.Tests\Recorded\catchments.recorded.json" Link="Pages\catchments.recorded.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\vos.Hypha\vos.Hypha.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>

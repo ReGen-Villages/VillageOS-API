@@ -2,15 +2,13 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ActionWidget, AskedValue } from '../types/dashboard';
 import { asRows, type ResolveContext, type Row } from '../api/dashboardApi';
-import { PROPERTY_NAME_WORDING } from '../api/propertyNames';
 import { useBindings } from '../hooks/useBinding';
 import { rostersForRow } from '../api/askedOptions';
 import { useAskedOptions } from '../hooks/useAskedOptions';
-import { wordingIn, wordsInLanguage } from '../i18n/termWording';
 import { tendrilWord } from '../i18n/words';
 import { AskedFields } from './AskedFields';
 import { ACTION_CLASS, MUTED_CLASS, QUIET_CLASS, REFUSAL_CLASS, TEXT_CLASS } from './roleClasses';
-import { asksOf, complete, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice } from './writeRequest';
+import { asksOf, choiceLabelOf, complete, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice } from './writeRequest';
 
 /* A row is a button's line and padding tall, with the gap between rows, in rem so the cap follows
    the font. A row whose asked fields wrap stands taller and the cap shows fewer of them. */
@@ -44,7 +42,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
   const decidedRows = asRows(decidedResults?.value);
 
   const offered = useMemo(
-    () => offeredChoices(widget, drawn, (row) => wordsInLanguage(wordingIn(row[PROPERTY_NAME_WORDING]) ?? undefined, i18n.language) ?? String(row.name ?? '')),
+    () => offeredChoices(widget, drawn, (row) => choiceLabelOf(row, i18n.language)),
     [widget, drawn, i18n.language],
   );
   const widgetAsks = useMemo(() => widget.asks ?? [], [widget.asks]);

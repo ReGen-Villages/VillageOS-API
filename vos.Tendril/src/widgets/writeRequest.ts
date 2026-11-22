@@ -2,6 +2,8 @@ import type { ActionChoice, ActionWidget, AskedValue, FormWidget } from '../type
 import type { Row } from '../api/dashboardApi';
 import { isPlatformRoute, postToEndpoint, type EndpointAnswer } from '../api/dashboardWrites';
 import type { ModelReads } from '../api/modelReads';
+import { PROPERTY_NAME_WORDING } from '../api/propertyNames';
+import { wordingIn, wordsInLanguage } from '../i18n/termWording';
 import { tendrilWord } from '../i18n/words';
 
 /** What a person has entered so far, by the key each value is sent under. A field taking several
@@ -91,6 +93,11 @@ export function offeredChoices(widget: ActionWidget, drawn: Row[], wordsOf: (row
     .filter((choice) => choice.target === undefined || !drawnNames.has(choice.target))
     .map(asListed);
   return [...fromTheModel, ...listedOnly];
+}
+
+/** What a choice the model offers is called in a language: the drawn Thing's own wording, or its name. */
+export function choiceLabelOf(drawn: Row, language: string): string {
+  return wordsInLanguage(wordingIn(drawn[PROPERTY_NAME_WORDING]) ?? undefined, language) ?? String(drawn.name ?? '');
 }
 
 /** Where a press is posted, or nothing where it relates the row to a drawn Thing instead. */

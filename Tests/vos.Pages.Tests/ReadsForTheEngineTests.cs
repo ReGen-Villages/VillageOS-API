@@ -5,45 +5,25 @@ namespace vos.Pages.Tests;
 public class ReadsForTheEngineTests
 {
     [Fact]
-    public async Task Ranges_that_could_not_be_read_reach_the_reader_as_no_answer()
+    public async Task A_path_the_reader_asks_for_is_passed_on_as_asked_and_its_answer_passed_back()
     {
-        var host = new ReadsForTheEngine(new ReadsAnsweredFromMemory(), CancellationToken.None);
+        var reads = new ReadsAnsweredFromMemory { ReservoirsRunningLow = 3 };
+        var host = new ReadsForTheEngine(reads, CancellationToken.None);
 
-        var answer = await host.read("thingRanges", """["00000000-0000-4000-8000-000000000201"]""");
+        var answer = await host.get("/api/states/RunningLow/things?countOnly=true");
 
-        Assert.Equal("null", answer);
+        Assert.Equal("""{"StateName":"RunningLow","Count":3}""", answer);
+        Assert.Equal("/api/states/RunningLow/things?countOnly=true", Assert.Single(reads.Got));
     }
 
     [Fact]
-    public async Task A_narrowing_the_reader_left_out_is_passed_on_as_none()
+    public async Task A_body_the_reader_posts_is_passed_on_with_its_path_and_a_refusal_comes_back_as_one()
     {
         var reads = new ReadsAnsweredFromMemory();
         var host = new ReadsForTheEngine(reads, CancellationToken.None);
 
-        await host.read("thingsInState", """["RunningLow", null]""");
+        await Assert.ThrowsAsync<HttpRequestException>(() => host.post("/api/temporal/reduce", """{"property":"levelMetres"}"""));
 
-        Assert.Equal(("RunningLow", null), Assert.Single(reads.StatesAsked));
-    }
-
-    [Theory]
-    [InlineData("aggregate", """[{"buckets":24}]""", """{"asked":"aggregate","query":{"buckets":24}}""")]
-    [InlineData("reduce", """[{"property":"levelMetres"}]""", """{"asked":"reduce","query":{"property":"levelMetres"}}""")]
-    [InlineData("fromService", """["/api/endpoints/inflow",{"reservoir":"Spring reservoir"}]""", """{"asked":"/api/endpoints/inflow","body":{"reservoir":"Spring reservoir"}}""")]
-    [InlineData("fromService", """["/api/endpoints/inflow",null]""", """{"asked":"/api/endpoints/inflow","body":null}""")]
-    public async Task A_question_is_passed_on_as_the_reader_asked_it_and_its_answer_passed_back(string read, string argumentsJson, string answered)
-    {
-        var host = new ReadsForTheEngine(new ReadsAnsweredFromMemory(), CancellationToken.None);
-
-        Assert.Equal(answered, await host.read(read, argumentsJson));
-    }
-
-    [Fact]
-    public async Task A_read_this_library_does_not_know_is_refused_by_its_name()
-    {
-        var host = new ReadsForTheEngine(new ReadsAnsweredFromMemory(), CancellationToken.None);
-
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => host.read("everyThing", "[]"));
-
-        Assert.Contains("everyThing", refused.Message);
+        Assert.Equal(("/api/temporal/reduce", """{"property":"levelMetres"}"""), Assert.Single(reads.Posted));
     }
 }
