@@ -1,6 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import { borderAreaHectares } from './borderArea';
-import { AREA_MATCH_TOLERANCE, areaMatch, draftSquareAround } from './parcelGeometry';
+import { AREA_MATCH_TOLERANCE, areaMatch, circleOfAreaAround, draftSquareAround } from './parcelGeometry';
+
+describe('the circle of an approximate area', () => {
+  it.each([0, 45, 60])('placed at latitude %d° measures back the area it was placed from', (latitude) => {
+    const circle = circleOfAreaAround({ latitude, longitude: -8.4 }, 200);
+
+    expect(Math.abs(borderAreaHectares(circle, 'meanSphereAreaMethod') - 200) / 200).toBeLessThan(0.005);
+  });
+
+  it('keeps every corner the same distance from the centre', () => {
+    const centre = { latitude: 24, longitude: 47 };
+    const circle = circleOfAreaAround(centre, 200);
+    const metresPerDegree = (6371008.8 * Math.PI) / 180;
+    const distances = circle.map((corner) =>
+      Math.hypot(
+        (corner.latitude - centre.latitude) * metresPerDegree,
+        (corner.longitude - centre.longitude) * metresPerDegree * Math.cos((centre.latitude * Math.PI) / 180),
+      ),
+    );
+
+    distances.forEach((distance) => expect(distance).toBeCloseTo(Math.sqrt(2_000_000 / Math.PI), 3));
+  });
+
+  it('is nothing when the area is nothing or less', () => {
+    expect(circleOfAreaAround({ latitude: 24, longitude: 47 }, 0)).toEqual([]);
+    expect(circleOfAreaAround({ latitude: 24, longitude: 47 }, -3)).toEqual([]);
+  });
+});
 
 describe('the draft square', () => {
   it.each([0, 45, 60])('placed at latitude %d° measures back the area it was placed from', (latitude) => {
