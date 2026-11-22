@@ -22,6 +22,7 @@ import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
 import { borderAreaHectares, type AreaMethod } from '../utils/borderArea';
 import { areaMatch, type BoundaryPoint } from '../utils/parcelGeometry';
+import { freehandBoundary } from '../components/map/borderEdit';
 import {
   STEPS,
   boundaryCleared,
@@ -411,7 +412,7 @@ function SiteMap({
   position: { latitude: number; longitude: number };
   sources: BasemapSource[];
   boundary?: readonly BoundaryPoint[];
-  onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  onBoundaryChange?: (boundary: readonly BoundaryPoint[]) => void;
 }) {
   return (
     <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
@@ -421,7 +422,13 @@ function SiteMap({
           longitude={position.longitude}
           sources={sources}
           boundary={boundary}
-          onBoundaryChange={onBoundaryChange}
+          borderEditing={
+            onBoundaryChange && {
+              placesCorners: true,
+              movesCorners: true,
+              onEdit: (edit) => onBoundaryChange(freehandBoundary(boundary ?? [], edit)),
+            }
+          }
         />
       </Suspense>
     </div>

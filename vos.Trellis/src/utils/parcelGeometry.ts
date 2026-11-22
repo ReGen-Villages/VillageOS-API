@@ -36,6 +36,22 @@ export function draftSquareAround(centre: BoundaryPoint, areaHectares: number): 
   ];
 }
 
+const CIRCLE_CORNERS = 64;
+
+export function circleOfAreaAround(centre: BoundaryPoint, areaHectares: number): BoundaryPoint[] {
+  if (areaHectares <= 0) return [];
+  const radiusMetres = Math.sqrt((areaHectares * SQUARE_METRES_PER_HECTARE) / Math.PI);
+  const latitudeRadius = radiusMetres / METRES_PER_DEGREE;
+  const longitudeRadius = radiusMetres / (METRES_PER_DEGREE * Math.cos(toRadians(centre.latitude)));
+  return Array.from({ length: CIRCLE_CORNERS }, (_, corner) => {
+    const angle = (2 * Math.PI * corner) / CIRCLE_CORNERS;
+    return {
+      latitude: centre.latitude + latitudeRadius * Math.sin(angle),
+      longitude: centre.longitude + longitudeRadius * Math.cos(angle),
+    };
+  });
+}
+
 type AreaComparison =
   | { readonly kind: 'match' }
   | { readonly kind: 'differs'; readonly relativeDifference: number };
