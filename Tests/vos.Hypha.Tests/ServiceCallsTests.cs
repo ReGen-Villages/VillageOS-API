@@ -117,6 +117,20 @@ public class ServiceCallsTests
     }
 
     [Fact]
+    public void The_Things_waiting_for_this_one_are_ordered_by_name()
+    {
+        var awaits = _model.Add(AwaitsPredicate, "awaits");
+        _model.Relate(ServiceCalls.AwaitedThingRole, _model.IdOf("binds"), awaits);
+        var west = _model.Add(Guid.NewGuid(), "West watch");
+        var east = _model.Add(Guid.NewGuid(), "East watch");
+        _model.Relate(west, awaits, Catchment);
+        _model.Relate(east, awaits, Catchment);
+
+        ServiceCalls.On(Catchment, _model.Selection(), Nothing).WaitingForThisThing.Select(waiting => waiting.Name)
+            .Should().Equal("East watch", "West watch");
+    }
+
+    [Fact]
     public void The_other_connections_that_watched_are_named_and_the_one_called_is_not_repeated()
     {
         var record = _model.Relate(Catchment, HandledBy, SurveysCatchment);
