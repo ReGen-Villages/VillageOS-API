@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using vos.Hypha.Registry;
 
@@ -24,13 +25,24 @@ public static class ToolRules
                 foreach (var writing in policies.Where(policy => policy is not MyceliumPolicy.ReadModel))
                     yield return $"{name} is marked as a tool that only reads and needs {writing}, a policy for writing.";
 
-            if (name != TheToolThatListsTheModels
-                && !(tool.ProtocolTool.InputSchema.TryGetProperty("properties", out var parameters)
-                     && parameters.TryGetProperty(ModelClients.Parameter, out _)))
+            var model = ModelParameterOf(tool);
+            if (name != TheToolThatListsTheModels && model is null)
                 yield return $"{name} takes no {ModelClients.Parameter} parameter, so it can ask only the server's own model.";
+
+            if (model is { } parameter
+                && !(parameter.TryGetProperty("description", out var description)
+                     && description.GetString() == ModelClients.ParameterDescription))
+                yield return $"{name} describes its {ModelClients.Parameter} parameter in its own words, so a chat application "
+                             + "is not told when it must name a model.";
 
             if (name.Split('_').Intersect(WordsThatDestroy).Any() && marks?.DestructiveHint != true)
                 yield return $"{name} is not marked as destroying, so a chat application would not ask the person first.";
         }
     }
+
+    private static JsonElement? ModelParameterOf(McpServerTool tool) =>
+        tool.ProtocolTool.InputSchema.TryGetProperty("properties", out var parameters)
+        && parameters.TryGetProperty(ModelClients.Parameter, out var model)
+            ? model
+            : null;
 }
