@@ -23,6 +23,27 @@ public class NameResolver
         return await ResolveByNameAsync(nameOrId);
     }
 
+    // Asks the platform for the one name, where ResolveThingAsync reads every Thing to find it.
+    public async Task<ResolveResult> FindThingAsync(string nameOrId)
+    {
+        if (Guid.TryParse(nameOrId, out var id))
+            return ResolveResult.Success(id);
+
+        if (nameOrId.Contains(','))
+            return ResolveResult.Error(
+                $"'{nameOrId}' holds a comma, and the platform reads a comma as separating names. Give the Thing's identifier.");
+
+        var found = await _mycelium.GetThingByNameAsync(nameOrId);
+        if (found.Thing is { } thing)
+            return ResolveResult.Success(thing.GetProperty("Id").GetGuid());
+
+        return found.Matching.Count == 0
+            ? ResolveResult.Error($"No thing found with name '{nameOrId}'.")
+            : ResolveResult.Error(
+                $"Ambiguous name '{nameOrId}': found {found.Matching.Count} things with this name. Use the ID instead:\n"
+                + string.Join("\n", found.Matching.Select(matching => $"  {matching}")));
+    }
+
     public async Task<ResolveResult[]> ResolveThingsAsync(params string[] namesOrIds)
     {
         await EnsureThingsCachedAsync();

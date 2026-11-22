@@ -796,11 +796,11 @@ public class MyceliumClientTests
         HttpRequestMessage? captured = null;
         var client = new MyceliumClient(
             "https://localhost:7243", "an-api-key",
-            new HttpClient(new MockHttpMessageHandler(req =>
+            new MockHttpMessageHandler(req =>
             {
                 captured = req;
                 return TokenResponse(ServiceToken);
-            })),
+            }),
             programName: "Another program");
 
         await client.GetTokenAsync();
@@ -1240,8 +1240,7 @@ public class MyceliumClientTests
             var heldToATimeLimit = new MockHttpMessageHandler(_ => TokenResponse(ServiceToken));
             var withNoTimeLimit = new MockHttpMessageHandler(_ => JsonResponse("{\"success\":true}"));
             var client = new MyceliumClient(
-                MyceliumUrl, ApiKey, new HttpClient(heldToATimeLimit),
-                clientWithNoTimeLimit: new HttpClient(withNoTimeLimit));
+                MyceliumUrl, ApiKey, heldToATimeLimit, transportWithNoTimeLimit: withNoTimeLimit);
 
             await client.IngestIfcAsync("http://localhost:6100", tmp, "Demo", "merge");
 
@@ -1827,8 +1826,7 @@ public class MyceliumClientTests
         Func<DateTime>? clock = null)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var http = new HttpClient(handler);
-        var client = new MyceliumClient(myceliumUrl, apiKey, http, clock);
+        var client = new MyceliumClient(myceliumUrl, apiKey, handler, clock);
         return (client, handler);
     }
 

@@ -51,7 +51,7 @@ public sealed class ServerUnderTest : IAsyncDisposable
         var builder = Host.CreateApplicationBuilder();
         configure?.Invoke(builder.Services);
         builder.Services
-            .AddPlatformServer(ServerProgram.ClientFor(MyceliumUrl, ApiKey, new HttpClient(handler), clock))
+            .AddPlatformServer(ServerProgram.ClientFor(MyceliumUrl, ApiKey, handler, clock))
             .WithTools(toolTypes.AsEnumerable())
             .WithStreamServerTransport(toServer.Reader.AsStream(), sentToClient);
 

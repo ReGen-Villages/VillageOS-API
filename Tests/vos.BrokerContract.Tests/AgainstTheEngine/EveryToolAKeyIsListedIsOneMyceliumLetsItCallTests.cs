@@ -41,7 +41,7 @@ public class EveryToolAKeyIsListedIsOneMyceliumLetsItCallTests : IClassFixture<T
         var builder = Host.CreateApplicationBuilder();
         builder.Services
             .AddPlatformServer(ServerProgram.ClientFor(
-                TheEngine.Url, key, new HttpClient(_engine.Transport, disposeHandler: false)))
+                TheEngine.Url, key, _engine.Transport))
             .WithStreamServerTransport(toServer.Reader.AsStream(), toChatApplication.Writer.AsStream());
 
         using var host = builder.Build();
