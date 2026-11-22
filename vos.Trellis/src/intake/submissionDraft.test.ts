@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
+import { borderAreaHectares } from '../utils/borderArea';
+import type { BoundaryPoint } from '../utils/parcelGeometry';
 import {
   BOUNDARY_DRAWN_BY_HAND,
   BOUNDARY_GENERATED_FROM_STATED_AREA,
@@ -130,7 +131,7 @@ describe('the parcel boundary', () => {
 
     expect(drafted?.boundarySource).toBe(BOUNDARY_GENERATED_FROM_STATED_AREA);
     expect(drafted?.boundary).toHaveLength(4);
-    expect(sphericalAreaHectares(drafted!.boundary!)).toBeCloseTo(24, 2);
+    expect(borderAreaHectares(drafted!.boundary!, 'meanSphereAreaMethod')).toBeCloseTo(24, 2);
   });
 
   it('places no draft while the position, the stated area, or any area at all is missing', () => {
