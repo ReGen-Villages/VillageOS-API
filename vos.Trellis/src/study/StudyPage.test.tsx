@@ -50,7 +50,8 @@ describe('signing in', () => {
   });
 
   it('starts with an empty address where the browser keeps nothing', () => {
-    const refusing = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    localStorage.setItem(LAST_ADDRESS_KEY, 'ana.ferreira@example.pt');
+    const refusing = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
       throw new Error('storage is off');
     });
     try {
