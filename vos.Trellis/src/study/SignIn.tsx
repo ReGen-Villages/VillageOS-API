@@ -51,7 +51,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: (session: StudySession) => 
       rememberAddress(address);
       setCodeSentTo(address);
     } catch (error) {
-      setRefusal(error instanceof Error ? error.message : String(error));
+      setRefusal((error as Error).message);
     } finally {
       setWaiting(false);
     }
@@ -66,7 +66,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: (session: StudySession) => 
       const ticket = await intakeApi.exchangeTicket(codeSentTo, code.trim());
       onSignedIn({ emailAddress: codeSentTo, projectName: projectName.trim(), ticket });
     } catch (error) {
-      setRefusal(error instanceof Error ? error.message : String(error));
+      setRefusal((error as Error).message);
       setWaiting(false);
     }
   }
