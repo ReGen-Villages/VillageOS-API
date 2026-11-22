@@ -27,7 +27,7 @@ public sealed class ThingTools(ModelClients clients)
     [RequiresPolicy(MyceliumPolicy.ReadModel)]
     public async Task<ThingInWhole> GetThingAsync(
         [Description("The Thing, as an identifier or a name.")] string thing,
-        [Description("The model to ask, as an identifier or a name; the server's own when left out.")] string? model = null)
+        [Description(ModelClients.ParameterDescription)] string? model = null)
     {
         var mycelium = await clients.ForAsync(model);
         var read = await ThingReads.OneAsync(mycelium, thing);
@@ -52,7 +52,7 @@ public sealed class ThingTools(ModelClients clients)
         [Description("The property's path: its name, or source.name for one inherited through a source of that name.")] string path,
         [Description("The Thing that holds it, as an identifier or a name.")] string? thing = null,
         [Description("The relationship that holds it, as an identifier.")] string? relationship = null,
-        [Description("The model to ask, as an identifier or a name; the server's own when left out.")] string? model = null)
+        [Description(ModelClients.ParameterDescription)] string? model = null)
     {
         if ((thing is null) == (relationship is null)) throw new McpException(ThingOrRelationship);
 
