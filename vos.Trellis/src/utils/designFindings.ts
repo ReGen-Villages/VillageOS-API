@@ -1,4 +1,6 @@
 import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
+import { GEOJSON_DRAWN_IN, readsOnlyThePage } from './geoJsonDrawing';
+import { MOST_CELLS_A_MAP_DRAWS, cellsIn, gridOf } from '../components/dashboard/widgets/gridGeometry';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
@@ -22,6 +24,8 @@ export const DESIGN_FINDING_CODES = [
   'columnOnAnUnboundedValue',
   'stateBindingWithoutScope',
   'widgetBoundToNothing',
+  'mapReadsAcrossARelationship',
+  'gridOverTheMostAMapDraws',
 ] as const;
 
 export type DesignFindingCode = (typeof DESIGN_FINDING_CODES)[number];
@@ -155,9 +159,21 @@ export function checkDesign(specification: DashboardSpecification, name: string,
         checkTheKindsAndPredicatesNamed(held.binding, context, where, report);
         checkTheStatesAndPropertiesNamed(held, context, where, report);
       }
+      if (GEOJSON_DRAWN_IN[widget.type] === 'map' && bindings.some((held) => !readsOnlyThePage(held.binding)))
+        refuse('mapReadsAcrossARelationship', where);
+      if (widget.type === 'gridMap') checkTheGridSize(widget.grid, context, where, report);
     });
   });
   return findings;
+}
+
+// The page is designed against a kind, not a Thing, so a grid's size is known only where a Thing of the kind already holds one.
+function checkTheGridSize(binding: Binding, context: DesignCheckContext, where: Where, { warn }: Report) {
+  if (binding.kind !== 'value' || !readsOnlyThePage(binding)) return;
+  const kind = kindOf(binding, context, undefined);
+  const held = kind ? context.propertiesOf(kind)?.find((candidate) => candidate.name === binding.property) : undefined;
+  const grid = gridOf(held?.example);
+  if (grid && cellsIn(grid) > MOST_CELLS_A_MAP_DRAWS) warn('gridOverTheMostAMapDraws', where, String(cellsIn(grid)));
 }
 
 interface Report {

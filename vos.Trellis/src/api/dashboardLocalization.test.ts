@@ -6,6 +6,7 @@ import type {
   DashboardSpecification,
   DepthProfileWidget,
   FunnelWidget,
+  GridMapWidget,
   PolarSharesWidget,
   KpiWidget,
   LeaderboardWidget,
@@ -504,6 +505,36 @@ describe('localizeSpecification over a heatmap widget', () => {
     expect(localized.hint).toBe('hora por día');
     expect(localized.unit).toBe('vatios');
     expect(localized.classes?.[0].label).toBe('brillante');
+  });
+});
+
+describe('localizeSpecification over a gridMap widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'gridMap',
+              title: 'Elevation',
+              hint: 'one cell per point',
+              unit: 'metres',
+              grid: { kind: 'value', property: 'heights' },
+              classes: [{ label: 'steep', colour: '#ffcc00' }],
+            } satisfies GridMapWidget] }],
+    translations: {
+      es: {
+          'Elevation': 'Altura',
+          'one cell per point': 'una celda por punto',
+          'metres': 'metros',
+          'steep': 'empinada',
+      },
+    },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as GridMapWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Altura');
+    expect(localized.hint).toBe('una celda por punto');
+    expect(localized.unit).toBe('metros');
+    expect(localized.classes?.[0].label).toBe('empinada');
   });
 });
 

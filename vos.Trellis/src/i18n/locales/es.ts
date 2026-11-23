@@ -391,6 +391,10 @@ export const es: PartialResources = {
       warmest: 'Máximo {{value}} el {{when}}',
       coldest: 'Mínimo {{value}} el {{when}}',
     },
+    gridMap: {
+      tooManyCells: 'Esta cuadrícula tiene {{cells}} celdas; un mapa de cuadrícula dibuja como máximo {{most}}.',
+      cellAt: 'Fila {{row}}, columna {{column}}',
+    },
     densityGrid: {
       coverage: '{{pairs}} horas tuvieron ambas lecturas; {{unpaired}} lecturas no tuvieron lectura de la otra a la misma hora y no se dibujan.',
       byMonthNotDrawn: 'Este gráfico dibuja una sola cuadrícula para todo el periodo, así que un plegado por mes no se dibuja.',
@@ -673,6 +677,7 @@ export const es: PartialResources = {
         depthProfile: 'Perfil de profundidad',
         polarShares: 'Proporciones polares',
         densityGrid: 'Cuadrícula de densidad',
+        gridMap: 'Mapa de cuadrícula',
         lineSeries: 'Serie de líneas',
         heatmap: 'Mapa de calor',
         stackedShares: 'Cuotas apiladas',
@@ -809,6 +814,8 @@ export const es: PartialResources = {
       columnOnAnUnboundedValue: 'Una columna sobre «{{named}}», un valor sin límite en el modelo, decide el ancho de la página.',
       stateBindingWithoutScope: 'Un recuento o lista de estado en una página comparativa no nombra ningún ámbito, así que el selector no puede acotarlo.',
       widgetBoundToNothing: 'Un widget no está vinculado a nada y dibuja un marcador.',
+      mapReadsAcrossARelationship: 'Un mapa lee una forma o una cuadrícula a través de una relación; solo lee la Cosa propia de la página, porque las formas de una Cosa relacionada pueden estar en unidades del gráfico y no sobre el terreno.',
+      gridOverTheMostAMapDraws: 'Una Cosa de este tipo tiene una cuadrícula de {{named}} celdas, más de las que dibuja un mapa de cuadrícula, así que el mapa muestra una nota en lugar de sus celdas.',
     },
     translations: {
       title: 'Las palabras en todos los idiomas',
@@ -912,6 +919,9 @@ export const es: PartialResources = {
       across: 'Horizontal',
       outlines: 'Contornos',
       shape: 'Forma',
+      grid: 'Cuadrícula',
+      outline: 'Contorno',
+      scale: 'Escala',
       counted: 'Contadas desde el modelo',
       groups: 'Grupos',
       colourKey: 'Color desde',

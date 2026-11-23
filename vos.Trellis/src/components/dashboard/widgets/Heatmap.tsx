@@ -9,6 +9,7 @@ import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
 import { FALLBACK_WIDTH } from './chartFrame';
 import { rampColour } from './chartRamp';
+import { classHolding, drawnClassesOf, type DrawnClass } from './chartClasses';
 import { linearScale } from './chartScale';
 import { useChartSurface } from './useChartSurface';
 import { dayOfYearLabel, groupsByKey, monthNames, monthStarts, windowOf } from './historySeries';
@@ -77,12 +78,6 @@ function gridOf(groups: Map<string, number>, columns: Columns): (number | undefi
   return grid;
 }
 
-type DrawnClass = { label: string; colour: string; from: number | null; to: number | null };
-
-function classHolding(classes: DrawnClass[], value: number): DrawnClass | undefined {
-  return classes.find((entry) => (entry.from === null || value >= entry.from) && (entry.to === null || value < entry.to));
-}
-
 export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
@@ -97,12 +92,7 @@ export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: R
   const columns = columnsOf(widget.value);
   const grid = useMemo(() => gridOf(groupsByKey(value.value), columns), [value.value, columns]);
   // Kept by its contents, because the bindings answer a fresh array on every render.
-  const classKey = JSON.stringify((widget.classes ?? []).map((entry, at) => ({
-    label: entry.label,
-    colour: entry.colour,
-    from: entry.from ? asNumber(classBounds[at * 2]?.value ?? null) : null,
-    to: entry.to ? asNumber(classBounds[at * 2 + 1]?.value ?? null) : null,
-  })));
+  const classKey = JSON.stringify(drawnClassesOf(widget.classes, classBounds));
   const classes = useMemo<DrawnClass[]>(() => JSON.parse(classKey), [classKey]);
   // Fixed once per answer rather than per render: the pointer moving over the grid re-renders the
   // tooltip, and must not walk the cells again or repaint them.

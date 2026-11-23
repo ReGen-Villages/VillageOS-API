@@ -3396,6 +3396,8 @@
         return [widget.counts, widget.cells];
       case "densityGrid":
         return [widget.cells, widget.coverage, ...(widget.outlines ?? []).map((outline) => outline.shape)];
+      case "gridMap":
+        return [widget.grid, widget.outline, ...(widget.classes ?? []).flatMap((entry) => [entry.from, entry.to])];
       case "lineSeries":
         return widget.series.map((entry) => entry.value);
       case "heatmap":

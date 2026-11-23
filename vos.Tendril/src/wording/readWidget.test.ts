@@ -108,6 +108,20 @@ describe('a widget read out for a reader with no screen', () => {
     expect(read).toMatchObject({ type: 'table', title: 'Reservoirs', columns });
     expect(read).toHaveProperty('slots', [{ kind: 'thingList', result: [expect.objectContaining({ id: 'r1', name: 'Spring reservoir', storedLitres: 12500.5 })] }]);
   });
+
+  it('reads a grid map as the grid and outline the page\'s own Thing holds', async () => {
+    const depths = { originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.001, longitudeStepDegrees: 0.001, rows: 1, columns: 2, values: [3.5, null] };
+    const boundary = { type: 'Polygon', coordinates: [[[55, 25], [55.001, 25], [55.001, 25.001], [55, 25]]] };
+    const withAGrid: ResolveContext = {
+      ...context('en'),
+      index: buildModelIndex([thing('r1', 'Spring reservoir', { Properties: { depths, boundary: { Json: JSON.stringify(boundary) } } })], []),
+    };
+    const widget: Widget = { type: 'gridMap', title: 'Depth', grid: { kind: 'value', property: 'depths' }, outline: { kind: 'value', property: 'boundary' } };
+
+    expect(await readWidget(widget, withAGrid)).toEqual({
+      type: 'gridMap', title: 'Depth', slots: [{ kind: 'value', result: depths }, { kind: 'value', result: boundary }],
+    });
+  });
 });
 
 describe('a widget holding a value binding, read out for a reader with no screen', () => {

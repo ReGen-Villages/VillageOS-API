@@ -11,6 +11,7 @@ import type {
   DepthProfileWidget,
   PolarSharesWidget,
   DensityGridWidget,
+  GridMapWidget,
   DashboardSection,
   DashboardSpecification,
   DetailSpecification,
@@ -203,6 +204,16 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
         across: { label: tr(widget.across.label), unit: tr(widget.across.unit) },
         up: { label: tr(widget.up.label), unit: tr(widget.up.unit) },
         outlines: widget.outlines?.map((outline) => ({ ...outline, label: tr(outline.label) })),
+      };
+      return w;
+    }
+    case 'gridMap': {
+      const w: GridMapWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        classes: widget.classes?.map((entry) => ({ ...entry, label: tr(entry.label) })),
       };
       return w;
     }
