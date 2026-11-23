@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Services;
 using vos.Service.Shared;
@@ -15,9 +16,9 @@ public class EndpointBodyReaderTests
         new() { ["lat"] = "-25.75", ["lng"] = "28.19" };
 
     private static EndpointBodyReader Reader(
-        HttpMessageHandler handler, TimeSpan? timeout = null, string subdomain = "tributary") =>
+        HttpMessageHandler handler, TimeSpan? timeout = null, string subdomain = "tributary", ILogger<EndpointBodyReader>? log = null) =>
         new(new PerCallHttpClientFactory(handler),
-            NullLogger<EndpointBodyReader>.Instance,
+            log ?? NullLogger<EndpointBodyReader>.Instance,
             "http://localhost:7243",
             new LaunchToken("test-token"),
             subdomain,
@@ -68,6 +69,30 @@ public class EndpointBodyReaderTests
         var answered = await Reader(handler).ReadAsync("hazard-division-search", Coordinates, default);
 
         answered.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadAsync_AnAnsweredCallWithAnEmptyBodyAnswersTheEmptyText()
+    {
+        var handler = new MockHttpMessageHandler(_ => Text(HttpStatusCode.OK, ""));
+
+        var answered = await Reader(handler).ReadAsync("hazard-division-search", Coordinates, default);
+
+        answered.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "bad request: /search?lat=-25.75&lng=28.19&key=made-up-key")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "bad request: /search?lat=-25.75&lng=28.19&key=made-up-key")]
+    [InlineData(HttpStatusCode.Unauthorized, "bad request\n/search?lat=-25.75\n&lng=28.19\n&key=made-up-key\n")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "bad request\n/search?lat=-25.75\n&lng=28.19\n&key=made-up-key\n")]
+    public async Task ReadAsync_ARefusedCallLogsItsEndpointSubdomainAndStatus_AndNothingOfTheAnswer(HttpStatusCode status, string body)
+    {
+        var log = new CapturingLogger<EndpointBodyReader>();
+
+        await Reader(new MockHttpMessageHandler(_ => Text(status, body)), log: log).ReadAsync("hazard-division-search", Coordinates, default);
+
+        log.Lines.Should().Equal($"Reading hazard-division-search through tributary was answered {(int)status}");
     }
 
     [Fact]
