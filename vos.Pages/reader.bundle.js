@@ -3400,6 +3400,8 @@
         return [widget.grid, widget.outline, ...(widget.classes ?? []).flatMap((entry) => [entry.from, entry.to])];
       case "profileLine":
         return [widget.profile, widget.span?.from, widget.span?.to];
+      case "raisedSurface":
+        return [widget.surface];
       case "lineSeries":
         return widget.series.map((entry) => entry.value);
       case "heatmap":
