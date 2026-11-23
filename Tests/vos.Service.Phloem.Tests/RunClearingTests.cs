@@ -28,10 +28,11 @@ public class RunClearingTests
         RunRetention.IsDue(Run(status, daysAgo), Template, null, Now).Should().Be(due);
 
     [Theory]
+    [InlineData(RunStatus.Queued)]
     [InlineData(RunStatus.Running)]
     [InlineData(RunStatus.Waiting)]
     [InlineData(RunStatus.Trying)]
-    public void A_run_still_running_waiting_or_trying_is_never_due_however_old(string status) =>
+    public void A_run_not_yet_finished_is_never_due_however_old(string status) =>
         RunRetention.IsDue(Run(status, 10_000), Template, null, Now).Should().BeFalse();
 
     [Fact]

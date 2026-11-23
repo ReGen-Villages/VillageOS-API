@@ -32,6 +32,10 @@ public static class ModelNames
     public const string Produces = "produces";
     public const string OnItemError = "onItemError";
     public const string ItemsAtOnce = "itemsAtOnce";
+    public const string RunsAtOnce = "runsAtOnce";
+    // On a queued run: queued runs begin lowest first, and a number given after a restart is above those given before it.
+    public const string QueueNumber = "queueNumber";
+    public const string PipelineId = "pipelineId";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
     // The run's record: its parameters as given, and when it and each node run started and finished. A

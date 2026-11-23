@@ -67,6 +67,7 @@ public static class PipelineDagBuilder
             PipelineId = pipelineId,
             Name = pipeline.Name,
             Published = pipeline.CarriesFlag(ModelNames.Published),
+            RunsAtOnce = Judged(problems, () => RunsAtOnceOf(pipeline), null),
             Nodes = nodes,
             Wires = wires,
             Success = graph.Bound(PipelineRoles.Success)!.Id,
@@ -436,6 +437,15 @@ public static class PipelineDagBuilder
         if (itemsAtOnce < 1)
             throw new PipelineModelException($"Node '{nodeThing.Name}' holds {itemsAtOnce} items at once; a node that runs holds at least one.");
         return itemsAtOnce;
+    }
+
+    private static int? RunsAtOnceOf(GraphThing pipeline)
+    {
+        if (pipeline.PropertyString(ModelNames.RunsAtOnce) is not { Length: > 0 } stated) return null;
+        return double.TryParse(stated, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            && number >= 1 && number == Math.Floor(number) && number <= int.MaxValue
+            ? (int)number
+            : throw new PipelineModelException($"'{pipeline.Name}' holds {stated} runs at once; a pipeline that limits them holds a whole number of at least one.");
     }
 
     // Refused at build rather than at the tell node, so a run that could never send its message does nothing first.
