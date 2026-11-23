@@ -32,28 +32,60 @@ public class MetabolismSubscriptionServiceTests
 
     private sealed class FakeSubscriptionClient : ISubscriptionClient
     {
+        private readonly List<Guid> _opened = new();
+        private TaskCompletionSource _streamLost = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public event Action? Reconnected { add { } remove { } }
 
-        public Guid SubscriptionId { get; } = Guid.NewGuid();
         public List<SubscriptionSelector> Added { get; } = new();
+        public List<(Guid SubscriptionId, Guid SubjectId)> AddedTo { get; } = new();
         public List<Guid> Removed { get; } = new();
         public List<ModelChangeEvent> ToStream { get; } = new();
+        public List<SnapshotRelationship> Held { get; } = new();
+        public int SubscribesToTimeOut { get; set; }
+
+        public IReadOnlyList<Guid> Opened { get { lock (_opened) return _opened.ToList(); } }
+
+        // The client ends the stream of a subscription the broker no longer holds.
+        public void LoseTheSubscription()
+        {
+            var lost = _streamLost;
+            _streamLost = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lost.SetResult();
+        }
 
         public Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default)
-            => Task.FromResult(new SubscribeResult(SubscriptionId, 0, new SnapshotDocument(0, new(), new())));
+        {
+            if (SubscribesToTimeOut-- > 0) throw new TaskCanceledException("the subscribe timed out");
+            var subscriptionId = Guid.NewGuid();
+            lock (_opened) _opened.Add(subscriptionId);
+            return Task.FromResult(new SubscribeResult(subscriptionId, 0, new SnapshotDocument(0, new(), new())));
+        }
 
         public Task<SnapshotReadResult> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
-            lock (Added) Added.Add(selector);
-            return Task.FromResult(new AddObjectsResult(0, new SnapshotDocument(0, new(), new())));
+            lock (Added)
+            {
+                Added.Add(selector);
+                AddedTo.AddRange(selector.Ids!.Select(subjectId => (subscriptionId, subjectId)));
+            }
+            var relationships = selector.IncludeSnapshot
+                ? Held.Where(held => selector.Ids!.Contains(held.SubjectId)).ToList()
+                : new();
+            return Task.FromResult(new AddObjectsResult(0, new SnapshotDocument(0, new(), relationships)));
         }
 
         public bool Asked(Guid subjectId)
         {
             lock (Added) return Added.Any(selector => selector.Ids?.Contains(subjectId) == true);
+        }
+
+        public bool NewestSubscriptionHolds(Guid subjectId)
+        {
+            lock (Added) return Opened.Count > 1 && AddedTo.Contains((Opened[^1], subjectId));
         }
 
         public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
@@ -67,9 +99,10 @@ public class MetabolismSubscriptionServiceTests
         public async IAsyncEnumerable<ModelChangeEvent> StreamAsync(
             Guid subscriptionId, long fromSequence, [EnumeratorCancellation] CancellationToken ct = default)
         {
+            var lost = _streamLost.Task;
             foreach (var e in ToStream) { yield return e; }
-            // Stay open like a real stream until the service stops.
-            try { await Task.Delay(Timeout.Infinite, ct); } catch (OperationCanceledException) { }
+            // Stay open like a real stream until the subscription is lost or the service stops.
+            try { await lost.WaitAsync(ct); } catch (OperationCanceledException) { }
         }
     }
 
@@ -177,5 +210,84 @@ public class MetabolismSubscriptionServiceTests
         await svc.StopAsync(default);
 
         engine.Updates.Should().BeEmpty();
+    }
+
+    private static SnapshotRelationship ARelationship(Guid relationshipId, Guid subjectId, string statedValues) => new(
+        relationshipId, null, subjectId, Guid.NewGuid(), Guid.NewGuid(),
+        JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(statedValues)!
+            .ToDictionary(stated => stated.Key, stated => new SnapshotProperty(stated.Value, null, null)),
+        null, []);
+
+    [Fact]
+    public async Task A_lost_subscription_is_opened_again_with_every_running_simulations_subject()
+    {
+        var engine = new RecordingMetabolism();
+        var fake = new FakeSubscriptionClient();
+        var subjectId = Guid.NewGuid();
+        engine.Register(ASimulation(Guid.NewGuid(), subjectId), HeldModelToken.None);
+        var svc = Service(fake, engine);
+        await svc.StartAsync(default);
+
+        fake.LoseTheSubscription();
+
+        await Settle.UntilAsync(() => fake.NewestSubscriptionHolds(subjectId), "the new subscription holds the running simulation's subject");
+        await engine.StopAllAsync();
+        await svc.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task A_simulation_registered_after_a_subscription_was_lost_joins_the_new_one()
+    {
+        var engine = new RecordingMetabolism();
+        var fake = new FakeSubscriptionClient();
+        var svc = Service(fake, engine);
+        await svc.StartAsync(default);
+        fake.LoseTheSubscription();
+
+        var subjectId = Guid.NewGuid();
+        engine.Register(ASimulation(Guid.NewGuid(), subjectId), HeldModelToken.None);
+
+        await Settle.UntilAsync(() => fake.NewestSubscriptionHolds(subjectId), "the new subscription holds the simulation's subject");
+        await engine.StopAllAsync();
+        await svc.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task A_value_edited_while_no_subscription_was_held_reaches_the_engine_from_the_new_ones_snapshot()
+    {
+        var engine = new RecordingMetabolism();
+        var fake = new FakeSubscriptionClient();
+        var relationshipId = Guid.NewGuid();
+        var otherRelationshipId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        engine.Register(ASimulation(relationshipId, subjectId), HeldModelToken.None);
+        var svc = Service(fake, engine);
+        await svc.StartAsync(default);
+        await Settle.UntilAsync(() => fake.Asked(subjectId), "the simulation is followed");
+
+        fake.Held.Add(ARelationship(relationshipId, subjectId, """{"quantity": 7, "unit": null}"""));
+        fake.Held.Add(ARelationship(otherRelationshipId, subjectId, """{"quantity": 9}"""));
+        fake.LoseTheSubscription();
+
+        await Settle.UntilAsync(() => !engine.Updates.IsEmpty, "the edited value reaches the engine");
+        await engine.StopAllAsync();
+        await svc.StopAsync(default);
+        var update = engine.Updates.Should().ContainSingle("a value that is not stated and another relationship's value are not the simulation's").Subject;
+        update.rel.Should().Be(relationshipId.ToString());
+        update.prop.Should().Be("quantity");
+        ((JsonElement)update.val!).GetInt32().Should().Be(7);
+    }
+
+    [Fact]
+    public async Task A_subscribe_that_times_out_is_tried_again()
+    {
+        var engine = new RecordingMetabolism();
+        var fake = new FakeSubscriptionClient { SubscribesToTimeOut = 1 };
+        var svc = Service(fake, engine);
+
+        await svc.StartAsync(default);
+
+        await Settle.UntilAsync(() => fake.Opened.Count == 1, "the second try opens the subscription");
+        await svc.StopAsync(default);
     }
 }

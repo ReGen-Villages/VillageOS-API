@@ -509,6 +509,96 @@ public class SubscriptionClientTests
         lastEventIds[1].Should().Be("50");  // reconnect resumes after the last delivered event
     }
 
+    private static HttpResponseMessage Status(HttpStatusCode status) => new(status);
+
+    private static string AChange(long sequence) =>
+        $"id: {sequence}\nevent: PropertyChanged\ndata: {{\"EntityId\":\"{Guid.NewGuid()}\"}}\n\n";
+
+    private static async Task<List<ModelChangeEvent>> ReadToTheEndAsync(SubscriptionClient client, Guid subscriptionId)
+    {
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        var changes = new List<ModelChangeEvent>();
+        await foreach (var change in client.StreamAsync(subscriptionId, fromSequence: 0, cts.Token))
+            changes.Add(change);
+        cts.IsCancellationRequested.Should().BeFalse("the stream ends by itself");
+        return changes;
+    }
+
+    [Fact]
+    public async Task StreamAsync_ends_when_the_broker_no_longer_holds_the_subscription()
+    {
+        var (client, handler) = Build(_ => Status(HttpStatusCode.NotFound));
+
+        (await ReadToTheEndAsync(client, Guid.NewGuid())).Should().BeEmpty();
+
+        handler.Requests.Should().HaveCount(1, "a subscription that is gone is not asked for again");
+    }
+
+    [Fact]
+    public async Task StreamAsync_ends_when_a_dropped_subscription_is_found_gone()
+    {
+        var connects = 0;
+        var (client, _) = Build(_ => ++connects == 1 ? Sse(AChange(1)) : Status(HttpStatusCode.NotFound));
+
+        (await ReadToTheEndAsync(client, Guid.NewGuid())).Should().ContainSingle().Which.Sequence.Should().Be(1);
+
+        connects.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    public async Task StreamAsync_asks_again_after_any_other_refusal(HttpStatusCode refusal)
+    {
+        var connects = 0;
+        var (client, _) = Build(_ => ++connects == 1 ? Status(refusal) : Sse(AChange(1)));
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        ModelChangeEvent? got = null;
+        await foreach (var change in client.StreamAsync(Guid.NewGuid(), fromSequence: 0, cts.Token))
+        {
+            got = change;
+            break;
+        }
+
+        got!.Sequence.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task StreamAsync_waits_the_reconnect_delay_before_it_ends()
+    {
+        var (client, _) = Build(_ => Status(HttpStatusCode.NotFound));
+        client.ReconnectDelay = TimeSpan.FromMilliseconds(300);
+        var began = Environment.TickCount64;
+
+        await ReadToTheEndAsync(client, Guid.NewGuid());
+
+        (Environment.TickCount64 - began).Should().BeGreaterThanOrEqualTo(250,
+            "a broker that holds no subscription it opens would otherwise be asked in a tight loop");
+    }
+
+    [Fact]
+    public async Task Reconnected_is_raised_when_the_next_subscriptions_stream_opens_and_not_for_the_first()
+    {
+        var gone = Guid.NewGuid();
+        var next = Guid.NewGuid();
+        var connectsToTheFirst = 0;
+        var (client, _) = Build(request => request.RequestUri!.AbsolutePath.Contains(next.ToString())
+            ? Sse(AChange(1))
+            : ++connectsToTheFirst == 1 ? Sse(AChange(1)) : Status(HttpStatusCode.NotFound));
+        var raised = 0;
+        client.Reconnected += () => raised++;
+
+        await ReadToTheEndAsync(client, gone);
+        raised.Should().Be(0, "the first stream opened once and then found its subscription gone");
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        await foreach (var _ in client.StreamAsync(next, fromSequence: 0, cts.Token))
+            break;
+        raised.Should().Be(1);
+    }
+
     [Fact]
     public async Task UnsubscribeAsync_sends_delete_to_the_subscription()
     {
