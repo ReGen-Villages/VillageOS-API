@@ -187,7 +187,7 @@ public class Metabolism
                 return;
             }
 
-            if (updated == null) return;
+            if (updated == null || updated == old) return; // a restart ticks at once, so it is kept for a value that differs
 
             if (SimulationConfig.RefusalOfFrequency(updated.FrequencySeconds) is { } refusal)
             {
