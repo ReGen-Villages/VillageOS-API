@@ -264,16 +264,15 @@ public sealed class GraphFixture
     public PipelineGraph Build() => new(_things, _rels);
 }
 
-// The canonical demo: Generate –carries(echo→message)→ Echo. Each node binds a Connection (subdomain)
-// → Service → shared EchoProto prototype with typed ports.
+// The canonical demo: Generate carries its echo output to Echo's message input. Each node binds a
+// Connection, by subdomain, which reaches a Service and the shared EchoProto prototype with typed ports.
 public static class TestGraphs
 {
     public static (GraphFixture Fixture, Guid PipelineId) DemoPipeline()
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire); // the carries predicate is a pipeline wire
+        fx.Thing("carries");
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -342,8 +341,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -440,8 +438,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
         if (bindsRequestedBy) fx.Playing("requestedBy", PipelineRoles.RequestedBy);
 
         GraphThing Port(GraphThing holder, string name, string direction, string type, bool required = false)
@@ -509,8 +506,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var echoPrototype = perItem ? CollectionInPrototype(fx, vocabulary, "EchoProto") : InputOutputPrototype(fx, vocabulary, "EchoProto");
         var echo = ServiceNode(fx, vocabulary, echoPrototype, "Echo", "ech", policy);
@@ -567,8 +563,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var starts = fx.Playing("starts", PipelineRoles.PipelineStart);
 
@@ -647,8 +642,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -676,8 +670,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -857,8 +850,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var decideProto = InputOutputPrototype(fx, vocabulary, "DecideProto");
         var echoProto = InputOutputPrototype(fx, vocabulary, "EchoProto");
@@ -958,8 +950,7 @@ public static class TestGraphs
 
         if (wiredFromASource)
         {
-            var carries = fx.Thing("carries");
-            fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+            fx.Thing("carries");
             var source = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "SourceProto"), "Source", "source");
             fx.Rel(pipe, vocabulary.Has, source);
             fx.Wire(source, "out", node, "strategy");
@@ -975,8 +966,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var sourceProto = InputOutputPrototype(fx, vocabulary, "SourceProto");
         var gatherProto = fx.Thing("GatherProto");
@@ -1021,8 +1011,7 @@ public static class TestGraphs
         var vocabulary = fx.DeclareVocabulary();
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var awaitsThrough = fx.Playing("awaitsThrough", PipelineRoles.AwaitsThrough);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var reviewProto = fx.Thing("ReviewProto");
         fx.Rel(reviewProto, vocabulary.Is, vocabulary.Service);
@@ -1169,8 +1158,7 @@ public static class TestGraphs
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var awaitsThrough = fx.Playing("awaitsThrough", PipelineRoles.AwaitsThrough);
         var reachedAlong = fx.Playing("reachedAlong", PipelineRoles.ReachedAlong);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         GraphThing Port(GraphThing holder, string name, string direction)
         {
@@ -1219,21 +1207,22 @@ public static class TestGraphs
     }
 
     public sealed record RelateBoxFixture(
-        GraphFixture Fixture, Guid PipelineId, GraphThing Relate, GraphThing Connection, GraphThing Service, GraphThing WorkedOut, GraphThing SubjectWire);
+        GraphFixture Fixture, Guid PipelineId, GraphThing Relate, GraphThing Predicate, GraphThing Connection, GraphThing Service, GraphThing WorkedOut,
+        GraphThing SubjectWire);
 
     public const string RelateBox = "Balance its energy";
 
-    // A start node hands the run's subject to a relate box standing for the connection `balancesEnergy`, which relates
-    // the subject to the connection's service and waits for the state the connection is proven by; Publish then runs on
-    // what the box hands on. provesByAState false leaves the connection naming no such state.
-    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool standsForAConnection = true, object? waitsAtMostMinutes = null)
+    // A start node hands the run's subject to a relate box standing for the predicate `balancesEnergy`, which names
+    // `balancesEnergy connection` along `notifies`, and Publish runs on what the box hands on.
+    public static RelateBoxFixture RelateBoxPipeline(bool provesByAState = true, bool predicateNamesTheConnection = true,
+        bool standsForTheConnection = false, object? waitsAtMostMinutes = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
         var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        var notifies = fx.Playing("notifies", PipelineRoles.NotifiedConnection);
+        fx.Thing("carries");
 
         GraphThing Port(GraphThing holder, string name, string direction)
         {
@@ -1251,15 +1240,17 @@ public static class TestGraphs
 
         var service = fx.Thing("balancesEnergy service");
         fx.Rel(service, vocabulary.Is, vocabulary.Service);
-        var connection = fx.Thing("balancesEnergy");
-        fx.Rel(connection, vocabulary.Is, standsForAConnection ? vocabulary.Connection : vocabulary.Service);
+        var connection = fx.Thing("balancesEnergy connection");
+        fx.Rel(connection, vocabulary.Is, vocabulary.Connection);
         fx.Rel(connection, vocabulary.Has, service);
         var workedOut = fx.Thing("EnergyWorkedOut");
         if (provesByAState) fx.Rel(connection, provenBy, workedOut);
+        var predicate = fx.Thing("balancesEnergy");
+        if (predicateNamesTheConnection) fx.Rel(predicate, notifies, connection);
 
         var relate = waitsAtMostMinutes is null ? fx.Thing(RelateBox) : fx.Thing(RelateBox, (ModelNames.WaitsAtMostMinutes, waitsAtMostMinutes));
         fx.Rel(relate, vocabulary.Is, relateKind);
-        fx.Rel(relate, standsFor, connection);
+        fx.Rel(relate, standsFor, standsForTheConnection ? connection : predicate);
 
         var publish = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "PublishProto"), "Publish", "publish");
         var start = fx.Thing("Discovery finished");
@@ -1276,7 +1267,7 @@ public static class TestGraphs
         fx.Wire(relate, ModelNames.Thing, publish, "in");
 
         fx.EndEveryPath(pipe);
-        return new RelateBoxFixture(fx, pipe.Id, relate, connection, service, workedOut, subjectWire);
+        return new RelateBoxFixture(fx, pipe.Id, relate, predicate, connection, service, workedOut, subjectWire);
     }
 
 
@@ -1357,13 +1348,17 @@ public static class TestGraphs
     // springPathBeside adds Read spring → Read level, which shares nothing with the readings.
     public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string listTransform = "", string itemTransform = "", string fromPath = "",
         AlsoFillingRecordLevel alsoFilling = AlsoFillingRecordLevel.Nothing, bool checkAnswersAList = false, bool springPathBeside = false,
-        bool readingsReachCheck = true, bool checkRetries = false)
+        bool readingsReachCheck = true, bool checkRetries = false, int? checkItemsAtOnce = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
         var checkProto = InputOutputPrototype(fx, vocabulary, "CheckProto", collectionIn: true, collectionOut: checkAnswersAList);
-        var check = ServiceNode(fx, vocabulary, checkProto, "Check reading", "check",
-            checkRetries ? [("onItemError", onItemError), ("attempts", 3), ("pauseMinutes", 1)] : [("onItemError", onItemError)]);
+        var checkProperties = new List<(string Name, object Value)> { ("onItemError", onItemError) };
+        if (checkRetries)
+            checkProperties.AddRange([("attempts", 3), ("pauseMinutes", 1)]);
+        if (checkItemsAtOnce is { } itemsAtOnce)
+            checkProperties.Add((ModelNames.ItemsAtOnce, itemsAtOnce));
+        var check = ServiceNode(fx, vocabulary, checkProto, "Check reading", "check", [.. checkProperties]);
         var record = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "RecordProto"), "Record level", "record",
             alsoFilling == AlsoFillingRecordLevel.AParameter ? [("onItemError", "continue"), ("parameterBindings", "{\"in\":\"spare\"}")] : [("onItemError", "continue")]);
         var tell = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell", ("onItemError", "continue"));
@@ -1526,8 +1521,7 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
-        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Thing("carries");
 
         var transformProto = fx.Thing("TransformProto");
         fx.Rel(transformProto, vocabulary.Is, vocabulary.Service);

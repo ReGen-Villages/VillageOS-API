@@ -1,12 +1,12 @@
 namespace vos.Service.Phloem.Model;
 
-// The fixed model vocabulary the orchestrator reads: the built-in generic predicates (is, has, of, binds),
+// The fixed model vocabulary the orchestrator reads: the built-in generic predicates (has, of, binds; `is` is
+// PlatformPredicates.Is),
 // property names, and the port-direction values. These are the platform's own words, the same ones
 // Mycelium spells out for itself. Which Thing plays which role is not among them — that is read from the
 // role Thing that binds it, in PipelineRoles.
 public static class ModelNames
 {
-    public const string Is = "is";
     public const string Has = "has";
     public const string Of = "of";
     // A role Thing reaches the Thing playing it along this.
@@ -25,10 +25,13 @@ public static class ModelNames
     public const string ItemTransform = "itemTransform";
     public const string ListTransform = "listTransform";
     public const string ParameterBindings = "parameterBindings";
+    // On a service, a JSON object sent with every call any box makes to it, and which no box may set again.
+    public const string CallParameters = "callParameters";
     public const string Collection = "collection";
     // An out port whose answers are Things: the node run is related to each.
     public const string Produces = "produces";
     public const string OnItemError = "onItemError";
+    public const string ItemsAtOnce = "itemsAtOnce";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
     // The run's record: its parameters as given, and when it and each node run started and finished. A
@@ -41,6 +44,9 @@ public static class ModelNames
     public const string Total = "total";
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
+    public const string KeepRunsForDays = "keepRunsForDays";
+    public const string KeepFailedRunsForDays = "keepFailedRunsForDays";
+    public const string ClearsAtMostRunsPerLook = "clearsAtMostRunsPerLook";
     // On a node that waits, the most model minutes it waits; on its node run, the model instant the wait fails at.
     public const string WaitsAtMostMinutes = "waitsAtMostMinutes";
     public const string WaitsUntil = "waitsUntil";

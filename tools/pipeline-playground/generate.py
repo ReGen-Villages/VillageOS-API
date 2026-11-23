@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Generate example DAGs + services for the Trellis Pipeline page and drop them into any model.
+"""Generate example pipelines and services for the Trellis Pipeline page and add them to any model.
 
-The content lives in `catalog.py`; this file turns it into VOS Things + Relationships in the seed JSON
-shape (mirrors vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json) and either writes a standalone
+The content lives in `catalog.py`; this file turns it into Things and relationships in the seed JSON
+shape (as in vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json) and either writes a standalone
 seed fragment or merges it into an existing seed in place.
 
     # standalone fragment (load on its own, or inspect the shape)
     python3 generate.py --out PipelinePlayground.seed.json
 
-    # drop the playground into any model seed (idempotent; keeps a .bak)
+    # add the playground to any model seed (running it again changes nothing; keeps a .bak)
     python3 generate.py --into ../../path/to/Some.seed.json
 
-    # ...with per-model ids so the same DAGs in two seeds don't collide in one broker
+    # ...with per-model ids, so the same pipelines in two seeds can load into one broker
     python3 generate.py --into ../../path/to/Some.seed.json --namespace SomeModel
 
     # take it back out again
     python3 generate.py --into ../../path/to/Some.seed.json --remove
 
-Idempotent by construction: every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the
-same Things instead of forking duplicates. When merging, the target's own vocabulary is reused rather than
+Every id is a version 5 identifier derived from a stable key, so running it again replaces the same
+Things rather than adding copies. When merging, the target's own vocabulary is reused rather than
 doubled: the built-in `is`/`has`/`of`/`binds` predicates are matched by name, and each archetype or predicate
 playing a role by what the target's role Thing binds — so a model that renamed one keeps its own.
 """
@@ -34,10 +34,10 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS, CADENCES
 
-# Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
-# used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
-# (uuid5 of NAME under this root), so the same DAGs merged into two different model seeds get disjoint ids
-# and can coexist in one broker rather than colliding.
+# Shared with tools/simulator, so both derive the same ids. With no --namespace this root is used
+# directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
+# (uuid5 of NAME under this root), so the same pipelines merged into two model seeds get different ids
+# and can load into one broker together.
 _ROOT_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
 _id_namespace = _ROOT_NAMESPACE
 _TAG = "pipeline-playground"
@@ -91,6 +91,7 @@ PREDICATE_ROLE = {
     "about": "runSubject",
     "offers": "choice",
     "produced": "producedThing",
+    "carries": "wirePredicate",
     "inputConnector": "inputConnector",
     "outputConnector": "outputConnector",
     "takenOn": "takenOn",
@@ -123,12 +124,12 @@ TRIGGER_ROLE = {
 
 
 def set_namespace(name):
-    """Rebind the id namespace to a per-model root so merged DAG ids are distinct per seed. An empty or
-    absent name restores the shared root (the standalone identity)."""
+    """Rebind the id namespace to a per-model root so merged pipeline ids differ per seed. An empty or
+    absent name restores the shared root that the standalone fragment uses."""
     global _id_namespace
     _id_namespace = uuid.uuid5(_ROOT_NAMESPACE, name) if name else _ROOT_NAMESPACE
 
-# Canvas grid → pixel coordinates for a node's x/y (the Pipeline page round-trips these).
+# Turn a node's grid cell into the pixel x and y the Pipeline page reads back and saves.
 _COL_WIDTH = 260
 _ROW_HEIGHT = 150
 _ORIGIN = 60
@@ -148,13 +149,13 @@ def typed(value, type_info):
 
 
 class Kit:
-    """Accumulates the playground's Things and Relationships, keyed by deterministic id so the build is
-    idempotent. `shared` holds the generic vocabulary (is/has/of/binds + the pipeline archetypes) that is matched
-    against a target model's own at merge time rather than blindly duplicated."""
+    """Gathers the playground's Things and relationships, keyed by derived id so building again gives the
+    same set. `shared` holds the generic vocabulary (is, has, of, binds and the pipeline archetypes), which
+    is matched against a target model's own when merging rather than copied."""
 
     def __init__(self):
         self.things = {}          # id -> Thing dict
-        self.rels = {}            # dedup key -> Relationship dict
+        self.rels = {}            # key that tells duplicates apart -> Relationship dict
         self.shared = set()       # ids of the vocabulary reconciled against a target model
         self.role_of = {}         # id of a Thing playing a role -> the role's id (how a target's copy is found)
         self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all
@@ -239,7 +240,6 @@ def declare_dag_vocabulary(k):
     v.PipelineWire = k.archetype("PipelineWire")
     v.DecisionPath = k.archetype("DecisionPath")
 
-    k.rel(v.carries, v.is_, v.PipelineWire)
     # Every service's connection is an HTTP connection at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
     v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
@@ -277,8 +277,7 @@ def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, req
 
 
 def graph_connection_notified_by(k, v, predicate, graph, service, connection_id):
-    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`. Until the
-    platform reads it there, the predicate stays a connection too, with the same trigger and service."""
+    """The connection a relationship along `predicate` calls, which the predicate names along `notifies`."""
     connection = k.thing(connection_id, f"{k.things[predicate]['Name']} connection")
     k.rel(connection, v.is_, v.Connection)
     k.rel(connection, v.triggered_by, graph)
@@ -364,15 +363,13 @@ def build():
                                               ("requested", "out", "number", False)):
         k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
 
-    # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
-    # subdomain, so no HTTP request reaches it.
+    # A stop request is related along this predicate, and the broker sends it to the orchestrator through the
+    # connection the predicate names; that connection has no subdomain, so no HTTP request reaches it.
     stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
+    k.predicates.add(stops)
     orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
     k.held_by_shared[orchestrator] = stops
     k.rel(orchestrator, is_, Service)
-    k.rel(stops, is_, Connection)
-    k.rel(stops, triggered_by, graph)
-    k.rel(stops, has, orchestrator)
     stops_connection = graph_connection_notified_by(k, v, stops, graph, orchestrator, stable_id(_TAG, "connection", "stops connection"))
     k.held_by_shared[stops_connection] = stops
 
@@ -423,7 +420,8 @@ def build():
         for key in system["told"]:
             k.rel(system_id, told, kind_by_key[key])
         # A system that is told something names the connection its messages go out through: a predicate the
-        # orchestrator writes a sent message along, bound to the service that sends it.
+        # orchestrator writes a sent message along, bound to the service that sends it. It stays a connection
+        # itself because the orchestrator and the Pipelines page find it as one (VillageOS-API Task 8624).
         if system.get("toldThrough"):
             through_id = k.thing(stable_id(_TAG, "told-through", system["key"]), f"tells {system['label']}")
             k.rel(through_id, is_, Connection)
@@ -573,8 +571,8 @@ def load_seed(path):
 
 def dump_seed(seed, path):
     """Write in the seed house style — top-level keys in their existing order, with the Things and
-    Relationships arrays one compact object per line. Existing entities re-serialize byte-for-byte, so a
-    merge only adds lines rather than reformatting the whole file."""
+    Relationships arrays one compact object per line and every letter written as itself. Existing entities
+    re-serialize byte-for-byte, so a merge only adds lines rather than reformatting the whole file."""
     with open(path, "w", encoding="utf-8") as f:
         f.write("{\n")
         keys = list(seed.keys())
@@ -584,10 +582,10 @@ def dump_seed(seed, path):
             if key in ("Things", "Relationships") and isinstance(value, list):
                 f.write(f"  {json.dumps(key)}: [\n")
                 for ri, entity in enumerate(value):
-                    f.write("    " + json.dumps(entity) + ("" if ri == len(value) - 1 else ",") + "\n")
+                    f.write("    " + json.dumps(entity, ensure_ascii=False) + ("" if ri == len(value) - 1 else ",") + "\n")
                 f.write(f"  ]{tail}\n")
             else:
-                f.write(f"  {json.dumps(key)}: {json.dumps(value)}{tail}\n")
+                f.write(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)}{tail}\n")
         f.write("}\n")
 
 

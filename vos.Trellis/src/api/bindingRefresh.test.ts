@@ -3,7 +3,7 @@ import { askedOfTheBroker, statesRead } from '@tendril-ui/tendril';
 import { BINDING_FIELDS } from './bindingVocabulary';
 import type { Binding } from '@tendril-ui/tendril';
 
-/** One binding of every kind the vocabulary declares, each reading a state where its kind can. */
+/** Each reads a state where its kind can. */
 const ONE_OF_EACH: Record<Binding['kind'], Binding> = {
   const: { kind: 'const', value: 1 },
   property: { kind: 'property', thing: '$scope', property: 'area' },
@@ -11,6 +11,7 @@ const ONE_OF_EACH: Record<Binding['kind'], Binding> = {
   compareEntities: { kind: 'compareEntities', properties: ['area'] },
   thingList: { kind: 'thingList', archetype: 'Building' },
   related: { kind: 'related', via: [{ predicate: 'contains', inState: 'flagged' }] },
+  value: { kind: 'value', via: [{ predicate: 'contains', inState: 'flagged' }], property: 'outline' },
   origin: { kind: 'origin', property: 'area', reads: {}, source: { via: [{ predicate: 'feeds', notInState: 'dry' }] } },
   working: { kind: 'working', property: 'area', via: [{ predicate: 'contains', inState: 'metered' }] },
   stateCount: { kind: 'stateCount', state: 'flagged' },
@@ -55,6 +56,7 @@ describe('the states a binding\'s answer is made of', () => {
     ['stateOf', ['flagged', 'cleared']],
     ['verdict', ['flagged', 'wet']],
     ['related', ['flagged']],
+    ['value', ['flagged']],
     ['origin', ['dry']],
     ['working', ['metered']],
     ['ratio', ['flagged']],

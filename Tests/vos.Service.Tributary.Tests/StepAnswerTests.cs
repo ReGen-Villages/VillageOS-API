@@ -97,6 +97,28 @@ public class StepAnswerTests
         answer.Reason.Should().Be("400: Request must include a non-empty endpointName.");
     }
 
+    // A failed reshape reaching the pipeline as its summary alone would leave no log saying why.
+    [Fact]
+    public void A_refusal_carrying_its_detail_names_it_in_the_reason()
+    {
+        var detail = new Dictionary<string, object?> { ["detail"] = "Endpoint response is not valid JSON." };
+
+        var answer = Answered(new Refusal(400, "Endpoint response transform failed", detail).ToResult());
+
+        answer.Reason.Should().Be("400: Endpoint response transform failed: Endpoint response is not valid JSON.");
+        answer.Outcome[StepAnswer.ReasonField].Should().Be(answer.Reason);
+    }
+
+    [Fact]
+    public void A_long_detail_is_cut_short_in_the_reason()
+    {
+        var detail = new Dictionary<string, object?> { ["detail"] = new string('x', 1000) };
+
+        var answer = Answered(new Refusal(400, "Endpoint response transform failed", detail).ToResult());
+
+        answer.Reason.Should().Be("400: Endpoint response transform failed: " + new string('x', StepAnswer.LongestWords) + "…");
+    }
+
     [Fact]
     public void The_wait_a_provider_asks_for_in_seconds_is_carried()
     {

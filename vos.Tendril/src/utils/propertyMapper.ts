@@ -1,4 +1,5 @@
 import { DECLARED_WRITE_KINDS } from '../types/vos';
+import { inPrecedenceOrder } from './precedenceOrder';
 import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet, DerivedDefinition } from '../types/vos';
 
 /** A write kind the platform has a name for. What arrives is model data, so a value outside the set
@@ -10,7 +11,7 @@ function isDeclaredWriteKind(value: unknown): value is DeclaredWriteKind {
 /**
  * Unwrap a single typed property value.
  * The Mycelium serializes properties as { typeInfo: "vos.String", value: "..." }.
- * The GUI works with raw values, so we extract just the `value` field.
+ * A page works with raw values, so only the `value` field is kept.
  */
 function unwrapPropertyValue(v: unknown): unknown {
   if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
@@ -102,10 +103,10 @@ const effectivePropertiesCache = new WeakMap<object, WeakMap<object, Readonly<Re
 
 type ResolvableThing = { Id?: string; Properties: Record<string, unknown>; InheritedOverrides?: Record<string, InheritedPropertySet> };
 
-/** Flatten an override tree onto `merged`, farther override-sources first, alphabetically-last SourceName winning. */
+/** Flatten an override tree onto `merged`, farther override-sources first, the SourceName last in precedence order winning. */
 function collectOverrides(sets: Record<string, InheritedPropertySet> | undefined, merged: Record<string, unknown>): void {
   if (!sets) return;
-  const ordered = Object.values(sets).sort((a, b) => a.SourceName.localeCompare(b.SourceName));
+  const ordered = Object.values(sets).sort((a, b) => inPrecedenceOrder(a.SourceName, b.SourceName));
   for (const set of ordered) {
     collectOverrides(set.Inherited as unknown as Record<string, InheritedPropertySet>, merged);
     Object.assign(merged, set.Properties);
@@ -133,7 +134,7 @@ export function statedProperties(thing: ResolvableThing): Record<string, unknown
  * instance never overrode are included — mirroring the server's resolve-on-read. Call unwrapThing first.
  *
  * Precedence is deterministic: own > override > nearer archetype > farther archetype; among same-distance
- * siblings the one whose `Name`/`SourceName` sorts last wins, so a value defined by two sibling archetypes
+ * siblings the one whose `Name`/`SourceName` is last in precedence order wins, so a value defined by two sibling archetypes
  * always resolves the same way regardless of key order. The result is frozen (a shared cache entry);
  * callers read or spread it but must not mutate it.
  */
@@ -184,7 +185,7 @@ function foldInAncestors(
   const parents = (thing.Id ? lookup.isParents.get(thing.Id) ?? [] : [])
     .map((id) => lookup.byId.get(id))
     .filter((p): p is VosThing => !!p && !visiting.has(p.Id))
-    .sort((a, b) => a.Name.localeCompare(b.Name));
+    .sort((a, b) => inPrecedenceOrder(a.Name, b.Name));
   if (!parents.length || !thing.Id) return;
   visiting.add(thing.Id);
   for (const parent of parents) fold(parent);

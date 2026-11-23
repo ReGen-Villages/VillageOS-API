@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
 
-// The report panel on its own, as one module a page with no build step can load: mountFeedback and
-// FeedbackRefusedError, with the screenshot library folded in rather than fetched as a second file.
+// One module with the screenshot library inside it, so a page with no build step can load the report panel.
 export default defineConfig({
   publicDir: false,
   build: {

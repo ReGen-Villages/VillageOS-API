@@ -4,11 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/**
- * The shell paints the theme on a container sized to the window. Anything drawn past it — a sidebar
- * taller than the window, or Safari's overscroll — lands on the document's own background, which is
- * white unless a rule paints it. jsdom lays nothing out, so this reads the rules the shell is drawn with.
- */
+/** Anything drawn past the window-sized shell, such as a tall sidebar or Safari's overscroll, lands on the
+ *  document's background, which is white unless a rule colours it; jsdom lays nothing out, so this reads the rules. */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const read = (path: string) => readFileSync(join(SOURCE_DIRECTORY, path), 'utf8');

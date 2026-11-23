@@ -83,8 +83,6 @@ public class SetCommandHandlerTests
         Assert.Contains("MyThing", output);
     }
 
-    // --showguids flag tests
-
     [Fact]
     public async Task Set_WithShowGuidsFlag_ShowsGuid()
     {

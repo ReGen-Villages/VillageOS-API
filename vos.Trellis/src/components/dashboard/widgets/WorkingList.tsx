@@ -1,19 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import type { WorkingRow, WorkingWidget } from '@tendril-ui/tendril';
 import type { ResolveContext, Row } from '@tendril-ui/tendril';
-import { asRows, asNumber } from '@tendril-ui/tendril';
+import { asRows, asNumber, workingRuns } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 
-/**
- * What each figure was worked out from: the formula the model holds, and every input it reads — with
- * that input's own value where the Thing computing the figure holds one.
- *
- * The formula and the input names are the model's, never Trellis's — a client that composed either
- * would be describing arithmetic it does not run. A figure the model does not derive resolves to no
- * working and shows its value alone: an account invented here would read as the model's own.
- */
+/** The formula and input names are the model's, never Trellis's, because a client composing either would
+ *  describe arithmetic it does not run. A figure the model does not derive shows its value alone, because an
+ *  account invented here would read as the model's. */
 export function WorkingList({ widget, context }: { widget: WorkingWidget; context: ResolveContext }) {
   const figures = useBindings(widget.rows.map((r) => r.value), context);
   const workings = useBindings(widget.rows.map((r) => r.working), context);
@@ -35,19 +30,6 @@ export function WorkingList({ widget, context }: { widget: WorkingWidget; contex
   );
 }
 
-/** Consecutive inputs sharing one formula. A `via` walk reaching several Things computing the figure
- *  returns each one's rows in turn, and a formula accounts only for the rows it produced. */
-function runsOfOneFormula(inputs: Row[]): { formula: string | null; inputs: Row[] }[] {
-  const runs: { formula: string | null; inputs: Row[] }[] = [];
-  for (const input of inputs) {
-    const formula = typeof input.formula === 'string' ? input.formula : null;
-    const current = runs[runs.length - 1];
-    if (current && current.formula === formula) current.inputs.push(input);
-    else runs.push({ formula, inputs: [input] });
-  }
-  return runs;
-}
-
 function WorkingRowView({
   row,
   figure,
@@ -59,7 +41,7 @@ function WorkingRowView({
   inputs: Row[];
   resolving: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <div>
@@ -71,7 +53,7 @@ function WorkingRowView({
         </span>
       </div>
 
-      {runsOfOneFormula(inputs).map((run, r) => (
+      {workingRuns(inputs, i18n.language).map((run, r) => (
         <div key={r}>
           {run.formula && (
             <div className="mt-1 font-mono text-[11px] text-zinc-500 dark:text-zinc-400 overflow-x-auto">
@@ -86,14 +68,12 @@ function WorkingRowView({
             <tbody>
               {run.inputs.map((input, i) => (
                 <tr key={i}>
-                  <td className="py-0.5 font-mono text-zinc-500 dark:text-zinc-400">{String(input.term)}</td>
+                  <td className="py-0.5 font-mono text-zinc-500 dark:text-zinc-400">{input.term}</td>
                   <td className="py-0.5 text-right tabular-nums text-zinc-700 dark:text-zinc-200">
-                    {'memberArchetype' in input ? (
-                      <span className="font-mono text-zinc-400 dark:text-zinc-500">
-                        {input.memberArchetype ? String(input.memberArchetype) : ''}
-                      </span>
+                    {input.memberKind !== undefined ? (
+                      <span className="font-mono text-zinc-400 dark:text-zinc-500">{input.memberKind}</span>
                     ) : (
-                      formatNumber(input.value as number | null)
+                      input.value
                     )}
                   </td>
                 </tr>

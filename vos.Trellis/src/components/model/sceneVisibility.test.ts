@@ -29,8 +29,6 @@ describe('sceneVisibilityFor (Bug #5366)', () => {
     expect(sceneVisibilityFor(things, relationships, new Set())).toEqual({ kind: 'everything' });
   });
 
-  // The heart of the bug: naming guids to hide can only reach elements the model
-  // has a Thing for, and a real Fragments artifact holds far more than that.
   it('shows nothing when the filter leaves no Thing standing', () => {
     expect(sceneVisibilityFor(things, relationships, everyBucket)).toEqual({ kind: 'nothing' });
   });
@@ -55,8 +53,6 @@ describe('sceneVisibilityFor (Bug #5366)', () => {
     expect(result.kind === 'everythingExcept' && result.hiddenIfcGuids).toEqual([]);
   });
 
-  // Nothing to have hidden, so the scene is left alone rather than blanked —
-  // a .frag can hold geometry when the model holds no Things at all.
   it('does not report nothing for a model with no Things', () => {
     expect(sceneVisibilityFor([], [], everyBucket)).toEqual({ kind: 'everythingExcept', hiddenIfcGuids: [] });
   });
@@ -84,10 +80,8 @@ describe('hiddenSceneItemsFor (Bug #5366)', () => {
     expect(scene.calls).toEqual([]);
   });
 
-  // The regression guard. Asking the scene what it is showing reaches elements
-  // the model has no Thing for; translating guids does not, which is what left
-  // the model on screen. The e2e test proves this against a real .frag, but it
-  // needs a live broker, so this is the one that runs in the pipeline.
+  // The end-to-end test proves this against a real .frag file but needs a live broker, so this is the one that
+  // runs in the pipeline.
   it('hides what the scene is showing when nothing should show', async () => {
     const scene = fakeScene([7, 8, 9], { 'guid-a': 7 });
     expect(await hiddenSceneItemsFor({ kind: 'nothing' }, scene)).toEqual([7, 8, 9]);

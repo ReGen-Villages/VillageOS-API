@@ -12,58 +12,14 @@ export interface PredicateStatistics {
 export interface ClusterMap {
   /** Maps node ID → cluster index. Nodes not in any cluster get -1. */
   nodeCluster: Map<string, number>;
-  /** Array of sets; each set contains the node IDs forming a connected component via the predicate. */
+  /** Each set is one group of nodes joined by the chosen predicates. */
   clusters: Set<string>[];
-  /** Representative node ID per cluster (highest-degree node). */
+  /** The node with the most relationships in each cluster. */
   representatives: Map<number, string>;
 }
 
-/** Convert an accumulated counts map into a sorted PredicateStatistics array. */
-function buildPredicateStatisticsArray(
-  counts: Map<string, { name: string; count: number }>,
-  predicateColors: Record<string, string>,
-): PredicateStatistics[] {
-  return [...counts.entries()]
-    .map(([predicateId, { name, count }]) => ({
-      predicateId,
-      predicateName: name,
-      edgeCount: count,
-      color: resolvePredicateColor(name, predicateColors),
-    }))
-    .sort((a, b) => b.edgeCount - a.edgeCount);
-}
-
-/**
- * Count edges per predicate and return sorted (most-used first).
- * Colors are resolved via `resolvePredicateColor` — explicit overrides
- * from GUI_Settings take priority, with hash-based fallback.
- */
-export function computePredicateStatistics(
-  graph: Graph,
-  predicateColors: Record<string, string> = {},
-): PredicateStatistics[] {
-  const counts = new Map<string, { name: string; count: number }>();
-
-  graph.forEachEdge((_edge, attributes) => {
-    const predicateId = attributes.predicateId as string;
-    const label = attributes.label as string;
-    const existing = counts.get(predicateId);
-    if (existing) {
-      existing.count++;
-    } else {
-      counts.set(predicateId, { name: label || predicateId, count: 1 });
-    }
-  });
-
-  return buildPredicateStatisticsArray(counts, predicateColors);
-}
-
-/**
- * Count edges per predicate from the full model store data (unfiltered).
- * Unlike computePredicateStats which uses the Sigma graph (which may be
- * filtered by map-mode surface reduction), this operates on all relationships
- * so predicates like consumes/produces always appear in the radial menu.
- */
+/** Counted over the whole model rather than the drawn graph, which the map view thins, so every
+ *  predicate still appears in the radial menu. */
 export function computePredicateStatisticsFromModel(
   things: VosThing[],
   relationships: VosRelationship[],
@@ -83,21 +39,23 @@ export function computePredicateStatisticsFromModel(
     }
   }
 
-  return buildPredicateStatisticsArray(counts, predicateColors);
+  return [...counts.entries()]
+    .map(([predicateId, { name, count }]) => ({
+      predicateId,
+      predicateName: name,
+      edgeCount: count,
+      color: resolvePredicateColor(name, predicateColors),
+    }))
+    .sort((a, b) => b.edgeCount - a.edgeCount);
 }
 
-/**
- * Find connected components in the graph using only edges whose predicateId
- * is in the given `predicateIds` set (union semantics).
- * Predicate-type nodes (nodes whose thingType === 'predicate') are excluded from clusters.
- */
+/** Groups joined by any of the given predicates. Predicate nodes are left out, because they only connect others. */
 export function computeClusters(graph: Graph, predicateIds: Set<string>): ClusterMap {
   const adj = new Map<string, Set<string>>();
 
   graph.forEachEdge((_edge, attributes, source, target) => {
     if (!predicateIds.has(attributes.predicateId as string)) return;
 
-    // Skip predicate-type nodes (they are structural connectors)
     const sourceType = graph.getNodeAttribute(source, 'thingType');
     const targetType = graph.getNodeAttribute(target, 'thingType');
     if (sourceType === 'predicate' || targetType === 'predicate') return;
@@ -152,10 +110,7 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
   return { nodeCluster, clusters, representatives };
 }
 
-/**
- * Pick the highest-degree node in each cluster as its representative.
- * When a cluster is collapsed, only the representative remains visible.
- */
+/** When a cluster is collapsed, only its representative stays visible. */
 export function pickClusterRepresentatives(
   graph: Graph,
   clusters: Set<string>[],

@@ -7,16 +7,16 @@ public class RangeCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly MyceliumClient? _client;
-    private readonly NameResolver? _resolver;
+    private readonly MyceliumClient _client;
+    private readonly NameResolver _resolver;
     private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-    public RangeCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
+    public RangeCommandHandler(string arg, TextWriter writer, MyceliumClient client)
     {
         _writer = writer;
         _arg = arg;
         _client = client;
-        _resolver = client != null ? new NameResolver(client) : null;
+        _resolver = new NameResolver(client);
         _commandHandlers = BuildCommandHandlers();
     }
 
@@ -33,23 +33,9 @@ public class RangeCommandHandler
 
     public async Task ExecuteAsync()
     {
-        if (_client == null || !CommandParser.TryParseSubcommand(_arg, out var subcommand, out var subArgs))
-        {
-            ShowHelp();
-            return;
-        }
-
-        await ExecuteSubcommandAsync(subcommand, subArgs);
-    }
-
-    private async Task ExecuteSubcommandAsync(string subcommand, string[] args)
-    {
         try
         {
-            if (_commandHandlers.TryGetValue(subcommand, out var handler))
-                await handler(args);
-            else
-                ShowHelp();
+            await Subcommands.RunAsync(_arg, _commandHandlers, ShowHelp);
         }
         catch (Exception ex)
         {
@@ -65,7 +51,7 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
@@ -73,9 +59,9 @@ public class RangeCommandHandler
         }
 
         var options = ParseCreateOptions(args);
-        var result = await _client!.CreateRangeAsync(
+        var result = await _client.CreateRangeAsync(
             resolveResult.Id, options.Name, options.Criteria, options.Property, options.Bounds);
-        WriteFormattedJson(result);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private static CreateRangeOptions ParseCreateOptions(string[] args)
@@ -142,19 +128,19 @@ public class RangeCommandHandler
                 return;
             }
 
-            WriteFormattedJson(await _client!.GetRelationshipRangesAsync(relationshipId));
+            CommandParser.WriteFormattedJson(_writer, await _client.GetRelationshipRangesAsync(relationshipId));
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var result = await _client!.GetRangesAsync(resolveResult.Id);
-        WriteFormattedJson(result);
+        var result = await _client.GetRangesAsync(resolveResult.Id);
+        CommandParser.WriteFormattedJson(_writer, result);
     }
 
     private async Task HandleGetAsync(string[] args)
@@ -165,18 +151,18 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var result = await _client!.GetRangeAsync(resolveResult.Id, args[1]);
+        var result = await _client.GetRangeAsync(resolveResult.Id, args[1]);
         if (result == null)
             _writer.WriteLine($"Range not found: {args[1]}");
         else
-            WriteFormattedJson(result.Value);
+            CommandParser.WriteFormattedJson(_writer, result.Value);
     }
 
     private async Task HandleDeleteAsync(string[] args)
@@ -187,14 +173,14 @@ public class RangeCommandHandler
             return;
         }
 
-        var resolveResult = await _resolver!.ResolveThingAsync(args[0]);
+        var resolveResult = await _resolver.ResolveThingAsync(args[0]);
         if (!resolveResult.IsSuccess)
         {
             _writer.WriteLine(resolveResult.ErrorMessage);
             return;
         }
 
-        var success = await _client!.DeleteRangeAsync(resolveResult.Id, args[1]);
+        var success = await _client.DeleteRangeAsync(resolveResult.Id, args[1]);
         _writer.WriteLine(success ? $"Deleted range '{args[1]}'" : $"Range not found: {args[1]}");
     }
 
@@ -207,7 +193,7 @@ public class RangeCommandHandler
         }
 
         var criteria = string.Join(" ", args);
-        var result = await _client!.ValidateCriteriaAsync(criteria);
+        var result = await _client.ValidateCriteriaAsync(criteria);
         WriteValidationResult(result);
     }
 
@@ -218,9 +204,6 @@ public class RangeCommandHandler
         else if (result.TryGetProperty("error", out var error))
             _writer.WriteLine($"Invalid criteria: {error.GetString()}");
     }
-
-    private void WriteFormattedJson(JsonElement element) =>
-        CommandParser.WriteFormattedJson(_writer, element);
 
     private void ShowCreateUsage()
     {

@@ -10,27 +10,29 @@ namespace vos.Service.Forage.Tests;
 
 public class SourceTimeoutAgainstThePlatformsLimitTests
 {
+    private static readonly int SourceTimeoutSeconds = (int)ForageLaunchSettings.SourceTimeout.TotalSeconds;
+
     [Fact]
-    public async Task StartUp_WhenTheSourceTimeoutIsShorterThanThePassedOnRequestLimit_WarnsNamingBothAndTheSetting()
+    public async Task StartUp_WhenThePassedOnRequestLimitIsLongerThanTheSourceTimeout_WarnsNamingBoth()
     {
-        var log = await StartedWith(sourceTimeoutSeconds: "20", passedOnRequestLimitSeconds: "30");
+        var log = await StartedWith(passedOnRequestLimitSeconds: $"{SourceTimeoutSeconds + 30}");
 
         log.Lines.Should().ContainSingle().Which.Should()
-            .Contain("--sourceTimeoutSeconds").And.Contain("20 seconds").And.Contain("30 seconds");
+            .Contain($"{SourceTimeoutSeconds} seconds").And.Contain($"{SourceTimeoutSeconds + 30} seconds");
     }
 
     [Fact]
-    public async Task StartUp_WhenTheSourceTimeoutEqualsThePassedOnRequestLimit_Warns()
+    public async Task StartUp_WhenThePassedOnRequestLimitEqualsTheSourceTimeout_Warns()
     {
-        var log = await StartedWith(sourceTimeoutSeconds: "30", passedOnRequestLimitSeconds: "30");
+        var log = await StartedWith(passedOnRequestLimitSeconds: $"{SourceTimeoutSeconds}");
 
-        log.Lines.Should().ContainSingle().Which.Should().Contain("--sourceTimeoutSeconds");
+        log.Lines.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task StartUp_WhenTheSourceTimeoutIsLongerThanThePassedOnRequestLimit_IsSilent()
+    public async Task StartUp_WhenThePassedOnRequestLimitIsShorterThanTheSourceTimeout_IsSilent()
     {
-        var log = await StartedWith(sourceTimeoutSeconds: "60", passedOnRequestLimitSeconds: "30");
+        var log = await StartedWith(passedOnRequestLimitSeconds: $"{SourceTimeoutSeconds - 30}");
 
         log.Lines.Should().BeEmpty();
     }
@@ -38,19 +40,17 @@ public class SourceTimeoutAgainstThePlatformsLimitTests
     [Fact]
     public async Task StartUp_WhenThePlatformGivesNoPassedOnRequestLimit_IsSilent()
     {
-        var log = await StartedWith(sourceTimeoutSeconds: "20", passedOnRequestLimitSeconds: null);
+        var log = await StartedWith(passedOnRequestLimitSeconds: null);
 
         log.Lines.Should().BeEmpty();
     }
 
-    private static async Task<CapturingLogger<ForageLaunchSettings>> StartedWith(
-        string sourceTimeoutSeconds, string? passedOnRequestLimitSeconds)
+    private static async Task<CapturingLogger<ForageLaunchSettings>> StartedWith(string? passedOnRequestLimitSeconds)
     {
         var log = new CapturingLogger<ForageLaunchSettings>();
         await using var factory = new ForageWebApplicationFactory();
         await using var host = factory.WithWebHostBuilder(builder =>
         {
-            builder.UseSetting("SourceTimeoutSeconds", sourceTimeoutSeconds);
             if (passedOnRequestLimitSeconds is not null)
                 builder.UseSetting("PassedOnRequestLimitSeconds", passedOnRequestLimitSeconds);
             builder.ConfigureTestServices(services =>

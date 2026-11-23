@@ -21,7 +21,6 @@ public class QueryCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // Mock the bulk properties endpoint the handler resolves matches against.
     private void SetupEffective(string effectiveJson) =>
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
@@ -361,8 +360,7 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryProperty_InheritedProperty_ShowsInheritedSource()
     {
-        // The value lives only on the archetype (inherited, never overridden),
-        // so it comes from the effective endpoint keyed by qualified path — not the removed key.
+        // The value lives only on the archetype and is never overridden, so it comes from the effective properties keyed by its qualified path.
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllThingsAsync())
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
@@ -447,7 +445,7 @@ public class QueryCommandHandlerTests
         Assert.Contains("Things: 0", output);
         Assert.Contains("Relationships: 0", output);
         Assert.Contains("Properties: 0", output);
-        Assert.DoesNotContain("Top Predicates:", output); // No relationships = no top predicates section
+        Assert.DoesNotContain("Top Predicates:", output);
     }
 
     [Fact]

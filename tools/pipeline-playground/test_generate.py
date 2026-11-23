@@ -1,7 +1,7 @@
-"""Spec for the playground generator's id derivation and for the roles its archetypes and predicates play.
---namespace makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no
-namespace) keeps the shared standalone identity; merge reconciles the built-in predicates against a target by
-name and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
+"""The playground generator's ids and the roles its archetypes and predicates play. --namespace gives the
+same pipelines different ids per model, so two seeds can load into one broker; with no namespace the
+standalone fragment keeps its shared ids; a merge matches the built-in predicates against a target by name
+and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
 own.
 """
 import unittest
@@ -87,6 +87,16 @@ class RoleBindingTests(unittest.TestCase):
             self.assertEqual(len(bound_by(things, rels, word)), 1, word)
             self.assertEqual(kit.things[G.role_id(word)]["Name"], word[0].upper() + word[1:])
         self.assertEqual([(t["Name"], name) for t in things for name in t["Properties"] if name.startswith("__Is")], [])
+
+    def test_the_wire_predicate_is_bound_by_its_role_and_is_a_predicate_not_a_wire(self):
+        kit = G.build()
+        things, rels = list(kit.things.values()), list(kit.rels.values())
+        [carries] = bound_by(things, rels, "wirePredicate")
+        is_ids = {t["Id"] for t in things if t["Name"] == "is"}
+        kinds = {r["Target"] for r in rels if r["Subject"] == carries and r["Predicate"] in is_ids}
+        [predicate_root] = bound_by(things, rels, "predicate")
+        self.assertEqual(kit.things[carries]["Name"], "carries")
+        self.assertEqual(kinds, {predicate_root}, "carries is a Predicate and nothing else, not a kind of wire")
 
     def test_every_role_thing_is_role_and_role_is_configuration(self):
         kit = G.build()
@@ -281,35 +291,50 @@ class CatalystVocabularyTests(unittest.TestCase):
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
         notified = {r["Target"] for r in self.kit.rels.values() if r["Predicate"] in self.bound("notifiedConnection")}
-        for connection in connections - set(self.told_through().values()) - set(self.bound("runStopping")) - notified:
+        for connection in connections - set(self.told_through().values()) - notified:
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
-    def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
+    def notified_connection_of(self, predicate):
+        [notifies] = self.bound("notifiedConnection")
+        [connection] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == predicate and r["Predicate"] == notifies]
+        return connection
+
+    def test_a_system_that_is_told_names_a_predicate_whose_connection_is_written_along_and_bound_to_a_service(self):
         [told] = self.bound("told")
-        [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
         told_systems = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == told}
         through = self.told_through()
         self.assertEqual(set(through), told_systems)
-        for system, connection in through.items():
+        for system, predicate in through.items():
+            connection = self.notified_connection_of(predicate)
             self.assertEqual(self.triggers_of(connection), ["graph"], self.kit.things[system]["Name"])
-            bound = [r for r in self.kit.rels.values() if r["Subject"] == connection and r["Predicate"] == has]
-            self.assertEqual(len(bound), 1, self.kit.things[system]["Name"])
+            self.assertEqual(len(self.held_by(connection)), 1, self.kit.things[system]["Name"])
 
     def held_by(self, holder):
         [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
         return [r["Target"] for r in self.kit.rels.values() if r["Subject"] == holder and r["Predicate"] == has]
 
-    def test_stops_and_each_told_through_predicate_notify_a_connection_with_its_trigger_and_service(self):
-        [notifies] = self.bound("notifiedConnection")
+    def test_stops_is_a_predicate_that_names_a_connection_and_is_no_connection(self):
+        [connection_archetype] = self.bound("connection")
+        [predicate_root] = self.bound("predicate")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        [stops] = self.bound("runStopping")
+        connection = self.notified_connection_of(stops)
+        self.assertEqual(self.kit.things[connection]["Name"], "stops connection")
+        self.assertIn((connection, is_, connection_archetype), self.kit.rels)
+        self.assertIn((stops, is_, predicate_root), self.kit.rels)
+        self.assertNotIn((stops, is_, connection_archetype), self.kit.rels)
+        self.assertEqual(self.triggers_of(stops), [])
+        self.assertEqual(self.held_by(stops), [])
+
+    # The orchestrator, the Pipelines page and the fragment validator find a system's told-through connection as a
+    # connection itself, until VillageOS-API Task 8624 has them read the one it names.
+    def test_each_told_through_predicate_is_a_connection_and_names_one_with_its_trigger_and_service(self):
         [connection_archetype] = self.bound("connection")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
-        predicates = [*self.bound("runStopping"), *self.told_through().values()]
-        notified = {r["Subject"]: r["Target"] for r in self.kit.rels.values() if r["Predicate"] == notifies}
-        self.assertEqual(set(notified), set(predicates))
-        for predicate in predicates:
-            name, connection = self.kit.things[predicate]["Name"], notified[predicate]
+        for predicate in self.told_through().values():
+            name, connection = self.kit.things[predicate]["Name"], self.notified_connection_of(predicate)
             self.assertEqual(self.kit.things[connection]["Name"], f"{name} connection")
-            self.assertIn((connection, is_, connection_archetype), self.kit.rels, name)
+            self.assertIn((predicate, is_, connection_archetype), self.kit.rels, name)
             self.assertEqual(self.triggers_of(connection), self.triggers_of(predicate), name)
             self.assertEqual(self.held_by(connection), self.held_by(predicate), name)
 
@@ -638,19 +663,19 @@ class CatalystVocabularyTests(unittest.TestCase):
         [stopped_by] = self.bound("stoppedBy")
         self.assertIn(stopped_by, self.kit.predicates)
 
-    def test_a_stop_request_reaches_the_orchestrator_along_a_connection_the_model_triggers_and_its_service_answers(self):
+    def test_a_stop_request_reaches_the_orchestrator_through_the_connection_its_predicate_names(self):
         [stops] = self.bound("runStopping")
+        stops_connection = self.notified_connection_of(stops)
         [connection] = self.bound("connection")
         [graph] = self.bound("graphTrigger")
         [service] = self.bound("service")
         [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
-        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
         [triggered_by] = self.bound("trigger")
-        self.assertIn((stops, is_, connection), self.kit.rels)
-        self.assertIn((stops, triggered_by, graph), self.kit.rels)
-        [orchestrator] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == stops and r["Predicate"] == has]
+        self.assertIn((stops_connection, is_, connection), self.kit.rels)
+        self.assertIn((stops_connection, triggered_by, graph), self.kit.rels)
+        [orchestrator] = self.held_by(stops_connection)
         self.assertIn((orchestrator, is_, service), self.kit.rels)
-        self.assertNotIn("Subdomain", self.kit.things[stops]["Properties"])
+        self.assertNotIn("Subdomain", self.kit.things[stops_connection]["Properties"])
 
     def test_a_run_reaches_the_run_that_started_it_and_the_run_it_repeats_along_predicates_the_model_binds(self):
         [started_by] = self.bound("startingRun")
@@ -771,3 +796,24 @@ class ModelRootsTests(unittest.TestCase):
         [configuration] = bound_in_seed(seed, "configuration")
         [pipeline] = bound_in_seed(seed, "pipeline")
         self.assertIn(configuration, is_ancestors(seed["Things"], seed["Relationships"], pipeline))
+
+
+class SeedWritingTests(unittest.TestCase):
+    def test_a_seed_naming_a_thing_outside_ascii_is_written_back_byte_for_byte(self):
+        import json, os, tempfile
+        held = ('{\n'
+                '  "Name": "Gärten",\n'
+                '  "Things": [\n'
+                '    {"Id": "a", "Name": "Größe"}\n'
+                '  ],\n'
+                '  "Relationships": [\n'
+                '  ]\n'
+                '}\n')
+        with tempfile.TemporaryDirectory() as scratch:
+            path = os.path.join(scratch, "target.seed.json")
+            with open(path, "w", encoding="utf-8") as target:
+                target.write(held)
+            with open(path, encoding="utf-8") as target:
+                G.dump_seed(json.load(target), path)
+            with open(path, encoding="utf-8") as target:
+                self.assertEqual(held, target.read())

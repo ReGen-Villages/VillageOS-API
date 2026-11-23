@@ -12,7 +12,7 @@ internal static class ServiceBindings
     private static readonly string[] BindingCalls = ["UseUrls(", "ListenLocalhost(", "ListenAnyIP(", ".Listen("];
 
     // Addresses that reach past the machine. Kestrel treats * and + as every
-    // interface exactly as 0.0.0.0 does, which is what made a wildcard binding pass unnoticed.
+    // interface exactly as 0.0.0.0 does, so a wildcard binding would otherwise pass unnoticed.
     // [::] does not match the loopback [::1], whose digit sits inside the brackets.
     private static readonly string[] BeyondLoopback =
         ["0.0.0.0", "[::]", "ListenAnyIP", "IPAddress.Any", "://*:", "://+:"];

@@ -11,12 +11,12 @@ export const REFUSAL_CODES = [
   'submissionTooLarge', 'submissionEmpty', 'submissionUnreadable', 'identifierInvalid', 'emailAddressMalformed',
   'fieldMissing', 'fieldTooLong', 'fieldTooMany', 'fieldOutOfRange', 'termUnknown', 'sharesDisagree',
   'hazardsDisagree', 'sourceDescribedTwice', 'boundaryTooFewCorners', 'modelRefused',
-  'referenceAndAddressNeeded', 'notYourSubmission', 'reductionMalformed',
+  'referenceAndAddressNeeded', 'pageNotOffered', 'notYourSubmission', 'reductionMalformed',
   'fileNotAForm', 'noFile', 'fileTooLarge', 'descriptionTooLong', 'filesNotTaken',
   'layerFileUnreadable', 'featuresUnreadable', 'featureNotInFile', 'documentNotShared',
 ] as const;
 
-export type RefusalCode = (typeof REFUSAL_CODES)[number];
+type RefusalCode = (typeof REFUSAL_CODES)[number];
 
 /** A refusal from the intake service, worded in the reader's language where the pages know its code. */
 class ServiceRefusal extends Error {
@@ -59,8 +59,7 @@ export async function refusalFrom(response: Response): Promise<ServiceRefusal> {
   }
 }
 
-/** Whether the refusal is the ticket's rather than the submission's: the one a person mends by
- *  confirming their address again. */
+/** The ticket's refusal rather than the submission's, which a person fixes by confirming their address again. */
 export function isTicketRefusal(error: unknown): boolean {
   return error instanceof ServiceRefusal && (error.code === 'ticketMissing' || error.code === 'ticketExpired');
 }

@@ -4,7 +4,8 @@ Reads a raster at a point or over a zone. It is a Python package (`quadrat/`) wi
 microservice (`app.py`) that exposes the same operations to a pipeline as a node, built on
 [`vos.Service.Python.Shared`](../vos.Service.Python.Shared/README.md).
 
-Coordinates and zones are always WGS84 (lon/lat); Quadrat reprojects to the raster's own CRS.
+Coordinates and zones are always WGS84 (longitude and latitude); Quadrat reprojects to the raster's own coordinate
+reference system.
 
 ## Run
 
@@ -13,6 +14,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt     # on Windows: .venv/Scripts/python
 .venv/bin/python -m pytest
 
+# samples/ is downloaded, not kept in git: see "Sample data" below.
 .venv/bin/python -m quadrat metadata samples/tatra-z10-568-350.tif
 .venv/bin/python -m quadrat point samples/tatra-z10-568-350.tif --lon 19.9814 --lat 49.2319 --resampling bilinear
 .venv/bin/python -m quadrat zonal samples/tatra-z10-568-350.tif --bbox 19.92 49.24 19.95 49.26
@@ -24,7 +26,8 @@ python3 -m venv .venv
 
 A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}` and exits 2. Codes:
 `outside_raster`, `unreadable_raster`, `no_crs`, `unknown_resampling`, `unsupported_geometry`, `invalid_geometry`,
-`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`, `invalid_sampling`, `ambiguous_sampling`, `too_many_samples`.
+`invalid_bbox`, `rotated_raster`, `invalid_classes`, `too_many_values`, `invalid_sampling`, `ambiguous_sampling`, `too_many_samples`. A request that asks for observations (below) can also be refused as
+`invalid_thing`, `invalid_observations`, `unknown_statistic`, `not_a_reading` or `write_failed`.
 
 ## As a service
 
@@ -36,8 +39,8 @@ The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the envi
 `/stats`, `/shutdown`) and the pipeline node's envelope, answer and manifest are the shared library's
 ([`NodeService`](../vos.Service.Python.Shared/README.md#answer-pipeline-nodes)). Quadrat answers pipeline nodes: a
 `/handle` body carrying `runId` and `nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused
-with `400`. `GET /manifest` lists the ports. An input given as a graph reference (`{"ref": {"thingId", "property"}}`)
-is read from the graph before the operation runs, and the source rules below then apply to what it held.
+with `400`. `GET /manifest` lists the ports. An input given as a reference to a property (`{"ref": {"thingId", "property"}}`)
+is read from the model before the operation runs, and the source rules below then apply to what it held.
 
 ### What the manifest carries
 
@@ -47,8 +50,8 @@ for that:
 | | |
 |---|---|
 | `service` | `Quadrat` |
-| `rehearses` | `true`: Quadrat writes nothing but its answer, so a rehearsal may call it |
-| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples` in; `result` out |
+| `rehearses` | `true`: a rehearsal reads and answers, and records nothing |
+| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples`, `thingId`, `observations` in; `result` and `written` out |
 | `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`, `profile`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` and `profile` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
 
 The settings arrive in `params`, not through ports. A node declared from the manifest carries every setting, empty
@@ -81,8 +84,9 @@ much larger pieces.
   that check and the read is the one thing left to the host's own trustworthiness.
 - **Only `.tif` and `.tiff`** are opened over the web. A `.vrt` is a file that points at other files, so it is not one.
 - **A host that does not answer is given up on**, as `unreadable_raster`: 5 seconds to connect and 20 seconds per
-  request, with no retries. Set `GDAL_HTTP_TIMEOUT`, `GDAL_HTTP_CONNECTTIMEOUT` or `GDAL_HTTP_MAX_RETRY` in the
-  service's environment to change them. The environment's own value wins.
+  request, with no retries. When Quadrat is started by hand, `GDAL_HTTP_TIMEOUT`, `GDAL_HTTP_CONNECTTIMEOUT` or
+  `GDAL_HTTP_MAX_RETRY` in its environment change them, and the environment's own value wins. A service Mycelium
+  starts is handed only a short list of the broker's variables, none of these, so it uses the values above.
 - Directory listings are not requested (`GDAL_DISABLE_READDIR_ON_OPEN`), so a read makes no requests beyond the file.
 
 | | |
@@ -131,10 +135,11 @@ Over the cell limit is refused as `too_many_cells`, saying how many cells the zo
 line's samples touch) needs and how many are allowed. Over the sample limit is refused as `too_many_samples`. A flag
 that is not a positive whole number stops the service from starting.
 
-**Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global lock for
-most of a large read, so in a thread it stalled everything else in the service: during four 4-million-cell reads
-`/health` took up to 4.6 seconds to answer, against 29 milliseconds with worker processes. A worker the raster library
-brings down takes only itself with it, and the request is refused as `read_failed` and can be sent again.
+**Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global
+interpreter lock for most of a large read, so a read in a thread would stall everything else in the service, `/health`
+among it; a worker process has a lock of its own, and `/health` answered within 29 milliseconds during four
+4-million-cell reads. A worker the raster library brings down takes only itself with it, and the request is refused as
+`read_failed` and can be sent again.
 
 The defaults rest on what a read was measured to take (a float32 raster on a Windows development machine; yours will
 differ, so measure before raising them):
@@ -152,7 +157,7 @@ a gigabyte (measured: 988 MB for four requests at the default, 1,831 MB with `--
 
 | Command | Answers |
 |---|---|
-| `metadata` | CRS, size, resolution, bounds (own CRS and WGS84), bands, dtype, nodata |
+| `metadata` | Coordinate reference system, size, resolution, bounds (in its own system and WGS84), bands, data type, nodata value |
 | `point` | The value at a coordinate; `nearest` or `bilinear`; `null` on a nodata cell |
 | `zonal` | `count`, `mean`, `min`, `max`, `median` over a polygon, weighted by how much of each cell the polygon covers; nodata cells left out and reported as `nodata_cells` |
 | `histogram` | The cells, share and ground area of each distinct value over a polygon, for a raster of class codes. See [Land cover](#land-cover-and-measurements-histogram-and-classify) |
@@ -232,6 +237,34 @@ elevation profile, a transect or a cross-section needs.
   a shorter line.
 - Distances come from the line's own vertices, not from the raster, so they do not depend on its projection.
 
+## Recording the answer as observations
+
+A request that names a Thing and the properties to fill has its answer recorded on that Thing, as observations, through
+Mycelium's batch route (`POST /api/things/{id}/observations`), in the same call that reads. Nothing is written
+otherwise.
+
+| Input | |
+|---|---|
+| `thingId` | The Thing to record on (a GUID) |
+| `observations` | Each property to record, mapped to the statistic of the answer that fills it: `{"elevation_mean_m": "mean", "elevation_max_m": "max"}`. A statistic is a path through the answer, so `samples.0.value` is the first sample of a `profile` |
+
+Both are given, or neither. The answer still comes out on `result`; what was recorded comes out on `written`:
+`{"thingId", "accepted", "properties", "skipped"}`, or `{"accepted": 0}` when nothing was asked for.
+
+- **Refused before anything is read:** `thingId` that is not a GUID (`invalid_thing`), observations that are not a
+  non-empty map of names (`invalid_observations`), one of the two inputs without the other (`missing_input`).
+- **Refused after the read, with nothing recorded:** a statistic the answer does not have (`unknown_statistic`) or that
+  is not one value (`not_a_reading`, e.g. `unclassified`).
+- **Left out, not refused:** a statistic the answer holds as null (a nodata cell). Its property is listed in `skipped`.
+- **A rehearsal** records nothing and answers what it would record, with `"rehearsal": true`.
+- **A write Mycelium refuses** fails the node as `write_failed`, with the platform's status: a property that does not
+  accept observations is `405`, an unknown Thing or property `404`. Quadrat writes with its own credential (`ApiKey` or
+  `Token`), which needs permission to modify data.
+- **Quadrat names no property itself.** Which properties exist and which statistic fills each is the caller's, from the
+  pipeline's registration, so no source is named in code.
+- A node the pipeline retries after a transport failure records its observations again. Whether the platform keeps a
+  repeated reading is the platform's rule, not Quadrat's.
+
 ## Terrain tiles
 
 Elevation is often served as PNG map tiles whose red, green and blue bytes hold the height. A PNG has no position of
@@ -265,7 +298,7 @@ curl -o samples/tatra-z10-568-350.terrarium.png https://s3.amazonaws.com/elevati
 
 Two checks sit above the unit tests, and they answer different questions.
 
-**The contract test** (`tests/test_contract.py`, part of `pytest`) pins what the rest of the platform depends on
+**The contract test** (`tests/test_contract.py`, part of `pytest`) checks what the rest of the platform depends on
 Quadrat being, from the platform's side of [docs/SERVICES.md §16.2](../docs/SERVICES.md): a manifest whose ports and
 settings are in the shape the editor and `declare_service.py` read; every operation answering the envelope Phloem
 parses (`result`, `outputs`, `error`, only the declared output port); a refusal answering `fail` with its code and no
@@ -288,7 +321,7 @@ Run it against a service you started, from this folder:
 
 ```powershell
 # Windows. Start-Process keeps the service running after the shell that started it ends; a background shell job may not.
-$svc = "D:\RegenRepos\VillageOS-API\vos.Service.Quadrat"
+$svc = "<path to your checkout>\vos.Service.Quadrat"
 $p = Start-Process -FilePath "$svc\.venv\Scripts\python.exe" -WorkingDirectory $svc -WindowStyle Hidden -PassThru `
   -ArgumentList @("app.py", "--port=5611", "--myceliumUrl=http://127.0.0.1:9", "--rasterDirectory=$svc\samples") `
   -RedirectStandardOutput "$env:TEMP\quadrat.out.log" -RedirectStandardError "$env:TEMP\quadrat.err.log"

@@ -22,8 +22,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// The route is the same one the Thing side reads, served by the same handler, and
-// is what tells a relationship panel a property's declared type and where an inherited one came from.
 describe('relationshipApi.getEffectiveProperties', () => {
   it('reads the relationship properties route', async () => {
     mockGet.mockResolvedValue({});
@@ -111,8 +109,6 @@ describe('relationshipApi.setProperty', () => {
     });
   });
 
-  // A relationship has one property route that both creates and updates, unlike a
-  // Thing. Adding must reach it, so a caller can add to either without knowing which it holds.
   it('adds through that same route', async () => {
     mockPut.mockResolvedValue({});
     await relationshipApi.addProperty('r1', 'label', 'vos.String', 'hello');

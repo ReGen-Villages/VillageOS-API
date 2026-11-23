@@ -1,62 +1,8 @@
-/**
- * What a subscription covers, in the shape `POST /api/subscriptions` reads.
- *
- * The platform resolves a selector into a set of Things and the relationships between them, hands
- * that back as a snapshot, and streams the later changes to those objects and no others. A page
- * therefore says what it is about once, and both what it starts with and what reaches it afterwards
- * follow from that one statement.
- */
-import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
+/** The platform resolves a selector into Things and their relationships, answers with them, and then streams
+ *  changes to those alone, so a page says once what it is about. */
+import type { SubscriptionSelector, VosThing, VosRelationship } from '@tendril-ui/tendril';
 
-/** Which way a relationship is followed from the Things selected so far. */
-export type TraverseDirection = 'outgoing' | 'incoming' | 'both';
-
-/** One relationship to follow out from everything the selector has reached by the time the rule runs.
- *  The predicate is named by its word, or by the role Thing that binds it, so a model may call it anything. */
-export interface TraverseRule {
-  predicate?: string;
-  predicateRole?: string;
-  direction?: TraverseDirection;
-  /** How many hops to follow. Omitted means one. */
-  depth?: number;
-}
-
-export interface SubscriptionSelector {
-  /** The whole model, and every object created after the subscription opened. Every other field is
-   *  ignored when this is set. */
-  all?: boolean;
-  /** Thing ids. The platform reads these as identifiers, so a name here is refused, not looked up. */
-  ids?: string[];
-  names?: string[];
-  /** Things that `is` one of these, followed through the whole chain. */
-  types?: string[];
-  /** The same as `types`, by the archetype's identifier, because names are not unique. */
-  typeIds?: string[];
-  /** Role Thing ids: the archetype each role binds, and the Things that `is` it. */
-  boundTypes?: string[];
-  /** Role Thing ids: the one Thing each role binds, alone. Neither form carries the role Thing or its
-   *  `binds` relationship; a page that has to tell which bound Thing plays which role asks for the role
-   *  Things by id and follows `binds`. */
-  boundArchetypes?: string[];
-  /** Applied in order, each over everything selected before it. */
-  traverse?: TraverseRule[];
-  /** Include what each selected Thing `is`, so the values it inherits resolve. Default true. */
-  includeIsAncestors?: boolean;
-  /** Include the relationships between the selected Things. Default true. */
-  includeRelationships?: boolean;
-  /** Keep covering what `types`, `typeIds` and `boundTypes` name as it appears, rather than only what
-   *  they named when the subscription opened: a Thing typed into a followed type later arrives as
-   *  `ThingEntered`, and one whose last matching `is` relationship is retracted leaves as `ThingLeft`.
-   *  A one-step `traverse` rule keeps following too: a relationship written along its predicate from
-   *  a covered Thing brings the Thing at its other end. `ids`, `names` and a deeper traversal fix
-   *  their part of the membership when the subscription opens. */
-  includeLaterMatches?: boolean;
-  /** Hear the samples that land on the covered Things' observation-only properties, each series held
-   *  to a cadence by the platform: at once while the series is slower than the cadence, once per
-   *  cadence with the latest value while it is faster. A sample arrives as `PropertyObserved`, with no
-   *  event id to resume from. Off by default; a page drawing readings asks. */
-  includeObservations?: boolean;
-}
+export type { SubscriptionSelector } from '@tendril-ui/tendril';
 
 /** What a page that reads across the whole model asks for — the graph, the explorer, the searches.
  *  Alone among the selectors it also covers objects created later, because the platform resolves
@@ -76,10 +22,7 @@ export interface CoveredObjects {
 export interface SubscriptionOpened {
   subscriptionId: string;
   watermark: number;
-  /**
-   * The objects the selector reached — or null for {@link WHOLE_MODEL}, which asks for no snapshot.
-   * The model read fills the store for it instead, because only that honours the properties the
-   * model says its pages are drawn with.
-   */
+  /** Null for {@link WHOLE_MODEL}, which asks for no snapshot, because the model read fills the store and only
+   *  it honours the properties the model says its pages use. */
   covered: CoveredObjects | null;
 }

@@ -1,3 +1,5 @@
+using vos.Service.Shared.Geometry;
+
 namespace vos.Service.Intake.Models;
 
 // The fragment a submission becomes, with the identifiers it minted and the reference the
@@ -24,7 +26,8 @@ public sealed record ResolvedPredicates(
 // with the declared vocabulary instead.
 public sealed record ResolvedArchetypes(
     DeclaredTerm Site, DeclaredTerm Parcel, DeclaredTerm Project, DeclaredTerm Contact, DeclaredTerm ProgrammeAllocation,
-    DeclaredTerm HazardAssessment, DeclaredTerm SubmittedSource, DeclaredTerm Submission);
+    DeclaredTerm HazardAssessment, DeclaredTerm SubmittedSource, DeclaredTerm Submission, DeclaredTerm? SoilHorizon = null,
+    DeclaredTerm? LandCoverShare = null);
 
 public sealed record DeclaredTerm(string Name, Guid Id);
 
@@ -49,4 +52,6 @@ public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
 public sealed record DeclaredVocabulary(
     DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
     DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting, IReadOnlyList<DeclaredDemand> WaterDemands,
-    DeclaredTerm SiteStudy);
+    DeclaredTerm SiteStudy, AreaMethodChoice AreaMethod, DeclaredTerms? SoilDepths = null,
+    DeclaredTerms? LandCoverClasses = null);
+

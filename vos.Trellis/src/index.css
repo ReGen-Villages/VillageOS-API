@@ -4,30 +4,22 @@
 @source "../../vos.Tendril/src";
 
 /*
- * Switch Tailwind's dark variant from prefers-color-scheme media to a
- * class on the document root, so themeStore can override the OS theme.
- * The store seeds itself from prefers-color-scheme on first load — see
- * src/stores/themeStore.ts (Feature #5328).
+ * Dark mode follows a class on the document root rather than the system setting, so the theme store can
+ * override the system theme. The store starts from the system setting.
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * @react-sigma/core ships its own stylesheet that hardcodes
- * `.react-sigma { background: rgb(255, 255, 255); }`. That paints
- * solid white over AppLayout's themed bg, so the Graph page never
- * darkens when the user toggles the theme (Bug #5330). Make the
- * wrapper transparent so AppLayout's bg-white / dark:bg-zinc-950
- * shows through.
+ * @react-sigma/core's own stylesheet paints this wrapper solid white over the themed background, so the
+ * graph page would never darken.
  */
 .react-sigma {
   background: transparent !important;
 }
 
 /*
- * Semantic status tokens + surface refs used by the config-driven dashboard
- * widgets (src/components/dashboard/widgets/*). Defined here (not inline) so the
- * dark variants can key off the .dark class. These are generic UI tokens — no
- * domain meaning — mirroring Tailwind's emerald/amber/red status scale.
+ * Status and surface colours for the dashboard widgets, defined here so the dark ones can follow the .dark
+ * class. They carry no meaning from any domain, and follow Tailwind's emerald, amber and red.
  */
 :root {
   --good: #059669;
@@ -47,7 +39,7 @@
 /*
  * The chart palette the hand-drawn history widgets draw with, stepped for each surface and validated
  * as a set: the categorical slots in their fixed order, the two arms of the diverging scale a range
- * bar stacks about its mean (the far step deeper, the near step paler), and the recessive chrome.
+ * bar stacks about its mean (the far step deeper, the near step paler), and the muted ink, grid and axis.
  * What a band, a class or a threshold is coloured comes from the model, never from here.
  */
 :root {

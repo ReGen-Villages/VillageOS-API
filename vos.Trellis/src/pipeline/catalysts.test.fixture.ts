@@ -5,7 +5,7 @@ import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 /** A model holding one of every catalyst and every output the Pipelines page reads. Every archetype
  *  and predicate is named something the console has never heard of and says what it is through the role
  *  Thing that binds it, so a fixture that resolves at all proves nothing is found by name. */
-export interface CatalystFixture {
+interface CatalystFixture {
   model: PipelineModel;
   things: VosThing[];
   relationships: VosRelationship[];
@@ -16,7 +16,8 @@ export interface CatalystFixture {
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesRunningLow' | 'runningLowBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
     | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
-    | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly' | 'tellKind' | 'followOnKind' | 'stopKind' | 'officeLine',
+    | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly' | 'tellKind' | 'followOnKind' | 'stopKind' | 'officeLine'
+    | 'stops' | 'stopsCalled' | 'balances' | 'balancesCalled' | 'overflows' | 'overflowsCalled' | 'tally',
     string
   >;
 }
@@ -27,9 +28,14 @@ interface FixtureOptions {
   orchestrators?: number;
   bindsTellFollowOnAndStop?: boolean;
   bindsRequestedBy?: boolean;
+  drawsTheCadence?: boolean;
+  /** Also gives `overflows called` the one state that proves it, so the page can relate along `overflows`. */
+  bindsRelate?: boolean;
 }
 
-export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = true, bindsRequestedBy = true }: FixtureOptions = {}): CatalystFixture {
+export function catalystFixture({
+  orchestrators = 1, bindsTellFollowOnAndStop = true, bindsRequestedBy = true, drawsTheCadence = true, bindsRelate = false,
+}: FixtureOptions = {}): CatalystFixture {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
   let sequence = 0;
@@ -69,8 +75,7 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   const kindArchetype = thing('Letter', playing(ROLE.MessageKind), true);
   const wireArchetype = thing('Link', playing(ROLE.PipelineWire), true);
   const portArchetype = thing('Socket', playing(ROLE.Port), true);
-  const carries = thing('carries');
-  relate(carries, is, wireArchetype);
+  const carries = thing('carries', playing(ROLE.WirePredicate));
   const inputConnector = thing('takesFrom', playing(ROLE.InputConnector));
   const outputConnector = thing('deliversTo', playing(ROLE.OutputConnector));
   const takenOn = thing('firesOn', playing(ROLE.TakenOn));
@@ -79,7 +84,7 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   thing('Branch', playing(ROLE.DecisionPath), true);
   const offers = thing('proposes', playing(ROLE.Choice));
   const comparesWith = thing('weighs', playing(ROLE.ComparesWith));
-  const everyHour = thing('every hour');
+  const everyHour = thing('every hour', { intervalMinutes: 60 });
   relate(everyHour, is, thing('Metronome', playing(ROLE.Cadence), true));
   relate(inputArchetype, is, nodeArchetype);
   relate(outputArchetype, is, nodeArchetype);
@@ -133,9 +138,10 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   const dailyDigest = thing('daily digest');
   relate(dailyDigest, is, kindArchetype);
   relate(reportingOffice, tells, dailyDigest);
-  // No trigger, so it adds no row to the rail of catalysts.
+  // Reached by a trigger, as every connection a template declares is, though a system is only told through it.
   const officeLine = thing('office line');
   relate(officeLine, is, connectionArchetype);
+  relate(officeLine, triggeredBy, graph);
   relate(reportingOffice, thing('reachedThrough', playing(ROLE.ToldThrough)), officeLine);
 
   const nodeKind = (name: string, roleId: string) => {
@@ -167,6 +173,28 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   relate(watchesOverdue, watches, overdue);
   const feeds = connection('feeds', graph, handler);
   const resumes = connection('resumes', graph, conductor, playing(ROLE.RunResumption));
+  const stops = connection('stops', graph, conductor, playing(ROLE.RunStopping));
+
+  const notifies = thing('alerts', playing(ROLE.NotifiedConnection));
+  const stopsCalled = connection('stops called', graph, conductor);
+  relate(stops, notifies, stopsCalled);
+  const balancer = service('Balancer');
+  const balances = connection('balances', graph, handler);
+  const balancesCalled = connection('balances called', graph, balancer);
+  relate(balances, notifies, balancesCalled);
+  const overflows = thing('overflows');
+  const overflowsCalled = connection('overflows called', graph, balancer);
+  relate(overflows, notifies, overflowsCalled);
+  if (bindsRelate) {
+    const relateKind = nodeKind('Tie', ROLE.PipelineRelate);
+    for (const [portName, direction] of [['thing', 'in'], ['thing', 'out'], ['written', 'out']]) {
+      const port = thing(`Tie.${portName}.${direction}`, { portName, direction, type: 'any', required: String(direction === 'in') });
+      relate(port, is, portArchetype);
+      relate(relateKind, has, port);
+    }
+    relate(overflowsCalled, thing('provenBy', playing(ROLE.CompletionRange)), thing('overflowing'));
+  }
+  relate(thing('Chore', {}, true), notifies, feeds);
 
   const surplus = thing('surplus');
   relate(surplus, is, rangeArchetype);
@@ -221,6 +249,8 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   const digestEnd = boundary(digest, 'The office is told', 'output', reportingOffice);
   const storeSurplus = pipeline('Store surplus');
   boundary(storeSurplus, 'A reservoir overflows', 'input', surplus);
+  const tally = pipeline('Tally');
+  boundary(tally, 'The hour strikes', 'input', drawsTheCadence ? everyHour : undefined);
 
   const [held, heldRelationships] = withRoles(things, relationships);
   return {
@@ -234,6 +264,7 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
       watcher, watchesRunningLow, runningLowBinding: bindings.get(watchesRunningLow)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
       offers, comparesWith, daily, rhythm, weekly, tellKind, followOnKind, stopKind, officeLine,
+      stops, stopsCalled, balances, balancesCalled, overflows, overflowsCalled, tally,
     },
   };
 }

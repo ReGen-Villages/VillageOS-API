@@ -25,13 +25,13 @@ vi.mock('../components/map/MapView', () => ({
     longitude,
     sources,
     boundary,
-    onBoundaryChange,
+    borderEditing,
   }: {
     latitude: number;
     longitude: number;
     sources: BasemapSource[];
     boundary?: { latitude: number; longitude: number }[];
-    onBoundaryChange?: (boundary: { latitude: number; longitude: number }[]) => void;
+    borderEditing?: { onEdit: (edit: { kind: 'place'; corner: { latitude: number; longitude: number } }) => void };
   }) => (
     <div
       data-testid="site-map"
@@ -40,13 +40,13 @@ vi.mock('../components/map/MapView', () => ({
       data-sources={sources.map((source) => source.name).join(',')}
       data-corners={boundary?.length ?? ''}
     >
-      {onBoundaryChange && (
+      {borderEditing && (
         <button
           onClick={() =>
-            onBoundaryChange([
-              ...(boundary ?? []),
-              { latitude: 39.5 + (boundary?.length ?? 0) / 500, longitude: -8.41 },
-            ])
+            borderEditing.onEdit({
+              kind: 'place',
+              corner: { latitude: 39.5 + (boundary?.length ?? 0) / 500, longitude: -8.41 },
+            })
           }
         >
           stub-place-corner
@@ -103,6 +103,14 @@ const THINGS: VosThing[] = [
   thing('severity', 'Severity', true),
   thing('bad', 'bad'),
   thing('mild', 'mild'),
+  thing(LAND_INTAKE_ROLE.Parcel, 'parcel'),
+  thing(LAND_INTAKE_ROLE.MeasuresAreaWith, 'measuresAreaWith'),
+  thing(LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'meanSphereAreaMethod'),
+  thing(LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'wgs84EllipsoidAreaMethod'),
+  thing('plot', 'Plot', true),
+  thing('measured-with', 'measuredWithMethod'),
+  thing('round', 'Round earth'),
+  thing('oblate', 'Flattened earth'),
   {
     Id: 'aerial',
     Name: 'Aerial imagery',
@@ -123,14 +131,22 @@ const EDGES: VosRelationship[] = [
   edge('e6', 'slippage', 'is', 'peril'),
   edge('e7', 'bad', 'is', 'severity'),
   edge('e8', 'mild', 'is', 'severity'),
+  edge('b5', LAND_INTAKE_ROLE.Parcel, 'binds', 'plot'),
+  edge('b6', LAND_INTAKE_ROLE.MeasuresAreaWith, 'binds', 'measured-with'),
+  edge('b7', LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'binds', 'round'),
+  edge('b8', LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'binds', 'oblate'),
+  edge('m1', 'plot', 'measured-with', 'round'),
 ];
+
+function measuringWith(method: 'round' | 'oblate' | null): VosRelationship[] {
+  const others = EDGES.filter((held) => held.Id !== 'm1');
+  return method === null ? others : [...others, edge('m1', 'plot', 'measured-with', method)];
+}
 
 const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {};
 
-/** Long enough that whatever the answer feeds is on screen before it arrives, which is the order a
- *  loaded build agent produces. A mock answering at once puts the two in the same instant, so a test
- *  reading the answer the moment its element appears passes on a quiet machine and fails on the
- *  agent. */
+/** Long enough that what the answer feeds is on screen before it arrives, as on a busy build agent; a mock
+ *  answering at once lets a test pass on a quiet machine and fail on the agent. */
 const ANSWER_DELAY_MILLISECONDS = 50;
 
 function answeredLate<T>(value: T): () => Promise<T> {
@@ -148,7 +164,7 @@ beforeEach(() => {
   vi.mocked(intakeApi.askForCode).mockImplementation(answeredLate(undefined));
 });
 
-/** Walk to a step by pressing Next, which is also what makes each one reachable again. */
+/** By pressing Next, which is also what makes each step reachable again. */
 function goToStep(times: number): void {
   for (let step = 0; step < times; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 }
@@ -365,6 +381,25 @@ describe('the size and programme step', () => {
     expect(screen.getByText(/not an area/)).toBeInTheDocument();
   });
 
+  it.each([
+    ['12.5', 'Must be a whole number.'],
+    ['-3', 'Cannot be negative.'],
+    ['abc', 'Not a number.'],
+  ])('says why a population of %s cannot be sent', (population, reason) => {
+    typeInto('Population', population);
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['-3', 'Cannot be negative.'],
+    ['abc', 'Not a number.'],
+  ])('says why a household size of %s cannot be sent', (householdSize, reason) => {
+    typeInto('People per household', householdSize);
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
   it('offers the categories the model declares, not a list of its own', async () => {
     await waitFor(() => expect(screen.getByLabelText('housing')).toBeInTheDocument());
 
@@ -421,7 +456,7 @@ describe('the parcel step', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Place a draft boundary' }));
 
-    expect(screen.getByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
+    expect(await screen.findByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
     expect(loadDraft('model-1')?.boundarySource).toBe('generated-from-stated-area');
     expect(loadDraft('model-1')?.boundary).toHaveLength(4);
     expect((await screen.findByTestId('site-map')).dataset.corners).toBe('4');
@@ -448,7 +483,7 @@ describe('the parcel step', () => {
     expect(loadDraft('model-1')?.boundary).toHaveLength(3);
   });
 
-  it('says how far apart the drawn and stated areas are when they disagree', () => {
+  it('says how far apart the drawn and stated areas are when they disagree', async () => {
     located({
       boundary: [
         { latitude: 39.5, longitude: -8.41 },
@@ -460,7 +495,41 @@ describe('the parcel step', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByText(/away from the stated area/)).toBeInTheDocument();
+    expect(await screen.findByText(/away from the stated area/)).toBeInTheDocument();
+  });
+
+  describe('measuring the drawn border with the method the model configures', () => {
+    // A box a hundredth of a degree square at the equator, against a stated 100 ha: 123.64 ha on the mean sphere,
+    // 123.09 ha on the WGS84 ellipsoid.
+    const box = [
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 0.01 },
+      { latitude: 0.01, longitude: 0.01 },
+      { latitude: 0.01, longitude: 0 },
+    ];
+
+    it.each([
+      ['round', '23.6%'],
+      ['oblate', '23.1%'],
+    ] as const)('measures with the method the parcel archetype chooses (%s)', async (method, apart) => {
+      vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(method)));
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      render(<IntakeWizardPage />);
+      goToStep(4);
+
+      expect(await screen.findByText(`The drawn area is ${apart} away from the stated area.`)).toBeInTheDocument();
+    });
+
+    it('compares no areas where the model chooses no method', async () => {
+      vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(null)));
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      render(<IntakeWizardPage />);
+      goToStep(4);
+      await act(() => new Promise((resolve) => setTimeout(resolve, ANSWER_DELAY_MILLISECONDS * 3)));
+
+      expect(screen.queryByText(/away from the stated area/)).not.toBeInTheDocument();
+      expect(screen.queryByText('The drawn and stated areas agree within tolerance.')).not.toBeInTheDocument();
+    });
   });
 
   it('clears the boundary from the map and the stored draft together', async () => {
@@ -495,9 +564,8 @@ describe('posting the submission', () => {
       projectName: 'Willow Bend Regeneration',
       contactName: 'Ana Ferreira',
       emailAddress: 'ana.ferreira@example.pt',
-      // The land the submission is about. A draft describing none cannot be submitted at all, so a
-      // fixture named for being submittable has to enclose some — and has to say how the boundary was
-      // come by, because a stored one without its source is not a parcel and is dropped when read back.
+      // A draft with no land cannot be submitted, and a boundary stored without how it was obtained is
+      // dropped when read back.
       boundary: [
         { latitude: 39.4988, longitude: -8.4168 },
         { latitude: 39.5036, longitude: -8.4168 },
@@ -508,8 +576,7 @@ describe('posting the submission', () => {
     };
   }
 
-  /** The whole of what submitting is now: ask for a code, read it off the mail the person got, and send
-   *  the submission under it. */
+  /** Ask for a code, read it off the person's mail, and send the submission under it. */
   async function askForACodeAndSubmit(code = '314159'): Promise<void> {
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
 
@@ -533,6 +600,20 @@ describe('posting the submission', () => {
 
   it('will not submit a site nobody can be told the decision about', () => {
     saveDraft('model-1', submittable({ emailAddress: '' }));
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
+  });
+
+  it.each([
+    { population: '12.5' },
+    { population: '-3' },
+    { population: 'abc' },
+    { householdSize: '-3' },
+    { householdSize: 'abc' },
+  ])('will not ask for a code while a figure cannot be read: %o', (figure) => {
+    saveDraft('model-1', submittable(figure));
     render(<IntakeWizardPage />);
     goToStep(5);
 
@@ -728,7 +809,7 @@ describe('the hazards step', () => {
     }
   });
 
-  // A mis-click has to be takeable back, so clearing a row says nothing again rather than something else.
+  // A wrong click has to be undoable, so clearing a row reports nothing rather than something else.
   it('takes a report back when the row is cleared', async () => {
     render(<IntakeWizardPage />);
     goToStep(5);

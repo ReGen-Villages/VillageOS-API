@@ -4,8 +4,8 @@ namespace vos.Taproot
 {
     public class FindCommandHandler : CommandHandlerWithOutputOptions
     {
-        public FindCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public FindCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
         }
 
@@ -13,7 +13,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
                 if (tok.Length == 0)
                 {
@@ -56,35 +56,22 @@ namespace vos.Taproot
             }
 
             var pattern = string.Join(" ", tok);
-            var allThings = await _mycelium.GetAllThingsAsync();
-
-            if (allThings.ValueKind != JsonValueKind.Array)
+            if (await ThingSearch.ByPartOfANameAsync(_mycelium, pattern) is not { } found)
             {
                 _writer.WriteLine("No things found.");
                 return;
             }
 
-            var matches = new List<(string Id, string Name)>();
-            foreach (var thing in allThings.EnumerateArray())
-            {
-                var name = thing.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() ?? "" : "";
-                if (name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-                {
-                    var id = thing.TryGetProperty("Id", out var idProp) ? idProp.GetString() ?? "" : "";
-                    matches.Add((id, name));
-                }
-            }
-
-            if (matches.Count == 0)
+            if (found.Matched == 0)
             {
                 _writer.WriteLine($"No things found matching '{pattern}'");
                 return;
             }
 
-            _writer.WriteLine($"Found {matches.Count} thing(s) matching '{pattern}':");
-            foreach (var (id, name) in matches)
+            _writer.WriteLine($"Found {found.Matched} thing(s) matching '{pattern}':");
+            foreach (var thing in found.Things)
             {
-                _writer.WriteLine($"  {_options.FormatIdentifier(name, id)}");
+                _writer.WriteLine($"  {_options.FormatIdentifier(thing.Name, thing.Id)}");
             }
         }
 

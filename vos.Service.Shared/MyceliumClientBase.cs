@@ -26,8 +26,8 @@ public abstract class MyceliumClientBase
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
-    // Failure policy for outbound contract violations: Debug throws to surface schema drift;
-    // Release logs so a stale schema never blocks production traffic.
+    // A debug build throws on a request its schema refuses, so a schema that has fallen behind is found;
+    // a release build logs, so a stale schema never stops a live request.
     protected virtual SchemaViolationMode OutboundViolationMode =>
 #if DEBUG
         SchemaViolationMode.Throw;
@@ -177,8 +177,53 @@ public abstract class MyceliumClientBase
         }
     }
 
-    // Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
-    // number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).
+    protected Task<PlatformAnswer> AskForThingNamedAsync(string name, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Get, $"/api/things?name={Uri.EscapeDataString(name)}", null, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToCreateThingAsync(HttpContent thing, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Post, "/api/things", thing, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToDeleteThingAsync(Guid thingId, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Delete, $"/api/things/{thingId}", null, timeout, cancellationToken);
+
+    protected Task<PlatformAnswer> AskToApplyFragmentAsync(HttpContent fragment, TimeSpan? timeout, CancellationToken cancellationToken) =>
+        AskAsync(HttpMethod.Post, "/api/model/fragment", fragment, timeout, cancellationToken);
+
+    private async Task<PlatformAnswer> AskAsync(
+        HttpMethod method, string path, HttpContent? content, TimeSpan? timeout, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(timeout);
+        var request = new HttpRequestMessage(method, $"{MyceliumUrl}{path}") { Content = content };
+        using var response = await client.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var outcome = response.IsSuccessStatusCode ? PlatformOutcome.Done
+            : response.StatusCode == HttpStatusCode.NotFound ? PlatformOutcome.NotFound
+            : PlatformOutcome.Refused;
+        return new PlatformAnswer(outcome, response.StatusCode, body);
+    }
+
+    protected static Guid? IdentifierOf(JsonElement thing) =>
+        TryGetPropertyCaseInsensitive(thing, "Id", out var identifier)
+        && identifier.ValueKind == JsonValueKind.String
+        && Guid.TryParse(identifier.GetString(), out var parsed)
+            ? parsed
+            : null;
+
+    protected static bool TryReadThing(JsonElement thing, out Guid identifier, out string name)
+    {
+        name = string.Empty;
+        identifier = IdentifierOf(thing) ?? Guid.Empty;
+        if (identifier == Guid.Empty
+            || !TryGetPropertyCaseInsensitive(thing, "Name", out var named)
+            || named.ValueKind != JsonValueKind.String)
+            return false;
+
+        name = named.GetString() ?? string.Empty;
+        return true;
+    }
+
+    // A structural Fact, applied at once and never dropped. Returns the commit sequence number; throws
+    // with StatusCode on failure (405 where the property takes only Observations, 404 for an unknown Thing).
     public async Task<long> SetFactAsync(Guid thingId, string property, object? value)
     {
         var json = JsonSerializer.Serialize(new { value });
@@ -215,8 +260,8 @@ public abstract class MyceliumClientBase
             throw await FailureAsync("Call report", response);
     }
 
-    // Record one Observation (queued/batched, 202). Pass observedAt for
-    // late/out-of-order samples. Throws on failure (405 FactOnly).
+    // One Observation, queued and batched (202). Pass observedAt for a late or out-of-order sample.
+    // Throws on failure (405 where the property takes only Facts).
     public async Task RecordObservationAsync(Guid thingId, string property, object? value, DateTime? observedAt = null)
     {
         var json = observedAt is { } at
@@ -255,7 +300,7 @@ public abstract class MyceliumClientBase
         return doc.TryGetProperty("accepted", out var n) ? n.GetInt32() : samples.Count;
     }
 
-    // Bulk-deposit historical readings to sealed Sapwood (202). Entities must exist and every
+    // Deposits historical readings into sealed Sapwood (202). Each reading's Thing must exist and every
     // reading needs an ObservedAt. Returns the deposit summary.
     public async Task<SedimentDepositResult> DepositSedimentAsync(IReadOnlyList<SedimentReading> readings)
     {
@@ -287,9 +332,9 @@ public abstract class MyceliumClientBase
             doc.TryGetProperty("samples", out var sm) ? sm.GetInt64() : 0L);
     }
 
-    /// <summary>What time the model thinks it is, and how fast that runs against real time — null
-    /// where the broker could not be asked. A service stamping a model value reads this rather than its
-    /// own wall clock, so an instant it writes and one the platform writes come off the same clock.</summary>
+    // What time the model thinks it is, and how fast that runs against real time — null where the
+    // broker could not be asked. A service stamping a model value reads this rather than its own wall
+    // clock, so an instant it writes and one the platform writes come off the same clock.
     public async Task<ModelTimeReading?> ReadModelTimeAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -317,9 +362,9 @@ public abstract class MyceliumClientBase
 
     public const string ModelClockChangedEvent = "ModelClockChanged";
 
-    /// <summary>The model clock as the broker tells it: a reading taken when the system-events stream
-    /// opens, then one for each change the broker announces, until the stream ends. Yields nothing where
-    /// the broker could not be reached; the caller reconnects.</summary>
+    // The model clock as the broker tells it: a reading taken when the system-events stream opens, then
+    // one for each change the broker announces, until the stream ends. Yields nothing where the broker
+    // could not be reached; the caller reconnects.
     public async IAsyncEnumerable<ModelTimeReading> ListenForModelClockAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

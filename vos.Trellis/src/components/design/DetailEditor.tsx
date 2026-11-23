@@ -7,6 +7,7 @@ import type { BindingContext } from './bindingContext';
 import { ChoiceField, Field, SwitchField, TextField } from './DesignFields';
 import { OfferedField } from './OfferedField';
 import { StringsField } from './FieldControls';
+import { dropAt, replaceAt } from '../../utils/listEdits';
 import { offeredFor, smallButtonClass, withKey } from './fieldSupport';
 import { Removable } from './Removable';
 
@@ -20,7 +21,7 @@ export function DetailEditor({
   const { t } = useTranslation();
   const held = value ?? {};
   const write = (key: keyof DetailSpecification, next: unknown) => {
-    const written = withKey(held as Record<string, unknown>, key, next);
+    const written = withKey(held, key, next);
     onChange(Object.keys(written).length ? written : undefined);
   };
   const properties = offeredFor('property', context, kind, t);
@@ -65,7 +66,7 @@ function RelationsEditor({ value, context, kind, onChange }: { value: RelationSp
         <div className="mt-1 space-y-2">
           {value.map((relation, index) => {
             const reached = kindReachedBy(kind, [relation], context.offers);
-            const set = (key: keyof RelationSpecification, next: unknown) => onChange(replaceAt(value, index, withKey(relation as unknown as Record<string, unknown>, key, next) as unknown as RelationSpecification));
+            const set = (key: keyof RelationSpecification, next: unknown) => onChange(replaceAt(value, index, withKey(relation, key, next)));
             return (
               <Removable key={index} name={relation.predicate || t('design.list.item', { position: index + 1 })} onRemove={() => onChange(dropAt(value, index))}>
                 <OfferedField
@@ -95,12 +96,4 @@ function RelationsEditor({ value, context, kind, onChange }: { value: RelationSp
       )}
     </Field>
   );
-}
-
-function replaceAt<T>(items: T[], index: number, next: T): T[] {
-  return items.map((held, at) => (at === index ? next : held));
-}
-
-function dropAt<T>(items: T[], index: number): T[] {
-  return items.filter((_, at) => at !== index);
 }

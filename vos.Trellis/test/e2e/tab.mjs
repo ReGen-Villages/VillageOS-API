@@ -1,5 +1,4 @@
-// The counting tab's two decisions that run without a browser: what its arguments mean, and how a
-// stream event is counted. Kept out of the script so a test can import them without launching it.
+// Kept apart from the counting script so a test can import these without starting a browser.
 
 export function parse(argv) {
   const values = { url: 'http://localhost:5173', page: '/', model: null, seconds: 60, until: null, out: null, headful: false };
@@ -13,10 +12,9 @@ export function parse(argv) {
   return values;
 }
 
-// A named stream event never reaches `onmessage`, so the count is taken where the console registers
-// for each kind: every listener it adds to an EventSource is wrapped to count under that kind before
-// handing the event on. Self-contained, because the browser receives it as source text and runs it
-// before the page's own scripts — the streams open on sign-in.
+// A named stream event never reaches `onmessage`, so each listener is wrapped where it is added. It uses
+// nothing from outside itself, because the browser runs its source text before the page's own scripts,
+// which open the streams on sign-in.
 export function countStreamEvents() {
   window.__streamEvents = {};
   const register = EventSource.prototype.addEventListener;

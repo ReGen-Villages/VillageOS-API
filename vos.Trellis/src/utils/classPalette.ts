@@ -1,32 +1,30 @@
-// No fixed vocabulary of types: the caller picks which Thing-property identifies
-// class membership (layoutSettings.classifyingProperty, default 'ifcClass') and
-// the value is looked up in a registry of per-property bucket tables. Colors are
-// curated for legibility on the dark graph background (#0c0a09).
+// The caller names the property that says which class a Thing is in (layoutSettings.classifyingProperty);
+// the colours are chosen to read on the dark graph background.
 
 export type ClassBucket =
   | 'spatial'    // top-level containers
-  | 'structural' // load-bearing / shell elements
-  | 'opening'    // openings and openings fills
-  | 'mep'        // mechanical / electrical / plumbing
-  | 'port'       // connection points — high-contrast, often the question subject
-  | 'finish'     // surface finishes, furnishings
-  | 'site'       // landscape, terrain
-  | 'material'   // material graph nodes
-  | 'typeDef'    // type-definition Things
-  | 'other';     // catch-all
+  | 'structural' // load-bearing and shell elements
+  | 'opening'    // openings and what fills them
+  | 'mep'        // mechanical, electrical and plumbing
+  | 'port'       // connection points, in high contrast because a port is often what a question is about
+  | 'finish'     // surface finishes and furnishings
+  | 'site'       // landscape and terrain
+  | 'material'
+  | 'typeDef'
+  | 'other';
 
 // Saturation chosen so adjacent buckets stay distinguishable when nodes overlap.
 export const BUCKET_COLORS: Record<ClassBucket, string> = {
-  spatial:    '#d6c1a3', // warm stone
-  structural: '#7a98b8', // steel-blue / slate
-  opening:    '#fbbf24', // amber
-  mep:        '#a78bfa', // violet
-  port:       '#f0abfc', // magenta — high contrast
-  finish:     '#c8a47e', // tan
-  site:       '#86efac', // green-300
-  material:   '#a8744d', // brown
-  typeDef:    '#67e8f9', // cyan-300
-  other:      '#94a3b8', // mid-gray slate-400
+  spatial:    '#d6c1a3',
+  structural: '#7a98b8',
+  opening:    '#fbbf24',
+  mep:        '#a78bfa',
+  port:       '#f0abfc',
+  finish:     '#c8a47e',
+  site:       '#86efac',
+  material:   '#a8744d',
+  typeDef:    '#67e8f9',
+  other:      '#94a3b8',
 };
 
 // Default table for IFC seeds; only classes vos.Tools.ModelIngest actually emits.
@@ -71,7 +69,6 @@ const IFC_BUCKET_TABLE: Record<string, ClassBucket> = {
   IfcFlowTreatmentDevice: 'mep',
   IfcEnergyConversionDevice: 'mep',
 
-  // ports get a high-contrast color on purpose (often the question subject)
   IfcDistributionPort: 'port',
   IfcPort: 'port',
 
@@ -127,13 +124,6 @@ export function getClassBucket(
   return 'other';
 }
 
-// Priority: per-value override (keyed by raw value), then bucket color.
-// `overrides` is part of the API even though the GUI passes {} today.
-export function resolveClassColor(
-  propertyName: string,
-  value: string | null | undefined,
-  overrides: Record<string, string> = {},
-): string {
-  if (value && overrides[value]) return overrides[value];
+export function resolveClassColor(propertyName: string, value: string | null | undefined): string {
   return BUCKET_COLORS[getClassBucket(propertyName, value)];
 }

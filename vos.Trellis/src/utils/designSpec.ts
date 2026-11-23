@@ -1,13 +1,8 @@
 import { GRID_COLUMNS, type DashboardSection, type DashboardSpecification, type Placement, type Widget } from '@tendril-ui/tendril';
 import { placementsOf } from './gridLayout';
 
-/**
- * A page as the Design page holds it: every section a grid, every widget placed.
- *
- * Nothing here is a second kind of page. A page the designer opens is the specification the console
- * draws with its three fixed layouts converted to placements; a page it starts is one empty grid; a
- * widget it drops is the kind alone, titled and waiting for its binding.
- */
+/** Not a second kind of page: an opened page is the console's specification with its fixed layouts turned
+ *  into placements, a new page is one empty grid, and a dropped widget is its kind alone, waiting for its binding. */
 
 /** The icon a page starts with, from the set the sidebar draws with. */
 const NEW_PAGE_ICON = 'layout-template';
@@ -21,8 +16,7 @@ export function isKeptPage(specification: DashboardSpecification): boolean {
   return !!specification.composed || !!specification.designed;
 }
 
-/** The specification with every section as a grid, marked as the designer's, and a composition
- *  dropped — once its table is edited as a table the composer could no longer re-derive the choices. */
+/** The composition is dropped, because once its table is edited the composer could not work back to the choices. */
 export function openedForDesign(specification: DashboardSpecification): DashboardSpecification {
   const { composed: _composed, ...rest } = specification;
   return { ...rest, sections: specification.sections.map(asGrid), designed: true };
@@ -57,6 +51,10 @@ export function emptyWidget(kind: Widget['type'], title: string): Widget {
     case 'rangeBar': return { type: 'rangeBar', title, months: UNBOUND };
     case 'boxPlot': return { type: 'boxPlot', title, months: UNBOUND };
     case 'depthProfile': return { type: 'depthProfile', title, rows: UNBOUND, labelKey: '', parts: [] };
+    case 'polarShares': return {
+      type: 'polarShares', title, counts: UNBOUND, cells: UNBOUND, bearingKey: '', classOrderKey: '', classLabelKey: '', classColourKey: '',
+    };
+    case 'densityGrid': return { type: 'densityGrid', title, cells: UNBOUND, across: { label: '' }, up: { label: '' } };
     case 'lineSeries': return { type: 'lineSeries', title, series: [] };
     case 'heatmap': return { type: 'heatmap', title, value: UNBOUND };
     case 'stackedShares': return { type: 'stackedShares', title, classes: [] };
@@ -67,7 +65,6 @@ export function emptyWidget(kind: Widget['type'], title: string): Widget {
   }
 }
 
-/** The binding slots the contract requires that this widget has not been given. */
 export function unboundSlots(widget: Widget): string[] {
   switch (widget.type) {
     case 'kpi':
@@ -79,6 +76,8 @@ export function unboundSlots(widget: Widget): string[] {
     case 'depthProfile':
       return widget.rows ? [] : ['rows'];
     case 'leaderboard': return widget.entities ? [] : ['entities'];
+    case 'densityGrid': return widget.cells ? [] : ['cells'];
+    case 'polarShares': return [widget.counts ? null : 'counts', widget.cells ? null : 'cells'].filter((slot): slot is string => slot !== null);
     case 'rangeBar':
     case 'boxPlot':
       return widget.months ? [] : ['months'];

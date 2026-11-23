@@ -5,7 +5,7 @@
  * One definition, rendered both by the planner's page and by the public form, so a field added here
  * appears in both and there is one shape of submission rather than two that can disagree.
  *
- * Three things shape it. Nothing is kept in the browser beyond the draft — the answers become Things the
+ * Nothing is kept in the browser beyond the draft — the answers become Things the
  * moment the submission is accepted, so there is no file to download and nothing to lose. The programme
  * categories are read out of the model by whoever renders this rather than listed here, because the
  * intake service resolves a submitted word against the terms the model declares and offering anything
@@ -20,7 +20,9 @@ import { intakeApi, type SubmissionAccepted } from '../api/intakeApi';
 import { toast } from '../components/common/toastStore';
 import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
-import { areaMatch, sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
+import { borderAreaHectares, type AreaMethod } from '../utils/borderArea';
+import { areaMatch, type BoundaryPoint } from '../utils/parcelGeometry';
+import { freehandBoundary } from '../components/map/borderEdit';
 import {
   STEPS,
   boundaryCleared,
@@ -45,6 +47,7 @@ import {
   withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
+import { figureRefusals, FIGURE_REFUSAL_WORDING } from './typedFigure';
 import { useTermWords, type TermWording } from '@tendril-ui/tendril';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
@@ -56,6 +59,7 @@ export function IntakeWizard({
   hazardLevels,
   wording,
   draftOwner,
+  areaMethod,
 }: {
   categories: readonly string[];
   basemapSources: BasemapSource[];
@@ -69,6 +73,8 @@ export function IntakeWizard({
   wording: TermWording;
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
+  /** The model's, so a drawn border reads what the intake will measure; none shows no drawn area. */
+  areaMethod: AreaMethod | null;
 }) {
   const { t } = useTranslation();
   const wordsFor = useTermWords(wording);
@@ -181,7 +187,7 @@ export function IntakeWizard({
         {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
         {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} wordsFor={wordsFor} onChange={change} />}
-        {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
+        {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} areaMethod={areaMethod} onChange={change} />}
         {step === 'hazards' && (
           <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} wordsFor={wordsFor} onChange={change} />
         )}
@@ -406,7 +412,7 @@ function SiteMap({
   position: { latitude: number; longitude: number };
   sources: BasemapSource[];
   boundary?: readonly BoundaryPoint[];
-  onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  onBoundaryChange?: (boundary: readonly BoundaryPoint[]) => void;
 }) {
   return (
     <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
@@ -416,7 +422,13 @@ function SiteMap({
           longitude={position.longitude}
           sources={sources}
           boundary={boundary}
-          onBoundaryChange={onBoundaryChange}
+          borderEditing={
+            onBoundaryChange && {
+              placesCorners: true,
+              movesCorners: true,
+              onEdit: (edit) => onBoundaryChange(freehandBoundary(boundary ?? [], edit)),
+            }
+          }
         />
       </Suspense>
     </div>
@@ -431,6 +443,7 @@ function ProgrammeStep({
 }: StepProps & { categories: readonly string[]; wordsFor: (term: string) => string }) {
   const { t, i18n } = useTranslation();
   const hectares = statedAreaHectares(draft);
+  const refusals = figureRefusals(draft);
   const shown = wholePercentages(draft.shares);
   // One formatter for every row rather than one per row per render: the rows redraw on each keystroke
   // anywhere in this step, and building a formatter is the expensive half of formatting one number.
@@ -478,8 +491,14 @@ function ProgrammeStep({
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field labelKey="intake.population" value={draft.population} onChange={(population) => onChange({ population })} />
-        <Field labelKey="intake.householdSize" value={draft.householdSize} onChange={(householdSize) => onChange({ householdSize })} />
+        <div>
+          <Field labelKey="intake.population" value={draft.population} onChange={(population) => onChange({ population })} />
+          {refusals.population && <Note tone="warn">{t(FIGURE_REFUSAL_WORDING[refusals.population])}</Note>}
+        </div>
+        <div>
+          <Field labelKey="intake.householdSize" value={draft.householdSize} onChange={(householdSize) => onChange({ householdSize })} />
+          {refusals.householdSize && <Note tone="warn">{t(FIGURE_REFUSAL_WORDING[refusals.householdSize])}</Note>}
+        </div>
       </div>
 
       <div className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t('intake.programme')}</div>
@@ -511,11 +530,16 @@ function ProgrammeStep({
   );
 }
 
-function ParcelStep({ draft, sources, onChange }: StepProps & { sources: BasemapSource[] }) {
+function ParcelStep({
+  draft,
+  sources,
+  areaMethod,
+  onChange,
+}: StepProps & { sources: BasemapSource[]; areaMethod: AreaMethod | null }) {
   const { t, i18n } = useTranslation();
   const position = coordinatesFrom(draft);
   const stated = statedAreaHectares(draft);
-  const drawn = draft.boundary.length >= 3 ? sphericalAreaHectares(draft.boundary) : null;
+  const drawn = areaMethod !== null && draft.boundary.length >= 3 ? borderAreaHectares(draft.boundary, areaMethod) : null;
   const compared = drawn !== null && stated !== null ? areaMatch(drawn, stated) : null;
   const drafted = boundaryDrafted(draft);
   const unit = t(`intake.${draft.areaUnit}`);

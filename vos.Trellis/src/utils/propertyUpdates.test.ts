@@ -76,8 +76,7 @@ describe('applyRelationshipPropertyUpdate', () => {
   });
 });
 
-// Retracting a property emitted no store change at all, so a deleted property kept
-// showing until something reloaded the whole model.
+// A retraction has to change the store, or a deleted property shows until the model reloads.
 describe('property removal', () => {
   it('drops the named property from a Thing', () => {
     const updated = applyThingPropertyRemoval(makeThing(), 'water_level');
@@ -115,8 +114,8 @@ const overrideSet = (
   ...(inherited ? { Inherited: inherited } : {}),
 });
 
-// A value written on a name the archetype declares arrives at page load in the override store, and a removal that
-// cleared own values alone left it there, so the console kept showing it as set on the Thing until a reload.
+// A value on a name the archetype declares loads in the override store, so clearing own values alone would
+// leave it showing until a reload.
 describe('removing a value held under an inherited name', () => {
   it('drops it from the override store and keeps the set\'s other values', () => {
     const thing = makeThing({ Properties: {}, InheritedOverrides: { reservoir: overrideSet('reservoir', { capacity: 200, depth: 4 }) } });
@@ -196,9 +195,6 @@ describe('isVisibleRelationship', () => {
     expect(isVisibleRelationship('nonexistent', 'node-A', null, relationships)).toBe(false);
   });
 
-  // Selecting a relationship clears the node selection, so asking about the node alone said
-  // "not visible" for the very relationship whose detail panel was open, and every live change to it was
-  // dropped. The full model reload on save was hiding that.
   it('returns true for the selected edge, with no node selected', () => {
     expect(isVisibleRelationship('rel-2', null, 'rel-2', relationships)).toBe(true);
   });

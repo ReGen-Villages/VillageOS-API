@@ -7,11 +7,14 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.Forage.Steps;
 
-// Each stage of a discovery run as a pipeline step, chosen by the `step` setting on its box. A failed read of the
-// model is answered as a failure that may be tried again, never as an empty answer.
+// Each stage of a discovery run as a pipeline step, chosen by the `step` its service holds in callParameters. A failed
+// read of the model is answered as a failure that may be tried again, never as an empty answer.
 public sealed class ForageSteps : DagNodeService
 {
     public const string StepSetting = "step";
+
+    public const string RelationshipCallRefusal =
+        "Forage no longer runs a discovery on a relationship: discovery is the drawn pipeline, whose boxes call Forage's steps.";
 
     public const string ResolveRegion = "resolveRegion";
     public const string PlanCalls = "planCalls";
@@ -30,10 +33,16 @@ public sealed class ForageSteps : DagNodeService
         new(RecordResults, "record results",
         [
             PortDescriptor.Input("resolved", "object"), PortDescriptor.Input("unresolved", "object"),
+            // Never read: wired from the box that has the subjects' histories judged, it keeps the results from being
+            // recorded, and the site from being stamped, before every subject is judged.
+            PortDescriptor.Input("judged", "object"),
             PortDescriptor.Output("resolved", "object"), PortDescriptor.Output("unresolved", "object"),
         ]),
         new(ResolveWords, "resolve words",
-            [PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"), PortDescriptor.Output("unknownWords", "object")]),
+        [
+            PortDescriptor.Input("resolved", "object", required: true), PortDescriptor.Output("written", "object"),
+            PortDescriptor.Output("unknownWords", "object"), PortDescriptor.Output("refusedWords", "object"),
+        ]),
         new(MarkDiscovered, "mark discovered",
         [
             PortDescriptor.Input("site", "object"),
@@ -79,7 +88,6 @@ public sealed class ForageSteps : DagNodeService
         {
             service = $"Forage {kind.Title}",
             ports = kind.Ports,
-            settings = new[] { new { name = StepSetting, required = true, values = new[] { kind.Name }, @default = kind.Name } },
         }
         : null;
 
@@ -93,7 +101,7 @@ public sealed class ForageSteps : DagNodeService
             MarkDiscovered => MarkDiscoveredAsync(context, cancellationToken),
             OfferSource => OfferSourceAsync(context, cancellationToken),
             _ => throw new InvalidOperationException(
-                $"A Forage box names its step in the '{StepSetting}' setting, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}."),
+                $"A Forage step service holds its step as '{StepSetting}' in its callParameters, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}."),
         };
 
     private async Task<NodeResult> ResolveRegionAsync(NodeContext context, CancellationToken cancellationToken)
@@ -163,7 +171,15 @@ public sealed class ForageSteps : DagNodeService
         {
             ["written"] = Json(words.Written.Select(Relationship)),
             ["unknownWords"] = Json(words.Unknown),
+            ["refusedWords"] = Json(words.Refused.Select(refused => new
+            {
+                subjectId = refused.Edge.SubjectId, subject = refused.Edge.SubjectName, word = refused.Edge.Word, reason = refused.Reason,
+            })),
         };
+        if (words.Faulted.Count > 0)
+            throw new InvalidOperationException(
+                "The platform rejected the relationships for: "
+                + string.Join("; ", words.Faulted.Select(faulted => $"'{faulted.Edge.Word}' on {faulted.Edge.SubjectName}: {faulted.Reason}")) + ".");
         if (words.NotWritten.Count > 0)
             throw new FailureCanBeTriedAgainException(
                 "Could not write the relationships for: " + string.Join(", ", words.NotWritten.Select(edge => $"'{edge.Word}' on {edge.SubjectName}")) + ".",

@@ -119,8 +119,6 @@ public class StopCommandHandlerTests
         Assert.DoesNotContain("not registered", output);
     }
 
-    // --showguids flag tests
-
     [Fact]
     public async Task StopService_WithShowGuidsFlag_ShowsGuid()
     {

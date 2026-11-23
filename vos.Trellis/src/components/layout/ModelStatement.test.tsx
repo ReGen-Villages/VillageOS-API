@@ -55,7 +55,7 @@ describe('ModelStatement', () => {
       { Type: 'PropertyChanged', Timestamp: at.toISOString(), Description: 'newest' },
     ] });
     rerender(<ModelStatement isCollapsed={false} />);
-    expect(screen.getByText(`Last moved ${at.toLocaleTimeString()}`)).toBeInTheDocument();
+    expect(screen.getByText(`Last moved ${at.toLocaleTimeString('en')}`)).toBeInTheDocument();
   });
 
   it('keeps only the live mark when the sidebar is collapsed, with the statement as its title', () => {

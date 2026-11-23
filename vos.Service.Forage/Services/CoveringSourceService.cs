@@ -38,13 +38,6 @@ public sealed class CoveringSourceService
         _logger = logger;
     }
 
-    public Task<SubjectKind?> KindOfAsync(Guid subjectId, CancellationToken cancellationToken) =>
-        ReadAsync(
-            CoveringSourceResolver.KindSelectorFor(subjectId),
-            snapshot => (SubjectKind?)CoveringSourceResolver.KindOf(snapshot, subjectId),
-            $"what {subjectId} is",
-            cancellationToken);
-
     public Task<SiteCoverage?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken) =>
         ReadAsync(
             CoveringSourceResolver.SelectorFor(siteId),

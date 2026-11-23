@@ -9,9 +9,8 @@ import { FOLLOWED_ONE_STEP, KINDS_READ, PIPELINE_PAGE } from './subscription';
 
 const PIPELINE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
-/** The roles whose members the page's reads walk: `thingsOf(ROLE.X)` and `isOf(…, ROLE.X)` in the code
- *  that reads the model for the page. A role read that way and not asked for is a page that quietly
- *  shows nothing of that kind, so the list is read off the sources rather than kept by hand. */
+/** A role the page walks, through `thingsOf` or `isOf`, and does not ask for leaves the page showing nothing of
+ *  that kind with no word, so the list is read off the sources rather than kept by hand. */
 function rolesReadAsKinds(): Set<string> {
   const roles = new Set<string>();
   for (const file of ['model.ts', 'catalysts.ts', 'serialize.ts', 'stop.ts', 'handOver.ts', 'connectionSettings.ts']) {
@@ -47,8 +46,12 @@ describe('the Pipelines page subscription', () => {
     expect(KINDS_READ).toContain(ROLE.NodeRun);
   });
 
+  it('follows each connection one step back along notifies, to the predicate a relationship along which calls it', () => {
+    expect(PIPELINE_PAGE.traverse).toContainEqual({ predicateRole: ROLE.NotifiedConnection, direction: 'incoming' });
+  });
+
   it('follows one step along the predicates that reach Things no role does, by role, and keeps following', () => {
-    expect(PIPELINE_PAGE.traverse).toEqual(FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role })));
+    expect(PIPELINE_PAGE.traverse).toEqual(expect.arrayContaining(FOLLOWED_ONE_STEP.map((role) => ({ predicateRole: role }))));
     expect(FOLLOWED_ONE_STEP).toEqual(expect.arrayContaining([ROLE.StandsFor, ROLE.Choice, ROLE.ComparesWith]));
     expect(PIPELINE_PAGE.includeLaterMatches).toBe(true);
   });

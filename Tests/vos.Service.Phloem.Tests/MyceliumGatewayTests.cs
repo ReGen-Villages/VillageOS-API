@@ -217,8 +217,8 @@ public class MyceliumGatewayTests
         }));
 
     // The stand-in above answers a write with 200 whatever its body. Two rules the real broker applies are
-    // applied here as well, because a stand-in that accepts anything is what let the writer's shape drift
-    // from the route's and left every run unrecorded: a property is written as a typed envelope,
+    // applied here as well, because a stand-in that accepts anything would let the writer's shape stop
+    // matching the route's and leave every run unrecorded: a property is written as a typed envelope,
     // and a property is set only on a Thing that already carries it.
     private sealed class BrokerApplyingItsWriteRules
     {
@@ -343,7 +343,7 @@ public class MyceliumGatewayTests
         onlyRule.TryGetProperty("predicate", out _).Should().BeFalse("a rule naming no predicate takes every predicate");
         onlyRule.TryGetProperty("predicateRole", out _).Should().BeFalse();
         // The only names on the selector are the built-in predicates: an archetype name asked for here
-        // is what stopped finding anything the moment a model renamed one.
+        // would stop finding anything the moment a model renamed one.
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
             .Should().BeEquivalentTo(["is", "has", "binds"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
@@ -359,12 +359,14 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
-                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id]));
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id,
+                 PipelineRoles.NotifiedConnection.Id]));
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
-            .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
+            .Should().Equal(ModelNames.Has, PlatformPredicates.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
+                PipelineRoles.NotifiedConnection.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
                 PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString(), ModelNames.Has);
         rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
@@ -737,7 +739,7 @@ public class MyceliumGatewayTests
     }
 
     // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
-    // body, so a run answered its caller and left nothing behind.
+    // body, so a run would answer its caller and leave nothing behind.
     [Fact]
     public async Task CreateRunAsync_WritesEveryPropertyAsATypedEnvelope()
     {
@@ -875,7 +877,7 @@ public class MyceliumGatewayTests
         // The role Things are asked for by identifier, so what each binds can be read off the snapshot.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().Contain([PipelineRoles.StateWatch.Id, PipelineRoles.StandsFor.Id, PipelineRoles.PipelineStart.Id,
-                PipelineRoles.Pipeline.Id, PipelineRoles.PipelineInput.Id, PipelineRoles.Connection.Id]);
+                PipelineRoles.Pipeline.Id, PipelineRoles.PipelineInput.Id, PipelineRoles.Connection.Id, PipelineRoles.NotifiedConnection.Id]);
 
         // Traversals expand in order, so the watched state has to be reached before the nodes standing for it.
         var traversals = selector.GetProperty("traverse").EnumerateArray()
@@ -889,12 +891,15 @@ public class MyceliumGatewayTests
             (PipelineRoles.StandsFor.Id.ToString(), null, "incoming"),
             (null, ModelNames.Has, "incoming"));
         traversals.Should().Contain((PipelineRoles.PipelineStart.Id.ToString(), null, "outgoing"));
+        traversals.Should().Contain((PipelineRoles.NotifiedConnection.Id.ToString(), null, "outgoing"),
+            "a predicate's start is read only when the predicate names a connection, so that connection comes with it");
 
         // Relationship rules keep the read to those edges: a state connection accumulates one service call
         // record per entry, and the wider reading would carry every one on every start.
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("relationships").EnumerateArray().Should().HaveCountGreaterThan(0);
         Rules(selector).Should().Contain((PipelineRoles.StandsFor.Id.ToString(), "outgoing"))
+            .And.Contain((PipelineRoles.NotifiedConnection.Id.ToString(), "outgoing"))
             .And.NotContain((null, "outgoing"), "every relationship out of a Thing in the read would carry each one it ever gained");
     }
 
@@ -1048,7 +1053,22 @@ public class MyceliumGatewayTests
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
         (await creating.Should().ThrowAsync<InvalidOperationException>())
-            .WithMessage($"*{ModelNames.Is}*");
+            .WithMessage($"*{PlatformPredicates.Is}*");
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_WhenThePlatformRefusesTheNameLookup_FailsWithTheRefusalsStatus()
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
+                ? Json(HttpStatusCode.ServiceUnavailable, """{ "error": "the platform is starting" }""")
+                : RespondLikeAModelThatBindsItsRoles(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<HttpRequestException>()
+                .WithMessage("Looking up 'is' failed (503 ServiceUnavailable)."))
+            .Which.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]
@@ -1347,7 +1367,7 @@ public class MyceliumGatewayTests
                     Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role", new { }),
                     Thing(about, "about", new { }),
                     Thing(runArchetype, "PipelineRun", new { }),
-                    Thing(isPredicate, ModelNames.Is, new { }),
+                    Thing(isPredicate, PlatformPredicates.Is, new { }),
                 },
                 relationships = new[]
                 {
@@ -1576,6 +1596,122 @@ public class MyceliumGatewayTests
         record.Nodes[nodeId].Status.Should().Be("succeeded");
         record.Nodes[nodeId].Outputs.Should().BeEmpty();
         record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Number.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_node_run_and_an_attempt_whose_error_the_model_holds_as_null_read_back_with_no_error()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeRunId = Guid.NewGuid();
+        var attemptId = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, $$$"""
+                {"snapshot":{"things":[
+                  {"id":"{{{runId}}}","name":"PipelineRun","properties":{"error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{pipelineId}}}","name":"Review a submission","properties":{}},
+                  {"id":"{{{nodeRunId}}}","name":"NodeRun Review","properties":{
+                    "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{attemptId}}}","name":"Attempt 1","properties":{
+                    "number":{"typeInfo":"vos.String","value":"1"},
+                    "startedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:00.0000000+00:00"},
+                    "finishedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:01.0000000+00:00"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "error":{"typeInfo":"vos.String","value":null} } },
+                  {"id":"{{{hasId}}}","name":"has","properties":{}},
+                  {"id":"{{{ofId}}}","name":"of","properties":{}}],
+                 "relationships":[
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{nodeRunId}}}","predicateId":"{{{hasId}}}","targetId":"{{{attemptId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
+                """)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        record!.Nodes[nodeId].Error.Should().BeNull();
+        record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Error.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("run", "parameters")]
+    [InlineData("run", "status")]
+    [InlineData("run", "callRecordId")]
+    [InlineData("nodeRun", "status")]
+    [InlineData("nodeRun", "outputs")]
+    [InlineData("nodeRun", "error")]
+    [InlineData("nodeRun", "decision")]
+    [InlineData("nodeRun", "index")]
+    [InlineData("nodeRun", "total")]
+    [InlineData("attempt", "number")]
+    [InlineData("attempt", "startedUtc")]
+    [InlineData("attempt", "finishedUtc")]
+    [InlineData("attempt", "status")]
+    [InlineData("attempt", "error")]
+    public async Task A_run_record_reads_a_name_the_model_holds_as_null_as_if_the_Thing_did_not_hold_it(string holder, string name)
+    {
+        var (runId, pipelineId, nodeId, nodeRunId, attemptId, hasId, ofId) =
+            (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        static object Text(string? value) => new { typeInfo = "vos.String", value };
+        Dictionary<string, object> Held(string thing, Dictionary<string, object> properties, bool asNull)
+        {
+            if (thing == holder)
+            {
+                properties.Remove(name);
+                if (asNull) properties[name] = Text(null);
+            }
+            return properties;
+        }
+        string Snapshot(bool asNull) => JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new object[]
+                {
+                    new { id = runId, name = "PipelineRun", properties = Held("run", new()
+                    {
+                        ["parameters"] = Text("{\"site\":7}"), ["status"] = Text("succeeded"), ["callRecordId"] = Text(Guid.NewGuid().ToString()),
+                    }, asNull) },
+                    new { id = pipelineId, name = "Review a submission", properties = new { } },
+                    new { id = nodeRunId, name = "NodeRun Review", properties = Held("nodeRun", new()
+                    {
+                        ["nodeId"] = Text(nodeId.ToString()), ["status"] = Text("failed"), ["outputs"] = Text("{\"out\":1}"),
+                        ["error"] = Text("east is dry"), ["decision"] = Text(Guid.NewGuid().ToString()),
+                    }, asNull) },
+                    new { id = attemptId, name = "Attempt 1", properties = Held("attempt", new()
+                    {
+                        ["number"] = Text("1"), ["startedUtc"] = Text("2026-10-15T12:00:00.0000000+00:00"),
+                        ["finishedUtc"] = Text("2026-10-15T12:00:01.0000000+00:00"), ["status"] = Text("failed"), ["error"] = Text("east is dry"),
+                    }, asNull) },
+                    new { id = hasId, name = "has", properties = new { } },
+                    new { id = ofId, name = "of", properties = new { } },
+                },
+                relationships = new[]
+                {
+                    new { id = Guid.NewGuid(), subjectId = runId, predicateId = hasId, targetId = nodeRunId, properties = new { } },
+                    new { id = Guid.NewGuid(), subjectId = nodeRunId, predicateId = hasId, targetId = attemptId, properties = new { } },
+                    new { id = Guid.NewGuid(), subjectId = runId, predicateId = ofId, targetId = pipelineId, properties = new { } },
+                },
+            },
+        });
+        async Task<string> ReadAsync(bool asNull)
+        {
+            var snapshot = Snapshot(asNull);
+            var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.OK, snapshot)
+                : RespondLikeAModelThatBindsItsRoles(request));
+            var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+            return string.Join("|", record!.Status, record.Parameters.ValueKind, record.CallRecordId is not null,
+                string.Join(";", record.Nodes.Values.Select(node => $"{node.Status},{node.Error ?? "<none>"},{node.Decision is not null},{node.Number},{node.Outputs.Count}," +
+                    string.Join("+", node.AttemptsMade.Select(attempt => $"{attempt.Number}/{attempt.Status}/{attempt.Error ?? "<none>"}")))));
+        }
+
+        (await ReadAsync(asNull: true)).Should().Be(await ReadAsync(asNull: false));
     }
 
     [Fact]
@@ -2179,6 +2315,48 @@ public class MyceliumGatewayTests
 
         (await creating.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage($"*role {PipelineRoles.PipelineRun.Word}*");
+    }
+
+    private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) AGatewayClearing(Guid runId, HttpStatusCode deleteAnswer, string deleteBody) =>
+        NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, $$"""{ "snapshot": { "things": [ { "id": "{{runId}}", "name": "run", "properties": {} } ], "relationships": [] } }""")
+                : request.Method == HttpMethod.Delete
+                    ? Json(deleteAnswer, deleteBody)
+                    : new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+    [Fact]
+    public async Task ClearRunAsync_ARetractThePlatformRefusesThrowsWithThePlatformsReasonAndStatus()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, _) = AGatewayClearing(runId, HttpStatusCode.Forbidden, """{ "error": "only an admin deletes this" }""");
+
+        var clearing = () => gateway.ClearRunAsync(runId, CancellationToken.None);
+
+        (await clearing.Should().ThrowAsync<HttpRequestException>().WithMessage($"*{runId}*only an admin deletes this*"))
+            .Which.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ClearRunAsync_ARefusalNamingNoReasonIsReportedByItsStatus()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, _) = AGatewayClearing(runId, HttpStatusCode.Forbidden, """{ "title": "Forbidden" }""");
+
+        var clearing = () => gateway.ClearRunAsync(runId, CancellationToken.None);
+
+        await clearing.Should().ThrowAsync<HttpRequestException>().WithMessage("*HTTP 403");
+    }
+
+    [Fact]
+    public async Task ClearRunAsync_ARunThePlatformNoLongerHoldsCountsAsCleared()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = AGatewayClearing(runId, HttpStatusCode.NotFound, """{ "error": "not found" }""");
+
+        (await gateway.ClearRunAsync(runId, CancellationToken.None)).Should().Be(1);
+        handler.Requests.Where(request => request.Method == HttpMethod.Delete).Select(request => request.RequestUri!.AbsolutePath)
+            .Should().Equal($"/api/things/{runId}");
     }
 
     private static async Task<JsonElement> ReadJson(HttpRequestMessage request) =>

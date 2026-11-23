@@ -3,8 +3,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Shared.Configuration;
 
-// The settings every service needs to start: the port it listens on, where the broker is, the token
-// for calling the broker, and the key for checking what the broker sends back.
 // A limit left null means the platform did not say, so the service may set any limit of its own or none.
 public record ServiceLaunchSettings(
     int Port,
@@ -16,7 +14,8 @@ public record ServiceLaunchSettings(
     string? ApiKey = null,
     string? LogDirectory = null,
     TimeSpan? ServiceCallLimit = null,
-    TimeSpan? PassedOnRequestLimit = null)
+    TimeSpan? PassedOnRequestLimit = null,
+    bool LogToFile = true)
 {
     public const int LowestPort = 1;
     public const int HighestPort = 65535;
@@ -50,7 +49,8 @@ public record ServiceLaunchSettings(
             apiKey,
             reader.Read("logDirectory"),
             ReadLimit(reader, "serviceCallLimitSeconds"),
-            ReadLimit(reader, "passedOnRequestLimitSeconds"));
+            ReadLimit(reader, "passedOnRequestLimitSeconds"),
+            LogToFile: reader.Read("logToFile") != "false");
     }
 
     // An unusable value is read as no limit, the way every other optional setting falls back.
@@ -71,7 +71,7 @@ public record ServiceLaunchSettings(
 
     private const string CommonFlagSummary =
         "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>] [--logDirectory=<folder>]" +
-        " [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>]";
+        " [--serviceCallLimitSeconds=<n>] [--passedOnRequestLimitSeconds=<n>] [--logToFile=false]";
 
     private const string CommonFlagDescriptions =
         "  --port          Port number for the service to listen on\n" +
@@ -80,7 +80,8 @@ public record ServiceLaunchSettings(
         "  --audience      This service's own recipient name, which an inbound token must name\n" +
         "  --logDirectory  Folder the service writes its log file to (default: logs, four folders above the build)\n" +
         "  --serviceCallLimitSeconds      How long Mycelium waits for this service to answer a service call\n" +
-        "  --passedOnRequestLimitSeconds  How long Mycelium waits for an answer to a request it passes on";
+        "  --passedOnRequestLimitSeconds  How long Mycelium waits for an answer to a request it passes on\n" +
+        "  --logToFile     false writes no log file, only standard output, for a service whose output is captured";
 
     private const string CredentialDescriptions =
         "\n\nSupplied through configuration or the environment, never the command line:\n" +

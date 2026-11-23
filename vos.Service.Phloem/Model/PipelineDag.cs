@@ -57,8 +57,8 @@ public sealed record DagWait(Guid RangeId, string RangeName, string PortName, Ti
 
 public sealed record FollowedPredicate(Guid Id, string Name);
 
-// The connection a relate node stands for, and the service a Thing related along it is related to.
-public sealed record Relating(Guid ConnectionId, string ConnectionName, Guid ServiceId);
+// The predicate a relate node stands for, and the service of the connection it names, which a Thing related along it is related to.
+public sealed record Relating(Guid PredicateId, string PredicateName, Guid ServiceId);
 
 public sealed class DagNode
 {
@@ -78,6 +78,9 @@ public sealed class DagNode
     // Per-item failure policy when fanning out: fail (fail-fast, default) or
     // continue (collect-partial — failed items become null holes, node is partial).
     public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
+
+    // Null leaves the orchestrator's own limit; a number lowers it for this node's items.
+    public int? ItemsAtOnce { get; init; }
 
     // For an end node standing for an external system: who is sent what reaches it, and through what.
     public Telling? Tells { get; init; }

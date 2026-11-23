@@ -2,15 +2,13 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ActionWidget, AskedValue } from '../types/dashboard';
 import { asRows, type ResolveContext, type Row } from '../api/dashboardApi';
-import { postToEndpoint, type EndpointAnswer } from '../api/dashboardWrites';
-import { PROPERTY_NAME_WORDING } from '../api/propertyNames';
 import { useBindings } from '../hooks/useBinding';
-import { rostersForRow, useAskedOptions } from '../hooks/useAskedOptions';
-import { wordingIn, wordsInLanguage } from '../i18n/termWording';
+import { rostersForRow } from '../api/askedOptions';
+import { useAskedOptions } from '../hooks/useAskedOptions';
 import { tendrilWord } from '../i18n/words';
 import { AskedFields } from './AskedFields';
 import { ACTION_CLASS, MUTED_CLASS, QUIET_CLASS, REFUSAL_CLASS, TEXT_CLASS } from './roleClasses';
-import { actionRequest, asksOf, complete, nameOf, offeredChoices, routeFor, type Entered, type OfferedChoice } from './writeRequest';
+import { asksOf, choiceLabelOf, complete, nameOf, offeredChoices, pressOf, sendPress, type Entered, type OfferedChoice } from './writeRequest';
 
 /* A row is a button's line and padding tall, with the gap between rows, in rem so the cap follows
    the font. A row whose asked fields wrap stands taller and the cap shows fewer of them. */
@@ -44,7 +42,7 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
   const decidedRows = asRows(decidedResults?.value);
 
   const offered = useMemo(
-    () => offeredChoices(widget, drawn, (row) => wordsInLanguage(wordingIn(row[PROPERTY_NAME_WORDING]) ?? undefined, i18n.language) ?? String(row.name ?? '')),
+    () => offeredChoices(widget, drawn, (row) => choiceLabelOf(row, i18n.language)),
     [widget, drawn, i18n.language],
   );
   const widgetAsks = useMemo(() => widget.asks ?? [], [widget.asks]);
@@ -59,36 +57,23 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
   const [asking, setAsking] = useState<{ rowId: string; offered: OfferedChoice; rosters: Row[][]; unreadable: boolean } | null>(null);
   const [showingDecided, setShowingDecided] = useState(false);
 
-  async function write(row: Row, choice: OfferedChoice, asked: Entered): Promise<EndpointAnswer> {
-    const route = routeFor(widget, choice);
-    if (route) return postToEndpoint(context.reads, route, actionRequest(widget, row, choice.choice, asked, route), context.wordRefusal);
-    const predicateId = context.index.predicateNameToId.get(widget.writes.choicesFrom?.predicate ?? '');
-    if (!predicateId || !context.reads.relate) return { error: tendrilWord('cannotRelate', { predicate: widget.writes.choicesFrom?.predicate ?? '' }) };
-    try {
-      await context.reads.relate(String(row.id), predicateId, choice.drawnId!);
-      return {};
-    } catch (refused) {
-      return { error: refused instanceof Error ? refused.message : String(refused) };
-    }
-  }
-
   async function press(row: Row, choice: OfferedChoice) {
     if (writing) return;
     const id = String(row.id ?? '');
     setWriting(id);
     setRefusal('');
     try {
-      const answer = await write(row, choice, entered[id] ?? {});
+      const composed = pressOf(widget, row, choice, entered[id] ?? {}, (predicate) => context.index.predicateNameToId.get(predicate));
+      const answer = 'refusal' in composed
+        ? { error: composed.refusal }
+        : await sendPress(composed.writes, context.reads, context.wordRefusal);
       if (answer.error) {
         setRefusal(answer.error);
         return;
       }
-      if (widget.writes.stamps && context.reads.stampTime) await context.reads.stampTime(id, widget.writes.stamps, new Date());
       setDecided((was) => ({ ...was, [id]: answer.said ?? choice.choice.label }));
       setAsking(null);
       context.wrote?.();
-    } catch (refused) {
-      setRefusal(refused instanceof Error ? refused.message : String(refused));
     } finally {
       setWriting(null);
     }
@@ -171,9 +156,8 @@ export function ActionList({ widget, context }: { widget: ActionWidget; context:
                   {widgetAsks.length > 0 && fieldsFor(id, widgetAsks, widgetOptions)}
                   {offered.map((choice) => {
                     const ownAsks = choice.choice.asks;
-                    const key = choice.drawnId ?? choice.choice.label;
-                    if (ownAsks) return button(key, choice.choice.label, writing !== null, () => open(id, choice));
-                    return button(key, choice.choice.label, writing !== null || !complete(widgetAsks, asked), () => void press(row, choice));
+                    if (ownAsks) return button(choice.key, choice.choice.label, writing !== null, () => open(id, choice));
+                    return button(choice.key, choice.choice.label, writing !== null || !complete(widgetAsks, asked), () => void press(row, choice));
                   })}
                 </>
               )}

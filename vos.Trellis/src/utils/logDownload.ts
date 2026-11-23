@@ -1,17 +1,10 @@
-/**
- * Helpers for saving a log to disk from the Log page. Two sources are offered: the snapshot the
- * view already holds (bounded by MAX_LOG_LINES) and the whole file streamed from the broker.
- */
 
 /** Identifies the log source in a filename — a service key, or the broker when none is given. */
 function sourceName(service: string | undefined): string {
   return service ?? 'broker';
 }
 
-/**
- * Name for a snapshot saved from the view. Carries a UTC timestamp so repeated downloads of the
- * same log land side by side instead of overwriting each other.
- */
+/** The time is in the name, so repeated downloads of one log sit side by side rather than overwrite each other. */
 export function snapshotFileName(service: string | undefined, at: Date): string {
   const stamp = at.toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
   return `${sourceName(service)}-snapshot-${stamp}.log`;
@@ -22,11 +15,8 @@ export function fullLogFallbackName(service: string | undefined): string {
   return `${sourceName(service)}.log`;
 }
 
-/**
- * The server's filename from a Content-Disposition header. Prefers the RFC 5987 `filename*` form
- * ASP.NET Core emits alongside the plain one, and strips any directory part so a hostile header
- * cannot steer the save outside the browser's download folder.
- */
+/** Prefers the RFC 5987 `filename*` form ASP.NET Core sends beside the plain one, and strips any directory
+ *  part, so a hostile header cannot save outside the browser's downloads folder. */
 export function fileNameFromContentDisposition(header: string | null, fallback: string): string {
   if (!header) return fallback;
 
@@ -46,12 +36,10 @@ function decodeURIComponentSafe(value: string): string {
   }
 }
 
-/** The visible buffer as a text blob, one line per row and a trailing newline. */
 export function snapshotBlob(lines: string[]): Blob {
   return new Blob([lines.join('\n') + (lines.length ? '\n' : '')], { type: 'text/plain;charset=utf-8' });
 }
 
-/** Save a blob under `fileName` by clicking a temporary object-URL link. */
 export function triggerDownload(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

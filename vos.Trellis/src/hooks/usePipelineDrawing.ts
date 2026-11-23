@@ -1,16 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addEdge, useEdgesState, useNodesState, type Connection, type Edge, type Node } from '@xyflow/react';
-import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
-import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
+import { PipelineModel, ROLE, judgeConnection, type ChoiceInformation, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
+import { relateRefusalReason, relatingLine } from '../pipeline/relate';
 import { type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { passedOn } from '../pipeline/passedOn';
 import { handStateToOrchestrator } from '../pipeline/handOver';
 import { relationshipApi } from '../api/relationshipApi';
 import type { PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import type { WirePaths } from '../components/pipeline/WireInspector';
+import type { WaitSetting } from '../components/pipeline/NodeInspector';
 import { useEditorHistory } from './useEditorHistory';
 
 let nodeSequence = 0;
@@ -22,7 +24,8 @@ interface PipelineDrawingInputs {
 }
 
 export function usePipelineDrawing({ model, connections, setError }: PipelineDrawingInputs) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [name, setName] = useState(() => t('pipeline.newPipelineName'));
@@ -44,8 +47,16 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
+      if (d.kind === 'relate') {
+        const refusal = d.standsForId ? relateRefusalReason(model, d.standsForId, language) : undefined;
+        return {
+          id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsAtMostMinutes: d.waitsAtMostMinutes,
+          ...(d.standsForId ? { relates: refusal ? { refusal } : {} } : {}),
+        };
+      }
       return {
-        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind,
+        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, waitsFor: d.waitsFor,
+        waitsAtMostMinutes: d.waitsAtMostMinutes,
         ...(stood ? { standsFor: { name: stood.name, kind: stood.kind, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
       };
     });
@@ -56,17 +67,19 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       targetHandle: e.targetHandle ?? '',
     }));
     return [...validatePipeline(validationNodes, validationEdges), ...validateEnds(validationNodes, validationEdges)];
-  }, [nodes, edges, model]);
+  }, [nodes, edges, model, language]);
 
   // The drawing as the canvas paints it: a node says what it stands for, read off the model so a rename reaches
   // it, and a start node says that placing it is not what starts a run.
   const canvasNodes = useMemo(() => nodes.map((n) => {
     const d = n.data as unknown as PipelineNodeData;
+    if (d.kind === 'wait') return { ...n, data: { ...n.data, waitsForName: d.waitsFor ? model.thing(d.waitsFor)?.Name : undefined } };
+    if (d.kind === 'relate') return { ...n, data: { ...n.data, relating: relatingLine(model, d.standsForId, language) } };
     if (!d.kind || !d.standsForId) return n;
     const standsFor = model.endInformation(d.standsForId);
     const note = d.kind === 'input' ? t('pipeline.note.startNotCalled') : undefined;
     return { ...n, data: { ...n.data, standsFor, note } };
-  }), [nodes, model, t]);
+  }), [nodes, model, t, language]);
 
   const canvasEdges = useMemo(() => {
     const fail = model.boundTo(ROLE.Fail);
@@ -109,10 +122,11 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   }, [place]);
 
   // Where the run comes from: a start node standing for the catalyst it was placed from, whose out port
-  // is the run's parameter — the message that arrived, or the Thing that entered the state or the
-  // relationship. Placed from nothing, it is a start by hand, filled from the parameters typed above.
+  // is the run's parameter — the message that arrived, the Thing that entered the state or the
+  // relationship, or the instant a cadence was due. Placed from nothing, it is a start by hand, filled
+  // from the parameters typed above.
   const placeStart = useCallback((row: CatalystRow | undefined) => {
-    const portName = row === undefined || row.kind === 'message' ? 'payload' : 'subject';
+    const portName = row === undefined || row.kind === 'message' ? 'payload' : row.kind === 'cadence' ? 'due' : 'subject';
     place({
       label: row ? (row.who ? `${row.who} · ${row.what}` : row.what) : t('pipeline.boundaryInput'),
       kind: 'input',
@@ -180,7 +194,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule, waitsFor: d.waitsFor, follows: d.follows, waitsAtMostMinutes: d.waitsAtMostMinutes };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -234,12 +248,12 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule, waitsFor: n.waitsFor, follows: n.follows, waitsAtMostMinutes: n.waitsAtMostMinutes } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
-    commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
+    commitBaseline({ nodes: loadedNodes, edges: loadedEdges });
     return true;
   }, [model, connections, setNodes, setEdges, commitBaseline]);
 
@@ -251,7 +265,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setEditingPipelineId(null);
     setThingIdByCanvasId({});
     setError(null);
-    commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
+    commitBaseline({ nodes: [], edges: [] });
   }, [setNodes, setEdges, commitBaseline, setError, t]);
 
   const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {
@@ -273,7 +287,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  const setChoices = useCallback((nodeId: string, choices: EditorChoice[]) => {
+  const setChoices = useCallback((nodeId: string, choices: ChoiceInformation[]) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, choices } } : n)));
     const kept = new Set(choices.map((choice) => choice.id));
@@ -289,6 +303,20 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
+  const placeWait = useCallback(() => {
+    place({ label: t('pipeline.outputs.wait'), kind: 'wait', ports: model.resolvePorts(model.boundTo(ROLE.PipelineWait)!) });
+  }, [place, model, t]);
+
+  const placeRelate = useCallback(() => {
+    place({ label: t('pipeline.outputs.relate'), kind: 'relate', ports: model.resolvePorts(model.boundTo(ROLE.PipelineRelate)!) });
+  }, [place, model, t]);
+
+  const setWait = useCallback((nodeId: string, wait: WaitSetting) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...wait } } : n)));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
   // Recorded once when a node drag starts, not on every move, and before a delete, so undo restores the canvas
   // as it was. A delete also marks the canvas changed since the last save.
   const onNodeDragStart = useCallback(() => recordSnapshot(), [recordSnapshot]);
@@ -301,8 +329,8 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     nodes, edges, setNodes, onNodesChange, onEdgesChange, canvasNodes, canvasEdges, validationIssues,
     name, setName, savedId, editingPipelineId, busy, thingIdByCanvasId, currentNodes,
     canUndo: history.canUndo, dirty: history.dirty, onUndo: history.onUndo,
-    save, load, startNew, place, addNode, placeStart, placeOutput, handOver,
-    setEdgePath, setEdgeTakenOn, setDeclaredPorts, setStandsFor, onConnect, setBinding, setChosen, setChoices, setRule,
+    save, load, startNew, place, addNode, placeStart, placeOutput, placeWait, placeRelate, handOver,
+    setEdgePath, setEdgeTakenOn, setDeclaredPorts, setStandsFor, onConnect, setBinding, setChosen, setChoices, setRule, setWait,
     onNodeDragStart, onNodesDelete, onEdgesDelete,
   };
 }

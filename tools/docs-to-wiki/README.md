@@ -4,8 +4,8 @@ Generates wiki pages, in the Azure DevOps wiki format, from a repository's own m
 platform repository publishes them to its project wiki with `publish-wiki.js`; this repository's
 build converts them for the GitHub wiki with [`tools/wiki-mirror`](../wiki-mirror/).
 
-The repository is the source of truth. Every wiki page is produced from a file listed in a
-manifest, so a page cannot quietly fall behind the document it is built from.
+Every wiki page is produced from a file listed in a manifest, so a page always says what the
+document it is built from says.
 
 The manifest names the wiki to publish to, so a repository that keeps its own documentation
 supplies a manifest and the path to it rather than carrying a copy of this tool. This repository's
@@ -26,7 +26,7 @@ and each generated page says so at the top. Edit the document in `docs/` instead
   file in the repository when it is not (a licence, a tool's README).
 - **Relabels file-name links** — a documentation index that writes `[FIELD_GUIDE.md](FIELD_GUIDE.md)`
   reads as `[Field Guide](/Field Guide)` on the wiki.
-- **Translates heading anchors** — the two systems slug headings differently: `1. Getting
+- **Translates heading anchors** — the two systems turn a heading into an anchor differently: `1. Getting
   Started` is `#1-getting-started` in the repository and `#1.-getting-started` on the wiki.
   Anchors are translated from the target document's real headings, and an anchor that matches
   no heading is left alone rather than guessed at.
@@ -81,14 +81,14 @@ cd tools/docs-to-wiki
 node --test
 ```
 
-The transforms are pure functions and are unit-tested; CI runs this on every build.
+The transforms take input and return output, holding nothing, and are tested directly; the build runs these tests every time.
 
 ## How it is published
 
 `publish-wiki.js <manifest> <generated-dir>` writes the tree to the wiki through its REST API: it
 uploads the attachments, writes each page (parents before children), and — where the manifest asks
-for it — removes pages no document produces (deepest first, so a parent never goes while a child
-hangs off it). A page whose content already matches is left alone, so a build that changes no
+for it — removes pages no document produces (deepest first, so a parent never goes while a page
+beneath it is still there). A page whose content already matches is left alone, so a build that changes no
 documentation adds no revisions.
 
 This repository's build runs the generator and `tools/wiki-mirror` on every build and never
@@ -105,7 +105,7 @@ organisation, in order to publish one wiki. The REST API needs only **Wiki: Read
 which grants exactly what its name says. The platform build's `AZURE_DEVOPS_PAT` therefore needs
 the Wiki scope; this repository's build carries no Azure DevOps token.
 
-The trade is page ordering: the wiki keeps that in `.order` files that only the git path can
+The cost is page ordering: the wiki keeps that in `.order` files that only the git path can
 write, so the wiki orders pages itself and this tool does not generate them. Content, images
 and removals are unaffected.
 
@@ -123,7 +123,7 @@ time. Three refusals read differently because they need different fixes:
 The last of these is why a write is checked for more than a success status. Azure answers a write it
 will not accept with a redirect to sign-in; following it lands on an HTML page, and a page is a 200.
 A run that asked only whether the response was ok would publish nothing and report that it had
-published everything, leaving the wiki frozen while the build stayed green.
+published everything, so the wiki would stop changing while the build kept passing.
 
 ## Related
 

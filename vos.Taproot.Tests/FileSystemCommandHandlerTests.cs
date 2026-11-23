@@ -206,7 +206,6 @@ public class FileSystemCommandHandlerTests
         var jsonFile = tempFile + ".json";
         var jsonContent = "{\"things\": []}";
 
-        // Rename to .json extension
         File.Move(tempFile, jsonFile);
         File.WriteAllText(jsonFile, jsonContent);
         _myceliumMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
@@ -276,7 +275,7 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Deserialize_WithOtherExtension_DoesNotAddJson()
     {
-        var tempFile = Path.GetTempFileName(); // Creates .tmp file
+        var tempFile = Path.GetTempFileName();
         var txtFile = Path.ChangeExtension(tempFile, ".txt");
         var jsonContent = "{\"things\": []}";
 

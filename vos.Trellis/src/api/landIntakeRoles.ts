@@ -1,10 +1,8 @@
 /**
- * The roles the land-intake, open-data and site-analysis templates declare for the vocabularies a
- * submission is resolved against and the Things a reviewer's page reads. Each role is a Thing the model
- * declares under a fixed identifier, and it binds the one archetype, predicate or Thing playing it along
- * `binds`, so a page asks for the role and follows its binding and never names what the model calls the
- * Thing it binds. Each identifier is the standard version 5 identifier of the role's word; the intake service
- * and the command line read the same ones.
+ * Declared by the land-intake, open-data and site-analysis templates. Each role is a Thing under a fixed
+ * identifier that binds, along `binds`, the archetype, predicate or Thing playing it, so a page follows the
+ * role and never names what the model calls that Thing. Each identifier is the version 5 identifier of the
+ * role's word, which the intake service and the command line read too.
  */
 import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
 
@@ -25,7 +23,12 @@ export const LAND_INTAKE_ROLE = {
   HazardLevel: '0b02fd28-a6c5-5f1c-ac48-3b82fe33a462',
   ReportedLevel: 'bb61c39c-019f-502b-9232-6f9acd848817',
   Theme: 'd81072a6-1f26-5d4c-a8ce-59957f25ca29',
-  SubmitterFindingsDashboard: '3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7',
+  SubmitterProDataPage: 'f7976253-aff8-5f8e-b5cf-dd822312c2ee',
+  SubmitterLiteDataPage: '5bf9dc23-f819-5480-9cc4-b57cec64540c',
+  Parcel: 'af18300a-eebf-59ea-abab-79de771dc012',
+  MeasuresAreaWith: '0ba45c9f-fdb9-53f1-9576-76fb041629e8',
+  MeanSphereAreaMethod: '5ec67ad4-faf3-54c5-bdd5-ccf6502b139b',
+  Wgs84EllipsoidAreaMethod: '54961752-debb-572e-94b9-748a56921ba5',
   RootPlace: '18d228a8-2bed-5b05-8026-2526cf939dfd',
   PlaceNesting: 'c3c9edde-b271-5a52-8f23-cc6bae9ea1d1',
   Decision: 'b29b4a43-211b-5d07-9ca1-761675bafc6b',

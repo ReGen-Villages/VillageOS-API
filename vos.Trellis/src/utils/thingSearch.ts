@@ -8,10 +8,10 @@ export const THING_SEARCH_SKIP_KEYS = new Set([
   '__geometry_envelope',
 ]);
 
-/** Max own properties shown inline per result row. */
+/** The most own properties a result row shows. */
 export const PREVIEW_PROPERTIES = 4;
 
-export interface ThingMatch {
+interface ThingMatch {
   id: string;
   name: string;
   /** Relevance tier: 0 = exact, 1 = prefix, 2 = substring, 3 = ID match. Lower is better. */
@@ -24,17 +24,14 @@ export interface ThingMatch {
   previewProperties: Array<{ key: string; value: unknown }>;
 }
 
-export interface ThingSearchIndex {
+interface ThingSearchIndex {
   /** Maps subject ID → type name from the first "is" relationship found. */
   isSubjectToTypeName: Map<string, string>;
   /** Maps thing ID → number of relationships where it appears as subject or target. */
   relationshipCountByThing: Map<string, number>;
 }
 
-/**
- * Pre-compute indexes from model data so `searchThings` costs one pass over the Things.
- * Call once when `things` or `relationships` change (e.g., in a `useMemo`).
- */
+/** Built once per change of the model, so a search is one pass over the Things. */
 export function buildThingSearchIndex(
   things: VosThing[],
   relationships: VosRelationship[],
@@ -59,18 +56,7 @@ export function buildThingSearchIndex(
   return { isSubjectToTypeName, relationshipCountByThing };
 }
 
-/**
- * Score a thing's name against the query.
- *
- * Returns:
- * - `0` — exact name match
- * - `1` — name starts with query
- * - `2` — name contains query (substring)
- * - `3` — ID contains query
- * - `null` — no match
- *
- * All comparisons are case-insensitive.
- */
+/** Ignores case; null where nothing matches. */
 export function scoreThingMatch(thing: VosThing, query: string): number | null {
   const q = query.toLowerCase();
   const name = thing.Name.toLowerCase();
@@ -83,12 +69,7 @@ export function scoreThingMatch(thing: VosThing, query: string): number | null {
   return null;
 }
 
-/**
- * Search things by name (and ID fallback), returning ranked matches.
- *
- * Results are sorted by score ascending (best first), then alphabetically
- * within the same score tier.
- */
+/** Best score first, then by name. */
 export function searchThings(
   query: string,
   things: VosThing[],
@@ -124,7 +105,6 @@ export function searchThings(
   return matches;
 }
 
-/** Build a markdown table from a set of search results. */
 export function buildThingSearchMarkdown(query: string, results: ThingMatch[]): string {
   const lines: string[] = [`# ${i18n.t('thingSearch.title')}: "${query}"`, ''];
   const headings = [

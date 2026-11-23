@@ -232,8 +232,6 @@ public class DeleteCommandHandlerTests
         Assert.Contains("Property 'testProp' not found", _writer.ToString());
     }
 
-    // --showguids flag tests
-
     [Fact]
     public async Task DeleteThing_WithShowGuidsFlag_ShowsGuid()
     {

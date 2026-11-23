@@ -255,8 +255,6 @@ public class FindCommandHandlerTests
         Assert.Contains("No relationships found", _writer.ToString());
     }
 
-    // --showguids flag tests
-
     [Fact]
     public async Task FindThing_WithShowGuidsFlag_ShowsGuids()
     {
@@ -423,7 +421,6 @@ public class FindCommandHandlerTests
         await ExecuteHandler($"relationships {thingId}");
 
         var output = _writer.ToString();
-        // Should handle gracefully without crashing
         Assert.Contains("No relationships found", output);
     }
 

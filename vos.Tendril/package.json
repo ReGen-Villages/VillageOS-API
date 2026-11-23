@@ -1,11 +1,12 @@
 {
   "name": "@tendril-ui/tendril",
-  "version": "0.6.0",
+  "version": "0.12.0",
   "description": "The console's binding reader and the widgets that write, for any application that draws a model's pages",
   "license": "(AGPL-3.0-only OR LicenseRef-Commercial)",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./reader": "./src/reader.ts"
   },
   "files": [
     "src",
@@ -15,7 +16,7 @@
   ],
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.reader.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^4.0.18",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",

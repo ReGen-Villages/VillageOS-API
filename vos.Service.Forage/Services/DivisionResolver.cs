@@ -26,21 +26,6 @@ public sealed class DivisionResolver
         _logger = logger;
     }
 
-    // The coverage it was given, with the division layered into every call's address where one was worked
-    // out. Unchanged where there was nothing to work out, or nothing came of it: the gradings are then
-    // refused for the unfilled placeholder, their coverages stay outstanding, and the site stays in the
-    // state that starts the run — so the next run tries again.
-    public async Task<SiteCoverage> AddressAsync(
-        Guid siteId, SiteCoverage coverage, CancellationToken cancellationToken)
-    {
-        if (await RegionAsync(siteId, coverage, cancellationToken) is not { } resolved) return coverage;
-
-        return coverage with
-        {
-            Covering = CoveringSourceResolver.AlsoAddressedWith(coverage.Covering, resolved),
-        };
-    }
-
     // The division values worked out and written onto the site, or null where there was nothing to work out or
     // nothing came of it.
     public async Task<IReadOnlyDictionary<string, string>?> RegionAsync(
@@ -96,7 +81,7 @@ public sealed class DivisionResolver
             return await WriteAsync(siteId, lookup, division, cancellationToken);
         }
 
-        // Said out loud rather than left as an empty hazards table: the portal holds no division of any
+        // Logged rather than left as an empty hazards table: the portal holds no division of any
         // name this site's position gave, in this site's country.
         _logger.LogInformation(
             "The hazard portal holds no division in {Country} named {Terms}, so site {SiteId} keeps no "

@@ -28,7 +28,7 @@ var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Delta", "delta-.log", launchSettings.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Delta", "delta-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile && !isTestingEnv);
 
 try
 {
@@ -118,7 +118,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // Template selection is an `is` relationship, not a scalar field. No `is` row means the root.
         var isRelationships = (request.Relationships ?? new List<RequestedRelationship>())
             .Where(r => r != null
-                && string.Equals(r.Predicate, "is", StringComparison.Ordinal)
+                && string.Equals(r.Predicate, PlatformPredicates.Is, StringComparison.Ordinal)
                 && string.Equals(r.Subject, request.Name, StringComparison.Ordinal))
             .ToList();
         if (isRelationships.Count > 1)

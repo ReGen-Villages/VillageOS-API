@@ -63,15 +63,8 @@ interface Props {
   searchOptions: SearchOptions;
 }
 
-/**
- * Custom hover renderer for dark-themed backgrounds.
- *
- * Sigma's built-in `drawDiscNodeHover` hardcodes a white (#FFF) label
- * background, which makes our light label text (#e4e4e7) unreadable.
- * This replacement draws a dark rounded box (zinc-800) with a subtle
- * glow, then renders the label in the configured labelColor — producing
- * high-contrast light-on-dark text.
- */
+/** Sigma's own `drawDiscNodeHover` draws a white label background, on which the light label text cannot be
+ *  read, so this draws a dark box instead. */
 function drawDarkNodeHover(
   context: CanvasRenderingContext2D,
   data: { x: number; y: number; size: number; label: string | null; color: string },
@@ -83,7 +76,7 @@ function drawDarkNodeHover(
 
   context.font = `${weight} ${size}px ${font}`;
 
-  context.fillStyle = '#27272a'; // zinc-800
+  context.fillStyle = '#27272a';
   context.shadowOffsetX = 0;
   context.shadowOffsetY = 0;
   context.shadowBlur = 8;
@@ -129,28 +122,13 @@ function drawDarkNodeHover(
   }
 }
 
-/**
- * Clearance around each node where edge labels are suppressed.
- * Node labels extend to the right of nodes; this keeps edge text clear of
- * that zone.  The clearance is proportional to the node's rendered size so
- * it scales with zoom (large nodes = long labels = wider clearance).
- * Multiplied by node size; the minimum is enforced with NODE_LABEL_MIN_CLEARANCE.
- */
+/** No edge label is drawn this many node sizes from either end, because a node's label runs out to its right and
+ *  grows with the node as the view zooms. */
 const NODE_LABEL_SIZE_FACTOR = 8;
 const NODE_LABEL_MIN_CLEARANCE = 50;
 
-/**
- * Custom edge label renderer that centers text on the edge line
- * instead of offset below it (Sigma's default).
- *
- * Features:
- * - Dark background pill behind text so labels are readable over edges
- * - Edge labels whose midpoint falls within clearance of either endpoint
- *   are suppressed to avoid colliding with node labels
- * - Non-highlighted labels are drawn semi-transparent (0.45 alpha)
- * - When an edge is highlighted (color === BRIGHT_EDGE_COLOR), the label
- *   is drawn brighter, bolder, and fully opaque with a more prominent pill
- */
+/** Centred on the edge rather than below it, as Sigma draws it, on a dark background so it can be read over
+ *  other edges. */
 function drawCenteredEdgeLabel(
   context: CanvasRenderingContext2D,
   edgeData: { label?: string | null; size: number; color: string },
@@ -194,8 +172,6 @@ function drawCenteredEdgeLabel(
   dy = ty - sy;
   d = Math.sqrt(dx * dx + dy * dy);
 
-  // Skip edge labels whose midpoint is too close to either endpoint.
-  // Clearance scales with node size (bigger node → longer label → wider zone).
   const sClearance = Math.max(sSize * NODE_LABEL_SIZE_FACTOR, NODE_LABEL_MIN_CLEARANCE);
   const tClearance = Math.max(tSize * NODE_LABEL_SIZE_FACTOR, NODE_LABEL_MIN_CLEARANCE);
   const dSource = Math.sqrt((cx - sourceData.x) ** 2 + (cy - sourceData.y) ** 2);
@@ -225,11 +201,11 @@ function drawCenteredEdgeLabel(
 
   const pillW = textLength + PAD_X * 2;
   const pillH = size + PAD_Y * 2;
-  const pillR = 3; // border-radius
+  const pillR = 3;
   const pillX = -textLength / 2 - PAD_X;
   const pillY = -size / 2 - PAD_Y;
 
-  context.fillStyle = highlighted ? '#18181b' : '#09090bcc'; // zinc-900 / near-black
+  context.fillStyle = highlighted ? '#18181b' : '#09090bcc';
   drawRoundedPill(context, pillX, pillY, pillW, pillH, pillR);
   context.fill();
 
@@ -238,14 +214,8 @@ function drawCenteredEdgeLabel(
   context.restore();
 }
 
-/**
- * Custom node label renderer with a dark background pill.
- *
- * Sigma's default `drawLabel` renders bare text over the canvas, so
- * edge lines crossing behind the label make it unreadable.  This draws
- * a subtle dark pill behind each label — matching the approach used
- * by `drawCenteredEdgeLabel` — so text is always legible.
- */
+/** Sigma's own `drawLabel` draws bare text, which edges crossing behind it make unreadable, so this draws a dark
+ *  background behind each label. */
 function drawNodeLabelWithBackground(
   context: CanvasRenderingContext2D,
   data: { x: number; y: number; size: number; label: string | null; color: string },
@@ -268,7 +238,7 @@ function drawNodeLabelWithBackground(
   const pillH = size + PAD_Y * 2 + 1;
   const pillR = 3;
 
-  context.fillStyle = '#09090bcc'; // zinc-950 at 80% opacity
+  context.fillStyle = '#09090bcc';
   drawRoundedPill(context, pillX, pillY, pillW, pillH, pillR);
   context.fill();
 
@@ -276,16 +246,12 @@ function drawNodeLabelWithBackground(
   context.fillText(data.label, data.x + data.size + 3, data.y + size / 3);
 }
 
-// Sigma settings — stable reference so SigmaContainer doesn't recreate the instance
+// Kept outside the component, so the container is never handed new settings and does not rebuild Sigma.
 const SIGMA_SETTINGS = {
   renderLabels: true,
   renderEdgeLabels: true,
   defaultEdgeType: 'arrow' as const,
   enableEdgeEvents: true,
-  // Labels — Sigma's label grid prevents overlapping labels.
-  // labelGridCellSize controls how far apart labels must be (in px).
-  // labelDensity < 1 shows fewer labels; > 1 shows more.
-  // labelRenderedSizeThreshold hides labels for nodes below this rendered size.
   labelColor: { color: '#ffffff' },
   labelSize: 10,
   labelFont: 'Inter, system-ui, sans-serif',
@@ -304,18 +270,14 @@ const SIGMA_SETTINGS = {
   zIndex: true,
   minCameraRatio: 0.02,
   maxCameraRatio: 20,
-  // Performance — hide edges & labels during camera movement (pan / zoom / force
-  // layout animation) so Sigma can skip the expensive per-edge WebGL draw and
-  // per-label Canvas layout passes while the viewport is changing.  They reappear
-  // the instant movement stops, so the visual impact is minimal.
+  // Edges and labels are left out while the camera or the layout moves, which skips the costliest drawing; they
+  // come back as soon as movement stops.
   hideEdgesOnMove: true,
   hideLabelsOnMove: true,
 };
 
-/**
- * Container style forces a GPU-composited stacking context to prevent
- * ghost trails during animation and ensure Safari respects child z-order.
- */
+/** Drawn as its own composited layer, so animation leaves no trail of old frames and Safari keeps the children's
+ *  stacking order. */
 const CONTAINER_STYLE: React.CSSProperties = {
   width: '100%',
   height: '100%',
@@ -325,17 +287,8 @@ const CONTAINER_STYLE: React.CSSProperties = {
   isolation: 'isolate',
 };
 
-/**
- * Top-level graph visualisation component.
- * Wraps a Sigma.js instance with all supporting child components.
- *
- * IMPORTANT: We pass a multi-directed Graph instance to SigmaContainer
- * because the default Graph() it creates is simple (no parallel edges),
- * which breaks when importing our multi-edge data.
- */
 export function SigmaCanvas({ things, relationships, searchQuery, searchOptions }: Props) {
-  // Stable graph instance — SigmaContainer uses this as its internal graph.
-  // Must be multi+directed to support parallel relationships.
+  // The container's own graph allows no parallel edges, and importing parallel relationships into it fails.
   const graph = useMemo(() => new Graph({ multi: true, type: 'directed' }), []);
 
   return (

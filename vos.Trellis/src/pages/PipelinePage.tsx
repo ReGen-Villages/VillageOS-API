@@ -12,6 +12,8 @@ import { PipelineModel, ROLE } from '../pipeline/model';
 import { takenOnOf } from '../pipeline/serialize';
 import type { WireData } from '../pipeline/wireDrawing';
 import { catalystRail, outputRail } from '../pipeline/catalysts';
+import { relateChoicesOf } from '../pipeline/relate';
+import { useTranslation } from 'react-i18next';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { CatalystRail } from '../components/pipeline/CatalystRail';
 import { OutputRail } from '../components/pipeline/OutputRail';
@@ -28,14 +30,8 @@ import { mayChangeData } from '../utils/mayChangeData';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
 
-/**
- * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
- *
- * A pipeline is model data — nodes, the connections they call, and the wires between their ports — so
- * this page is Thing and relationship work with a canvas over it. The rail on the left lists every
- * catalyst the model holds, the roster every pipeline, and the rail on the right every outcome and every
- * service a node may call. A boundary node stands for the catalyst or the outcome it was placed from.
- */
+/** A pipeline is model data, so this page works on Things and relationships with a canvas over them; a boundary
+ *  node stands for the catalyst or the outcome it was placed from. */
 export function PipelinePage() {
   useSubscription(PIPELINE_PAGE);
   const things = useModelStore((s) => s.things);
@@ -45,6 +41,14 @@ export function PipelinePage() {
   const theme = useThemeStore((s) => s.theme);
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
+  const offersWait = useMemo(() => model.boundTo(ROLE.PipelineWait) !== undefined, [model]);
+  const offersRelate = useMemo(() => model.boundTo(ROLE.PipelineRelate) !== undefined, [model]);
+  const { i18n } = useTranslation();
+  const relateChoices = useMemo(() => relateChoicesOf(model, i18n.language), [model, i18n.language]);
+  const waitChoices = useMemo(
+    () => ({ states: model.declaredStates(), predicatesFrom: (kindId: string | undefined) => model.predicatesFollowedFrom(kindId) }),
+    [model],
+  );
   const pipelines = useMemo(
     () => model.thingsOf(ROLE.Pipeline)
       .map((pipeline) => ({
@@ -160,6 +164,9 @@ export function PipelinePage() {
               onSetChosen={drawing.setChosen}
               onSetChoices={drawing.setChoices}
               onSetRule={drawing.setRule}
+              waitChoices={waitChoices}
+              onSetWait={drawing.setWait}
+              relateChoices={relateChoices}
               onClose={selection.closeNodeInspector}
             />
           )}
@@ -195,7 +202,11 @@ export function PipelinePage() {
           nodes={nodes}
         />
       </div>
-      <OutputRail outputs={outputs} connections={connections} onPlaceOutput={drawing.placeOutput} onAddService={drawing.addNode} />
+      <OutputRail
+        outputs={outputs} connections={connections} onPlaceOutput={drawing.placeOutput} onAddService={drawing.addNode}
+        offersWait={offersWait} onPlaceWait={drawing.placeWait}
+        offersRelate={offersRelate} onPlaceRelate={drawing.placeRelate}
+      />
     </div>
   );
 }

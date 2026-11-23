@@ -23,6 +23,8 @@ public class HandleEndpointTests
     private static readonly Guid Drawn = Guid.Parse("d0000000-0000-0000-0000-000000000001");
     private static readonly Guid Watching = Guid.Parse("c0000000-0000-0000-0000-000000000001");
     private static readonly Guid Loose = Guid.Parse("c0000000-0000-0000-0000-000000000002");
+    private static readonly Guid Drains = Guid.Parse("c0000000-0000-0000-0000-000000000003");
+    private static readonly Guid DrawnFromDrains = Guid.Parse("d0000000-0000-0000-0000-000000000002");
     private static readonly Guid Submission = Guid.Parse("50000000-0000-0000-0000-000000000042");
     private static readonly Guid WaitingNodeRun = Guid.Parse("e0000000-0000-0000-0000-000000000001");
 
@@ -118,16 +120,16 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_ARelationshipWrittenAlongAConnection_StartsThePipelineDrawnFromThatConnection()
+    public async Task Handle_ARelationshipAlongAPredicateNamingAConnection_StartsThePipelineDrawnFromThePredicate()
     {
         await using var factory = new PhloemWebApplicationFactory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsync("/handle", StateEntry(target: Joined, relationship: WrittenAlongWatching));
+        var response = await client.PostAsync("/handle", StateEntry(target: Joined, relationship: WrittenAlongDrains));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("pipelineId").GetGuid().Should().Be(Drawn);
-        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("pipelineId").GetGuid().Should().Be(DrawnFromDrains);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(DrawnFromDrains) == 1, "the run record reaches the broker");
     }
 
     [Fact]
@@ -170,7 +172,7 @@ public class HandleEndpointTests
     }
 
     private static readonly Guid Joined = Guid.Parse("70000000-0000-0000-0000-000000000001");
-    private static readonly Guid WrittenAlongWatching = Guid.Parse("a0000000-0000-0000-0000-000000000007");
+    private static readonly Guid WrittenAlongDrains = Guid.Parse("a0000000-0000-0000-0000-000000000007");
     private static readonly Guid WrittenAlongStops = Guid.Parse("a0000000-0000-0000-0000-000000000008");
     private static readonly Guid StopsConnection = Guid.Parse("c0000000-0000-0000-0000-000000000009");
 
@@ -403,8 +405,8 @@ public class HandleEndpointTests
             if (uri.AbsolutePath == $"/api/things/{Unheld}" && request.Method == HttpMethod.Get)
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
-                return uri.AbsolutePath.EndsWith(WrittenAlongWatching.ToString(), StringComparison.Ordinal)
-                    ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))
+                return uri.AbsolutePath.EndsWith(WrittenAlongDrains.ToString(), StringComparison.Ordinal)
+                    ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongDrains, SubjectId = Submission, PredicateId = Drains, TargetId = Joined, Properties = new { } }))
                     : uri.AbsolutePath.EndsWith(WrittenAlongStops.ToString(), StringComparison.Ordinal)
                         ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongStops, SubjectId = Submission, PredicateId = StopsConnection, TargetId = Joined, Properties = new { } }))
                         : new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -478,8 +480,12 @@ public class HandleEndpointTests
             var binds = Guid.NewGuid();
             var runArchetype = Guid.NewGuid();
             var nodeRunArchetype = Guid.NewGuid();
+            var notifies = Guid.NewGuid();
+            var arrivalAlongDrains = Guid.NewGuid();
 
             object Thing(Guid id, string name) => new { id, name, properties = new Dictionary<string, object>() };
+            object Published(Guid id, string name) =>
+                new { id, name, properties = new Dictionary<string, object> { [ModelNames.Published] = new { value = true, typeInfo = "vos.Boolean" } } };
             object Edge(Guid subject, Guid predicate, Guid target) =>
                 new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target };
 
@@ -507,7 +513,12 @@ public class HandleEndpointTests
                         Thing(nodeRunArchetype, "Step run"),
                         Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role"),
                         Thing(PipelineRoles.NodeRun.Id, "nodeRun role"),
-                        new { id = Drawn, name = "Drawn from the state", properties = new Dictionary<string, object> { [ModelNames.Published] = new { value = true, typeInfo = "vos.Boolean" } } },
+                        Thing(PipelineRoles.NotifiedConnection.Id, "notifiedConnection role"),
+                        Thing(notifies, "notifies"),
+                        Thing(Drains, "drains"),
+                        Thing(arrivalAlongDrains, "Drained"),
+                        Published(Drawn, "Drawn from the state"),
+                        Published(DrawnFromDrains, "Drawn from drains"),
                     },
                     relationships = new[]
                     {
@@ -523,6 +534,12 @@ public class HandleEndpointTests
                         Edge(arrival, standsFor, Watching),
                         Edge(Drawn, hasPredicate, arrival),
                         Edge(Drawn, isPredicate, pipelineArchetype),
+                        Edge(PipelineRoles.NotifiedConnection.Id, binds, notifies),
+                        Edge(Drains, notifies, Watching),
+                        Edge(arrivalAlongDrains, isPredicate, startArchetype),
+                        Edge(arrivalAlongDrains, standsFor, Drains),
+                        Edge(DrawnFromDrains, hasPredicate, arrivalAlongDrains),
+                        Edge(DrawnFromDrains, isPredicate, pipelineArchetype),
                     },
                 },
             });

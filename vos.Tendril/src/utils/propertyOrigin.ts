@@ -9,6 +9,7 @@
  */
 import type { DeclaredWriteKind, InheritedPropertySet, ValueOrigin, VosThing } from '../types/vos';
 import type { IsChainLookup } from './propertyMapper';
+import { inPrecedenceOrder } from './precedenceOrder';
 
 export function valueOrigin(thing: VosThing, property: string, lookup: IsChainLookup): ValueOrigin {
   const source = statedBy(thing, property, lookup, new Set());
@@ -63,14 +64,14 @@ function declaredWriteKind(
 
 /**
  * The archetypes a Thing is, in the order {@link effectiveProperties} lets them win: it merges
- * siblings in ascending name order and lets each overwrite the last, so the alphabetically last one
+ * siblings in precedence order and lets each overwrite the last, so the last one in that order
  * holds the value and is asked here first.
  */
 function ancestorsInPrecedenceOrder(thing: VosThing, lookup: IsChainLookup): VosThing[] {
   return (lookup.isParents.get(thing.Id) ?? [])
     .map((id) => lookup.byId.get(id))
     .filter((parent): parent is VosThing => !!parent)
-    .sort((a, b) => b.Name.localeCompare(a.Name));
+    .sort((a, b) => inPrecedenceOrder(b.Name, a.Name));
 }
 
 /** A value the Thing holds itself — its own, or one it stored under a name its archetype declares,

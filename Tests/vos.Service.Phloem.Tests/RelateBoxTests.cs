@@ -9,8 +9,8 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// A relate box starts a service the way the model does: it relates the Thing reaching it along the connection it stands
-// for, so the platform calls the service, and waits for the state the connection is proven by.
+// A relate box starts a service the way the model does: it relates the Thing reaching it along the predicate it stands
+// for, so the platform calls the connection that predicate names, and waits for the state that connection is proven by.
 public class RelateBoxTests
 {
     private static readonly RunSubject Study = new(Guid.NewGuid(), "Willow Bend study");
@@ -36,7 +36,7 @@ public class RelateBoxTests
 
         var result = await RunAsync(box, executor);
 
-        gateway.RelationshipsWritten.Should().Equal((Study.Id, box.Connection.Id, box.Service.Id));
+        gateway.RelationshipsWritten.Should().Equal((Study.Id, box.Predicate.Id, box.Service.Id));
         gateway.Called.Should().BeEmpty("the platform calls the service, not the orchestrator");
         result.Error.Should().Be($"The run waits for 'Willow Bend study' to enter 'EnergyWorkedOut' at '{TestGraphs.RelateBox}'.");
         gateway.Watches[(result.RunId, box.Relate.Id)].Should().Be(new Watch(Study.Id, box.WorkedOut.Id));
@@ -47,7 +47,7 @@ public class RelateBoxTests
     public async Task A_relate_box_whose_Thing_is_already_related_writes_nothing_and_still_waits()
     {
         var (box, gateway, executor) = Arrange();
-        gateway.ReachedAlong[(Study.Id, box.Connection.Id)] = [new RunSubject(box.Service.Id, box.Service.Name)];
+        gateway.ReachedAlong[(Study.Id, box.Predicate.Id)] = [new RunSubject(box.Service.Id, box.Service.Name)];
 
         var result = await RunAsync(box, executor);
 
@@ -165,7 +165,8 @@ public class RelateBoxTests
 
         var result = await RunAsync(box, executor);
 
-        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which names two states its work is proven by.");
+        result.Error.Should().Contain(
+            $"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', whose connection 'balancesEnergy connection' names two states its work is proven by.");
         gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
     }
 
@@ -178,7 +179,8 @@ public class RelateBoxTests
 
         var result = await RunAsync(box, executor);
 
-        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which binds no service, so nothing would be called.");
+        result.Error.Should().Contain(
+            $"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', whose connection 'balancesEnergy connection' binds no service, so nothing would be called.");
         gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
     }
 
@@ -201,21 +203,35 @@ public class RelateBoxTests
 
         var result = await RunAsync(box, executor);
 
-        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which names no state its work is proven by, "
-            + "so the run could not tell when the work is done.");
+        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', whose connection 'balancesEnergy connection' "
+            + "names no state its work is proven by, so the run could not tell when the work is done.");
         gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
         gateway.RelationshipsWritten.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_relate_box_standing_for_no_connection_refuses_the_run()
+    public async Task A_relate_box_standing_for_a_predicate_that_names_no_connection_refuses_the_run()
     {
-        var (box, gateway, executor) = Arrange(TestGraphs.RelateBoxPipeline(standsForAConnection: false));
+        var (box, gateway, executor) = Arrange(TestGraphs.RelateBoxPipeline(predicateNamesTheConnection: false));
 
         var result = await RunAsync(box, executor);
 
-        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' is a relate node but stands for no connection.");
+        result.Error.Should().Contain(
+            $"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which names no connection along 'notifies', so a relationship along it calls nothing.");
         gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
+    }
+
+    [Fact]
+    public async Task A_relate_box_standing_for_the_connection_itself_refuses_the_run()
+    {
+        var (box, gateway, executor) = Arrange(TestGraphs.RelateBoxPipeline(standsForTheConnection: true));
+
+        var result = await RunAsync(box, executor);
+
+        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for the connection 'balancesEnergy connection'; "
+            + "a relate box stands for the predicate that names its connection along 'notifies'.");
+        gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
+        gateway.RelationshipsWritten.Should().BeEmpty();
     }
 
     [Fact]
@@ -242,7 +258,7 @@ public class RelateBoxTests
         gateway.Records[(runId, start.Id)] = new NodeRecord(RunStatus.Succeeded,
             new Dictionary<string, JsonElement> { ["subject"] = JsonSerializer.SerializeToElement(new { id = Study.Id, name = Study.Name }) });
         gateway.Records[(runId, box.Relate.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
-        gateway.ReachedAlong[(Study.Id, box.Connection.Id)] = [new RunSubject(box.Service.Id, box.Service.Name)];
+        gateway.ReachedAlong[(Study.Id, box.Predicate.Id)] = [new RunSubject(box.Service.Id, box.Service.Name)];
 
         var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
 

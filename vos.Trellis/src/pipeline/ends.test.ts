@@ -23,10 +23,21 @@ describe('what a boundary node stands for', () => {
     expect(model.endInformation(id.reportingOffice)).toMatchObject({ kind: 'externalSystem', mayStart: false, mayEnd: false });
     expect(model.endInformation(id.intakeConnection)).toMatchObject({ kind: 'httpConnection', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.runningLow)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
-    expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
+    expect(model.endInformation(id.overflows)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
+    expect(model.endInformation(id.balances)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.everyHour)).toMatchObject({ kind: 'cadence', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reservoir)).toMatchObject({ kind: 'other', mayStart: false, mayEnd: false });
+  });
+
+  it('starts nothing from a relationship connection that names no connection along notifies, since the platform calls nothing for it', () => {
+    expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: false, mayEnd: false });
+  });
+
+  it('starts nothing from an archetype that names a connection along notifies, since no relationship is written along a kind', () => {
+    const { things, model: read } = catalystFixture();
+    const chore = things.find((thing) => thing.Name === 'Chore')!;
+    expect(read.endInformation(chore.Id)).toMatchObject({ mayStart: false });
   });
 
   it('finds the predicate a stands-for relationship is written through by the role that binds it', () => {
@@ -43,17 +54,17 @@ describe('what a boundary node stands for', () => {
 
 describe('a trigger the model names in its own words', () => {
   it.each([
-    ['intakeConnection', 'http', 'httpConnection'],
-    ['feeds', 'graph', 'relationship'],
-    ['watchesDry', 'state', 'state'],
-  ] as const)('reads %s by the role its trigger plays, not by the trigger\'s name', (connection, trigger, kind) => {
+    ['intakeConnection', 'http', 'httpConnection', true],
+    ['feeds', 'graph', 'relationship', false],
+    ['watchesDry', 'state', 'state', true],
+  ] as const)('reads %s by the role its trigger plays, not by the trigger\'s name', (connection, trigger, kind, mayStart) => {
     const fixture = catalystFixture();
     const triggerId = triggerOfConnection(fixture, fixture.id[connection]);
     const renamed = fixture.things.map((t) => (t.Id === triggerId ? { ...t, Name: 'named in the model\'s own words' } : t));
     const model = new PipelineModel(renamed, fixture.relationships);
 
     expect(model.triggerOf(fixture.id[connection])).toBe(trigger);
-    expect(model.endInformation(fixture.id[connection])).toMatchObject({ kind, mayStart: true });
+    expect(model.endInformation(fixture.id[connection])).toMatchObject({ kind, mayStart });
   });
 
   it('starts nothing from a connection whose trigger no trigger role binds, whatever the trigger is called', () => {

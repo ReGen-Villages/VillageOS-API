@@ -7,8 +7,7 @@ import {
   applyRelationshipPropertyRemoval,
 } from '../utils/propertyUpdates';
 
-/** A coalesced batch of live-model changes applied in a single store write. */
-export interface ModelBatch {
+interface ModelBatch {
   thingUpserts?: VosThing[];
   thingRemovals?: string[];
   relationshipUpserts?: VosRelationship[];
@@ -25,10 +24,9 @@ export interface ModelBatch {
 interface ModelState {
   things: VosThing[];
   relationships: VosRelationship[];
-  /** The derived states each held Thing currently holds, kept beside the model rather than on it. A
-   *  state moves far more often than the model's shape does, and folding one into `things` would
-   *  rebuild that array — and every index built from it — on every state change. Written in place
-   *  for the same reason the index is; the version beside it is what says it moved. */
+  /** Beside the model rather than on it, because states change far more often than the model's shape, and
+   *  folding one into `things` would rebuild that array and every index built from it. Written in place,
+   *  as the index is; the version beside it is what says it moved. */
   thingStates: Map<string, string[]>;
   thingStatesVersion: number;
   /** How many times a load has replaced what is held. A live batch changes what is held without
@@ -46,31 +44,23 @@ interface ModelState {
    *  that has left its last state has no entry in the snapshot, and merging would leave it holding
    *  that state for as long as the session lasted. */
   seedThingStates: (thingStates: Map<string, string[]>) => void;
-  /** Apply a coalesced batch of live changes in a single write. Used by the debounced SSE flush;
-   *  the kept index makes a batch cost its own size plus one copy of the array's references,
-   *  whatever the size of the model. */
+  /** The kept index makes a batch cost its own size plus one copy of the array's references, whatever
+   *  the size of the model. */
   applyBatch: (batch: ModelBatch) => void;
   markLoaded: (load: { wholeModel: boolean }) => void;
   clear: () => void;
 }
 
 /**
- * The model kept by id, so a flush changes what the batch names instead of walking everything to
- * find it. Rebuilding this on every flush was the whole cost of applying one, and it grew with the
- * model rather than with the batch. It is held outside the store and mutated in place: putting it
- * in the state would mean copying it to change it, which is the cost being removed.
- *
- * The arrays stay the store's own shape. Every page reads `things` and `relationships` and a new
- * array is what tells React something changed, so they are rebuilt from the index each flush — a
- * copy of the references, cheap where building the index is not.
+ * Kept by identifier outside the store and changed in place, so a flush costs the size of the batch, not a
+ * rebuild over the whole model; in the state it would have to be copied to change. The arrays are rebuilt
+ * from it each flush, because a new array is what tells React something changed, and copying references is cheap.
  */
 class KeptById<T extends { Id: string }> {
   private readonly index = new Map<string, T>();
 
-  /** The array this index was last built from. Anything that writes the store without going
-   *  through its actions — `setState` in a test, and whatever does it next — leaves a different
-   *  array behind, and comparing the two references catches that for the price of one comparison.
-   *  The alternative is an index that quietly disagrees with what the page is drawing. */
+  /** Anything writing the store past its actions, such as `setState` in a test, leaves a different array,
+   *  and one comparison catches it before the index disagrees with what the page draws. */
   private builtFrom: readonly T[] | null = null;
 
   forThe(entries: readonly T[]): Map<string, T> {
@@ -81,7 +71,6 @@ class KeptById<T extends { Id: string }> {
     return this.index;
   }
 
-  /** What the index now holds, as the array the store keeps and the pages read. */
   asArray(): T[] {
     const entries = [...this.index.values()];
     this.builtFrom = entries;
@@ -191,15 +180,9 @@ export const useModelStore = create<ModelState>((set) => ({
   },
 }));
 
-/**
- * The states as they stand, for a component that draws them.
- *
- * Reading the map is not enough on its own: it is written in place, so its identity never changes
- * and a component that only selected it would draw the states once and never again — and nothing
- * about that read would look wrong. The version beside it is what moves, so watching that is what
- * redraws the caller. The two belong in one expression: written apart, the watch reads as a line
- * with no effect and the read reads as complete, and either can be removed without anything failing.
- */
+/** The map is written in place and never changes identity, so a component selecting only it would draw the
+ *  states once; watching the version beside it redraws the caller. Both are read here together, because
+ *  apart, either looks removable and nothing would fail when it went. */
 export function useThingStates(): Map<string, string[]> {
   useModelStore((s) => s.thingStatesVersion);
   return useModelStore.getState().thingStates;

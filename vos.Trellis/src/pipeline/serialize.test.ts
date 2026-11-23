@@ -45,7 +45,7 @@ function graphWithVocabulary() {
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  T('is', 'is'); T('has', 'has'); T('carries', 'carries');
+  T('is', 'is'); T('has', 'has'); T('carries', 'carries', playing(ROLE.WirePredicate));
   T('arch-pipeline', 'Workflow', playing(ROLE.Pipeline));
   T('arch-node', 'Step', playing(ROLE.PipelineNode));
   T('arch-connection', 'Endpoint', playing(ROLE.Connection));
@@ -57,7 +57,6 @@ function graphWithVocabulary() {
   // Boundary-node archetypes; each is-a pipeline node so the node collection picks its instances up.
   T('arch-input', 'Start', playing(ROLE.PipelineInput)); R('arch-input', 'is', 'arch-node');
   T('arch-output', 'Finish', playing(ROLE.PipelineOutput)); R('arch-output', 'is', 'arch-node');
-  R('carries', 'is', 'arch-wire');
   T('taken-on', 'firesOn', playing(ROLE.TakenOn));
   T('success', 'Worked', playing(ROLE.Success));
   T('fail', 'Broke', playing(ROLE.Fail));
@@ -83,8 +82,8 @@ function graphWithVocabulary() {
   return { T, R, port, heldWire, things, relationships };
 }
 
-// One connection whose service has an out port `out` and an in port `in`, and an existing pipeline P with two
-// nodes N1,N2 and a wire N1.out -> N2.in — enough to exercise the in-place-update diff.
+// One connection whose service has an out port `out` and an in port `in`, and a saved pipeline P with nodes N1
+// and N2 and a wire from N1.out to N2.in, which is enough to test an update in place.
 function buildModel(): PipelineModel {
   const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
 
@@ -279,7 +278,7 @@ describe('savePipeline — boundary nodes', () => {
 
 // Drawn as land intake draws "Wait until the site is discovered": the box's ports are its kind's, and it names its
 // state along the completion-range predicate and its in port along the awaits-through predicate.
-function buildModelWithAWaitBox(): PipelineModel {
+function buildModelWithAWaitBox(waitsAtMostMinutes?: number): PipelineModel {
   const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
   T('arch-wait', 'Pause', playing(ROLE.PipelineWait)); R('arch-wait', 'is', 'arch-node');
   port('wait.thing.in', 'thing', 'in', 'arch-wait');
@@ -287,12 +286,16 @@ function buildModelWithAWaitBox(): PipelineModel {
   port('wait.reached', 'reached', 'out', 'arch-wait');
   T('proven-by', 'settledBy', playing('8855f3e8-6717-542a-9d49-2d91880d2751'));
   T('awaits-through', 'heldAt', playing('4dd13e97-1305-566e-a922-7333e514aa64'));
+  T('reached-along', 'handsOnAlong', playing(ROLE.ReachedAlong));
   T('discovered', 'SiteDiscovered');
+  T('reviewed', 'SiteReviewed');
+  T('decided-by', 'decidedBy');
 
   T('SP', 'A submission'); R('SP', 'is', 'arch-pipeline');
   T('IN', 'A submission arrives'); R('IN', 'is', 'arch-input'); R('SP', 'has', 'IN');
   port('IN.subject', 'subject', 'out', 'IN');
-  T('WAIT', 'Wait until the site is discovered'); R('WAIT', 'is', 'arch-wait'); R('SP', 'has', 'WAIT');
+  T('WAIT', 'Wait until the site is discovered', waitsAtMostMinutes === undefined ? {} : { waitsAtMostMinutes });
+  R('WAIT', 'is', 'arch-wait'); R('SP', 'has', 'WAIT');
   R('WAIT', 'proven-by', 'discovered'); R('WAIT', 'awaits-through', 'wait.thing.in');
   T('OUT', 'Discovered'); R('OUT', 'is', 'arch-output'); R('SP', 'has', 'OUT');
   port('OUT.site', 'site', 'in', 'OUT');
@@ -317,7 +320,98 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
       .toEqual(['wait.thing.in', 'wait.thing.out', 'wait.reached']);
   });
 
-  it('keeps a relate box, its ports and what it stands for', async () => {
+  it('saves a new wait box with the state it waits for, the in port it waits through and the predicate it follows', async () => {
+    const model = buildModelWithAWaitBox();
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait for a review', connectionId: '', x: 0, y: 0, kind: 'wait',
+      ports: model.resolvePorts('arch-wait'), waitsFor: 'reviewed', follows: 'decided-by',
+    };
+
+    await savePipeline('A review', [placed], [], model);
+
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'proven-by', 'reviewed');
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'awaits-through', 'wait.thing.in');
+    expect(relationshipCreate).toHaveBeenCalledWith(expect.any(String), 'reached-along', 'decided-by');
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.map((t) => t.Id)).not.toContain('wait.thing.in');
+  });
+
+  it('keeps the most minutes a loaded wait box waits through a load and a save', async () => {
+    const model = buildModelWithAWaitBox(90);
+    const loaded = loadPipeline('SP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'SP');
+
+    expect(loaded.nodes.find((n) => n.id === 'WAIT')!.waitsAtMostMinutes).toBe(90);
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: 90 });
+  });
+
+  it('writes the limit of a loaded wait box empty once the field is cleared, so the box waits with no limit', async () => {
+    const model = buildModelWithAWaitBox(90);
+    const loaded = loadPipeline('SP', model)!;
+    const cleared = loaded.nodes.map((n) => (n.id === 'WAIT' ? { ...n, waitsAtMostMinutes: undefined } : n));
+
+    await savePipeline(loaded.name, cleared, loaded.edges, model, 'SP');
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: null });
+  });
+
+  it('writes no limit for a wait box that carries none of its own', async () => {
+    const model = buildModelWithAWaitBox();
+    const loaded = loadPipeline('SP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'SP');
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'WAIT')!.Properties).not.toHaveProperty('waitsAtMostMinutes');
+  });
+
+  it('saves the most minutes a new wait box waits as a whole number', async () => {
+    const model = buildModelWithAWaitBox();
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait for a review', connectionId: '', x: 0, y: 0, kind: 'wait',
+      ports: model.resolvePorts('arch-wait'), waitsFor: 'reviewed', waitsAtMostMinutes: 45,
+    };
+
+    await savePipeline('A review', [placed], [], model);
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Name === 'Wait for a review')!.Properties.waitsAtMostMinutes)
+      .toEqual({ typeInfo: 'vos.Integer', value: 45 });
+  });
+
+  it('moves a loaded wait box to another state by replacing its one state relationship', async () => {
+    const model = buildModelWithAWaitBox();
+    const loaded = loadPipeline('SP', model)!;
+    const waitingFor = model.waitOf('WAIT').state!.relationshipId;
+    const moved = loaded.nodes.map((n) => (n.id === 'WAIT' ? { ...n, waitsFor: 'reviewed' } : n));
+
+    await savePipeline(loaded.name, moved, loaded.edges, model, 'SP');
+
+    expect(loaded.nodes.find((n) => n.id === 'WAIT')!.waitsFor).toBe('discovered');
+    expect(relationshipRemove.mock.calls.map((call) => call[0])).toEqual([waitingFor]);
+    expect(relationshipCreate.mock.calls).toEqual([['WAIT', 'proven-by', 'reviewed']]);
+  });
+
+  it('refuses to save a wait box that follows a predicate in a model binding no role to save that with', async () => {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('arch-wait', 'Pause', playing(ROLE.PipelineWait)); R('arch-wait', 'is', 'arch-node');
+    port('wait.thing.in', 'thing', 'in', 'arch-wait');
+    T('proven-by', 'settledBy', playing(ROLE.CompletionRange));
+    T('awaits-through', 'heldAt', playing(ROLE.AwaitsThrough));
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const placed: EditorNode = {
+      id: 'placed', label: 'Wait', connectionId: '', x: 0, y: 0, kind: 'wait', ports: model.resolvePorts('arch-wait'),
+      waitsFor: 'some state', follows: 'some predicate',
+    };
+
+    await expect(savePipeline('A review', [placed], [], model)).rejects.toThrow(/wait box/);
+    expect(applyFragment).not.toHaveBeenCalled();
+  });
+
+  it('keeps a relate box, its ports and what it stands for, even a connection the orchestrator would now refuse', async () => {
     const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
     T('arch-relate', 'Link up', playing(ROLE.PipelineRelate)); R('arch-relate', 'is', 'arch-node');
     port('relate.thing.in', 'thing', 'in', 'arch-relate');
@@ -342,6 +436,22 @@ describe('a box the orchestrator runs itself, opened and saved unchanged', () =>
     const relate = loaded.nodes.find((n) => n.id === 'RELATE')!;
     expect(relate.standsForId).toBe('works-out');
     expect(relate.ports.map((p) => p.portId)).toEqual(['relate.thing.in', 'relate.thing.out', 'relate.written']);
+  });
+
+  it('reads back the most minutes a relate box waits, and writes it on save', async () => {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('arch-relate', 'Link up', playing(ROLE.PipelineRelate)); R('arch-relate', 'is', 'arch-node');
+    port('relate.thing.in', 'thing', 'in', 'arch-relate');
+    T('DP', 'Discover a site'); R('DP', 'is', 'arch-pipeline');
+    T('RELATE', 'Work the climate out', { waitsAtMostMinutes: 30 }); R('RELATE', 'is', 'arch-relate'); R('DP', 'has', 'RELATE');
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const loaded = loadPipeline('DP', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'DP');
+
+    expect(loaded.nodes.find((n) => n.id === 'RELATE')!.waitsAtMostMinutes).toBe(30);
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    expect(frag.Things.find((t) => t.Id === 'RELATE')!.Properties.waitsAtMostMinutes).toEqual({ typeInfo: 'vos.Integer', value: 30 });
   });
 });
 
@@ -377,8 +487,6 @@ describe('savePipeline — wire field-paths', () => {
     const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in' }];
     await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
-    // A Thing's property write updates and does not create, so a path left undeclared could not be added
-    // later without the write answering that there is no such property.
     expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'fromPath', 'vos.String', '');
     expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'toPath', 'vos.String', '');
   });
@@ -589,8 +697,8 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
   });
 });
 
-// A model built from templates declares the wire predicate and draws nothing. The first pipeline drawn on
-// it was refused as declaring no archetype, although it declares every one.
+// A model built from templates declares the wire predicate and draws nothing, so the first pipeline is saved
+// along a predicate nothing has used yet.
 describe('savePipeline — the first pipeline in a model with no wire yet', () => {
   function modelWithNoWire(): PipelineModel {
     const { T, R, things, relationships } = graphWithVocabulary();
@@ -610,13 +718,16 @@ describe('savePipeline — the first pipeline in a model with no wire yet', () =
     expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'carries', expect.any(String));
   });
 
-  it('names what it did not find when the model binds no wire archetype', async () => {
+  it.each([
+    ['arch-wire', /wire role/],
+    ['carries', /wire predicate role/],
+  ])('names what it did not find when the model lacks %s', async (missing, named) => {
     const { T, R, things, relationships } = graphWithVocabulary();
-    things.splice(things.findIndex((t) => t.Id === 'arch-wire'), 1);
+    things.splice(things.findIndex((t) => t.Id === missing), 1);
     T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection');
 
     await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
-      .rejects.toThrow(/wire predicate/);
+      .rejects.toThrow(named);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 

@@ -11,8 +11,7 @@ interface Props {
   bounds: Omit<PanelWidthBounds, 'handleSide'>;
   labels: { expand: string; collapse: string; resize: string };
   /** What to call this panel, drawn at its head and announced as its region. Required, because a
-   *  page carrying three of these holds three lists, and three called nothing are three a reader
-   *  cannot tell apart. */
+   *  page can carry several of these, and a reader cannot tell unnamed ones apart. */
   name: string;
   /** Controls that belong beside the fold control rather than in the body — a close button, say.
    *  Hidden with the body while the panel is folded, because a rail has no room for them. */

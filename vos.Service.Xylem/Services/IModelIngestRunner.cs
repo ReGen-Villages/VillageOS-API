@@ -2,8 +2,8 @@ namespace vos.Service.Xylem.Services;
 
 // Runs the IFC ingest for one uploaded file and reports the counts. The production
 // implementation invokes the vos.Tools.ModelIngest tool (Xbim parse + classification + derived properties) and
-// applies the graph to Mycelium; tests substitute a fake so the orchestration is exercised without a
-// subprocess or a live broker.
+// applies the graph to Mycelium; tests substitute a fake so IngestHandler is tested without a child
+// process or a live broker.
 public interface IModelIngestRunner
 {
     Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct);

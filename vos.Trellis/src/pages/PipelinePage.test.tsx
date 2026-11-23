@@ -316,7 +316,7 @@ describe('PipelinePage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
       await waitFor(() => expect(screen.getByText('The broker refused the fragment')).toBeInTheDocument());
-      expect(canvasNodes()).toHaveLength(2);
+      await waitFor(() => expect(canvasNodes()).toHaveLength(2));
       expect(screen.getByText('saved')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     });

@@ -26,39 +26,19 @@ internal static class ModelSnapshotStub
     // The `binds` predicate Thing a role reaches its archetype along, under one identifier for every scenario.
     internal static readonly Guid BindsPredicate = new("b1bd5000-0000-5000-8000-000000000001");
 
-    internal static HttpResponseMessage? RouteSnapshotRead(
-        HttpRequestMessage request, IReadOnlyDictionary<string, Guid> ids, params Edge[] edges) =>
-        RouteSnapshotRead(request, ids, edges, siteValues: null);
-
-    internal static HttpResponseMessage? RouteSnapshotRead(
-        HttpRequestMessage request,
-        IReadOnlyDictionary<string, Guid> ids,
-        Edge[] edges,
-        IReadOnlyDictionary<string, string>? siteValues) =>
-        RouteSnapshotRead(request, ids, edges, siteValues, archetypes: null);
-
     // A value on a Thing that is neither the site nor an archetype: what a run has already written onto
     // a coverage. Raw JSON, because the properties a run writes are not all numbers.
     internal sealed record Carrying(string Thing, string Property, string JsonValue);
 
     // siteValues land on the FIRST named Thing, which every scenario here declares as the site: the
     // values a source's address may name have to arrive on the site itself, not on any Thing.
-
     internal static HttpResponseMessage? RouteSnapshotRead(
         HttpRequestMessage request,
         IReadOnlyDictionary<string, Guid> ids,
         Edge[] edges,
-        IReadOnlyDictionary<string, string>? siteValues,
-        IReadOnlyCollection<Archetype>? archetypes) =>
-        RouteSnapshotRead(request, ids, edges, siteValues, archetypes, carrying: null);
-
-    internal static HttpResponseMessage? RouteSnapshotRead(
-        HttpRequestMessage request,
-        IReadOnlyDictionary<string, Guid> ids,
-        Edge[] edges,
-        IReadOnlyDictionary<string, string>? siteValues,
-        IReadOnlyCollection<Archetype>? archetypes,
-        IReadOnlyCollection<Carrying>? carrying,
+        IReadOnlyDictionary<string, string>? siteValues = null,
+        IReadOnlyCollection<Archetype>? archetypes = null,
+        IReadOnlyCollection<Carrying>? carrying = null,
         IReadOnlyCollection<Binding>? bindings = null)
     {
         if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/snapshots")

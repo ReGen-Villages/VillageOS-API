@@ -44,12 +44,16 @@
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="AgainstTheEngine\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\vos.Service.Delta\vos.Service.Delta.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Feedback\vos.Service.Feedback.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Forage\vos.Service.Forage.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Intake\vos.Service.Intake.csproj"/>
+    <ProjectReference Include="..\..\vos.Hypha\vos.Hypha.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Metabolism\vos.Service.Metabolism.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Phloem\vos.Service.Phloem.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Shared\vos.Service.Shared.csproj"/>

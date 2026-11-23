@@ -14,6 +14,7 @@ public sealed record StepAnswer(
     public const string CallField = "call";
     public const string WrittenField = "written";
     public const string ReasonField = "reason";
+    private const string DetailField = "detail";
 
     // A reason is read by a person deciding whether a gap matters, so it carries the provider's words but not a
     // whole error document.
@@ -26,7 +27,7 @@ public sealed record StepAnswer(
 
         // Tributary answers a ProblemError when a read, a write or the call itself did not go through, which a later attempt may get past.
         if (result.Error is { } error)
-            return Failure(call, $"{error.StatusCode}: {error.Message}", canBeTriedAgain: error is ProblemError, wait: null);
+            return Failure(call, $"{error.StatusCode}: {error.Message}{DetailOf(error)}", canBeTriedAgain: error is ProblemError, wait: null);
 
         if (result.StatusCode is >= 200 and < 300)
             return Success(call, written: null);
@@ -50,6 +51,12 @@ public sealed record StepAnswer(
 
     private static StepAnswer Failure(JsonElement call, string reason, bool canBeTriedAgain, TimeSpan? wait) =>
         new(false, new Dictionary<string, object?> { [CallField] = call, [ReasonField] = reason }, reason, canBeTriedAgain, wait);
+
+    private static string DetailOf(EndpointCallError error) =>
+        error is JsonError { Body: IReadOnlyDictionary<string, object?> body }
+        && body.TryGetValue(DetailField, out var detail) && detail is string { Length: > 0 } words
+            ? ": " + Shortened(words)
+            : string.Empty;
 
     private static string Shortened(string words)
     {

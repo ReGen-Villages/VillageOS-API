@@ -1,4 +1,4 @@
-"""What the platform reads from Quadrat, pinned from the platform's side (docs/SERVICES.md §16.2).
+"""What the platform reads from Quadrat, checked from the platform's side (docs/SERVICES.md §16.2).
 
 test_app.py tests what Quadrat does. This file tests what the rest of the platform depends on Quadrat being: a
 manifest in the shape the editor and `declare_service.py` read, an answer in the shape Phloem parses, and a manifest
@@ -23,6 +23,15 @@ PORT_KEYS = {"portName", "direction", "type", "required"}
 SETTING_KEYS = {"name", "required", "values", "default"}
 
 
+@pytest.fixture(autouse=True)
+def mycelium_takes_observations(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import app as appmod
+
+    monkeypatch.setattr(appmod.host.mycelium, "record_observations", AsyncMock(return_value=1))
+
+
 @pytest.fixture
 def manifest(client):
     return client.get("/manifest").json()
@@ -40,7 +49,7 @@ def requests_by_operation(degrees_grid):
     return {
         "metadata": [{"raster": degrees_grid}],
         "point": [{"raster": degrees_grid, "lon": 2.5, "lat": 7.5}],
-        "zonal": [zone_inputs(degrees_grid), polygon],
+        "zonal": [zone_inputs(degrees_grid), polygon, {**zone_inputs(degrees_grid), "thingId": RUN["runId"], "observations": {"mean_m": "mean"}}],
         "histogram": [zone_inputs(degrees_grid), polygon],
         "classify": [{**zone_inputs(degrees_grid), "classes": [{"label": "all", "min": 0}]}],
         "profile": [{"raster": degrees_grid, "line": line, "samples": 3}, {"raster": degrees_grid, "line": line, "spacing": 50_000}],
@@ -68,8 +77,8 @@ def test_every_port_is_described_the_way_the_editor_reads_it(manifest):
     assert len(names) == len(set(names)), "a port is declared once"
 
 
-def test_the_node_has_one_output_the_answer_is_read_from(manifest):
-    assert [p["portName"] for p in manifest["ports"] if p["direction"] == "out"] == ["result"]
+def test_the_node_has_the_answer_and_what_was_recorded_as_its_outputs(manifest):
+    assert [p["portName"] for p in manifest["ports"] if p["direction"] == "out"] == ["result", "written"]
 
 
 def test_every_setting_is_described_the_way_the_declaration_reads_it(manifest):

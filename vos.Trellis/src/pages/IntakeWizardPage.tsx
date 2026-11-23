@@ -1,11 +1,7 @@
 /**
- * The land-intake wizard as a signed-in planner reaches it. The form itself is the shared wizard, which
- * the public submission page renders too; what this page adds is the frame around it and the read that
- * fills it in.
- *
- * The vocabulary and the imagery are read from the model itself rather than through the app shell's load,
- * which a model may narrow to the Things its pages are drawn with — and a role Thing is on nobody's page.
- * A model that declares no categories leaves the step saying so rather than empty.
+ * The form is the shared wizard the public page draws too; this page adds the frame and the read. The
+ * vocabulary and imagery are read from the model itself, because the shell's load may be narrowed to what the
+ * pages draw and a role Thing is on no page. A model declaring no categories leaves that step saying so.
  */
 import { useEffect, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
@@ -17,8 +13,10 @@ import { thingApi } from '../api/thingApi';
 import { useAuthentication } from '../hooks/useAuthentication';
 import { IntakeWizard } from '../intake/IntakeWizard';
 import type { BasemapSource } from '../types/basemap';
+import type { AreaMethod } from '../utils/borderArea';
 import {
   ALLOCATION_CATEGORY_ROLE,
+  areaMethodConfigured,
   HAZARD_LEVEL_ROLE,
   HAZARD_TYPE_ROLE,
   termsBound,
@@ -34,10 +32,11 @@ export function IntakeWizardPage() {
   const [hazardTypes, setHazardTypes] = useState<readonly string[]>([]);
   const [hazardLevels, setHazardLevels] = useState<readonly string[]>([]);
   const [wording, setWording] = useState<TermWording>({});
+  const [areaMethod, setAreaMethod] = useState<AreaMethod | null>(null);
 
   useEffect(() => {
     let abandoned = false;
-    Promise.all([thingApi.getAll(), relationshipApi.getAll(), thingApi.getAllProperties('effective')])
+    Promise.all([thingApi.getAll(), relationshipApi.getAll(), thingApi.getAllProperties()])
       .then(([things, relationships, properties]) => {
         if (abandoned) return;
         setCategories(termsBound({ things, relationships, properties }, ALLOCATION_CATEGORY_ROLE));
@@ -46,6 +45,7 @@ export function IntakeWizardPage() {
         setHazardTypes(termsBound(read, HAZARD_TYPE_ROLE));
         setHazardLevels(termsBound(read, HAZARD_LEVEL_ROLE));
         setWording(termWordingBound(read, [ALLOCATION_CATEGORY_ROLE, HAZARD_TYPE_ROLE, HAZARD_LEVEL_ROLE]));
+        setAreaMethod(areaMethodConfigured(read));
       })
       .catch(() => {
         if (abandoned) return;
@@ -54,6 +54,7 @@ export function IntakeWizardPage() {
         setHazardTypes([]);
         setHazardLevels([]);
         setWording({});
+        setAreaMethod(null);
       });
     return () => {
       abandoned = true;
@@ -81,6 +82,7 @@ export function IntakeWizardPage() {
             hazardLevels={hazardLevels}
             wording={wording}
             draftOwner={modelId}
+            areaMethod={areaMethod}
           />
         </div>
       </div>

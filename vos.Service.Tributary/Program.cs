@@ -38,7 +38,7 @@ var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Tributary", "tributary-.log", launchSettings.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Tributary", "tributary-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile && !isTestingEnv);
 
 try
 {
@@ -68,9 +68,9 @@ try
             launchToken, apiKey: apiKey));
     builder.Services.AddModelClock<MyceliumClient>("Tributary");
     builder.Services.AddSingleton<ObservationIngestService>();
-    // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;
-    // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
+    // The clock the token-exchange cache judges its refresh threshold by; tests substitute a fake one.
     builder.Services.AddSingleton(TimeProvider.System);
+    // One per process, so the cache survives across /handle requests.
     builder.Services.AddSingleton<TokenExchangeCache>();
     // The DiskCache kind's store. One root for the process; entries live under one
     // directory per endpoint. The root is deployment configuration, not endpoint config.
@@ -91,6 +91,7 @@ try
         launchToken,
         apiKey,
         sp.GetRequiredService<EndpointCallService>(),
+        sp.GetRequiredService<IEndpointMyceliumClient>(),
         sp.GetRequiredService<PassedOnRequestLimit>(),
         sp.GetRequiredService<TimeProvider>()));
 
@@ -130,8 +131,11 @@ try
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    var manifestEndpoint = app.MapGet("/manifest", (TributaryStep step) => Results.Ok(step.Ports));
+    var manifestEndpoint = app.MapGet("/manifest", () => Results.Ok(TributaryStep.FetchPorts));
     if (authEnabled) manifestEndpoint.RequireAuthorization();
+    var stepManifestEndpoint = app.MapGet("/manifest/{step}", (string step) =>
+        TributaryStep.ManifestOf(step) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
+    if (authEnabled) stepManifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
 

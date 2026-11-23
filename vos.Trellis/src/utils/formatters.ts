@@ -48,13 +48,8 @@ export function formatMilliseconds(milliseconds: number): string {
   return `${numberIn(milliseconds / 1000, ONE_DECIMAL)}s`;
 }
 
-/**
- * A property value as a reader should see it, given what the platform says the property holds.
- *
- * Without a declared type it falls back to the value's own shape, which is all this could ever do
- * before. A type this build does not recognise is a reason to fall back, not to hide the value:
- * a badly formatted value is recoverable, a missing one is not.
- */
+/** Without a declared type, or with one this build does not know, the value's own shape decides, because a
+ *  badly formatted value is recoverable and a missing one is not. */
 export function formatPropertyValue(
   value: unknown,
   type?: string,
@@ -91,8 +86,7 @@ function formatToPrecision(value: unknown, maximumDecimals: number): string {
   return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
 }
 
-/** Inline mesh data is thousands of coordinates. Its size is what a reader can act on; the
- *  coordinates themselves are for the 3D viewer, not for a cell in a side panel. */
+/** Mesh data is a great many coordinates, which belong to the 3D viewer; its size is what a reader can use. */
 function summariseMesh(value: unknown): string {
   const mesh = value as { positions?: unknown[]; indices?: unknown[] };
   if (!Array.isArray(mesh?.positions)) return i18n.t('common.mesh');

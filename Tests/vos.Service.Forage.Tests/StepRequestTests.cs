@@ -57,6 +57,7 @@ public class StepRequestTests
         public bool ReadsFail { get; init; }
         public bool FactsFail { get; init; }
 
+        public ConcurrentBag<string> Paths { get; } = new();
         public ConcurrentBag<string> Fetched { get; } = new();
         public ConcurrentBag<(Guid Id, string Name)> Records { get; } = new();
         public ConcurrentBag<(Guid Thing, string Property)> Facts { get; } = new();
@@ -65,6 +66,7 @@ public class StepRequestTests
         public HttpResponseMessage Route(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
+            Paths.Add(path);
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
             if (path == FetchRoute)
             {
@@ -120,7 +122,6 @@ public class StepRequestTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "a step's failure is said in its answer, never in its status");
-        factory.StartedSubjects.Should().BeEmpty("a step answers within its request and starts no run of its own");
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -326,6 +327,44 @@ public class StepRequestTests
     }
 
     [Fact]
+    public async Task Offer_a_source_with_no_registration_records_no_call_and_still_stamps_it_offered()
+    {
+        var model = new Model { Edges = [.. Edges().Where(edge => edge.Predicate != "resolvedBy" || edge.Subject != "NationalFloodPortal")] };
+
+        var answer = await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "outstanding").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+        model.Facts.Should().Contain((model["NationalFloodPortal"], CoverageLedger.CoverageMatchedAtProperty));
+    }
+
+    [Fact]
+    public async Task Plan_calls_for_a_site_no_source_covers_answers_no_calls_and_records_none()
+    {
+        var model = new Model { Edges = [new Edge("WillowBend", "is", "Site")] };
+
+        var answer = await StepAsync(model, "planCalls", new { site = Site(model) });
+
+        ResultOf(answer).Should().Be("success");
+        Output(answer, "calls").GetArrayLength().Should().Be(0);
+        model.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_steps_read_the_model_without_opening_a_subscription()
+    {
+        var model = new Model();
+        var site = Site(model);
+
+        var address = Output(await StepAsync(model, "resolveRegion", new { site }), "address");
+        await StepAsync(model, "planCalls", new { site, address });
+        await StepAsync(model, "offerSource", new { source = model["NationalFloodPortal"].ToString() });
+
+        model.Paths.Should().Contain("/api/snapshots").And.NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Offer_a_source_in_a_model_with_no_coverage_archetype_is_a_final_failure()
     {
         var model = new Model { Archetypes = Archetypes(withCoverage: false) };
@@ -398,7 +437,7 @@ public class StepRequestTests
     [Theory]
     [InlineData(null)]
     [InlineData("discoverEverything")]
-    public async Task A_box_naming_no_step_forage_answers_fails_naming_the_steps(string? step)
+    public async Task A_call_naming_no_step_forage_answers_fails_naming_the_steps_and_where_a_step_is_held(string? step)
     {
         var model = new Model();
 
@@ -406,7 +445,7 @@ public class StepRequestTests
 
         ResultOf(answer).Should().Be("fail");
         answer.GetProperty("error").GetString().Should().Be(
-            "A Forage box names its step in the 'step' setting, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
+            "A Forage step service holds its step as 'step' in its callParameters, one of: resolveRegion, planCalls, recordResults, resolveWords, markDiscovered, offerSource.");
     }
 
     [Fact]
@@ -419,7 +458,7 @@ public class StepRequestTests
     }
 
     [Fact]
-    public async Task Each_step_declares_its_ports_and_its_step_setting()
+    public async Task Each_step_declares_its_ports_and_no_setting_for_its_box()
     {
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
@@ -430,28 +469,31 @@ public class StepRequestTests
         manifest.GetProperty("service").GetString().Should().Be("Forage plan calls");
         manifest.GetProperty("ports").EnumerateArray().Select(port => (port.GetProperty("portName").GetString(), port.GetProperty("direction").GetString()))
             .Should().Equal(("site", "in"), ("address", "in"), ("calls", "out"));
-        var setting = manifest.GetProperty("settings").EnumerateArray().Should().ContainSingle().Subject;
-        setting.GetProperty("name").GetString().Should().Be("step");
-        setting.GetProperty("default").GetString().Should().Be("planCalls");
+        manifest.TryGetProperty("settings", out _).Should().BeFalse("the step comes from the callParameters its service holds, and a box may not set it");
         (await client.GetAsync("/manifest/discoverEverything")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Record_results_takes_the_judged_subjects_on_a_port_it_does_not_require()
+    {
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        var manifest = await client.GetFromJsonAsync<JsonElement>("/manifest/recordResults");
+
+        var judged = manifest.GetProperty("ports").EnumerateArray()
+            .Should().ContainSingle(port => port.GetProperty("portName").GetString() == "judged").Subject;
+        judged.GetProperty("direction").GetString().Should().Be("in");
+        judged.GetProperty("required").GetBoolean().Should().BeFalse();
     }
 
     // Tributary's place is taken by answering every planned call as fetched, which is what a direct run's fetches
     // answer here too.
     [Fact]
-    public async Task The_steps_run_in_order_leave_the_model_as_a_direct_run_does()
+    public async Task The_steps_run_in_order_plan_a_call_for_each_covering_source_record_each_and_stamp_the_site()
     {
-        var direct = new Model();
-        await using (var factory = new ForageWebApplicationFactory())
-        {
-            await factory.InitializeAsync();
-            factory.HandlerCallback = direct.Route;
-            using var client = factory.CreateClient();
-            await client.PostAsJsonAsync("/handle", new { subjectId = direct["WillowBend"] });
-            await factory.CompleteStartedRuns();
-        }
-
-        var stepped = new Model { Ids = direct.Ids };
+        var stepped = new Model();
         var site = Site(stepped);
         var address = Output(await StepAsync(stepped, "resolveRegion", new { site }), "address");
         var calls = Output(await StepAsync(stepped, "planCalls", new { site, address }), "calls");
@@ -460,14 +502,10 @@ public class StepRequestTests
         await StepAsync(stepped, "resolveWords", new { resolved = Output(results, "resolved") });
         await StepAsync(stepped, "markDiscovered", new { site, written = Array.Empty<object>() });
 
-        direct.Fetched.Should().HaveCount(calls.GetArrayLength());
-        string.Join(" ", direct.Fetched).Should().Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
         calls.EnumerateArray().Select(call => call.GetProperty("endpointName").GetString())
             .Should().BeEquivalentTo("NationalFloodPortalEndpoint", "OpenMeteoEndpoint");
-        direct.Records.Should().NotBeEmpty();
-        direct.Facts.Should().Contain((direct["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
-        stepped.Records.Should().BeEquivalentTo(direct.Records);
-        stepped.Facts.Should().BeEquivalentTo(direct.Facts);
-        stepped.Related.Should().BeEquivalentTo(direct.Related);
+        stepped.Records.Should().ContainSingle().Which.Name.Should().Be("WillowBend × NationalFloodPortal");
+        stepped.Facts.Should().Contain((stepped["WillowBend"], CoverageLedger.CoverageMatchedAtProperty));
+        stepped.Fetched.Should().BeEmpty("the drawing's Fetch box makes the calls, never Forage");
     }
 }

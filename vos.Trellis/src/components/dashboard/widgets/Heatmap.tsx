@@ -7,8 +7,10 @@ import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { rampColour, type Surface } from './chartRamp';
+import { FALLBACK_WIDTH } from './chartFrame';
+import { rampColour } from './chartRamp';
 import { linearScale } from './chartScale';
+import { useChartSurface } from './useChartSurface';
 import { dayOfYearLabel, groupsByKey, monthNames, monthStarts, windowOf } from './historySeries';
 import { formatNumber } from './format';
 import { sunTimes } from './sunTimes';
@@ -21,7 +23,6 @@ const TOP_GUTTER = 8;
 const AXIS_BAND = 22;
 const LEFT_GUTTER = 44;
 const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const SECONDS_PER_HOUR = 3600;
 const LEGEND_STEPS = 24;
@@ -76,10 +77,6 @@ function gridOf(groups: Map<string, number>, columns: Columns): (number | undefi
   return grid;
 }
 
-function surfaceOf(): Surface {
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-}
-
 type DrawnClass = { label: string; colour: string; from: number | null; to: number | null };
 
 function classHolding(classes: DrawnClass[], value: number): DrawnClass | undefined {
@@ -91,7 +88,7 @@ export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: R
   const [measure, measuredWidth] = useElementWidth();
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [active, setActive] = useState<Cell | null>(null);
-  const [surface, setSurface] = useState<Surface>(surfaceOf);
+  const surface = useChartSurface();
 
   const [value, latitude, longitude, offset, ...classBounds] = useBindings(
     [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds,
@@ -141,14 +138,6 @@ export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: R
   const y = (hour: number) => TOP_GUTTER + hour * cellHeight;
   const figure = (cell: number | undefined) =>
     cell === undefined ? '—' : `${formatNumber(cell, widget.format)}${widget.unit ? ` ${widget.unit}` : ''}`;
-
-  // The theme is a class on the document, and the canvas cannot read a token the way an SVG can, so
-  // the surface is watched and the grid repainted when it changes.
-  useEffect(() => {
-    const observer = new MutationObserver(() => setSurface(surfaceOf()));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     const element = canvas.current;

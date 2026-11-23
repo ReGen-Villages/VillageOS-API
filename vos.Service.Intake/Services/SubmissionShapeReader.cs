@@ -19,9 +19,12 @@ public static class SubmissionShapeReader
     private static readonly Role[] PredicateRoles =
         [LandIntakeRoles.StudiedSite, LandIntakeRoles.ProposedSite, LandIntakeRoles.ServiceOrder];
 
+    // Read where bound and left out where not, so a model that reads no soil still takes submissions.
+    private static readonly Role[] OptionalArchetypeRoles = [LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare];
+
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. ArchetypeRoles, .. PredicateRoles]),
+        Ids = RoleBindings.Identifiers([.. ArchetypeRoles, .. OptionalArchetypeRoles, .. PredicateRoles]),
         Names = [RoleBindings.BindsPredicateName],
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
@@ -39,6 +42,8 @@ public static class SubmissionShapeReader
             return new DeclaredTerm(bound.Name ?? "", bound.Id);
         }
 
+        DeclaredTerm? ArchetypeWhereBound(Role role) => snapshot.Bound(role).Count == 0 ? null : Archetype(role);
+
         PredicateIdentity Predicate(Role role)
         {
             var bound = DeclaredVocabularyReader.OneBound(snapshot, role, $"the predicate {role.Word} names");
@@ -50,7 +55,8 @@ public static class SubmissionShapeReader
                 Archetype(LandIntakeRoles.Site), Archetype(LandIntakeRoles.Parcel), Archetype(LandIntakeRoles.Project),
                 Archetype(LandIntakeRoles.PersonalDetail), Archetype(LandIntakeRoles.ProgrammeAllocation),
                 Archetype(LandIntakeRoles.HazardAssessment), Archetype(LandIntakeRoles.SubmittedSource),
-                Archetype(LandIntakeRoles.Submission)),
+                Archetype(LandIntakeRoles.Submission),
+                ArchetypeWhereBound(LandIntakeRoles.SoilHorizon), ArchetypeWhereBound(LandIntakeRoles.LandCoverShare)),
             Predicate(LandIntakeRoles.StudiedSite), Predicate(LandIntakeRoles.ProposedSite),
             Predicate(LandIntakeRoles.ServiceOrder));
     }

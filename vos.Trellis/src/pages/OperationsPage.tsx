@@ -1,11 +1,5 @@
-/**
- * Generic, configuration-driven operations dashboard.
- *
- * Contains NO domain vocabulary. It discovers a model-resident `Dashboard`
- * configuration Thing (see vos.Tendril/src/types/dashboard.ts), renders its sections of generic
- * widgets, and resolves every widget's bindings through the generic resolver.
- * A model with no Dashboard configuration shows guidance instead.
- */
+/** Names no domain: it draws the model's own Dashboard Thing through the shared resolver, and shows guidance
+ *  where a model has none. */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -31,8 +25,8 @@ const REFRESH_EVENTS = [
   'ModelChanged',
 ] as const;
 
-/** Coalesce a burst of live events into one refresh generation. Widgets resolving together then
- *  share one read per question, and a reader is not shown a page assembled from two moments. */
+/** A burst of live events makes one refresh, so widgets share one read per question and a reader is not shown
+ *  a page put together from two moments. */
 const REFRESH_DEBOUNCE_MILLISECONDS = 400;
 
 /** The width above which a section lays its widgets out in tracks. */
@@ -52,7 +46,7 @@ export function OperationsPage() {
     [dashboard, i18n.language],
   );
 
-  const entities = useMemo(() => (specification ? computeScopeEntities(specification, index) : []), [specification, index]);
+  const entities = useMemo(() => (specification ? computeScopeEntities(specification, index, i18n.language) : []), [specification, index, i18n.language]);
 
   const [chosenScopeId, setScopeId] = useState<string | null>(null);
   // With only one entity, All means that entity, and selecting it is what lets a figure that follows a relationship from it be drawn.
@@ -60,8 +54,8 @@ export function OperationsPage() {
   const entityToChoose = specification?.compare && scopeId === null && entities.length > 1 ? specification.compare.label : undefined;
   const [nonce, setNonce] = useState(0);
   const [serverRefresh, setServerRefresh] = useState(0);
-  // A press taken by a writing widget starts a new generation of broker reads: what it changed is
-  // read back, whether or not the change announced itself on the stream.
+  // A press on a writing widget starts a new round of broker reads, so what it changed is read back whether
+  // or not the change came on the stream.
   const wrote = useCallback(() => setServerRefresh((n) => n + 1), []);
   const context = useResolveContext(index, scopeId, specification?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
 
@@ -73,14 +67,13 @@ export function OperationsPage() {
   );
 
   // A trailing-window widget slides with the clock, and the event that takes a Thing out of a state
-  // names the states it still holds rather than the one it left — so a figure the broker answers
-  // falls back on the cadence the specification states.
+  // names the states it still holds rather than the one it left, so a figure the broker answers falls back on
+  // the refresh rate the specification states.
   const refreshSeconds = specification?.refreshSeconds ?? 0;
 
-  // A live event starts a new generation. What each widget does with it is its own to decide: a
-  // figure the broker answers waits on the states it is made of, so a burst of property changes
-  // costs the page nothing. A page stating no cadence has no other beat, so there the event drives
-  // the broker-answered figures as well.
+  // A live event starts a new round, and each widget decides what to do with it: a figure the broker answers
+  // waits on the states it is made of, so property changes cost nothing. A page stating no refresh rate has no
+  // other trigger, so there the event refreshes those figures too.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const bump = () => {

@@ -36,7 +36,7 @@ public class ObservedEdgesTests
     public void SelectorFor_AsksForTheObservedRoleAndFollowsItsBinding()
     {
         // Left out, every relationship the endpoint carries reads as some other predicate and a second run
-        // writes a parallel relationship. Same trap the kind roles hit, for the same reason.
+        // writes a parallel relationship, as with the kind roles and for the same reason.
         var selector = EndpointKindResolver.SelectorFor(Endpoint);
 
         selector.Ids.Should().Contain(LandIntakeRoles.Observed.Id);

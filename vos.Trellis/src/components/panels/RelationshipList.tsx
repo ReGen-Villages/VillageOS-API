@@ -7,6 +7,7 @@ import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelati
 import { AddRelationshipRow } from './AddRelationshipRow';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { formatGuid } from '../../utils/formatters';
+import { toggled } from '../../utils/toggled';
 
 interface Props {
   relationships: VosRelationship[];
@@ -40,11 +41,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
             <div className="flex items-center py-1 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded px-1">
               {relationshipProperties.length > 0 && (
                 <button
-                  onClick={() => setExpandedIds((previous) => {
-                    const next = new Set(previous);
-                    if (next.has(r.Id)) next.delete(r.Id); else next.add(r.Id);
-                    return next;
-                  })}
+                  onClick={() => setExpandedIds((previous) => toggled(previous, r.Id))}
                   className="text-zinc-500 hover:text-zinc-300 mr-1 shrink-0"
                 >
                   {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

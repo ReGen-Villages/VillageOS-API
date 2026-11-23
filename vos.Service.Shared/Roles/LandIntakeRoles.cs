@@ -25,7 +25,8 @@ public static class LandIntakeRoles
     public static readonly Role SubmissionDisposition = new("submissionDisposition", new("f4c54fc1-2c17-54bc-b8e8-c467e8fa321a"));
     public static readonly Role ResolvedAs = new("resolvedAs", new("92e4581a-4936-58b1-a783-36a051aa0a43"));
     public static readonly Role Theme = new("theme", new("d81072a6-1f26-5d4c-a8ce-59957f25ca29"));
-    public static readonly Role SubmitterFindingsDashboard = new("submitterFindingsDashboard", new("3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7"));
+    public static readonly Role SubmitterProDataPage = new("submitterProDataPage", new("f7976253-aff8-5f8e-b5cf-dd822312c2ee"));
+    public static readonly Role SubmitterLiteDataPage = new("submitterLiteDataPage", new("5bf9dc23-f819-5480-9cc4-b57cec64540c"));
     public static readonly Role RootPlace = new("rootPlace", new("18d228a8-2bed-5b05-8026-2526cf939dfd"));
     public static readonly Role PlaceNesting = new("placeNesting", new("c3c9edde-b271-5a52-8f23-cc6bae9ea1d1"));
     public static readonly Role PlaceArchetype = new("placeArchetype", new("8360ea47-ae00-5727-bc79-27a518276327"));
@@ -56,16 +57,34 @@ public static class LandIntakeRoles
     public static readonly Role OfLayerKind = new("ofLayerKind", new("f60956a5-cde5-5f08-8176-6e98f7d69d2b"));
     public static readonly Role SourcedFrom = new("sourcedFrom", new("7b89b20c-9f9c-5d60-9481-56c524dd1370"));
     public static readonly Role ShownUnder = new("shownUnder", new("70b382c6-edfa-5295-9b43-de0471b147a4"));
+    public static readonly Role HistorySource = new("historySource", new("db993771-bdc0-513f-a5c2-dab3e999471d"));
+    public static readonly Role SoilDepth = new("soilDepth", new("7adcafde-a041-5e55-bb29-c3a03bd35493"));
+    public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
+    public static readonly Role LandCoverClass = new("landCoverClass", new("e849536c-e5de-52e1-a7c9-b0a59ee7f591"));
+    public static readonly Role LandCoverShare = new("landCoverShare", new("865a1a58-ea9e-5699-8a76-73b48e705042"));
+    public static readonly Role MeasuresAreaWith = new("measuresAreaWith", new("0ba45c9f-fdb9-53f1-9576-76fb041629e8"));
+    public static readonly Role AreaMeasuredWith = new("areaMeasuredWith", new("b1cbb4b6-a7b6-50e7-b974-bbde68dd2d14"));
+    public static readonly Role MeanSphereAreaMethod = new("meanSphereAreaMethod", new("5ec67ad4-faf3-54c5-bdd5-ccf6502b139b"));
+    public static readonly Role Wgs84EllipsoidAreaMethod = new("wgs84EllipsoidAreaMethod", new("54961752-debb-572e-94b9-748a56921ba5"));
+    public static readonly Role VerifiedRequestBudget = new("verifiedRequestBudget", new("f333535d-e10e-5ed6-b21f-9b9e1002f18f"));
+    public static readonly Role UnverifiedRequestBudget = new("unverifiedRequestBudget", new("7d88b06c-605d-5d3f-8f4c-46c2801ecc1a"));
 
     public static readonly IReadOnlyList<Role> All =
     [
         SiteStudy, Site, AllocationCategory, CategorizedAs, WaterDemandComponent, PropertyName, ProposedSite,
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
-        ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, RootPlace, PlaceNesting,
+        ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterProDataPage, SubmitterLiteDataPage, RootPlace,
+        PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
         PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
-        SourcedFrom, ShownUnder,
+        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare,
+        MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
+        VerifiedRequestBudget, UnverifiedRequestBudget,
     ];
+
+    // A request naming any other role is refused before the model is read, so a stranger's browser reaches only
+    // these pages and never whatever else a project binds.
+    public static readonly IReadOnlyList<Role> SubmitterPages = [SubmitterProDataPage, SubmitterLiteDataPage];
 }

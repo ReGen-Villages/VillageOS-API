@@ -1,11 +1,7 @@
 import type { Binding, Widget } from '@tendril-ui/tendril';
 
-/**
- * The rows a widget draws, and the kind those rows are. Two things want the answer — the panel that
- * offers row keys, and the builder that resolves `$scope` inside a column — so it is answered once.
- */
+/** Answered once, because the panel offering row keys and the builder resolving `$scope` in a column both ask. */
 
-/** The binding a widget draws its rows from, where it has one. */
 export function rowsBindingOf(widget: Widget): Binding | undefined {
   switch (widget.type) {
     case 'table':

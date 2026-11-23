@@ -3,7 +3,7 @@ import type { RelationStep } from '@tendril-ui/tendril';
 import { edgesFrom, kindsOffered, propertiesOf, type EdgeCandidate, type PropertyCandidate } from '../../api/modelDeclaration';
 
 /**
- * The model's own words, as the binding builder offers them: the three readings the Compose page
+ * The model's own words, as the binding builder offers them: the readings the Compose page
  * built, remembered per kind for the life of one index, and the kind a path has reached so far —
  * which is what the next hop and the property at the end are offered for.
  */

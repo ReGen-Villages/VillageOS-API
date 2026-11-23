@@ -62,7 +62,7 @@ public sealed class EndpointCallService
     // call would go out unauthenticated. The subscription client throws on any non-success status, so
     // the catch is what keeps a momentary gateway failure from escaping this method as an exception
     // rather than the 502 every other gateway call here produces.
-    private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed)?> ReadEndpointAsync(
+    private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed, bool IsHistorySource)?> ReadEndpointAsync(
         Guid endpointId, CancellationToken cancellationToken)
     {
         SnapshotReadResult read;
@@ -80,7 +80,8 @@ public sealed class EndpointCallService
             return null;
         }
 
-        return (EndpointKindResolver.Resolve(read.Snapshot, endpointId), ObservedEdges.Resolve(read.Snapshot, endpointId));
+        return (EndpointKindResolver.Resolve(read.Snapshot, endpointId), ObservedEdges.Resolve(read.Snapshot, endpointId),
+            EndpointKindResolver.IsHistorySource(read.Snapshot, endpointId));
     }
 
     // A call cut short by the deadline answers with what it was waiting on, so Mycelium is told why instead
@@ -128,7 +129,8 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
-        if (!TryPlanCall(request, thing.Value.Id, effective, EndpointKinds.Reached(endpoint.Kinds), out var plan, out var refusal))
+        if (!TryPlanCall(request, thing.Value.Id, effective, EndpointKinds.Reached(endpoint.Kinds), endpoint.IsHistorySource,
+                out var plan, out var refusal))
             return refusal.ToResult();
 
         deadline.Awaiting = AwaitedStep.DataSource;
@@ -165,6 +167,7 @@ public sealed class EndpointCallService
         Guid endpointThingId,
         IReadOnlyDictionary<string, JsonElement> effective,
         EndpointKinds kinds,
+        bool depositsTimedReadings,
         [NotNullWhen(true)] out EndpointCallPlan? plan,
         [NotNullWhen(false)] out Refusal? refusal)
     {
@@ -187,7 +190,7 @@ public sealed class EndpointCallService
             return false;
         if (!EndpointCallChecks.TryRequestContentType(effective, out var requestContentType, out refusal))
             return false;
-        // Optional Accept for content-negotiating upstreams (e.g. image/tiff from an ImageServer);
+        // Optional Accept for content-negotiating upstreams (such as image/tiff from an ImageServer);
         // a dedicated structural key like requestContentType, not an entry in the headers map.
         if (!EndpointCallChecks.TryOptionalText(effective, "acceptHeader", out var acceptHeader, out refusal))
             return false;
@@ -217,7 +220,7 @@ public sealed class EndpointCallService
 
         plan = new EndpointCallPlan(
             address, binaryResponse, reshape, headers, queryParameters, requestContentType, acceptHeader,
-            statedTimeout ?? OutboundRequest.DefaultTimeout, unavailability, credential, paging, cacheFor, keep);
+            statedTimeout ?? OutboundRequest.DefaultTimeout, unavailability, credential, paging, cacheFor, keep, depositsTimedReadings);
         return true;
     }
 
@@ -234,7 +237,8 @@ public sealed class EndpointCallService
         Credential? Credential,
         OffsetPaginationConfig? Paging,
         TimeSpan? CacheFor,
-        KeepPlan? Keep);
+        KeepPlan? Keep,
+        bool DepositsTimedReadings);
 
     private async Task<(OutboundCall? Call, EndpointCallResult? TokenFailure)> PrepareOutboundAsync(
         EndpointCallRequest request, EndpointCallPlan plan, PassedOnRequestDeadline deadline)
@@ -416,12 +420,29 @@ public sealed class EndpointCallService
 
         if (plan.Reshape.Transform is { } transform && status is >= 200 and < 300)
         {
-            deadline.Awaiting = AwaitedStep.ReadingsWrite;
+            deadline.Awaiting = AwaitedStep.Reshaping;
+            var started = _clock.GetTimestamp();
+            var reshapedIn = TimeSpan.Zero;
             var ingestResult = await _observationService.CreateObservationsAsync(
-                endpointThingId, transform, body, request.SubjectId, observed, deadline.Token);
+                endpointThingId, transform, body, request.SubjectId, observed, deadline.Token,
+                onReshaped: () =>
+                {
+                    reshapedIn = _clock.GetElapsedTime(started);
+                    // The reshape cannot be cancelled, so a deadline it overran is noticed here, before anything is written.
+                    deadline.Token.ThrowIfCancellationRequested();
+                    deadline.Awaiting = AwaitedStep.ReadingsWrite;
+                },
+                depositsTimedReadings: plan.DepositsTimedReadings);
+            if (ingestResult is { Success: false, CanBeTriedAgain: true })
+                return Problem(503, ingestResult.Error!, ingestResult.Detail ?? ingestResult.Error!);
             if (!ingestResult.Success)
                 return new Refusal(400, ingestResult.Error ?? "Observation ingest failed.",
                     new Dictionary<string, object?> { ["detail"] = ingestResult.Detail }).ToResult();
+
+            _logger.LogInformation(
+                "Endpoint {EndpointName} answered {Characters} characters, reshaped in {ReshapeMilliseconds:0} ms; {Readings} readings written in {WriteMilliseconds:0} ms",
+                request.EndpointName, body.Length, reshapedIn.TotalMilliseconds, ingestResult.ObservationsSubmitted,
+                (_clock.GetElapsedTime(started) - reshapedIn).TotalMilliseconds);
 
             return EndpointCallResult.Ingested(new IngestSummary(
                 endpointThingId, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted,

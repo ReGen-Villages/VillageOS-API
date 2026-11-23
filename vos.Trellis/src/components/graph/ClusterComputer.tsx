@@ -4,7 +4,6 @@ import { useUiStore } from '../../stores/uiStore';
 import { useModelStore } from '../../stores/modelStore';
 import { computePredicateStatisticsFromModel, computeClusters } from '../../utils/predicateCluster';
 
-/** Renderless; runs inside <SigmaContainer> to access the graphology graph. */
 export function ClusterComputer() {
   const sigma = useSigma();
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
@@ -13,8 +12,8 @@ export function ClusterComputer() {
 
   const activePredicateKey = [...activePredicateIds].sort().join(',');
 
-  // Stats from full model (not filtered graph) so predicates like
-  // consumes/produces still appear when map-mode reduction hides endpoints.
+  // Counted from the whole model rather than the drawn graph, so a predicate still appears when the map view
+  // hides its endpoints.
   useEffect(() => {
     if (things.length === 0) return;
     const state = useUiStore.getState();
@@ -56,7 +55,7 @@ export function ClusterComputer() {
       return;
     }
 
-    // Delay lets graph data settle after SSE updates.
+    // The delay lets the graph settle after a run of streamed updates.
     const timer = setTimeout(() => {
       if (graph.order === 0) {
         // Graph not loaded yet — clear stale data so NodeReducer falls

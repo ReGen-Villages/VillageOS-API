@@ -10,6 +10,7 @@
 
 import { onEarth } from '../utils/mapLink';
 import { draftSquareAround, enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
+import { everyFigureReads, figuresFrom } from './typedFigure';
 
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
@@ -26,12 +27,12 @@ export type StepId = (typeof STEPS)[number];
 /**
  * How a boundary came to be, in the words the land-intake template declares and the intake service
  * resolves against the model. The wizard states this itself rather than asking — it knows whether it
- * generated the square — so these are the two declared terms it can truthfully submit.
+ * generated the square — so these are the declared terms it can truthfully submit.
  */
 export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
 export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';
 
-export type BoundaryObtainedBy =
+type BoundaryObtainedBy =
   | typeof BOUNDARY_DRAWN_BY_HAND
   | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
 
@@ -132,9 +133,8 @@ export function statedAreaHectares(draft: SubmissionDraft): number | null {
   return typed === null ? null : toHectares(typed, draft.areaUnit);
 }
 
-/** A figure a planner typed, where a negative one would be a mistake rather than a value: an area, a
- *  population, a household size. Zero is allowed through — somebody stated it — but a word, an empty
- *  box or a minus sign is absent. */
+/** An area, where a negative one would be a mistake rather than a value. Zero is allowed through —
+ *  somebody stated it — but a word, an empty box or a minus sign is absent. */
 function positiveNumberFrom(typed: string): number | null {
   const value = numberFrom(typed);
   return value === null || value < 0 ? null : value;
@@ -265,26 +265,44 @@ export function withStepVisited(draft: SubmissionDraft, step: StepId): Submissio
  *
  * Whether the address is one is left to the service. A second rule here could only disagree with it, and
  * a refusal names the field to correct.
+ *
+ * A figure that cannot be read holds it back too, since leaving it out would read as sent.
  */
 export function readyToSubmit(draft: SubmissionDraft): boolean {
   return (
     [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
       (given) => given.trim().length > 0,
     ) && enclosesLand(draft.boundary)
+    && everyFigureReads(draft)
   );
 }
 
 /** What a person marks against one hazard. An empty word clears it: saying nothing about a hazard has
  *  to stay possible after saying something, or a mis-click is a report they cannot take back. */
-export function withHazardReported(
-  draft: SubmissionDraft,
+export function withHazardReported<Held extends { readonly reportedHazards: ReportedHazards }>(
+  held: Held,
   hazardType: string,
   reportedLevel: string,
-): SubmissionDraft {
-  const reported = { ...draft.reportedHazards };
+): Held {
+  const reported = { ...held.reportedHazards };
   if (reportedLevel.length === 0) delete reported[hazardType];
   else reported[hazardType] = reportedLevel;
-  return { ...draft, reportedHazards: reported };
+  return { ...held, reportedHazards: reported };
+}
+
+/** Rebuilt corner by corner, so a corner carrying anything beyond its coordinates does not post it. Below
+ *  three corners a boundary encloses nothing and is not a parcel. */
+function parcelFrom(
+  boundarySource: string | null,
+  boundary: readonly BoundaryPoint[],
+): Pick<SubmissionDocument, 'parcel'> {
+  if (boundary.length < 3 || boundarySource === null) return {};
+  return {
+    parcel: {
+      boundarySource,
+      boundary: boundary.map((corner) => ({ latitude: corner.latitude, longitude: corner.longitude })),
+    },
+  };
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
@@ -316,31 +334,12 @@ export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
       ...defined('latitude', numberFrom(draft.latitude)),
       ...defined('longitude', numberFrom(draft.longitude)),
       ...defined('statedAreaHectares', statedAreaHectares(draft)),
-      ...defined('population', wholeNumberFrom(draft.population)),
-      ...defined('householdSize', positiveNumberFrom(draft.householdSize)),
+      ...figuresFrom(draft),
     },
-    // Rebuilt corner by corner so a stored corner carrying anything beyond its coordinates does not
-    // post it. Below three corners a boundary encloses nothing and is not a parcel.
-    ...(draft.boundary.length >= 3 &&
-      draft.boundarySource !== null && {
-        parcel: {
-          boundarySource: draft.boundarySource,
-          boundary: draft.boundary.map((corner) => ({
-            latitude: corner.latitude,
-            longitude: corner.longitude,
-          })),
-        },
-      }),
+    ...parcelFrom(draft.boundarySource, draft.boundary),
     ...(allocations.length > 0 && { allocations }),
     ...(hazards.length > 0 && { hazards }),
   };
-}
-
-/** A count of people is a whole number: a population typed with a decimal point is a slip, and rounding
- *  it silently would record a figure nobody stated. */
-function wholeNumberFrom(typed: string): number | null {
-  const value = positiveNumberFrom(typed);
-  return value !== null && Number.isInteger(value) ? value : null;
 }
 
 function defined(name: string, value: number | null): Record<string, number> {

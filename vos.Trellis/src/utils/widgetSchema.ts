@@ -3,12 +3,9 @@ import type { HistoryFold, HistoryFunction } from '@tendril-ui/tendril';
 import { en } from '../i18n/locales/en';
 
 /**
- * What each widget and each binding is made of, as fields the properties panel draws.
- *
- * The contract is written twice otherwise — once as types, once as controls — and the two drift the
- * day a key is added to one. Here each kind's fields are stated once, the panel draws them, and the
- * types hold the table to the union: a kind without a schema fails the build, and a field key the
- * English words do not name does not compile.
+ * Each kind's fields are stated once and the properties panel draws them, because a contract written both as
+ * types and as controls drifts apart the day a key is added to one. The types hold this table to the union,
+ * so a kind without a schema, or a field key no English word names, fails the build.
  */
 
 const EVERY_NUMBER_FORMAT: Record<NumberFormat, true> = {
@@ -22,8 +19,8 @@ const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
 const SEVERITIES = ['good', 'warning', 'critical'] as const;
 const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
 const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
-const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all'];
-const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
+const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all', 'value', 'monthOfYear,value', 'cell', 'monthOfYear,cell'];
+const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow', 'CountAtOrAbove'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
 export const STEP_DIRECTIONS = ['out', 'in'] as const;
 
@@ -34,7 +31,7 @@ export type BindingFieldKey = keyof typeof en.design.bindingField;
 export type Offering = 'kinds' | 'property' | 'state' | 'thing' | 'endpoint' | 'rowKey' | 'predicate';
 
 /** What a slot expects a binding to resolve to, so the fitting kinds are offered first. */
-export type BindingShape = 'number' | 'rows' | 'series' | 'verdicts';
+export type BindingShape = 'number' | 'rows' | 'series' | 'verdicts' | 'shape';
 
 interface FieldBase {
   key: WidgetFieldKey | BindingFieldKey;
@@ -137,13 +134,29 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
     title, hint, binding('rows', 'rows'), text('labelKey', 'rowKey', true), text('orderKey', 'rowKey', true),
     list('parts', [text('label'), text('key', 'rowKey', true), text('colour', undefined, true)]), format, unit, floor, ceiling,
   ],
+  polarShares: [
+    title, hint, binding('counts', 'series'), binding('cells', 'rows'), text('bearingKey', 'rowKey', true),
+    text('classOrderKey', 'rowKey', true), text('classLabelKey', 'rowKey', true), text('classColourKey', 'rowKey', true),
+    text('classWordingKey', 'rowKey', true),
+  ],
+  densityGrid: [
+    title, hint, binding('cells', 'series'), binding('coverage', 'rows'),
+    group('across', [text('label'), unit]), group('up', [text('label'), unit]),
+    list('outlines', [text('label'), text('colour', undefined, true), binding('shape', 'shape')]),
+  ],
   lineSeries: [title, hint, list('series', [text('label'), binding('value', 'number')]), format, unit, floor, ceiling],
   heatmap: [
     title, hint, binding('value', 'number'),
     group('sun', [binding('latitude', 'number'), binding('longitude', 'number'), binding('utcOffsetSeconds', 'number')]),
     list('classes', rangeBand), format, unit, floor, ceiling,
   ],
-  stackedShares: [title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')])],
+  stackedShares: [
+    title, hint, list('classes', [text('label'), text('colour', undefined, true), binding('share', 'number'), binding('annual', 'number')]),
+    group('counted', [
+      binding('counts', 'series'), binding('annual', 'series'), binding('groups', 'rows'), text('orderKey', 'rowKey', true),
+      text('labelKey', 'rowKey', true), text('colourKey', 'rowKey', true), text('wordingKey', 'rowKey', true),
+    ]),
+  ],
   divergingBar: [title, hint, group('up', side), group('down', side), format, unit],
   smallMultiples: [title, hint, group('bars', namedSeries), group('line', namedSeries), group('band', rangeBand)],
   action: [
@@ -154,6 +167,8 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
 };
 
 const historyStep = [choice('fold', FOLDS), choice('function', FUNCTIONS), bound('percentile'), bound('from'), bound('to'), bound('threshold')];
+const historyBins = [number('width'), number('upTo')];
+const HISTORY_ANSWERS = ['groups', 'coverage'] as const;
 
 export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   const: [number('value')],
@@ -163,6 +178,7 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   aggregate: [archetype, choice('reduction', REDUCTIONS), property, where, scope],
   property: [thing, property],
   related: [steps, thing, property],
+  value: [steps, thing, property],
   stateOf: [strings('states', 'state'), thing],
   verdict: [list('states', [state, text('reads'), group('levers', [text('raise'), text('lower')])]), thing, steps],
   working: [property, thing, steps],
@@ -172,7 +188,10 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   timeseries: [archetype, text('happenedAt', 'property', true), property, choice('reduction', REDUCTIONS), number('bucketSeconds'), number('buckets'), number('bucketsPerPoint'), scope],
   latest: [binding('series', 'series')],
   service: [text('endpoint', 'endpoint', true), { key: 'body', kind: 'json' }, text('select', undefined, true)],
-  history: [property, number('windowSeconds'), list('steps', historyStep)],
+  history: [
+    property, number('windowSeconds'), list('steps', historyStep), group('bins', historyBins),
+    group('pairedWith', [property, group('bins', historyBins)]), choice('answer', HISTORY_ANSWERS),
+  ],
 };
 
 export const BINDING_KINDS = Object.keys(BINDING_SCHEMAS) as Binding['kind'][];
@@ -186,6 +205,7 @@ const SHAPES: Record<Binding['kind'], BindingShape[]> = {
   aggregate: ['number'],
   property: ['number'],
   related: ['number'],
+  value: ['shape'],
   stateOf: ['number'],
   verdict: ['verdicts'],
   working: ['number'],

@@ -53,6 +53,23 @@ public class SnapshotParserTests
     }
 
     [Fact]
+    public void A_property_the_model_holds_as_null_reads_as_null()
+    {
+        var nodeRun = Guid.NewGuid();
+        var json = $$"""
+        { "snapshot": { "watermark": 1, "relationships": [], "things": [
+          { "Id": "{{nodeRun}}", "Name": "NodeRun Echo",
+            "Properties": { "error": { "typeInfo": "vos.String", "value": null }, "status": { "typeInfo": "vos.String", "value": "succeeded" } } }
+        ] } }
+        """;
+
+        var held = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement).Thing(nodeRun)!;
+
+        held.PropertyString("error").Should().BeNull();
+        held.PropertyString("status").Should().Be("succeeded");
+    }
+
+    [Fact]
     public void Parse_UnwrapsThingPropertyValues()
     {
         var pipe = Guid.NewGuid();

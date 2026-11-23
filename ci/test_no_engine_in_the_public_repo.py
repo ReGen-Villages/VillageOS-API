@@ -30,8 +30,8 @@ class AnImportItRefuses(unittest.TestCase):
     def test_one_written_as_a_static_using(self):
         self.assertEqual('vos.Core.Names', imports_an_engine_namespace('using static vos.Core.Names;'))
 
-    # The form the check this replaced could not see at all: an alias puts a name between `using` and
-    # the namespace, so a pattern anchored on `using` followed by the namespace never matched it.
+    # An alias puts a name between `using` and the namespace, so a pattern anchored on `using` followed
+    # by the namespace would not see this form at all.
     def test_one_written_as_an_alias(self):
         self.assertEqual('vos.Core.VosThing',
                          imports_an_engine_namespace('using Thing = vos.Core.VosThing;'))
@@ -42,7 +42,7 @@ class AnImportItRefuses(unittest.TestCase):
 
 class AnImportItAllows(unittest.TestCase):
     # The host a consumer is meant to compile against. Refusing it would refuse the supported way of
-    # testing against the platform, which is what this repository now does.
+    # testing against the platform, which is how this repository tests against it.
     def test_the_testing_host(self):
         self.assertIsNone(imports_an_engine_namespace('using vos.Mycelium.Testing;'))
 
@@ -61,6 +61,24 @@ class AnImportItAllows(unittest.TestCase):
 
     def test_a_line_that_is_not_an_import(self):
         self.assertIsNone(imports_an_engine_namespace('// using vos.Core; would be refused'))
+
+
+class TheSharedClientLibrary(unittest.TestCase):
+    """The library every program reaches the platform through is named for the platform, so the guard must
+    tell it from the engine by the whole name."""
+
+    def test_its_namespace_is_not_an_engine_one(self):
+        self.assertIsNone(imports_an_engine_namespace('using vos.PlatformClient;'))
+
+    def test_its_folder_project_and_imports_pass(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.mkdir(os.path.join(root, 'vos.MyceliumClient'))
+            with open(os.path.join(root, 'A.csproj'), 'w', encoding='utf-8') as handle:
+                handle.write('<ProjectReference Include="..\\vos.MyceliumClient\\vos.MyceliumClient.csproj" />\n')
+            with open(os.path.join(root, 'A.cs'), 'w', encoding='utf-8') as handle:
+                handle.write('using vos.PlatformClient;\nglobal using vos.PlatformClient;\n')
+
+            self.assertEqual([], problems(root))
 
 
 class AFileHoldingBoth(unittest.TestCase):

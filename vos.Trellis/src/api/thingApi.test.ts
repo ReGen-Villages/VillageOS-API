@@ -37,8 +37,6 @@ describe('thingApi.getAll narrowing', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/things?properties=ifcClass%2CifcGlobalId');
   });
 
-  // A model that declares nothing gets everything: its properties may be the live values a dashboard
-  // is watching, and deferring those helps nobody.
   it('asks for everything when the model declared nothing', async () => {
     mockGet.mockResolvedValue([]);
     await thingApi.getAll();
@@ -73,8 +71,6 @@ describe('thingApi.getBoundBy', () => {
 });
 
 describe('thingApi.getEffectiveProperties', () => {
-  // The backend renamed /effective-properties to /properties; the caller
-  // must track it or the Inherited section renders nothing.
   it('requests the /properties route', async () => {
     mockGet.mockResolvedValue({});
     await thingApi.getEffectiveProperties('thing-1');
@@ -91,9 +87,7 @@ describe('thingApi.create', () => {
 });
 
 describe('thingApi property writes', () => {
-  // A Thing has two property routes, and they are not interchangeable: the update one
-  // answers "Property does not exist on the thing" for a name it has never seen. Adding through it
-  // fails every time.
+  // The update route refuses a name it has never seen, so adding through it fails every time.
   it('adds through the create route, not the update route', async () => {
     mockPost.mockResolvedValue({ Id: 'thing-1', Name: 'One', Properties: {} });
     await thingApi.addProperty('thing-1', 'door_number', 'vos.String', '12');

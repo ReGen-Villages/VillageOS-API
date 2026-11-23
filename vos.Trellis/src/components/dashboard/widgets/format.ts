@@ -1,60 +1,16 @@
 import type { NumberFormat, TableColumn } from '@tendril-ui/tendril';
 import type { OriginKind } from '@tendril-ui/tendril';
 import type { Row } from '@tendril-ui/tendril';
-import { numberIn } from '../../../i18n/numbers';
+import { formatNumberIn } from '@tendril-ui/tendril';
+import i18n from '../../../i18n';
 
+/** A figure in the format a page description names for it, in the page language. */
 export function formatNumber(value: number | null | undefined, fmt?: NumberFormat): string {
-  if (value === null || value === undefined || isNaN(value)) return '—';
-  switch (fmt) {
-    case 'integer':
-      return numberIn(Math.round(value));
-    case 'decimal1':
-      return numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    case 'decimal2':
-      return numberIn(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    case 'percent':
-      return numberIn(value, { style: 'percent', maximumFractionDigits: 0 });
-    case 'percent1':
-      return numberIn(value, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    case 'percentOutOf100':
-      return numberIn(value / 100, { style: 'percent', maximumFractionDigits: 0 });
-    case 'hours':
-      return `${numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
-    case 'money':
-      return numberIn(value, { style: 'currency', currency: 'USD' });
-    case 'compact':
-      return numberIn(value, { notation: 'compact', maximumFractionDigits: 1 });
-    case 'bytes':
-      return formatBytes(value);
-    default:
-      return numberIn(value);
-  }
+  return formatNumberIn(value, fmt, i18n.language);
 }
 
-const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
-const BYTE_FRACTION_DIGITS = 1;
-
-function roundedAsShown(figure: number): number {
-  return Math.round(figure * 10 ** BYTE_FRACTION_DIGITS) / 10 ** BYTE_FRACTION_DIGITS;
-}
-
-function formatBytes(value: number): string {
-  const size = Math.abs(value);
-  let unitIndex = 0;
-  while (unitIndex < BYTE_UNITS.length - 1 && roundedAsShown(size / 1024 ** unitIndex) >= 1024) {
-    unitIndex++;
-  }
-  const figure = numberIn(value / 1024 ** unitIndex, { maximumFractionDigits: BYTE_FRACTION_DIGITS });
-  return `${figure} ${BYTE_UNITS[unitIndex]}`;
-}
-
-/** Tailwind classes colouring a status/state pill by its wording. Shared by the table
- *  `badge` cell and the detail window's derived-state pills so tones stay consistent.
- *
- *  The vocabulary is deliberately domain-neutral status wording only: a model's own terms
- *  must not be listed here, since Trellis renders any model. A term it cannot read
- *  generically falls through to the neutral tone until the model supplies its own
- *  mapping. */
+/** Shared by the table's badge cell and the detail window's state pills, so the tones agree. Only neutral status
+ *  words are listed, because Trellis draws any model; a model's own term takes the neutral tone. */
 export function badgeTone(value: string): string {
   const v = value.toLowerCase();
   if (/crit|overdue|fail|error|out|held|block|below/.test(v))
@@ -102,10 +58,8 @@ export function deltaTone(
   return good ? 'up' : 'down';
 }
 
-/** The largest value in each `agebar` column, which that column's bars are drawn as a fraction of.
- *  A loop rather than `Math.max(...values)`: a roster no longer needs a row cap to keep a page
- *  responsive, so the list reaching here has no bound, and spreading a long one over a call
- *  overflows the stack somewhere past a hundred thousand rows. */
+/** A loop rather than `Math.max(...values)`, because a roster has no row cap, and spreading a very long one over
+ *  a call overflows the stack. */
 export function columnMaxima(rows: Row[], columns: TableColumn[]): Record<string, number> {
   const maxima: Record<string, number> = {};
   for (const column of columns) {

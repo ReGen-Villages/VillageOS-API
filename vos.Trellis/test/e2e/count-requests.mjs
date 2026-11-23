@@ -1,6 +1,5 @@
-// A console tab that counts. It signs in, opens one page, watches for a while, and writes how many
-// requests the tab made per route and how many stream events it handled per kind — the numbers behind
-// the claims about the console's request rate under a busy model, which only a tab can count.
+// Signs in, opens one page, watches it, and writes how many requests the tab made per route and how many
+// stream events it handled per kind, which only a real browser tab can count.
 //
 //   node test/e2e/count-requests.mjs --url http://127.0.0.1:5099 --page / --seconds 60 --out counts.json
 //
@@ -29,7 +28,7 @@ async function signIn(page) {
   await page.type('#username', USERNAME);
   await page.type('#password', PASSWORD);
   await page.click('button[type=submit]');
-  // Signing in never navigates; the form leaves the page, for the console or for the model picker.
+  // Signing in does not navigate, so the wait is for the form to go.
   await page.waitForSelector('#username', { hidden: true, timeout: 15000 });
   if (chosen.model) {
     const picked = await page.evaluate((name) => {

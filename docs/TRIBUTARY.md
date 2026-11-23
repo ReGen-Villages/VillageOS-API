@@ -2,17 +2,30 @@
 
 Tributary is VillageOS's generic outbound HTTP fetcher. Given an endpoint registered
 in Mycelium, it resolves that endpoint's effective properties, performs the HTTP call
-(with optional auth and pagination), optionally reshapes the response with a JSONata
-expression, and ingests the readings as time-series observations on each entity's series.
+(with optional authentication and paging), optionally reshapes the response with a JSONata
+expression, and writes the readings onto each entity's time series.
 
-It also answers the orchestrator's step request, so a fetch can be a box on a pipeline canvas. Its
-`call` input is a collection, so a list runs once per item, and holds `endpointName`, `subjectId` and
-`addressParameters`; its `outcome` output holds the call as handed plus `written`, or `reason` on a
-failure. `GET /manifest` declares both. As a step, a refusal is a `fail` answer whose error is
-`<status>: <words>`. It may be tried again — `retry`, with the provider's `Retry-After` as
-`afterSeconds` — for 408, 425, 429, every 5xx, the provider-away 404, and a provider that could not
-be reached or did not answer in time. Any other refusal, and a registration whose settings will not
-do, is final.
+It also answers the orchestrator's step request, so a fetch, or a request to have a Thing's history
+judged, can be a box on a pipeline canvas. The box's `step` setting chooses which: `fetch` or
+`historyChanged`, and `GET /manifest/{step}` declares each one's ports. `GET /manifest` still answers
+the fetch step's ports. A box naming no step is fetched.
+
+The fetch step's `call` input is a collection, so a list runs once per item, and holds `endpointName`,
+`subjectId` and `addressParameters`; its `outcome` output holds the call as handed plus `written`, or
+`reason` on a failure. As a step, a refusal is a `fail` answer whose error is `<status>: <words>`,
+followed by `: <detail>` when the refusal carries one, such as why a reshape failed; the detail is cut
+at the same length as a provider's words. It may be tried again — `retry`, with the provider's
+`Retry-After` as `afterSeconds` — for 408, 425, 429, every 5xx, the provider-away 404, and a provider
+that could not be reached or did not answer in time. Any other refusal, and a registration whose
+settings will not do, is final.
+
+The `historyChanged` step takes one Thing on its `subject` input, as its id or an object naming it by
+`id`, and asks the broker to judge that Thing's stored history
+(`POST /api/things/{id}/history/changed`): its current values move to the newest stored readings and
+the derived values reading those series are worked out again. The step passes `subject` on. A refusal
+below 500, such as a Thing the broker does not find or may not write, fails it for good. A 5xx (a busy
+broker's 503 with its `Retry-After`), a broker that cannot be reached, or no answer in time fails it
+so it may be tried again.
 
 It is deliberately **source-agnostic** — there is no per-API code. A specific source
 (ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint, a map-tile server) is expressed
@@ -90,7 +103,7 @@ value and whether it is expected to be overridden.
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible because the template declares it; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParameter`, `pageSizeParameter`, `hasMorePath`, `itemsPath` |
 | **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s; an endpoint whose `timeout` is not shorter than `--passedOnRequestLimitSeconds` is warned about once, the first time it is used, naming both numbers and the property to change), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
-| **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
+| **optional** | May be absent entirely; the feature is then off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
 reaches `TokenExchangeAuthentication`, `OffsetPaging`, or `BinaryResponse` through its template's
@@ -179,7 +192,11 @@ look the same once they are in the model.
   leaves every value after it with no source at all.
 - **One relationship per registration per Thing.** Running discovery twice leaves one. The scoped read
   the call already makes for the endpoint's kinds also asks for the endpoint's observed relationships,
-  through the `observed` role, so the check costs no second call.
+  through the `observed` role, so the check costs no second call. Two calls writing onto one Thing at
+  once can both read it as not yet observed, so both write the relationship. It goes through the
+  broker's fragment route, which leaves a relationship already held alone, so both calls succeed and
+  the Thing still carries one. A relationship the model really refuses still fails the call before any
+  value is written.
 - **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
   about leaves no relationship claiming otherwise. The relationship is written before the values, so a
   refused relationship leaves nothing behind that cannot be traced back.
@@ -196,16 +213,16 @@ look the same once they are in the model.
   came from which. A property is not a Thing here, so there is nothing for a per-property relationship
   to point at.
 
-## Token-exchange auth + offset paging
+## Token-exchange authentication and offset paging
 
 Tributary stays source-agnostic: it has **generic** capabilities — a token-exchange
-auth provider, an offset paginator, and a binary body reader — each selected by the
-kind an endpoint reaches and driven entirely by endpoint-template config. There is no
-ArcGIS vocabulary in the code; ESRI is just one configuration (see *The `EsriEndpoint`
+authentication provider, an offset paginator, and a binary body reader — each selected by the
+kind an endpoint reaches and driven entirely by the endpoint templates' settings. There is no
+ArcGIS vocabulary in the code; ESRI is one configuration among others (see *The `EsriEndpoint`
 template* below).
 
 **Authentication.** An endpoint that reaches no kind through `authenticatesBy` makes a
-plain REST call (a *static* key needs no auth kind — configure it directly as a
+plain REST call (a *static* key needs no authentication kind — configure it directly as a
 `queryParams` entry or header). Reaching **`TokenExchangeAuthentication`** selects the
 token-exchange mechanism:
 
@@ -213,10 +230,10 @@ token-exchange mechanism:
   by POSTing the configured `tokenRequest` form fields to `tokenUrl`, reading the token
   out at the simple dotted `tokenPath` (and optional `expiryPath` + `expiryUnit` of
   `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
-  `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until ~75% of
-  lifetime elapses (`TimeProvider`-driven), then refreshed. The credential attaches as a
-  query param (`tokenParameter`, default `token`) or, if `tokenHeader` is set, a request
-  header (`tokenScheme` + value). Missing mint config is a 400; a token-endpoint failure
+  `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until three quarters of
+  its lifetime has passed on the service's clock, then refreshed. The credential attaches as a
+  query parameter (`tokenParameter`, default `token`) or, if `tokenHeader` is set, a request
+  header (`tokenScheme` + value). A missing mint setting is a 400; a token-endpoint failure
   surfaces as a **generic** 502 (the upstream message may name the credential and is not
   echoed to the caller — it is logged).
 
@@ -226,12 +243,12 @@ advancing `offsetParameter` (by `pageSize` via `pageSizeParameter`, else by the 
 count) while the page's `hasMorePath` boolean is true, and concatenates every page's
 array at `itemsPath` into the first page's body. Aggregation happens **before** the
 JSONata `responseTransform` runs, so the transform sees the complete result, not page
-one. Paths are simple dotted keys (e.g. `data.features`). A page answered outside 2xx ends
+one. Paths are simple dotted keys (such as `data.features`). A page answered outside 2xx ends
 the walk and is what the caller gets, status and body — see below.
 
 **The `EsriEndpoint` template.** The canonical template ships in the platform's shared site
 template, with the predicates `authenticatesBy` and `pagesBy` beside it. The kinds are Things whose
-property keys are what a registration must supply. ESRI is expressed purely as config on a child
+property keys are what a registration must supply. ESRI is expressed purely as settings on a child
 template that extends `Endpoint` and restates only the keys it narrows. In outline:
 
 ```json
@@ -337,13 +354,13 @@ never the bytes, exactly because of those two constraints.
 **Caching to local disk.** An endpoint that reaches the **`DiskCache`** kind through
 `cachesBy` serves a repeated fetch from the service's disk while the entry is younger
 than **`cacheTtl`** (seconds — the kind requires it, so caching without a stated
-retention is refused; the TTL is also where Esri's terms-of-use retention limit lives).
+retention is refused; this retention is also where Esri's terms-of-use retention limit lives).
 The cache key is the fully-resolved address — placeholders filled, query attached — plus
 the Accept header, since the same address can answer with different formats. Entries are
 **real files with real extensions** under `cache/{endpointName}/` (`.png`, `.jpg`,
 `.webp`, `.tif`, `.pbf`, `.json` via a generic media-type map; an unknown type falls back
 to `.bin` plus a `.meta.json` sidecar carrying the exact Content-Type), so a cached tile
-opens in any viewer. Expired entries simply miss and are overwritten by the next fetch —
+opens in any viewer. Expired entries miss and are overwritten by the next fetch —
 no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
 paging, a credentialed (`TokenExchangeAuthentication`) call, and a request with an outbound body
 (none of which are part of the key). The cache root is deployment configuration
@@ -360,7 +377,7 @@ Tributary posts the response bytes — Content-Type and all — to the broker's 
 onto the model through the ordinary observation lane. The bytes never enter the model: the
 ticket is an ordinary ~71-character scalar on a property series, so property history and as-of
 reads work unchanged. Content identity, not a location pointer, is what
-[`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key IS the address.
+[`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key is the address.
 
 What the broker promises about what it keeps:
 
@@ -418,7 +435,7 @@ reason nobody was told.
 **404 is the exception, because it is an answer.** A portal holding no entry for a
 division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
 written, the subject stays honestly unassessed, and the call counts as done — asking again
-every quarter of an hour would never get a different answer. A 404 carrying the words configured
+would never get a different answer. A 404 carrying the words configured
 under `ProviderUnavailable` in `appsettings.json` (`404 page not found` by default), or the endpoint's
 own `unavailableAnswer`, is the proxy's answer while the provider restarts, not the provider's:
 Tributary asks once more after `RetryAfterSeconds` (15 by default; the endpoint's
@@ -438,7 +455,7 @@ provider that issues per-caller identifiers is served from the model with no cha
 
 Tributary's contract is **fetch-and-shape**:
 
-1. **Fetch** — one outbound HTTP call (auth + pagination as configured), aggregating any
+1. **Fetch** — one outbound HTTP call (authentication and paging as configured), aggregating any
    pages into a single body.
 2. **Shape** — an optional JSONata `responseTransform` projects the response into the
    reading shape (`[{ name, properties, observedAt? }]`). JSONata here is *structural* —
@@ -449,7 +466,7 @@ Tributary's contract is **fetch-and-shape**:
    — `$now()` or `$millis()` — is answered from the model clock too, because the expression is the
    model's rather than service code. `$now()` takes no arguments here; a transform wanting a
    formatted instant writes `$fromMillis($millis(), picture)`, which reads the same clock.
-3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
+3. **Ingest** — readings are grouped by entity `name`. Each entity is a
    Thing created **once** (its first reading seeds the observable properties, each bounded to the
    `SampledByTime` PropertyMode with a 60-second slot) and related to the endpoint through an `observed` relationship — **one per
    entity**,
@@ -457,6 +474,12 @@ Tributary's contract is **fetch-and-shape**:
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
+   On a call that names its subject, a **history source's** readings that carry a time go to
+   `POST /api/sediment` instead, into long-term storage without working anything out again, until the
+   subject's history is judged (the discovery drawing's Judge history box, through the
+   `historyChanged` step above). A reading without a time, and every reading from any other source,
+   keeps the observations route. A history source is an endpoint beneath the Thing the
+   `historySource` role binds.
    A broker whose readings queue is full refuses the batch whole with 503 and `Retry-After`; Tributary
    waits the seconds given and sends the same batch again, a bounded number of times, and only then
    drops it and reports the ingest as failed. A refusal that names no wait, or a wait too long for the
@@ -465,7 +488,10 @@ Tributary's contract is **fetch-and-shape**:
    **The deadline.** When Mycelium passes `--passedOnRequestLimitSeconds`, Tributary gives each request
    it is passed one deadline: that limit minus 2 seconds from when it arrives. Every call made while
    answering gets the time left — the reads of the endpoint's settings, the token exchange, the fetch
-   and its pages, the readings write, and keeping the response. At the deadline Tributary answers
+   and its pages, reshaping the answer, the readings write, and keeping the response. A deadline that
+   passes while the answer is reshaped is answered as "Tributary had not finished reshaping the answer
+   within …", and nothing is written. A call that writes readings logs how long the reshape and the
+   write took. At the deadline Tributary answers
    `504` with what it was still waiting on, for example "The broker had not accepted the readings
    within 28 of the 30 seconds the platform allows a passed-on request.", and logs the same. A call
    the deadline cuts off logs no error of its own, so that "Answered the request for endpoint … at its
@@ -498,8 +524,8 @@ calculation deliberately lives on the other side of the boundary.
 
 ## Example: precipitation onto a Site
 
-A weather endpoint (e.g. Open-Meteo) is registered with a `responseTransform` that reshapes the
-hourly response into a reading on the Site Thing — no Tributary code changes, just config:
+A weather endpoint (such as Open-Meteo) is registered with a `responseTransform` that reshapes the
+hourly response into a reading on the Site Thing — no Tributary code changes, only settings:
 
 ```jsonc
 // endpoint registration (descends from the root Endpoint template)
@@ -543,7 +569,7 @@ Three things about it are worth reading off:
 - **The placeholders are the Site's own property names.** `{latitude}` and `{longitude}` are filled per
   call from the site's values, so one registration serves every site. Forage passes a site's whole
   value set to every source and the fill takes only the names the address uses.
-- **The reading names no Thing.** The discovery run supplies `subjectId`, so a name here would fit one
+- **The reading names no Thing.** Forage's Plan calls step supplies `subjectId`, so a name here would fit one
   site and be wrong for every other — see *Naming the subject a call is about* above.
 - **The expression selects its classification scheme.** The provider answers with a code from every
   scheme it holds — Köppen-Geiger, Trewartha, Cannon, Whittaker and more — so `data[0].code` returns
@@ -587,6 +613,10 @@ readable rather than being settled by whichever was written last.
     "responseTransform": "($level := hazard_category[hazard_level and $lowercase(hazard_level) != 'no data'].hazard_level; $level ? {\"properties\": {\"hazardLevel\": $replace($lowercase($level), \" \", \"-\"), \"assessedOn\": $now()}} : {\"properties\": {}})"
   } }
 ```
+
+The expression the seed declares also keeps the portal's general recommendation and its
+climate-change recommendation beside the level, as `recommendation` and
+`climateChangeRecommendation`; the one above is shortened to the level and the date.
 
 - **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on the
   site or on a Place it is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —

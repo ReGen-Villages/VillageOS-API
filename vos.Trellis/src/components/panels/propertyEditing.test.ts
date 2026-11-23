@@ -38,7 +38,6 @@ describe('editorForType', () => {
 
 describe('rejectionKeyForType', () => {
   it('refuses a fraction in a whole-number property', () => {
-    // The platform would convert it and drop the fractional part — a quiet wrong answer.
     expect(rejectionKeyForType('3.7', 'vos.Integer')).toBe('panels.properties.rejected.wholeNumber');
     expect(rejectionKeyForType('3', 'vos.Integer')).toBeNull();
     expect(rejectionKeyForType('-3', 'vos.LongInteger')).toBeNull();
@@ -65,8 +64,6 @@ describe('rejectionKeyForType', () => {
     expect(rejectionKeyForType('{"rows":1}', 'vos.Grid')).toBe('panels.properties.rejected.readOnly');
   });
 
-  // Clearing a property is what the delete button is for. An empty numeric field is a half-finished
-  // edit, not an instruction to store nothing.
   it('refuses empty text for every type but text', () => {
     expect(rejectionKeyForType('', 'vos.Integer')).toBe('panels.properties.rejected.wholeNumber');
     expect(rejectionKeyForType('   ', 'vos.Double')).toBe('panels.properties.rejected.number');

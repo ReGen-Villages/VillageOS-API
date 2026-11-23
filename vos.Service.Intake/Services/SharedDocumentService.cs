@@ -203,7 +203,7 @@ public sealed class SharedDocumentService(
     private async Task<string?> AddressOfAsync(string submissionId, CancellationToken cancellation)
     {
         var contactId = StableIdentity.Derive(submissionId, "contact");
-        using var declared = await mycelium.ReadAsync(FindingsReader.DeclarationSelector(contactId), cancellation);
-        return FindingsReader.ReadDeclarations(declared.RootElement, contactId).ContactAddress;
+        using var contact = await mycelium.ReadAsync(FindingsReader.ContactSelector(contactId), cancellation);
+        return FindingsReader.ReadContactAddress(contact.RootElement, contactId);
     }
 }

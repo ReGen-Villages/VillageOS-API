@@ -9,7 +9,6 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Tests for the /handle endpoint in vos.Service.Tributary/Program.cs.
 // Each test wires up a per-scenario HandlerCallback on the factory so Mycelium calls
 // (FindThingByNameAsync, GetEffectivePropertiesAsync, CreateThing, CreateRelationship,
 // SubmitObservations) AND the outbound endpoint call all resolve through the same handler.
@@ -37,7 +36,7 @@ public class HandleEndpointTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            // Mycelium GET /api/things?name=Unknown returns empty (non-object root → null thing)
+            // Mycelium GET /api/things?name=Unknown returns empty, and a root that is not an object reads as no Thing
             if (req.RequestUri!.AbsolutePath == "/api/things")
                 return Json("null");
             return new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -88,9 +87,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outboundCalls++; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -138,9 +135,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -164,9 +159,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -188,9 +181,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -212,9 +203,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -238,9 +227,7 @@ public class HandleEndpointTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? (req.RequestUri!.Host == "api.test" && req.Method == HttpMethod.Get
                     ? Json("{\"value\":42}")
                     : new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -270,9 +257,7 @@ public class HandleEndpointTests
         {
             if (req.RequestUri!.Host != "api.test")
                 lock (brokerRequests) brokerRequests.Add($"{req.Method} {req.RequestUri.AbsolutePath}");
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? (req.RequestUri.Host == "api.test" ? Json("{\"value\":42}") : new HttpResponseMessage(HttpStatusCode.NotFound));
         };
         using var client = factory.CreateClient();
@@ -301,9 +286,7 @@ public class HandleEndpointTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? (req.RequestUri!.Host == "api.test"
                     ? Json("{\"value\":42}")
                     : new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -336,9 +319,7 @@ public class HandleEndpointTests
                 sentBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
                 return Json("{\"ok\":true}");
             }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -428,13 +409,11 @@ public class HandleEndpointTests
                 return new HttpResponseMessage(HttpStatusCode.OK);
             if (req.RequestUri.AbsolutePath.EndsWith("/observations") && req.Method == HttpMethod.Post)
                 return Json("""{"accepted":1}""");
-            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
+            if (req.RequestUri.AbsolutePath == "/api/model/fragment" && req.Method == HttpMethod.Post)
                 return new HttpResponseMessage(HttpStatusCode.OK);
             if (req.RequestUri.Host == "api.test")
                 return Json("{\"raw\":true}");
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -475,9 +454,7 @@ public class HandleEndpointTests
                 {
                     Content = new StringContent("not-json", Encoding.UTF8, "application/json")
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -509,9 +486,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outboundCalls++; return Json("{\"x\":1}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -543,9 +518,7 @@ public class HandleEndpointTests
                 {
                     Content = new StringContent("not-json", Encoding.UTF8, "text/plain")
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -574,9 +547,7 @@ public class HandleEndpointTests
         {
             if (req.RequestUri!.Host == "api.test")
                 throw new HttpRequestException("boom");
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -607,9 +578,7 @@ public class HandleEndpointTests
                 {
                     Content = new StringContent("this caller may not read the catalogue", Encoding.UTF8, "text/plain")
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -644,9 +613,7 @@ public class HandleEndpointTests
                 {
                     Content = new ByteArrayContent(Encoding.UTF8.GetBytes("{\"ok\":true}"))
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -678,9 +645,7 @@ public class HandleEndpointTests
                 latin1.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "iso-8859-1" };
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = latin1 };
             }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -716,9 +681,7 @@ public class HandleEndpointTests
                 refused.Headers.Add("Retry-After", providersWait);
                 return refused;
             }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -753,9 +716,7 @@ public class HandleEndpointTests
                     // keeping it from the ingest.
                     Content = new StringContent("""{"level":"high"}""", Encoding.UTF8, "application/json")
                 };
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -784,9 +745,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -815,9 +774,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -847,9 +804,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -879,9 +834,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -915,9 +868,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -945,9 +896,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -975,9 +924,7 @@ public class HandleEndpointTests
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+        factory.HandlerCallback = req => RouteEndpoint(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -1008,9 +955,7 @@ public class HandleEndpointTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") return Json("{\"ok\":true}");
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKindsFromProperties(req, thingId, props)
+            return RouteEndpoint(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

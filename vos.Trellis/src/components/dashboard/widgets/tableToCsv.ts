@@ -1,13 +1,8 @@
 import type { TableColumn } from '@tendril-ui/tendril';
 import type { Row } from '@tendril-ui/tendril';
 
-/** The rows a table shows, as comma-separated text a spreadsheet opens.
- *
- *  Only the columns the table draws, in the order it draws them, with the column labels as the
- *  first line. A number is written as a number rather than as the text the table draws it as: a
- *  spreadsheet given "45%" or "1,234" cannot sum it. Lines end in CRLF and a value holding a comma,
- *  a quote or a line break is quoted with its quotes doubled, which is what every spreadsheet reads
- *  without being asked. */
+/** A number is written as a number, not as the table draws it, because a spreadsheet cannot sum "45%" or
+ *  "1,234". Line endings and quoting follow what every spreadsheet reads without being asked. */
 export function tableToCsv(columns: TableColumn[], rows: Row[]): string {
   const lines = [columns.map((column) => cell(column.label))];
   for (const row of rows) lines.push(columns.map((column) => cell(row[column.key])));

@@ -24,7 +24,7 @@ var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Phloem", "phloem-.log", launchSettings.LogDirectory, writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Phloem", "phloem-.log", launchSettings.LogDirectory, writeToFile: launchSettings.LogToFile && !isTestingEnv);
 
 try
 {
@@ -48,6 +48,8 @@ try
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
     builder.Services.AddHostedService<CadenceKeeper>();
+    builder.Services.AddHostedService(sp => new RunClearingKeeper(
+        sp.GetRequiredService<IMyceliumGateway>(), sp.GetRequiredService<ModelClock>(), sp.GetRequiredService<ILogger<RunClearingKeeper>>()));
     builder.Services.AddHostedService<WaitTimeKeeper>();
 
     var app = builder.Build();
@@ -81,7 +83,7 @@ try
         }
     }));
 
-    // Spawn-and-wait: { pipelineId, params? } -> run the DAG to completion -> return the result.
+    // Takes { pipelineId, params? }, runs the pipeline to its end, and answers with the result.
     var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, ILogger<Program> log) =>
     {
         var timings = new AnswerTimings();
@@ -132,8 +134,8 @@ try
         switch (trigger.Kind)
         {
             case SpawnKind.Http when trigger.Async:
-                // Async spawn — return the run id immediately and run the DAG in the background so the editor
-                // animates over SSE rather than blocking. A detached token lets the run outlive the request.
+                // Async spawn — return the run id immediately and run the pipeline in the background so the
+                // editor animates it from the change stream rather than blocking. A detached token lets the run outlive the request.
                 var asyncRunId = Guid.NewGuid();
                 var asyncPipelineId = trigger.PipelineId;
                 var asyncParameters = trigger.Parameters;
@@ -146,7 +148,7 @@ try
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
-                // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
+                // The caller, such as a program, waits for the result.
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
@@ -172,7 +174,8 @@ try
             case SpawnKind.Relationship:
                 // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —
                 // fires while Mycelium waits ~15s, so the pipeline is resolved and the run acknowledged before
-                // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
+                // the pipeline runs in the background. The result lands on the PipelineRun, which the editor
+                // animates from the change stream. A
                 // detached token lets it outlive the request. A start that fits no pipeline, or fits two equally,
                 // is refused with 400: the broker records that as refused rather than failed, and nothing retries it.
                 var start = await timings.TimeAsync("finding the pipeline it starts",

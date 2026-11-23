@@ -9,7 +9,7 @@
 # VosRelease at it instead.
 #
 # The layout is not spelled out here. The platform's own script writes it, and a second description
-# of it would be the thing that drifts — which is the whole reason this suite exists.
+# of it could come to differ from that script, which is the kind of disagreement this suite exists to catch.
 set -euo pipefail
 
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

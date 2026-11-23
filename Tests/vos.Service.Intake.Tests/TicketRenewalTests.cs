@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -136,7 +137,7 @@ public class TicketRenewalTests
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions/findings")
         {
             Content = JsonContent.Create(
-                new { submissionId = WillowBend.SubmissionId, emailAddress = address }),
+                new { submissionId = WillowBend.SubmissionId, emailAddress = address, page = LandIntakeRoles.SubmitterProDataPage.Id }),
             Headers = { { TicketHeader, ticket } },
         };
         return await client.SendAsync(request);

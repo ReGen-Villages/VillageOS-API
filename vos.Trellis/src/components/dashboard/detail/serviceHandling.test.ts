@@ -21,9 +21,10 @@ function relationship(
 /**
  * A site whose wiring is named nothing like the platform's own words: the connection archetype
  * is `Wiring`, the service archetype is `Daemon`, and the predicate binding one to the other is
- * `runs`. Only the roles say which is which, which is the whole point of reading them.
+ * `runs`, so only the roles can say which is which.
  *
- * `measures` is a handled predicate — a relationship on it calls the metering daemon. `spring when
+ * `measures` is a handled predicate: it names `measures connection` through `tells`, so a relationship on it
+ * calls the metering daemon there. `spring when
  * dry` is a state connection, reached by the record relationship the platform writes along `answered by`.
  * `review` is a node run waiting on the well: it is a `Stage`, and `Stage` names that same connection through `tells`,
  * so the platform answers it there.
@@ -45,6 +46,7 @@ function site() {
       thing('record', 'answered by'),
 
       thing('measures', 'measures'),
+      thing('measuresConnection', 'measures connection'),
       thing('meteringService', 'metering service'),
       thing('springWhenDry', 'spring when dry'),
       thing('springService', 'spring service'),
@@ -61,8 +63,9 @@ function site() {
       relationship('b2', ROLE.Service, 'binds', 'daemon'),
       relationship('b4', NOTIFIED_CONNECTION_ROLE_ID, 'binds', 'tells'),
       relationship('b5', CALL_RECORD_ROLE_ID, 'binds', 'record'),
-      relationship('w1', 'measures', 'is', 'wiring'),
-      relationship('w2', 'measures', 'runs', 'meteringService'),
+      relationship('w0', 'measures', 'tells', 'measuresConnection'),
+      relationship('w1', 'measuresConnection', 'is', 'wiring'),
+      relationship('w2', 'measuresConnection', 'runs', 'meteringService'),
       relationship('w3', 'meteringService', 'is', 'daemon'),
       relationship('w4', 'springWhenDry', 'is', 'wiring'),
       relationship('w5', 'springWhenDry', 'runs', 'springService'),
@@ -100,8 +103,29 @@ describe('serviceEdgesOn', () => {
 
     expect(edge.serviceName).toBe('metering service');
     expect(edge.serviceId).toBe('meteringService');
-    expect(edge.connectionName).toBe('measures');
+    expect(edge.connectionName).toBe('measures connection');
     expect(edge.relationshipId).toBe('e1');
+  });
+
+  it('follows a handled predicate to the connection its archetype names', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('meter', 'Meter', {}, true)],
+      [...base.relationships.filter((edge) => edge.Id !== 'w0'), relationship('w13', 'measures', 'is', 'meter'),
+        relationship('w14', 'meter', 'tells', 'measuresConnection')],
+    );
+
+    expect(serviceEdgesOn('catchment', index).map((edge) => edge.connectionName)).toEqual(['measures connection']);
+  });
+
+  it('calls a handled predicate that names no connection through itself, as the platform does', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values()],
+      [...base.relationships.filter((edge) => edge.Id !== 'w0'), relationship('w15', 'measures', 'is', 'wiring')],
+    );
+
+    expect(serviceEdgesOn('catchment', index).map((edge) => edge.connectionName)).toEqual(['measures']);
   });
 
   it('leaves the other end of a handled edge out: the work was done on the subject alone', () => {
@@ -197,25 +221,42 @@ describe('serviceEdgesOn', () => {
   });
 
   it('finds nothing where the connection role binds two archetypes, as neither can be the one', () => {
+    const base = site();
     const index = buildModelIndex(
-      [
-        thing('is', 'is'),
-        thing('binds', 'binds'),
-        thing(ROLE.Connection, 'connection role'),
-        thing('wiring', 'Wiring', {}, true),
-        thing('rival', 'Rival', {}, true),
-        thing('measures', 'measures'),
-        thing('catchment', 'CATCHMENT-1'),
-        thing('reservoir', 'RESERVOIR-1'),
-      ],
-      [
-        relationship('b1', ROLE.Connection, 'binds', 'wiring'),
-        relationship('b2', ROLE.Connection, 'binds', 'rival'),
-        relationship('w1', 'measures', 'is', 'wiring'),
-        relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Completed' }),
-      ],
+      [...base.byId.values(), thing('rival', 'Rival', {}, true)],
+      [...base.relationships, relationship('b6', ROLE.Connection, 'binds', 'rival')],
     );
+
+    expect(serviceEdgesOn('catchment', base)).not.toEqual([]);
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
+  });
+
+  it.each([
+    ['call record', CALL_RECORD_ROLE_ID, 'spring'],
+    ['notified connection', NOTIFIED_CONNECTION_ROLE_ID, 'well'],
+  ])('a role bound twice wires nothing: the %s role', (_role, roleId, subjectId) => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('rival', 'rival predicate')],
+      [...base.relationships, relationship('b6', roleId, 'binds', 'rival')],
+    );
+
+    expect(serviceEdgesOn(subjectId, base)).not.toEqual([]);
+    expect(serviceEdgesOn(subjectId, index)).toEqual([]);
+  });
+
+  it.each([
+    ['call record', 'record', 'spring'],
+    ['notified connection', 'tells', 'well'],
+  ])('a role bound to a Thing the model does not hold wires nothing: the %s role', (_role, predicateId, subjectId) => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values()].filter((each) => each.Id !== predicateId),
+      base.relationships,
+    );
+
+    expect(serviceEdgesOn(subjectId, base)).not.toEqual([]);
+    expect(serviceEdgesOn(subjectId, index)).toEqual([]);
   });
 });
 

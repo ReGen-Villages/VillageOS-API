@@ -7,10 +7,9 @@ export function declaredTypes(things: VosThing[]): VosThing[] {
   return things.filter((thing) => thing.IsArchetype === true);
 }
 
-// Repoint ONE of a Thing's types to a different archetype. Multiple inheritance is a first-class
-// feature, so this never collapses the rest: with `fromArchetypeId` it replaces only that type relationship; without
-// it (the single-type case) it replaces the Thing's lone type relationship. The human-in-the-loop reclassification —
-// e.g. a mis-classified element becomes a SolarArray, changing what reactive derived properties and analysis pick up.
+// Changes one of a Thing's types and keeps the rest, because a Thing can have several; without
+// `fromArchetypeId` it replaces the only one. Correcting a wrongly classified element changes what derived
+// properties and analysis pick up.
 export async function retypeThing(
   thingId: string,
   newArchetypeId: string,

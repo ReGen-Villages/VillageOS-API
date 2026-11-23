@@ -16,6 +16,10 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     // write took fifteen, and a shorter wait reported the source as failed while the write went on to land.
     public static readonly TimeSpan BrokerPatience = TimeSpan.FromSeconds(30);
 
+    // The broker refuses a request above its body limit, and one slice of every climate property comes close to it, so a
+    // slice goes in several requests.
+    public const int ReadingsPerDeposit = 50_000;
+
     private readonly TimeProvider _clock;
 
     public MyceliumClient(
@@ -32,17 +36,14 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}", cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var answer = await AskForThingNamedAsync(name, BrokerPatience, cancellationToken);
+            if (!answer.IsDone)
             {
-                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
+                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, answer.Status);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return TryParseThing(root, out var thing) ? thing : null;
+            return ThingIn(answer);
         }
         catch (Exception ex)
         {
@@ -56,7 +57,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             // Not the reading as it arrived: a source states its values bare, and the broker takes each
             // one with its type on it — worked out from the value, because only the caller's JSON says
             // what a reading is.
@@ -66,16 +66,14 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                 Properties = TypedProperties.Typed(properties)
             };
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var answer = await AskToCreateThingAsync(JsonContent.Create(payload), BrokerPatience, cancellationToken);
+            if (!answer.IsDone)
             {
-                var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, response.StatusCode, error);
+                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, answer.Status, answer.Body);
                 return null;
             }
 
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return TryParseThing(root, out var thing) ? thing : null;
+            return ThingIn(answer);
         }
         catch (Exception ex)
         {
@@ -88,15 +86,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment",
+            var answer = await AskToApplyFragmentAsync(
                 new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"),
-                cancellationToken);
-            if (response.IsSuccessStatusCode)
+                BrokerPatience, cancellationToken);
+            if (answer.IsDone)
                 return true;
 
-            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}",
-                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}", answer.Status, answer.Body);
             return false;
         }
         catch (Exception ex)
@@ -106,9 +102,64 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public Task<bool> CreateRelationshipAsync(
+    // Through a fragment, because the relationship route refuses a relationship already held and the fragment route leaves it alone.
+    public Task<bool> RelateUnlessHeldAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken = default) =>
-        PostRelationshipAsync(subjectId, predicateId, targetId, BrokerPatience, cancellationToken);
+        ApplyFragmentAsync(
+            new { Name = "Relationship", Relationships = new[] { new { Subject = subjectId, Predicate = predicateId, Target = targetId } } },
+            cancellationToken);
+
+    // The broker validates a request whole before storing any of it and drops a reading it already holds with the same
+    // value, so a deposit that stopped at a refused request can be sent again from the start.
+    public async Task<BrokerAnswer> DepositReadingsAsync(
+        Guid subjectId, IReadOnlyList<ObservationSample> readings, CancellationToken cancellationToken = default)
+    {
+        var untimed = readings.Where(reading => reading.ObservedAt is null).Select(reading => reading.Property).Distinct().ToList();
+        if (untimed.Count > 0)
+            return new BrokerAnswer(false, $"The bulk route takes only readings with their time, and {string.Join(", ", untimed)} carries none.");
+
+        foreach (var request in DepositRequests.Of(readings, ReadingsPerDeposit))
+        {
+            var answer = await PostAsync("/api/sediment", request.Select(reading => new
+            {
+                objectId = subjectId,
+                property = reading.Property,
+                value = ResolveObservationValue(reading.Value),
+                observedAt = reading.ObservedAt,
+            }), cancellationToken);
+            if (!answer.Accepted) return answer;
+        }
+        return BrokerAnswer.Done;
+    }
+
+    public Task<BrokerAnswer> ReportHistoryChangedAsync(Guid thingId, CancellationToken cancellationToken = default) =>
+        PostAsync($"/api/things/{thingId}/history/changed", body: null, cancellationToken);
+
+    private async Task<BrokerAnswer> PostAsync(string path, object? body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
+            using var response = body is null
+                ? await client.PostAsync($"{MyceliumUrl}{path}", content: null, cancellationToken)
+                : await client.PostAsJsonAsync($"{MyceliumUrl}{path}", body, cancellationToken);
+            if (response.IsSuccessStatusCode) return BrokerAnswer.Done;
+
+            var answerBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var refusal = $"{(int)response.StatusCode}: {PlatformAnswer.ErrorWordsIn(answerBody) ?? answerBody}";
+            Logger.LogWarning("The broker refused {Path}: {Refusal}", path, refusal);
+            return new BrokerAnswer(false, refusal, CanBeTriedAgain: (int)response.StatusCode >= 500, response.Headers.RetryAfter?.Delta);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "The broker could not be reached for {Path}", path);
+            return new BrokerAnswer(false, $"The broker could not be reached: {exception.Message}", CanBeTriedAgain: true);
+        }
+    }
 
     public async Task<bool> SubmitObservationsAsync(
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)
@@ -286,42 +337,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         Logger.LogError(exception, message, arguments);
     }
 
-    private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
-    {
-        thing = null;
-
-        if (element.ValueKind != JsonValueKind.Object)
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Id", out var idProp) || idProp.ValueKind != JsonValueKind.String)
-            return false;
-
-        if (!Guid.TryParse(idProp.GetString(), out var id))
-            return false;
-
-        if (!TryGetPropertyCaseInsensitive(element, "Name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
-            return false;
-
-        thing = new MyceliumThing(id, nameProp.GetString() ?? string.Empty);
-        return true;
-    }
+    private static MyceliumThing? ThingIn(PlatformAnswer answer) =>
+        TryReadThing(answer.Json(), out var id, out var name) ? new MyceliumThing(id, name) : null;
 
     // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
     // the observation route stores; a shape it has no scalar for keeps its own JSON text.
-    private static object? ResolveObservationValue(object? value)
-    {
-        if (value is not JsonElement element)
-            return value;
-
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
-            JsonValueKind.Number => element.GetDouble(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Null => null,
-            _ => element.GetRawText()
-        };
-    }
+    private static object? ResolveObservationValue(object? value) =>
+        value is not JsonElement element ? value
+        : JsonScalar.TryRead(element, out var scalar) ? scalar
+        : element.GetRawText();
 }

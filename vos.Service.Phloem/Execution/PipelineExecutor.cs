@@ -8,10 +8,11 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.Phloem.Execution;
 
-// Runs a pipeline synchronously (spawn-and-wait): load the subgraph → build the DAG → validate (acyclic +
-// port types) → execute nodes in dependency order, calling each through Mycelium and routing each
-// node's outputs to its downstream inputs → return the full result. Independent nodes in a level run
-// concurrently (bounded). Run/NodeRun state is persisted best-effort for the live SSE view.
+// Runs a pipeline and waits for it: loads the subgraph, builds the graph of steps, checks it has no cycle
+// and that port types match, then runs the steps in dependency order, calling each through Mycelium and
+// routing each step's outputs to the inputs downstream, and returns the full result. Independent steps in
+// a level run at once, up to a bound. Run and node-run state is written for the console's live view; most
+// of those writes are best effort, but a run that cannot be recorded does not start.
 public sealed class PipelineExecutor
 {
     private static readonly IReadOnlyDictionary<string, JsonElement> NoOutputs =
@@ -42,8 +43,9 @@ public sealed class PipelineExecutor
         _reports = new CallReporter(gateway, logger);
     }
 
-    // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
-    // SSE); when null a fresh id is minted (synchronous spawn / a relationship the broker sends).
+    // runId: Pre-generated run id for a run started in the background (the editor already holds it to
+    // animate the run from the change stream); when null a fresh id is minted (a run the caller waits for,
+    // or a relationship the broker sends).
     // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
     // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
@@ -798,7 +800,8 @@ public sealed class PipelineExecutor
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
 
         // The pipeline's published result: the Output boundary node's collected inputs. Persisted on the
-        // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
+        // PipelineRun Thing (so it reaches the change stream and can be read at a past instant) and returned
+        // to the caller.
         JsonElement? runResult = null;
         if (success && results[outputNode.NodeId].Status is RunStatus.Succeeded or RunStatus.Rehearsed)
         {
@@ -1053,7 +1056,7 @@ public sealed class PipelineExecutor
             return Failure(node, $"'{node.Name}' relates the Thing reaching its port '{ModelNames.Thing}', but what reached it names no Thing.");
 
         async Task<bool> AlreadyRelatedAsync() =>
-            (await _gateway.ReachedAlongAsync(thing.Id, relating.ConnectionId, cancellationToken)).Any(target => target.Id == relating.ServiceId);
+            (await _gateway.ReachedAlongAsync(thing.Id, relating.PredicateId, cancellationToken)).Any(target => target.Id == relating.ServiceId);
 
         bool written;
         try
@@ -1062,21 +1065,21 @@ public sealed class PipelineExecutor
         }
         catch (Exception ex)
         {
-            return Failure(node, $"'{node.Name}' could not read whether '{thing.Name}' is related along '{relating.ConnectionName}': {ex.Message}");
+            return Failure(node, $"'{node.Name}' could not read whether '{thing.Name}' is related along '{relating.PredicateName}': {ex.Message}");
         }
         if (written)
         {
             try
             {
-                await _gateway.WriteRelationshipAsync(thing.Id, relating.ConnectionId, relating.ServiceId, cancellationToken);
+                await _gateway.WriteRelationshipAsync(thing.Id, relating.PredicateId, relating.ServiceId, cancellationToken);
             }
             catch (Exception ex)
             {
                 var landedMeanwhile = false;
                 try { landedMeanwhile = await AlreadyRelatedAsync(); }
-                catch (Exception readAgain) { _logger.LogWarning(readAgain, "Could not read again whether '{Thing}' is related along '{Connection}'", thing.Name, relating.ConnectionName); }
+                catch (Exception readAgain) { _logger.LogWarning(readAgain, "Could not read again whether '{Thing}' is related along '{Predicate}'", thing.Name, relating.PredicateName); }
                 if (!landedMeanwhile)
-                    return Failure(node, $"'{node.Name}' could not relate '{thing.Name}' along '{relating.ConnectionName}': {ex.Message}");
+                    return Failure(node, $"'{node.Name}' could not relate '{thing.Name}' along '{relating.PredicateName}': {ex.Message}");
                 written = false;
             }
         }
@@ -1303,7 +1306,7 @@ public sealed class PipelineExecutor
         ChannelReader<NumberedItem> items, IReadOnlyDictionary<int, NodeRecord> itemsMade, Action<NodeRunResult>? answered, bool rehearsal,
         CancellationToken cancellationToken)
     {
-        using var itemGate = new SemaphoreSlim(_maxConcurrency);
+        using var itemGate = new SemaphoreSlim(Math.Min(node.ItemsAtOnce ?? _maxConcurrency, _maxConcurrency));
         var running = new List<Task<NodeRunResult>>();
         await foreach (var item in items.ReadAllAsync(cancellationToken))
             running.Add(itemsMade.TryGetValue(item.Number.Index, out var made) && RunStatus.IsFinished(made.Status)

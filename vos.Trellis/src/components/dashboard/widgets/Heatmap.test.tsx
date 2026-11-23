@@ -3,17 +3,10 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { Binding, HeatmapWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
-const values = new Map<string, BindingResult>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: (Binding | undefined)[]) =>
-    bindings.map((binding) => ({
-      loading: false,
-      error: false,
-      value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
-    })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { Heatmap } = await import('./Heatmap');
 
@@ -67,8 +60,8 @@ const widget: HeatmapWidget = {
     HOUR_BY_DAY,
   ),
   sun: {
-    latitude: bound({ kind: 'property', thing: '$scope', property: 'latitude' }, -25.83),
-    longitude: bound({ kind: 'property', thing: '$scope', property: 'longitude' }, 28.17),
+    latitude: bound({ kind: 'property', thing: '$scope', property: 'latitude' }, -26),
+    longitude: bound({ kind: 'property', thing: '$scope', property: 'longitude' }, 28),
     utcOffsetSeconds: bound({ kind: 'property', thing: '$scope', property: 'utcOffsetSeconds' }, 7200),
   },
   unit: '°C',
@@ -108,7 +101,7 @@ describe('the hour-by-day heatmap', () => {
     const sunrise = container.querySelector('path[data-curve="sunrise"]')!;
     const sunset = container.querySelector('path[data-curve="sunset"]')!;
     expect(sunrise).not.toBeNull();
-    // Near Pretoria in January the sun rises before six and sets after seven, local time.
+    // At 26° south in January the sun rises before six and sets after seven, local time.
     const risesAt = Number(sunrise.getAttribute('data-first-hour'));
     const setsAt = Number(sunset.getAttribute('data-first-hour'));
     expect(risesAt).toBeGreaterThan(5);

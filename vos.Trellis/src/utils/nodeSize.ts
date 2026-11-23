@@ -1,10 +1,9 @@
-// Sigma's `size` attribute is in graph coordinates, not pixels. With tens of
-// thousands of nodes packed into a tight disc, large nodes overlap so heavily
-// that no internal structure is readable, so the cap stays small.
+// Sigma's `size` is in graph coordinates, not pixels, and a very large graph is packed into a tight disc,
+// so large nodes would hide its structure.
 
 import { LAYOUT_DEFAULTS } from './guiSettings';
 
-export interface NodeSizeOptions {
+interface NodeSizeOptions {
   min: number;
   max: number;
   slope: number;

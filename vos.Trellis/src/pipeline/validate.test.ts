@@ -115,3 +115,65 @@ describe('validateEnds', () => {
     ], [])).toEqual([]);
   });
 });
+
+describe('a wait box before a run', () => {
+  const wait = (waitsFor?: string): ValidationNode => ({
+    id: 'wait', label: 'Wait until discovered', kind: 'wait', ports: [port('thing', 'in'), port('thing', 'out', false, 'thing.out')], waitsFor,
+  });
+  const intoTheWait: ValidationEdge = { source: 'start', sourceHandle: 'subject', target: 'wait', targetHandle: 'thing' };
+  const start = node('start', [port('subject', 'out')]);
+
+  it('reports a wait box that names no state', () => {
+    expect(validatePipeline([start, wait()], [intoTheWait]).map((issue) => issue.kind)).toEqual(['wait-without-state']);
+  });
+
+  it('reports a wait box with nothing wired into its port, even one bound to a run parameter', () => {
+    const bound = { ...wait('discovered'), parameterBindings: { thing: 'site' } };
+    expect(validatePipeline([start, bound], []).map((issue) => issue.kind)).toEqual(['wait-without-thing']);
+  });
+
+  it('accepts a wait box that names a state and is wired', () => {
+    expect(validatePipeline([start, wait('discovered')], [intoTheWait])).toEqual([]);
+  });
+
+  it.each([0, -5, 1.5])('reports a wait box that waits at most %s minutes, which is not a whole number above zero', (minutes) => {
+    const limited = { ...wait('discovered'), waitsAtMostMinutes: minutes };
+    expect(validatePipeline([start, limited], [intoTheWait]).map((issue) => issue.kind)).toEqual(['wait-limit-not-whole-minutes']);
+  });
+
+  it('accepts a wait box that waits at most a whole number of minutes', () => {
+    expect(validatePipeline([start, { ...wait('discovered'), waitsAtMostMinutes: 1 }], [intoTheWait])).toEqual([]);
+  });
+});
+
+describe('a relate box before a run', () => {
+  const relate = (relates?: ValidationNode['relates']): ValidationNode => ({
+    id: 'relate', label: 'Work it out', kind: 'relate', ports: [port('thing', 'in'), port('thing', 'out', false, 'thing.out')],
+    ...(relates ? { relates } : {}),
+  });
+  const intoTheRelate: ValidationEdge = { source: 'start', sourceHandle: 'subject', target: 'relate', targetHandle: 'thing' };
+  const start = node('start', [port('subject', 'out')]);
+
+  it('reports a relate box that stands for no predicate', () => {
+    expect(validatePipeline([start, relate()], [intoTheRelate]).map((issue) => issue.kind)).toEqual(['relate-without-predicate']);
+  });
+
+  it('reports a relate box whose predicate the orchestrator would refuse, with the reason', () => {
+    const issues = validatePipeline([start, relate({ refusal: 'it names no connection along notifies' })], [intoTheRelate]);
+    expect(issues).toEqual([expect.objectContaining({ kind: 'relate-refused', nodeId: 'relate' })]);
+    expect(issues[0].message).toContain('it names no connection along notifies');
+  });
+
+  it('reports a relate box with nothing wired into its port', () => {
+    expect(validatePipeline([start, relate({})], []).map((issue) => issue.kind)).toEqual(['relate-without-thing']);
+  });
+
+  it('reports a relate box that waits at most a time that is not a whole number of minutes', () => {
+    const limited = { ...relate({}), waitsAtMostMinutes: 1.5 };
+    expect(validatePipeline([start, limited], [intoTheRelate]).map((issue) => issue.kind)).toEqual(['wait-limit-not-whole-minutes']);
+  });
+
+  it('accepts a relate box standing for a predicate the orchestrator accepts, wired, with a whole limit', () => {
+    expect(validatePipeline([start, { ...relate({}), waitsAtMostMinutes: 30 }], [intoTheRelate])).toEqual([]);
+  });
+});

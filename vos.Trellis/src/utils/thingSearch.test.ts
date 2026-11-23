@@ -308,8 +308,6 @@ describe('searchThings', () => {
       expect(keys).toContain('realProperty');
     });
 
-    // Left unformatted on purpose: how a value should read depends on the type the platform
-    // declares for it, which this index does not carry. The page resolves that and formats.
     it('carries each previewProp value as it stands', () => {
       const thing = makeThing('t1', 'Thing', { count: 42 });
       const localIndex = buildThingSearchIndex([thing], []);

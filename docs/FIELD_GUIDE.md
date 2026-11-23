@@ -184,10 +184,10 @@ platform answers it in three phases, each of which can be re-run on its own.
 
 ![From a piece of land to a living village](assets/field-guide-land.svg)
 
-**Intake.** A planner fills in five steps in the console, or a member of the public fills in the
+**Intake.** A planner fills in six steps in the console, or a member of the public fills in the
 same steps on a public website: the project, a contact, the location, the size and the programme
-(how the land divides between homes, growing, restoration, commerce, community and transport), and
-the parcel boundary drawn on a map. The submission becomes Things in the model at once: a Site, a
+(how the land divides between homes, growing, restoration, commerce, community and transport), the
+parcel boundary drawn on a map, and the hazards the person has seen on the land. The submission becomes Things in the model at once: a Site, a
 Parcel with its boundary and a record of how the boundary was obtained, the programme as shares of
 the parcel, and a Study that will hold the results. A public submission is accepted only from
 somebody who answered a code sent to the email address on it, and waits on a review page for a
@@ -195,8 +195,9 @@ planner to reject it or promote it into a project of its own.
 
 **Discovery.** The platform works out which open data sources cover the site — by walking the
 places the site sits in, never by matching a country name — and calls each one with the site's
-coordinates: rainfall, sunlight, a climate classification, hazard gradings, and ten years of hourly
-climate history. Every fetched value is recorded as an Observation with its source and the date it
+coordinates: rainfall, sunlight, a climate classification, hazard gradings, ten years of hourly
+climate history and of air quality, thirty-five years of daily rain, and the soil at each depth the
+model declares. Every fetched value is recorded as an Observation with its source and the date it
 was fetched, so it can never be mistaken for something a person typed. The site's elevation is not
 among them: the intake looks it up when the border arrives and writes it as a fact.
 
@@ -325,7 +326,7 @@ of your own. This guide lives in the public repository.
 | **Derived value** | A property the platform works out: a total over related Things, or a formula over a Thing's own values |
 | **Role** | A Thing with a fixed identifier standing for something the platform asks for, which reaches the one Thing playing it along `binds`, so the platform finds that Thing without knowing its name (chapter 18) |
 | **Service** | A separate program the server starts and calls, in any programming language, that does the work a relationship, a state or a request asks for |
-| **Connection** | The Thing that binds a predicate, a state or a request address to a service |
+| **Connection** | The Thing that binds a service to what calls it: a predicate that names the connection along `notifies`, a state it watches, or a request address |
 | **Pipeline** | A drawing of services joined by typed wires, run by the orchestrator |
 
 ### 15. Things, kinds and inheritance
@@ -365,12 +366,13 @@ Predicates come in two flavours:
 | Flavour | What it does | Examples |
 | --- | --- | --- |
 | **Structural** | Describes how things are arranged. The platform reads it, pages draw it, ranges can follow it, and nothing else happens | `contains`, `has`, `feeds`, `powers`, `isIn` |
-| **Handled** | Bound to a service. Creating a relationship through it starts that service with the subject and the target | `consumes`, `produces`, `runs` |
+| **Handled** | Names a connection along `notifies`, the predicate the `notifiedConnection` role binds. Creating a relationship through it calls that connection's service with the subject and the target | `consumes`, `produces`, `runs` |
 
 Two predicates have behaviour built into the server: `is`, whose behaviour is inheritance, and
 `binds`, along which a role Thing reaches the one Thing playing that role. Every other behaviour is a
-service (Part V). This is the platform's extension point: a new
-capability ships as a service bound to a predicate, and the server does not change.
+service (Part V). This is the platform's extension point: a new capability ships as a service, a
+connection bound to it, and a predicate that names the connection, and the server does not change. A
+predicate that names no connection calls nothing, even when it is a connection itself.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
 binding them to the `containment` role. Every read that narrows to "what is within this building"
@@ -730,10 +732,9 @@ service by hand; what started a run is a fact in the model afterwards.
   which the service's own last write usually causes; or *when the service reports it has finished*,
   for work that outlives the call, which the service reports as received, completed or failed. With no
   choice, a connection naming a done range finishes on the done state, and any other when the service
-  answers. A connection also says how long a sent call may take, `done_within`. Discovery finishes on
-  the done state: a site entering *awaiting discovery* starts a run that outlasts any single call, and
-  the site reaching *discovered* is what closes it. A pipeline a state starts finishes on the
-  orchestrator's report, when its run ends.
+  answers. A connection also says how long a sent call may take, `done_within`. A pipeline a state
+  starts finishes on the orchestrator's report, when its run ends; discovery is one: a site entering
+  *awaiting discovery* starts the discovery drawing, and the call closes when that run ends.
 - **Calling again is bounded.** When a call is finished and the Thing is still in the range, the
   connection is called again, at least `doesNotCallAgainForSeconds` after the last call finished, until
   a run of calls has lasted `callsAgainForNoLongerThanSeconds` or made `callsAgainAtMost` calls again;
@@ -844,7 +845,7 @@ starts automatically.
 
 | Trigger | What starts the service | What it is sent |
 | --- | --- | --- |
-| **graph** | Creating a relationship whose predicate is the connection | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
+| **graph** | Creating a relationship whose predicate names the connection along `notifies` | The relationship's identifier, the subject and target, both names, and the relationship's own values, so the service need not call back for its first look |
 | **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is, under a pass that also names the caller; the reply returned to the caller directly |
 | **state** | A Thing entering the range the connection watches | The Thing as subject (chapter 28) |
 
@@ -936,10 +937,11 @@ property; a derived property refuses every write.
 | --- | --- | --- |
 | **Metabolism** | graph: `consumes`, `produces` | One program, two modes. For each relationship it runs a loop that takes from, or adds to, a numeric property on the target at the relationship's rate, and reconfigures itself live when the relationship's values change (chapter 37) |
 | **Delta** | http | Checks every registration against the catalogue of data-source templates the model holds, and writes it (chapter 38) |
-| **Tributary** | http | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings as Observations onto the Thing the call was about (chapter 38) |
-| **Forage** | state | Finds every source covering a site, calls Tributary for each, resolves each fetched word to the Thing it names, and starts the analysis (chapter 39) |
-| **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves. The last write of every recompute is `energyWorkedOutAt`, the model clock's moment, even when an input is still missing and no verdict is written; the study's `EnergyWorkedOut` state reads it |
+| **Tributary** | http, and a pipeline node | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings onto the Thing the call was about: as Observations, except that a history source's timed readings go to bulk history until the Thing's history is judged. As a pipeline step it fetches, or asks for a Thing's history to be judged (chapter 38) |
+| **Forage** | a pipeline node | Discovery's steps: finds every source covering a site, plans each source's calls, records what they came to, resolves each fetched word to the Thing it names, and marks the site discovered (chapter 39) |
+| **EnergyBalance** | a pipeline node | Works out solar and total generation, the share of consumption and whether the site is net positive from the six inputs wired into it, and answers them to the run |
 | **WaterReserve** | a pipeline node | Reserve figures for a pipeline run |
+| **Transect** | a pipeline node | Measures a parcel's border again with the area method the model configures, and records the method |
 | **ModelBridge** | a pipeline node | Reads a Thing's property into a pipeline, or writes a pipeline value onto one (chapter 44) |
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
 | **Xylem** | http | Accepts a building-model upload, runs the importer, and applies the result to the model |
@@ -980,7 +982,11 @@ map tile's `{z}/{x}/{y}` — filled per call from the values of the Thing the ca
 registration serves every site. The reply is reshaped by the registration's rule (written in a
 small expression language for reshaping structured data) into readings: which property, what value,
 observed when. Each reading is written as an Observation onto the subject, and the registration is
-related to that Thing through `observed`, so every fetched value leads back to what produced it.
+related to that Thing through `observed`, so every fetched value leads back to what produced it. A
+history source, an endpoint under the kind the `historySource` role binds, is the exception: its
+readings that carry a time go to bulk history without recomputing anything, until the subject's history
+is judged (the discovery drawing's *Judge history* box), which moves its current values to the newest
+readings and works out again the derived values that read them.
 When the server's readings queue is full it refuses the readings and says when to send them again;
 Tributary waits that long and sends them again, a few times at most, and stops if the call it is part
 of has been given up. Tributary fetches and reshapes; it computes nothing and remembers nothing. A
@@ -998,47 +1004,49 @@ was fetched. The console draws such a property as the image it names.
 Places nest. A source covering a region covers every site within it without naming any, and a
 country spelled two ways can never hide a source. The registrations every project shares ship as
 template data: a climate classification, rainfall and sunlight averaged over twenty years, hazard
-gradings from a public portal, ten years of hourly climate history.
+gradings from a public portal, ten years of hourly climate history and of air quality, thirty-five
+years of daily rain, and the soil at each declared depth.
 
 ### 39. Discovery: Forage
-Nothing calls Forage. A site whose coordinates are known and whose coverage has not yet been
-worked out enters a state, and a connection watching that state calls the service with the
-site as subject (chapter 28). A run:
+Discovery is a pipeline drawn in the model, and Forage answers its steps. A site whose coordinates
+are known and whose coverage has not yet been worked out enters a state; a connection bound to the
+orchestrator watches that state and runs the discovery drawing with the site as subject (chapter 28).
+Its boxes, in order:
 
-1. **Reads the site's places, the sources covering them, and their registrations** in one
-   snapshot. A failed read writes nothing — an unreachable server must never read as "no source
-   covers this site".
-2. **Records one coverage per call** it will make: a Thing per site and source that says whether
-   the call answered, when, how many attempts, and why not. Its identifier is worked out from the
-   site and the source, and the record and its relationships go in one write, so writing it twice
-   changes nothing. A call already answered is not made again, so a run after a partial failure asks
-   only the sources that failed.
-3. **Calls each source through Tributary**, a bounded number at a time, each with a time limit,
-   addressing the call from the site's own values outward — its coordinates, then the values of the
-   places it sits in, then the source's own settings. A source that grades one hazard per call is
-   called once per hazard assessment the site has, with that assessment as the subject.
-4. **Resolves the fetched words.** A climate code or a hazard grade arrives as a word; the run
-   relates the subject to the vocabulary Thing the word names, reading the declaration the model
-   carries, so a project adding a vocabulary edits its model and deploys nothing. A word the
-   vocabulary does not hold writes no relationship and is reported.
-5. **Starts the analysis** by relating the site's study to each compute connection the
-   `siteAnalysisConnection` role binds. A relationship written along a connection calls its
-   service, so creating that relationship is what starts the analysis — one way to start it, and
-   one answerable from the model afterwards. A
-   connection the study is already related through, by the seed or an earlier run, is left as it
-   is and counts as started.
+1. **Resolve region** reads the site's places, the sources covering them, and their registrations in
+   one snapshot. A failed read writes nothing, because an unreachable server must never read as "no
+   source covers this site"; the box fails and may be tried again.
+2. **Plan calls** records one coverage per call it plans: a Thing per site and source that says whether
+   the call answered, when, how many attempts, and why not. Its identifier is worked out from the site
+   and the source, and the record and its relationships go in one write, so writing it twice changes
+   nothing. A call already answered is not planned again, so a run after a partial failure asks only
+   the sources that failed. Each call is addressed from the site's own values outward — its
+   coordinates, then the values of the places it sits in, then the source's own settings. A source that
+   grades one hazard per call is called once per hazard assessment the site has, with that assessment
+   as the subject.
+3. **Fetch each call** is Tributary's fetch step. It asks each planned call and tries a failed one again
+   as the box's own settings say, so the box, not Forage, bounds the calls.
+4. **Judge history** is Tributary's other step: it asks for each subject's stored history to be judged.
+5. **Record results** records what each call came to, once every subject's history is judged.
+6. **Resolve words.** A climate code or a hazard grade arrives as a word; the box relates the subject
+   to the vocabulary Thing the word names, reading the declaration the model carries, so a project
+   adding a vocabulary edits its model and deploys nothing. A word the vocabulary does not hold writes
+   no relationship and is reported as unknown. A relationship the platform refuses for good is reported
+   in `refusedWords` and the step succeeds; one it rejects makes Forage read the vocabulary again,
+   failing at once on the same refusal, failing so it may be tried again where a member changed, and
+   reporting the word as unknown where its member is gone.
+7. **Mark discovered** stamps `coverageMatchedAt` on the site and answers the site's one study.
 
 Partial failure is normal. A source that fails leaves its value undiscovered and its coverage
-outstanding; the site stays in the state and is driven again; and the analysis starts on whatever
-resolved, including nothing, because a site whose sources were all unavailable is exactly the case
-a planner needs an answer about. A source added to the catalogue later enters a state of its own
-and is offered to every site under the places it covers, the same way. Every write a run makes is
-safe to repeat, so a run caught by a restart, or two runs for one site, leave one result.
+outstanding, and the site stays in the state and is driven again, because a site whose sources were
+all unavailable is exactly the case a planner needs an answer about. A source added to the catalogue
+later is offered to every site under the places it covers by a second drawing, whose *Offer a source*
+box is Forage's `offerSource` step. Every write is safe to repeat, so a run caught by a restart, or two
+runs for one site, leave one result.
 
-Forage also answers as **pipeline steps**, one per box, chosen by the box's `step` setting:
-`resolveRegion`, `planCalls`, `recordResults`, `resolveWords`, `startAnalysis` and `offerSource` —
-the same work as a run, drawn on a canvas (Part VI). A failed read of the model is a failure the
-orchestrator may try again.
+Forage answers nothing but these steps, each box choosing one by its `step` setting: `resolveRegion`,
+`planCalls`, `recordResults`, `resolveWords`, `markDiscovered` and `offerSource`. A relationship call is
+refused with `400`. A failed read of the model is a failure the orchestrator may try again.
 
 ---
 
@@ -1068,25 +1076,33 @@ The **Pipelines** page in the console is the editor.
 
 ![The Pipelines page with a saved pipeline loaded: the catalysts and the roster on the left, the nodes wired on the canvas, the outputs and the services on the right, the parameters along the top](assets/trellis-pipelines.png)
 
-- **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
-  listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
-  each saying what it starts or what happens to it; the one connection left out is the orchestrator's
-  own, which a waiting node run is answered through to resume its run, because no run starts from it. A state
-  row says it starts its drawing only when
-  the orchestrator receives the state's entries; otherwise it names the drawing and the service that
-  receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection. A
-  state row watched through one connection also offers **Call settings**, which opens the settings of
-  that connection's calls (chapter 86a).
-  Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are
+- **The catalysts**, in the rail on the left, are everything in the model that sets a run off, in
+  four groups that are always shown: *Messages from outside*, *States the model enters*, *The clock*
+  and *Relationships written*. A state the clock re-checks carries its *every N s* tag, and a cadence
+  its *every N model min*. Each row has a handling cell on the right: the drawing that runs (green), the
+  service the catalyst is sent to (grey), or *nothing*. A relationship row for a connection used as a
+  predicate that names no connection along `notifies` reads *nothing*, with a tooltip saying the
+  platform calls nothing for it, and offers no start node. A predicate that names a connection along
+  `notifies` is one relationship row, and that connection has no row of its own. Three connections are
+  left out, because no run starts from them: the orchestrator's resumption connection, which a waiting
+  node run is answered through, its stop-request connection, and a connection an external system is
+  told through. A state row whose entries go to a service other than the orchestrator names that
+  service in its cell, keeps its drawing as the row's link, and offers **Handle with the
+  orchestrator**, which rebinds the state's connection. A state row watched through one connection
+  also offers **Call settings**, which opens the settings of that connection's calls (chapter 86a).
+  Clicking a row places a **start node** standing for it, and a row no run can start from offers none;
+  *By hand* places a start whose ports are
   filled from the run's parameters, except `subject`, which reaches the start as `{id, name}` read from
   the model, so a run whose subject names no Thing is refused. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
 - **The outputs**, in the rail on the right, offer the answer, the other pipelines, the external
-  systems told through a connection, and a stop. The answer places the **Output node**, where every
-  path ends, and the value wired into it becomes the run's published result. A pipeline row places a
-  **follow-on node**, a system row a **tell node**, and the stop row a **stop node** (chapter 42); each
-  is offered only where the model binds its kind. The **services** stand under the outputs: clicking
+  systems told through a connection, under *Steps the orchestrator runs* a wait box and a relate box,
+  and under *Stopping runs* a stop. The answer places the **Output node**, where every path ends, and
+  the value wired into it becomes the run's published result. A pipeline row places a **follow-on
+  node**, a system row a **tell node**, the two steps a **wait node** and a **relate node**, each with
+  its kind's ports, and the stop row a **stop node** (chapter 42); each is offered only where the model
+  binds its kind. The **services** stand under the outputs: clicking
   one drops a node bound to its connection, with the typed ports the service declares. Only a service
   that declares at least one port is listed, so the platform's own connections (the orchestrator,
   Tributary and Delta), which declare none, are not.
@@ -1112,10 +1128,24 @@ The **Pipelines** page in the console is the editor.
   that wire. An invalid expression is caught before the run.
 - **A tell or follow-on node** chooses what it stands for, and edits each value it passes on as one in
   and one out port. A **stop node** binds its in ports to run parameters.
+- **A wait node** chooses the state it waits for (every declared state, grouped by the kind it
+  judges), the predicate it then follows (those that relationships from Things of that kind run along,
+  or every predicate where there are none), and *Waits at most (minutes)*, a whole number of minutes,
+  empty for no limit.
+- **A relate node** chooses the predicate it stands for, from only the predicates the orchestrator
+  accepts, sorted by their names in the page language; the list says so when none qualifies. A
+  predicate is accepted when it names a connection along `notifies`, that connection binds a service,
+  and the connection names exactly one state its work is proven by. Under the choice, read-only, are
+  the state the node will wait for and the service it calls, and the node has *Waits at most
+  (minutes)* as a wait node does. On the canvas it reads *relates along <predicate>, then waits for
+  <state>*, or the orchestrator's reason for refusing it. A relate node loaded from an older drawing
+  that the orchestrator would refuse opens unchanged, shows the reason, and is saved back as it was.
 - **Parameters.** An unwired input can be bound to a run parameter by name; the parameters appear
   in a bar above the canvas where values are typed at run time.
-- **Validation** runs before every run: a required input neither wired nor bound, or a wire with a
-  loose end, disables Run and says why.
+- **Validation** runs before every run: a required input neither wired nor bound, a wire with a
+  loose end, a wait node with no state, a relate node with no predicate or one the orchestrator would
+  refuse (with the reason), a wait or relate node with nothing wired into its port, and a limit that is
+  not a whole number of minutes above zero each disable Run and say why.
 - **Save and undo.** Saving an opened pipeline updates it in place. Every edit is optimistic and
   can be undone; a save the server refuses rolls the canvas back to the last saved state.
 - **History** lists a pipeline's past runs; picking one replays each node's status onto the canvas.
@@ -1158,10 +1188,13 @@ Output node. A **wait node** calls no service: the run stands at *waiting* as so
 box, until the Thing on its port enters the state the box names, and then gives that Thing on. A wait
 node may follow a predicate from the Thing it waited for and give, on a second port, the Things it
 reaches, so "wait until decided" hands on the decision; a read that fails fails the node. A
-**relate node** starts a service the way the model does: it stands for a connection, relates the Thing
-reaching it along that connection to the connection's service unless it is related already, so the
-platform calls the service, and waits until the state the connection names for done holds. It then
-gives the Thing on, and says whether this run wrote the relationship.
+**relate node** starts a service the way the model does: it stands for a predicate, which names along
+`notifies` the connection the platform calls. It relates the Thing reaching it along that predicate to
+the connection's service unless it is related already, so the platform calls the service, and waits
+until the state that connection is proven by holds. It then gives the Thing on, and says whether this
+run wrote the relationship. A wait or relate node may carry `waitsAtMostMinutes`, a whole number of
+model minutes above zero; once that passes without the Thing entering the state, the node fails with a
+reason naming the Thing, the state and the minutes. With none, it waits without limit.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
 timeout, a server error from the broker — it is called again after a pause in model minutes. It is
@@ -1204,11 +1237,12 @@ with no list transform alone fills that node's list input; the item keeps its pl
 where the items were first spread out. An item transform reshapes each item on the way; one that
 fails fails that item without a call, and fails a node fed items that meet. A stop starts no more items.
 
-A pipeline can also be started **from the model**. A `runs` predicate naming a Phloem connection
-makes creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship. A relationship written along any other predicate naming a Phloem connection starts a
-pipeline whose start node stands for what the relationship reaches; the orchestrator reads the
-relationship by its identifier to find it. A **state connection** bound to Phloem starts a pipeline
+A pipeline can also be started **from the model**. A `runs` predicate that names a Phloem connection
+along `notifies` makes creating *X runs Pipeline* start it, so any service can start a pipeline by
+creating one relationship. A relationship written along any other predicate that names a Phloem
+connection starts first a pipeline whose start node stands for that predicate; otherwise it starts the
+one whose start node stands for what the relationship reaches. The orchestrator reads the relationship
+by its identifier to find it. A connection written along directly is no starting point of its own. A **state connection** bound to Phloem starts a pipeline
 drawn from it when a Thing enters the state, with the entering Thing as the run's `subject`: the name
 the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows
 by its from-path. The run relates to that Thing along the predicate the run-subject role binds, and
@@ -1276,8 +1310,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. Sign in as `admin` with the password the server wrote to
-`bootstrap-credentials.txt` in its data directory on its first start — or the one
-`VOS_ADMIN_PASSWORD` held then. There is no default password. A developer may put a key in
+`bootstrap-credentials.txt` in its data directory on its first start — or the one held in the file
+`VOS_ADMIN_PASSWORD_FILE` named then. There is no default password. A developer may put a key in
 `VITE_API_KEY` in a local settings file for automatic sign-in.
 
 ![The sign-in form: username, password and the ReGen mark above them, with the theme switch and the language in the corner](assets/trellis-sign-in.png)
@@ -1306,7 +1340,7 @@ beside it, and closes again once a page is chosen.
 | **Accounts**, **API keys** | The pages the platform declares for administrators: who may sign in, which models each account may enter and who is active now; and every key, with a form that issues one and the acts that revoke one (chapter 54). Listed only to an administrator, before the model's own pages |
 | **Compose** | A table built from what the model declares for a kind — its properties, its links and its states — kept as a page of the model's own |
 | **Design** | A page laid out on a grid from the palette every seeded page was drawn with, and kept as a page of the model's own (chapter 53) |
-| **Land intake** | The five-step wizard that describes a piece of land, shown where an intake service is configured |
+| **Land intake** | The six-step wizard that describes a piece of land, shown where an intake service is configured |
 | **Graph** | The model as a picture: search, clustering, the 3D view of one building, and every create, edit and delete |
 | **Model** | The whole building model in 3D, with filtering by element type and a map of where the site is |
 | **Pipelines** | The canvas where a pipeline is drawn, wired, run and watched (Part VI) |
@@ -1683,8 +1717,8 @@ Whole-model operations — export, import, clear — are the command line's (cha
 ### 57. Land intake, from either end
 ![The land-intake wizard on its first step, the steps across the top](assets/trellis-land-intake.png)
 
-**From the console**, the Land intake page walks five steps: project, contact, location, size and
-programme, parcel. You can move between any step already visited, and progress is written to browser
+**From the console**, the Land intake page walks six steps: project, contact, location, size and
+programme, parcel, hazards. You can move between any step already visited, and progress is written to browser
 storage on every keystroke, keyed by the model, so closing the tab loses nothing; a posted
 submission clears its draft. The page is offered only where the console was built with an intake
 service's address; otherwise the submit button says so and stays disabled.
@@ -1694,28 +1728,27 @@ service's address; otherwise the submit button says so and stays disabled.
   point on Earth is refused. A shortened link cannot be opened from the page, so it says to open the
   link and copy the numbers. Once both coordinates are given the site appears on the map.
 - **Size.** Type an area in hectares or acres; it is stored in hectares and the other unit is shown
-  beneath. An area that is not a figure is left out rather than sent as zero.
+  beneath. An area that is not a figure is left out rather than sent as zero. A population or a
+  household size typed beside it that cannot be read holds the submission back, and the reason shows
+  under the field.
 - **Programme.** The categories come from the model's own vocabulary, so the page cannot offer a
   term the service would refuse. Choosing one takes an equal share and leaves the rest in proportion;
   dropping one gives its share back; setting one moves the difference across the others. The shares
   always describe the whole parcel, as whole numbers that add to a hundred.
 - **Parcel.** Place a draft square of the stated area and drag its corners, or click corners onto
-  the map. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
+  the map; dragging the handle at the middle of a side adds a corner there. The drawn area is measured on the sphere — flat arithmetic reads a northern parcel at
   nearly twice its size — and compared with the stated area; within tolerance the two read as a
   match, outside it the page says how far apart they are. The boundary is posted with how it was
   obtained, as a term the model declares, so a generated square never reads as a surveyed boundary.
+- **Hazards.** Every hazard the model names is offered, and every one starts unreported, so a blank
+  row means the person saw nothing of it. A level marked can be cleared again. A model that names no
+  hazards shows the step with nothing to mark rather than hiding it.
 - **Sending.** The submission goes once the contact's address is verified: **Send a code** asks the
   intake service to mail one, and entering it posts the submission.
 
-**From the public site**, a member of the public fills in the same steps on a page that holds no
-sign-in and talks to the intake service alone; it is the same wizard, so a field added to one appears
-on the other. A second, plot-first page runs beside it: the map comes first with an address search,
-the land register's boundary is fetched where one covers the clicked point, the report appears as a
-grid of themed tiles before any question is asked, and the programme, population and household size
-are dials on the report. A submitter receives a code at the address they gave, answers it, and
-afterwards can open a **findings page** to read what the platform worked out about their land — the
-model's own dashboard, with every personal detail withheld — share survey files, and open the parcel
-on the satellite imagery the model declares with the report's sections as tabs along the bottom.
+**From the public site**, a member of the public submits through the site study's pages, which hold
+no sign-in to the console and talk to the intake service alone. The Location page posts the
+submission when its site is confirmed.
 
 ### 58. Reviewing what has arrived
 The land-intake template declares a **Submissions** page, listed in the rail with the model's other
@@ -1924,16 +1957,16 @@ Predicates (1):
 A Thing made, related, listed and removed again, as the console printed it:
 
 ```text
-> create thing Orchard-Test
-Created Thing: Orchard-Test
-> create relation Orchard-Test feeds CommunityCenter
-Created Relationship: Orchard-Test --[feeds]--> CommunityCenter
-> find relationships Orchard-Test
-Relationships for thing 'Orchard-Test':
+> create thing Catchment-Test
+Created Thing: Catchment-Test
+> create relation Catchment-Test feeds CommunityCenter
+Created Relationship: Catchment-Test --[feeds]--> CommunityCenter
+> find relationships Catchment-Test
+Relationships for thing 'Catchment-Test':
   As Subject (1):
-    Orchard-Test --[feeds]--> CommunityCenter
-> delete thing Orchard-Test
-Deleted thing Orchard-Test
+    Catchment-Test --[feeds]--> CommunityCenter
+> delete thing Catchment-Test
+Deleted thing Catchment-Test
 ```
 
 `query property biomeType Temperate` lists every Thing with that value; `query stats` gives the
@@ -1993,7 +2026,7 @@ A range declared and the Thing's states read back, as the console printed it —
 the comparison the criterion makes, which is what a page's verdict sentence reads its target from:
 
 ```text
-> range create Orchard-Test enough-trees trees>=100
+> range create Catchment-Test enough-trees trees>=100
 {
   "Name": "enough-trees",
   "Criteria": "trees>=100",
@@ -2001,9 +2034,9 @@ the comparison the criterion makes, which is what a page's verdict sentence read
   "Bindings": [],
   "Comparisons": [ { "PropertyName": "trees", "Operator": ">=", "Value": 100 } ]
 }
-> state Orchard-Test
+> state Catchment-Test
 {
-  "ObjectName": "Orchard-Test",
+  "ObjectName": "Catchment-Test",
   "CurrentStates": [],
   "RangeEvaluations": [ { "RangeName": "enough-trees", "IsActive": false, "Criteria": "trees>=100" } ]
 }
@@ -2049,15 +2082,15 @@ measuring one run means reading before and after it.
 ```text
 > list services
 Microservices (2):
-  balancesEnergy [Running]
-    Endpoint: http://localhost:5610
+  consumes connection [Running]
+    Endpoint: http://localhost:5620
     Health: Healthy
-  EnergyBalance [Stopped]
-    Endpoint: http://localhost:5610
-    Health: Healthy
+  WaterReserve [Stopped]
+    Endpoint: http://localhost:5630
+    Health: Unknown
 
-> start service EnergyBalance
-> stop service EnergyBalance
+> start service WaterReserve
+> stop service WaterReserve
 ```
 
 `list handlers` shows every connection bound to a service with the executable, run mode and trigger
@@ -2081,8 +2114,8 @@ Fragment applied from changes.json: 3 thing(s) created, 1 updated, 2 relationshi
 Ingested building.ifc: 1240 thing(s) created, 0 updated, 3180 relationship(s) created.
 ```
 
-A fragment file is `{ "Name", "Things": [ … ], "Relationships": [ … ] }`. Applying it is
-idempotent — re-applying neither duplicates nor errors — and the server resolves inheritance, so a
+A fragment file is `{ "Name", "Things": [ … ], "Relationships": [ … ] }`. Applying it again
+neither duplicates nor errors, and the server resolves inheritance, so a
 Thing may carry a value for a name it will inherit. An exported model carries each Thing's own
 properties and its overrides keyed by the kind each overrides; loading one restores inheritance
 without re-running any service. `ingest` uploads a building model to the Xylem service, merging by
@@ -2202,7 +2235,8 @@ only the .NET runtime:
 ```bash
 tar -xzf vos.Mycelium-<version>.tar.gz
 cd vos.Mycelium
-Seeds__Directory=/path/to/seeds VOS_ADMIN_PASSWORD=... dotnet vos.Mycelium.dll --urls http://localhost:7343
+Seeds__Directory=/path/to/seeds VOS_ADMIN_PASSWORD_FILE=/path/to/admin-password VOS_MASTER_KEY_FILE=/path/to/master-key \
+  dotnet vos.Mycelium.dll --urls http://localhost:7343
 ```
 
 **From source.** Clone the two repositories side by side; the shipped seeds reach the services by
@@ -2248,15 +2282,23 @@ to the server.
 ### 74. The first start
 ```bash
 cd VillageOS/vos.Mycelium
-VOS_ADMIN_PASSWORD='choose-one-of-fifteen-or-more' VOS_MASTER_KEY="$(openssl rand -base64 32)" dotnet run
+umask 077
+printf '%s' 'choose-one-of-fifteen-or-more' > ~/vos-admin-password
+openssl rand -base64 32 > ~/vos-master-key
+VOS_ADMIN_PASSWORD_FILE=~/vos-admin-password VOS_MASTER_KEY_FILE=~/vos-master-key dotnet run
 ```
+
+Each secret is read from a file its setting names, never from a value in the environment, which
+every child process can read. A named file must be readable by its owner only (`chmod 600`), or the
+start is refused. `VOS_ADMIN_PASSWORD` and `VOS_MASTER_KEY` given as values still work, with a warning
+at startup; setting both a value and its file is refused.
 
 The server listens on `https://localhost:7243`. On a first start with no accounts it:
 
 1. Generates the key pair it signs every pass with, and keeps the private half in its data
    directory.
-2. Creates the `admin` account. Its password is `VOS_ADMIN_PASSWORD` if set, at least 15
-   characters, or the start is refused; otherwise a random one that must be changed on first
+2. Creates the `admin` account. Its password is the one in `VOS_ADMIN_PASSWORD_FILE` if set, at
+   least 15 characters, or the start is refused; otherwise a random one that must be changed on first
    sign-in. There is no weak default.
 3. Creates a first administrator key. If the store holds no accounts but still holds that key in use
    — its accounts were all deleted — the old key is revoked, and the new one is the key the credentials
@@ -2265,8 +2307,9 @@ The server listens on `https://localhost:7243`. On a first start with no account
    owner only. Secure the file and delete it; the first key can be revoked on the API keys page once
    nothing uses it.
 
-`VOS_MASTER_KEY` encrypts the account store and the signing key on disk. Without it they are
-written in plain text and the server warns at startup. Set it in any real deployment and back it
+The master key, named by `VOS_MASTER_KEY_FILE`, encrypts the account store and the signing key on
+disk. Without it they are written in plain text and the server warns at startup, unless
+`Auth:AllowPlainTextSecrets=true` says plain text is meant. Set it in any real deployment and back it
 up in a secret store, because losing it means the encrypted files cannot be read. Either way, both
 files are readable and writable by their owner only, and a signing key file that cannot be read
 stops the start rather than being replaced.
@@ -2302,7 +2345,7 @@ aside first.
 | **By hand** (chapter 19) | The model is small, or you are learning what a seed is |
 | **The demonstration generator** in the private repository's tools: a regenerative village with homes, energy, water, waste and transport, and a consumption simulation wired to the energy pool | A demonstration, or the pattern to copy for a generator of your own |
 | **The building-model importer**: reads a building model in the Industry Foundation Classes format and writes a seed holding its spatial hierarchy, every element, type objects, materials and quantities, and optionally the render file the 3D viewer draws | A project that starts from a building model |
-| **The importer with templates**: the same seed with the site analysis merged in — kinds matched onto elements by their class or name, the study with its assumptions, formulas and judge-ranges, the compute connection, the page | A site to be analysed |
+| **The importer with templates**: the same seed with the site analysis merged in — kinds matched onto elements by their class or name, the study with its assumptions, formulas and judge-ranges, the connections the platform's own services are reached through, the page | A site to be analysed |
 | **A template-only import**: the templates as a seed with no building model | A model whose facts arrive from submissions rather than a building model |
 | **Export from a running model**: `serialize` in Taproot, or save in the console's seed library | Snapshotting a model you edited by hand, or moving one between servers |
 | **The pipeline playground generator** in the public repository's tools | Exercising the pipeline editor |
@@ -2373,8 +2416,9 @@ intake service's Thing, so it never expires, carries that service's grants and r
 model. The proxy passes the caller's address on, because submissions are rate
 limited per source.
 
-**The public pages** — the form, the plot-first page and the findings page — are a build of their
-own that carries no sign-in and no part of the signed-in console:
+**The public pages** are a build of their own that carries no sign-in to the console and no part of
+the signed-in console. The build is the site study, whose `index.html` asks for an address and a
+project name, sends a code to the address, and opens the study under the ticket the code is spent on:
 
 ```bash
 cd vos.Trellis
@@ -2413,7 +2457,7 @@ administrator account, and launches nothing.
 
 ### 81. An operating checklist
 - [ ] Both repositories cloned side by side and built, or the release archive unpacked; the console built in
-- [ ] `VOS_ADMIN_PASSWORD` and `VOS_MASTER_KEY` set; the first-start credentials file secured and deleted
+- [ ] `VOS_ADMIN_PASSWORD_FILE` and `VOS_MASTER_KEY_FILE` set, each naming a file only its owner can read; the first-start credentials file secured and deleted
 - [ ] The seeds directory holds the models to serve, and `templates/` the templates to create from
 - [ ] Every seed passed the validator before it was placed there
 - [ ] The service kind's executable-path template matches the deployed layout
@@ -2453,8 +2497,8 @@ One directory, one job; tests sit beside the code they test.
 ```text
 vos.Trellis/
 ├── index.html, vite.config.ts     the signed-in application, and its development proxy
-├── public-form.html, findings.html, explore.html, vite.public.config.ts
-│                                  the three public pages, built on their own
+├── public-study.html, vite.public.config.ts
+│                                  the public pages, built on their own
 └── src/
     ├── main.tsx, App.tsx          the root, the router, the sign-in gate, the theme
     ├── types/                     the wire shapes Tendril does not hold: basemaps,
@@ -2466,9 +2510,9 @@ vos.Trellis/
     ├── utils/                     pure functions: the graph mapper, search, clustering,
     │                              formatters, parcel geometry, map links, the composer
     ├── pages/                     one component per route
-    ├── intake/                    the land-intake wizard, shared with the public form
-    ├── publicForm/, publicFindings/, explore/
-    │                              the three public pages' entries
+    ├── intake/                    the land-intake wizard
+    ├── publicPages/               what a public page reads its findings with, and the
+    │                              test that keeps signed-in code out of the public build
     ├── feedback/                  the report panel, also built on its own
     ├── pipeline/                  the pipeline editor's model, validation, undo history
     ├── i18n/                      one file per language
@@ -2541,18 +2585,29 @@ effects on a live change, the decimal precisions, and which properties a load se
 Every address renders only after sign-in; an unauthenticated visitor sees the sign-in form whatever
 they opened.
 
-**The public pages are a build of their own.** The submission form, the findings page and the
-plot-first explore page share this application's wizard, map, widgets and translations, but are
-built separately (`npm run build:public`) with their own entries, have no router, and reach the
-intake service and nothing else: the form and the explore page draw themselves from the service's
-form route, the findings page from its findings route, and the explore page asks it for a place
-search and the parcel at a position. A test walks every import of every public entry and fails if
-one leads to the server client, the signed-in state, or anything behind sign-in. The findings page
-draws the model's own dashboard through the same resolver and widgets the operations page uses;
-what makes that possible is that the resolver opens no connection itself — the reads a loaded
-model cannot answer (state membership, a Thing's ranges, the two temporal reductions, a service)
-are asked of a small interface the application answers from the server and the public pages answer
-from the document they were handed, through the intake service under the page's ticket.
+**The public pages are a build of their own** (`npm run build:public`), with their own entries and no
+router, reaching the intake service and nothing else. Its one page is the site study
+(`public-study.html`, built as `index.html`), whose steps are Location, Data, Village, Layout and
+Timeline in Pro and Location, Data, Village layout and Timeline in Lite. The edition is chosen in the
+footer and kept per browser, Lite until Pro is chosen, and a step whose page is not built yet is
+shown greyed. **Location**, the same in both editions, finds the site from one box that takes an
+address or coordinates, then gives it a border in one of three ways: drawn on the map (a border that
+crosses itself is refused), imported from a parcel file the intake reads (its largest area; a border
+whose centre is more than 300 m from the site moves the site there), or a plot pressed among the
+register's plots in view from zoom 15. A drawn border is measured with the area method the form
+names, an imported one reads the intake's own measure, and a plot reads the register's area. The
+elevation is looked up for each finished border. **Confirm site** posts the submission, with the
+email as the contact's name until a later step asks for one and the site named after the parcel,
+else the address, else the project, and keeps an imported file as a document of the submission.
+Every request after sign-in carries the ticket, renewed from each answer, so the page is counted
+against the signed-in budget. A test reads the build's pages from `vite.public.config.ts` and walks every
+import of every script they load, and fails if one leads to the server client, the signed-in state,
+or anything behind sign-in. A public page can draw the model's own dashboard through the same
+resolver and widgets the operations page uses, because the resolver opens no connection itself — the
+reads a loaded model cannot answer (state membership, a Thing's ranges, the two temporal reductions,
+a service) are asked of a small interface the application answers from the server and a public page
+answers from the findings document it was handed (`src/publicPages/answeredFindings.ts`), through the
+intake service under the page's ticket.
 
 ### 86. Reading properties in the client
 The model store holds each Thing's **own** properties and its **stored overrides** — the shape the
@@ -2759,8 +2814,8 @@ drawn by the same widgets.
 The widget kinds: a **kpi** figure with a unit, a target and a small trace, or a word its binding
 answers, such as a climate class, with no unit and no target judgement; **funnel**, **bullet**,
 **gantt**, **table**, **leaderboard**; **verdict** and **working** (chapter
-90); an **exception bar**; the six chart widgets (chapter 91); and the
-two widgets that write (chapter 93). A section may name a **theme** the model
+90); an **exception bar**; the chart widgets (chapter 91); and the
+widgets that write (chapter 93). A section may name a **theme** the model
 declares and be drawn as a tile, carry `facts: true` to be drawn beside the map, or name a `tab` of
 the closing view (chapter 94).
 
@@ -2783,7 +2838,7 @@ mapping over the binding union, so a kind added and left out of it fails the bui
 
 **Navigation.** Where the rail shows a single **Operations** entry for a model that publishes no
 page and the platform declares none, a model that publishes some gets one entry each in its place,
-ordered by name. The pages the platform declares for the signed-in account come first — they are
+ordered by name as the page language orders names. The pages the platform declares for the signed-in account come first — they are
 the same whichever model a session opens, and a page that moved when the model changed would be one
 a reader loses — and the platform lists such a page only to the accounts it is for.
 
@@ -2817,8 +2872,9 @@ the entities instead. A reference matching neither resolves to nothing.
 | `aggregate` | A function over a property across the members of an archetype, optionally narrowed by a scope and a comparison | Nothing: the loaded model |
 | `ratio` | Two bindings divided | Nothing |
 | `stateCount`, `stateList` | How many Things hold a state, and which; narrowed by archetype, scope, an excluded state and a cap, all sent on the request so the server answers the question asked | One request per distinct question per refresh, shared across every widget asking it |
-| `thingList` | Every Thing of an archetype whatever state it is in, ordered by name | Nothing: the loaded model |
+| `thingList` | Every Thing of an archetype whatever state it is in, ordered by name as the page language orders names; a `limit` keeps the first rows in that order | Nothing: the loaded model |
 | `related`, `stateOf` | What a relationship says; which of several states a Thing holds | Nothing |
+| `value` | One Thing's property as it is held, reached through `thing` and `via` as `related` reaches it: a GeoJson value as its parsed geometry, an object as it is, a number or text as it is; nothing unless exactly one Thing is reached | Nothing, unless a walk step names a state |
 | `timeseries`, `latest`, `history` | The two temporal reductions (chapter 91) | One request per distinct question per refresh |
 | `verdict`, `working`, `origin` | A judged value as a sentence; a figure's formula and inputs; where a figure came from | One range read per judged Thing; nothing; nothing |
 | `service` | A model-side service's answer | One request per distinct question per refresh, shared while in flight and never replayed once settled, because the writing widgets post through the same port and a press answered from an earlier reply would record nothing and say it had |
@@ -2883,9 +2939,15 @@ an inbound one is refused; a refused question resolves to nothing rather than to
 steps: the first step folds the readings, each later one the previous step's groups. A fold is a
 calendar period (`hour`, `day`, `month`, `year`), a cycle laid over itself (`hourOfDay`,
 `dayOfYear`, `monthOfYear`, `hourOfDay,dayOfYear`, `monthOfYear,hourOfDay`) or `all`; a function is
-`Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile`, `ShareWithin` (`from`, `to`), `CountAtOrBelow`
-and `CountAbove` (`threshold`), `SumAbove` and `SumBelow` (`threshold`; degree days). A step after a
-cyclic fold may only fold by `all`. A parameter may itself be a binding — a study's setpoint read
+`Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile`, `ShareWithin` (`from`, `to`), `CountAtOrBelow`,
+`CountAbove` and `CountAtOrAbove` (`threshold`), `SumAbove` and `SumBelow` (`threshold`; degree days).
+A step after a cyclic fold may only fold by `all`. Two more pairs of folds key each reading by what it
+reads, count only, and come only first: `value` and `monthOfYear,value` key a reading by itself (a
+whole number as written, or a Thing's identifier in lower-case form), and `cell` and
+`monthOfYear,cell` key an instant by the bins its reading and a second property's reading fall in. A
+cell fold carries `bins: { width, upTo? }` and `pairedWith: { property, bins }`, and its keys are the
+two bins' lower bounds, such as `21,14`. A binding with `answer: 'coverage'` resolves the same
+question to one row, `{ samples, unpairedSamples, unusableSamples }`, asked once. A parameter may itself be a binding — a study's setpoint read
 across `studies`, a class Thing's bound — so a chart's thresholds are the model's; a bound parameter
 the model answers nothing for leaves the binding unanswered rather than asking with nought. The
 calendar is taken in the offset the scope entity states as `utcOffsetSeconds`.
@@ -2896,17 +2958,21 @@ calendar is taken in the offset the scope entity states as `utcOffsetSeconds`.
              { "fold": "monthOfYear", "function": "Average" } ] }
 ```
 
-The six chart widgets each draw `history` bindings and share what every chart carries: the window
-read off its bindings as the card's hint, a tooltip for the bar or point under the pointer or the
-keyboard focus, a legend, colours from the chart tokens validated for both themes, and a hidden
-table twin so nothing a chart shows can only be seen.
+The chart widgets each draw `history` bindings, or rows, and share what every chart carries: the
+window read off its bindings as the card's hint, a tooltip for the bar or point under the pointer or
+the keyboard focus, a legend, colours from the chart tokens validated for both themes, and a table of
+every value it draws, opened from its **Table** button, so nothing a chart shows can only be seen.
 
 | Widget | Draws |
 | --- | --- |
 | `rangeBar` | Twelve monthly bars and one annual bar, each stacked from seven statistics (`recordedHigh`, `designHigh`, `averageHigh`, `mean`, `averageLow`, `designLow`, `recordedLow`) on a diverging scale about the mean, against `bands` whose bounds are bindings; `floor` and `ceiling` fix the axis |
 | `lineSeries` | Several `series` on one calendar axis, one scale, up to eight; a series the platform answered nothing for is left out |
-| `heatmap` | Every hour of every day as one cell — the `hourOfDay,dayOfYear` fold — painted on a canvas because thousands of drawn rectangles would outweigh the page, with sunrise and sunset curves where `sun` binds the latitude, longitude and offset; no table twin, the keyboard walk stands in |
-| `stackedShares` | Twelve bars stacked from the `share` of each of the `classes` listed, each a `ShareWithin` per month, colours and bounds bound to the class Things; nothing is scaled to a hundred, so classes that do not sum to one draw a bar that stops short |
+| `boxPlot` | Twelve boxes, one a month, each from `boxLow` to `boxHigh` with the `median` across it and a line from `whiskerLow` to `whiskerHigh` (usually percentiles 5, 25, 50, 75 and 95), with an optional `annual` box beside them and `bands` behind |
+| `heatmap` | Every hour of every day as one cell — the `hourOfDay,dayOfYear` fold — or a column a month — the `monthOfYear,hourOfDay` fold — painted on a canvas because thousands of drawn rectangles would outweigh the page, with sunrise and sunset curves where `sun` binds the latitude, longitude and offset. Optional `classes` (a label, bounds from and to, a colour) paint each cell by the first class holding its value, the legend giving each class's share of the cells. Its table, on the day fold, is built only when asked for |
+| `stackedShares` | Twelve bars stacked from the `share` of each of the `classes` listed, each a `ShareWithin` per month, colours and bounds bound to the class Things; a class may bind an `annual` share, the same question folded by `all`, drawn as a column after December. Nothing is scaled to a hundred, so classes that do not sum to one draw a bar that stops short. Alternatively `counted` takes the classes from the model: `groups` is a row binding, one row per group Thing, with its order, label and colour under `orderKey`, `labelKey` and `colourKey`, and `wordingKey` optionally naming a column whose words in the page language label the group; `counts` is folded by `monthOfYear,value` and counted, `annual` by `value`; each share is a group's hours over the hours counted under a declared group, so these bars reach the top. With `counted`, `classes` is not read |
+| `polarShares` | A rose of the hours counted under each cell Thing: `counts` is a `history` binding folded by `value` (one rose) or `monthOfYear,value` (a rose a month, all on one scale) and counted; `cells` is a row binding, one row per cell Thing, whose `id` the counts are keyed by. Each cell sits in the sector its row's `bearingKey` names (degrees, nought north, clockwise) and stacks outward by `classOrderKey`, labelled and coloured by `classLabelKey` and `classColourKey`; `classWordingKey` optionally names a column holding the class Thing's wording, whose words in the page language label the class. A wedge's reach is its share of the hours counted under a declared cell |
+| `densityGrid` | The hours two readings of one Thing spent in each cell of their bins, shaded by each cell's share of the hours counted. `cells` is a `history` binding whose first step is `cell`, counted; `across` and `up` name the two properties and their units. `outlines` draw a GeoJSON Polygon (filled faintly) or LineString (unfilled) that a `value` binding reads in the chart's own units. `coverage` is the same binding with `answer: 'coverage'`, and a note says how many readings had no partner at their instant |
+| `depthProfile` | A `rows` binding drawn one row a layer, top down by `orderKey`, each named by `labelKey`; several `parts` stack across a row, and one part draws a bar from the floor |
 | `divergingBar` | Twelve months, `up` rising and `down` falling from one line on one scale — cooling and heating degree days — each side's `threshold` bound to the model's value for the legend |
 | `smallMultiples` | Twelve monthly panels, each `bars` by hour on one scale and a `line` through the hours on another, with a `band` behind the line; each scale shared across the panels |
 
@@ -3053,8 +3119,9 @@ is still submitted by its name.
 
 ### 94. Tiles, and what a page is sent
 A section may name a **theme** the model declares — a Thing under the archetype the `theme` role binds,
-carrying `colour`, `icon` and `order` — and a page that draws themes then draws the section as a
-tile: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
+carrying `colour`, `icon`, `order` and `wording` — and a page that draws themes then draws the section
+as a tile, named by the section's own title where the page gives one, then by the theme's words in the
+page language, then by the theme's name: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
 as the gallery a click opens, and a muted *not assessed* tile for a section with no widgets. A
 section carrying `facts: true` draws its kpi widgets as cards beside the map on the explore page,
 each with its origin line in place of a tick, and leaves the report; the page draws three cards of
@@ -3098,8 +3165,14 @@ address. A relative `tileUrl` — a path such as `/basemaps/satellite-tiles/{z}/
 the server that served the page: the intake service for the public pages, the server itself for the
 signed-in console. A signed-in map sends its sign-in with tile requests to its own server and to no
 other, so no map provider is ever handed a pass. Anything put onto the
-style — the boundary, the ground, the globe, the sky — goes on once the map has settled, and once
-only, because each repaints the map. The map library is chunked on its own and loaded when a map
+style — the boundary, an approximate area's dashed circle, a register's plots, the ground, the globe,
+the sky — goes on once the map has settled, and once only, because each repaints the map. The map
+draws a border's handles and reports each edit: a corner placed, the border closed on its first
+corner, a corner moved, a corner dragged out of a side. A dragged handle goes back where it was, and
+the page decides whether the edit stands, so the study's Location page refuses a border that crosses
+itself while the intake wizard takes every corner where it is put. The page gives the border's
+colours; the console keeps its green. A label the page gives, such as the study's "parcel · area",
+sits at the middle of a border that encloses land. The map library is chunked on its own and loaded when a map
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 
@@ -3130,7 +3203,7 @@ runs it during a play and keeps the file with its readings.
 | **Binding** | On a range: a property with bounds and an optional guard, for deviation reporting. On a page: where a widget's value comes from |
 | **Call record** | The durable note of one service call, with its state, that the platform drives to completion |
 | **Checkpoint** | A saved picture of a model's structure that bounds how much of the record a restart replays |
-| **Connection** | A Thing that routes to a service: through a predicate, a request address or a state |
+| **Connection** | A Thing that routes to a service: named by a predicate along `notifies`, reached at a request address, or watching a state |
 | **Criterion** | A condition in the small language ranges, guards, conditions and formulas share |
 | **Dashboard** | A page the model publishes as data; the console draws it |
 | **Derived value** | A property computed by a total over related Things or a formula over a Thing's own values |
@@ -3175,7 +3248,7 @@ runs it during a play and keeps the file with its readings.
 | Quantifiers over related Things | `ANY` (default), `ALL`, `NONE` | `ALL [feeds].quantity > 0` |
 | Totals over related Things | `MIN`, `MAX`, `SUM`, `AVG`, `COUNT` over `[path.Kind].property`, on the left of a comparison | `SUM [<-is.SolarArray].area > 5000` |
 | A trailing window | `OVER instant LAST seconds` after a total | `COUNT [feeds] OVER flowed_at LAST 900 > 20` |
-| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product, and scaling the whole term takes brackets | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
+| A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product. A parameter ends at the next `BY`, `FROM` or `TO`, a comparison or a closing bracket, so scaling the whole term takes brackets: `(HISTORY … TO comfortHighCelsius) * 100` | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
 | The clock | `elapsed(x)` in seconds, `Now()` | `elapsed(lastInspected) > 86400` |
 | The smaller of two figures | `min(a, b)`; unknown when either is | `min(harvestM3PerYear, demandM3PerYear)` |
 | The first figure with a number | `firstKnown(a, b, …)`, in the order written; an unknown, a text or a path reaching several Things is passed over, and zero is an answer | `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` |
@@ -3286,9 +3359,8 @@ on its own study. Where no source for the value is recorded, the table says so.
 | `peoplePowered` | `totalGenerationMwhPerYear × 1,000 ÷ energyPerPersonKwhPerYear` | Reads no population, so a submission carrying only a boundary still gets an answer |
 
 **Verdict.** Net positive at 100% or more, short of target below it, not assessed while unknown. A
-site that generates at least what it uses is net positive by definition. This verdict is the one figure
-still written by a service, the energy balance, because a verdict is a yes or no where a formula gives
-a number.
+site that generates at least what it uses is net positive by definition. Three ranges on the study
+judge `percentOfConsumption`, so no service writes the verdict.
 
 ### Water
 
@@ -3304,7 +3376,8 @@ a number.
 
 **Each demand on the harvest works out its own share.** Each demand states its `servingOrder`:
 drinking water 1, irrigation 2. Both the demands and their order are declared in the model, not
-written into a service.
+written into a service. A demand whose `servingOrder` is not a whole number, such as text or `true`,
+counts as stating no order and is served first; demands with the same order are served by name.
 
 | Figure (each demand) | How it is worked out | Why |
 | --- | --- | --- |

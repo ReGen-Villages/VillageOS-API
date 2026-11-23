@@ -10,10 +10,10 @@ from .config import Config
 
 
 def verifier(config: Config):
-    """A FastAPI dependency validating a Bearer JWT against `config`.
+    """A FastAPI dependency checking a bearer token against `config`.
 
     No-op when no verification key was supplied (matches the .NET handlers). Issuer, recipient
-    name and expiry are validated with 30s clock skew, mirroring ServiceTokenValidator. `config`
+    name and expiry are validated allowing 30 seconds of clock difference, mirroring ServiceTokenValidator. `config`
     is read on each call, so a key set after the service started is honoured.
 
     The accepted algorithm is named rather than taken from the token. A checker that honoured the

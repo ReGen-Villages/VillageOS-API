@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 
-/** A dropdown of language flags: the trigger shows the active flag, the menu lists every
- *  language (flag + name). Opens upward in the sidebar footer; pass `openDirection="down"`
- *  where it sits near the top of the viewport (e.g. the login page). Pass `align="right"`
- *  when the trigger sits against the right edge so the menu opens inward instead of off-screen. */
+/** Opens upward, for the sidebar footer. Pass `openDirection="down"` near the top of the viewport, and
+ *  `align="right"` against the right edge, so the menu opens on screen. */
 export function LanguageSwitcher({
   openDirection = 'up',
   align = 'left',
@@ -23,21 +22,8 @@ export function LanguageSwitcher({
   const active =
     SUPPORTED_LANGUAGES.find((language) => language.code === i18n.language) ?? SUPPORTED_LANGUAGES[0];
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootReference.current?.contains(event.target as Node)) setIsOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen]);
+  const close = useCallback(() => setIsOpen(false), []);
+  useClosesOnEscapeOrPressOutside(isOpen, rootReference, close);
 
   const select = (code: (typeof SUPPORTED_LANGUAGES)[number]['code']) => {
     changeLanguage(code);

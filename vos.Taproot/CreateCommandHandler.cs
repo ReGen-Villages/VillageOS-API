@@ -2,8 +2,8 @@ namespace vos.Taproot
 {
     public class CreateCommandHandler : CommandHandlerWithOutputOptions
     {
-        public CreateCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public CreateCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
         }
 
@@ -11,7 +11,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (tok.Length == 0)
                 {
                     ShowUsage();

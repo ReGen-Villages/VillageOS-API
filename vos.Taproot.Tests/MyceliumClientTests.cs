@@ -20,8 +20,7 @@ public class MyceliumClientTests
     public void Ctor_TrimsTrailingSlashFromMyceliumUrl()
     {
         var (client, _) = NewClient(_ => Ok(), myceliumUrl: "https://localhost:7243///");
-        // Internal field is private; verify indirectly by issuing a request and inspecting the URL.
-        // The handler is built fresh inside the helper - we just need NewClient to not crash on trailing slashes.
+        // The trimmed address is private, so this shows only that trailing slashes do not stop the client being built.
         client.Should().NotBeNull();
     }
 
@@ -41,22 +40,18 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_NullApiKey_FallsBackToVosApiKeyEnvVar()
+    public async Task Ctor_NullApiKey_IsRefusedWithoutReadingVosApiKey()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         try
         {
             Environment.SetEnvironmentVariable("VOS_API_KEY", "from-env");
-            HttpRequestMessage? captured = null;
-            var (client, _) = NewClient(req =>
-            {
-                captured = req;
-                return TokenResponse(ServiceToken);
-            }, apiKey: null);
+            var (client, mycelium) = NewClient(_ => TokenResponse(ServiceToken), apiKey: null);
 
-            await client.GetTokenAsync();
+            var act = async () => await client.GetTokenAsync();
 
-            captured!.Headers.GetValues("X-API-Key").Should().ContainSingle("from-env");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*VOS_API_KEY*");
+            mycelium.Requests.Should().BeEmpty();
         }
         finally
         {
@@ -86,7 +81,7 @@ public class MyceliumClientTests
     }
 
     // ConsoleOptions treats a whitespace VOS_API_KEY as no key at all, so the client has to agree:
-    // otherwise the CLI sends the blank key and the operator gets a rejection from the server
+    // otherwise the command line sends the blank key and the operator gets a rejection from the server
     // instead of being told the variable is empty.
     [Fact]
     public async Task Ctor_WhitespaceApiKeyInEnvironment_GetTokenThrowsNamingVosApiKey()
@@ -109,7 +104,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_PublicNoApiKeyOverload_SendsTheKeyFromVosApiKey()
+    public async Task Ctor_PublicNoApiKeyOverload_IsRefusedWithoutReadingVosApiKey()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         using var broker = new TcpListener(IPAddress.Loopback, 0);
@@ -119,35 +114,15 @@ public class MyceliumClientTests
             Environment.SetEnvironmentVariable("VOS_API_KEY", "from-env");
             var client = new MyceliumClient($"http://127.0.0.1:{((IPEndPoint)broker.LocalEndpoint).Port}");
 
-            var asking = client.GetTokenAsync();
-            var connecting = broker.AcceptTcpClientAsync();
-            await Settle.ForAsync(connecting, "the client calls the broker");
-            using var connection = await connecting;
-            var request = await AnswerWithATokenAsync(connection.GetStream());
+            var act = async () => await client.GetTokenAsync();
 
-            await Settle.ForAsync(asking, "the client reads the token");
-            (await asking).Should().Be(ServiceToken);
-            request.Should().Contain("X-API-Key: from-env");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*VOS_API_KEY*");
+            broker.Pending().Should().BeFalse("a client given no key calls nothing");
         }
         finally
         {
             Environment.SetEnvironmentVariable("VOS_API_KEY", original);
         }
-    }
-
-    private static async Task<string> AnswerWithATokenAsync(NetworkStream stream)
-    {
-        var buffer = new byte[4096];
-        var request = new StringBuilder();
-        int read;
-        while (!request.ToString().Contains("\r\n\r\n") && (read = await stream.ReadAsync(buffer)) > 0)
-            request.Append(Encoding.ASCII.GetString(buffer, 0, read));
-
-        var body = $"{{\"token\":\"{ServiceToken}\"}}";
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-            + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}"));
-        return request.ToString();
     }
 
     [Fact]
@@ -223,9 +198,6 @@ public class MyceliumClientTests
 
         await client.GetAllThingsAsync();
 
-        // After SetAuthHeaderAsync runs, the HttpClient's DefaultRequestHeaders is set;
-        // but per-request headers reflect the same Authorization. Easiest check:
-        // the captured request's Authorization header should be Bearer + ServiceToken.
         captured!.Headers.Authorization.Should().NotBeNull();
         captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
         captured.Headers.Authorization.Parameter.Should().Be(ServiceToken);
@@ -771,6 +743,48 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetThingBoundByAsync_AsksForTheThingTheRoleBinds()
+    {
+        var role = Guid.NewGuid();
+
+        var captured = await CaptureRequest(client => client.GetThingBoundByAsync(role));
+
+        captured.Method.Should().Be(HttpMethod.Get);
+        captured.RequestUri!.PathAndQuery.Should().Be($"/api/things?boundBy={role}");
+    }
+
+    [Fact]
+    public async Task GetThingBoundByAsync_BoundReturnsTheThing_UnboundReturnsNull()
+    {
+        var role = Guid.NewGuid();
+        var (bound, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token" ? TokenResponse(ServiceToken) : JsonResponse("{\"Name\":\"Spring\"}"));
+        var (unbound, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token" ? TokenResponse(ServiceToken) : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        (await bound.GetThingBoundByAsync(role))!.Value.GetProperty("Name").GetString().Should().Be("Spring");
+        (await unbound.GetThingBoundByAsync(role)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AClientGivenAProgramName_NamesThatProgramOnEveryRequest()
+    {
+        HttpRequestMessage? captured = null;
+        var client = new MyceliumClient(
+            "https://localhost:7243", "an-api-key",
+            new MockHttpMessageHandler(req =>
+            {
+                captured = req;
+                return TokenResponse(ServiceToken);
+            }),
+            programName: "Another program");
+
+        await client.GetTokenAsync();
+
+        captured!.Headers.GetValues(MyceliumClient.ProgramHeader).Should().ContainSingle("Another program");
+    }
+
+    [Fact]
     public async Task GetRelationshipAsync_NotFound_ReturnsNull()
     {
         var (client, _) = NewClient(req =>
@@ -981,14 +995,11 @@ public class MyceliumClientTests
             return JsonResponse("[]");
         }, clock: () => now);
 
-        // Seed the cache first
         (await client.GetTokenAsync()).Should().Be(ServiceToken);
         handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/auth/token").Should().Be(1);
 
-        // Switch model - should swap the cached token
         await client.SwitchModelAsync(modelId);
 
-        // Next GetTokenAsync should return the new token from cache without re-hitting /api/auth/token
         (await client.GetTokenAsync()).Should().Be(newToken);
         handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/auth/token").Should().Be(1);
     }
@@ -1205,8 +1216,7 @@ public class MyceliumClientTests
             var heldToATimeLimit = new MockHttpMessageHandler(_ => TokenResponse(ServiceToken));
             var withNoTimeLimit = new MockHttpMessageHandler(_ => JsonResponse("{\"success\":true}"));
             var client = new MyceliumClient(
-                MyceliumUrl, ApiKey, new HttpClient(heldToATimeLimit),
-                clientWithNoTimeLimit: new HttpClient(withNoTimeLimit));
+                MyceliumUrl, ApiKey, heldToATimeLimit, transportWithNoTimeLimit: withNoTimeLimit);
 
             await client.IngestIfcAsync("http://localhost:6100", tmp, "Demo", "merge");
 
@@ -1243,8 +1253,7 @@ public class MyceliumClientTests
         capturedBody.Value.GetProperty("Value").GetString().Should().Be("red");
     }
 
-    // Adding a property is POST on the same path; PUT answers 404 for one the
-    // Thing does not hold yet, and the short type names the guide lists were sent unmapped.
+    // Adding a property is a POST on the same path, because PUT answers 404 for one the Thing does not hold yet.
     [Fact]
     public async Task AddPropertyAsync_PostsTheTypedValueUnderThePlatformsTypeName()
     {
@@ -1793,8 +1802,7 @@ public class MyceliumClientTests
         Func<DateTime>? clock = null)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var http = new HttpClient(handler);
-        var client = new MyceliumClient(myceliumUrl, apiKey, http, clock);
+        var client = new MyceliumClient(myceliumUrl, apiKey, handler, clock);
         return (client, handler);
     }
 

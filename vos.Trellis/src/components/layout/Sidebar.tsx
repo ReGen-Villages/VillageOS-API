@@ -153,8 +153,8 @@ function NavigationItem({
   );
 }
 
-/* Membership is asked once per navigation entry on every render, against every name the icon set
-   ships — a scan of the list would repeat that walk each time. */
+/* Every navigation entry is checked against every name the icon set ships on every render, which a set
+   answers at once and a scan of the list would not. */
 const ICON_NAMES: ReadonlySet<string> = new Set(iconNames);
 
 /** Declared once so the icon still being fetched is the same element across renders. */

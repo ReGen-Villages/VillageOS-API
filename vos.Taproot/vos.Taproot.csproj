@@ -13,4 +13,16 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\vos.MyceliumClient\vos.MyceliumClient.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="vos.PlatformClient" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="vos.Taproot.Tests" />
+  </ItemGroup>
+
 </Project>

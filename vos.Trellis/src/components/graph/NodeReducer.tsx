@@ -21,16 +21,12 @@ interface Props {
 }
 
 /**
- * Installs Sigma nodeReducer/edgeReducer for visual filtering.
- *
  * Edge visibility:
  * - Default: ALL edges visible
  * - Hover: edges touching hovered node brightened
  * - Selection: edges touching selected node visible (others fall under default)
  * - Search active: only edges connecting matched nodes visible (others hidden)
  * - Predicate filter active: only edges with matching predicate visible (others hidden)
- *
- * Must be rendered as a child of <SigmaContainer>.
  */
 export function NodeReducer({ searchQuery, searchOptions }: Props) {
   const setSettings = useSetSettings();
@@ -102,11 +98,8 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       const hovered = currentState.hoveredNodeId;
       const selected = currentState.selectedNodeId;
 
-      // Predicate filter (PredicateFilterPanel) is an absolute
-      // hide. If the edge's predicate is in the user's hidden set, the edge
-      // never renders, regardless of hover / selection / search / clustering.
-      // Mirrors the type filter's behavior so checkbox state is the single
-      // source of truth.
+      // A hidden predicate's edge is never drawn, whatever the hover, selection, search or clustering, as the type
+      // filter does, so the checkbox alone decides.
       if (hiddenPredicateIds.has(data.predicateId as string)) {
         return { ...data, hidden: true };
       }

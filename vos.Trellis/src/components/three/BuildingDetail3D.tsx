@@ -1,13 +1,4 @@
-/**
- * Single-building 3D viewer for the detail panel.
- *
- * Renders a centered, auto-rotating building model with orbit controls.
- * Lazy-loaded when the "3D" tab is activated in NodeDetailPanel.
- *
- * Things with child elements (via spatial-containment predicates) render
- * multiple meshes colored by `colorKey` hash. The caller decides what
- * string to put in `colorKey` — the viewer is domain-agnostic.
- */
+/** A Thing with child elements, through the spatial containment predicates, draws one mesh per child. */
 import { useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -19,13 +10,8 @@ import { hashStringToIndex, ELEMENT_COLORS } from '../../utils/colors';
 export interface ChildElement {
   geometryValue: unknown;
   name: string;
-  /**
-   * Arbitrary string used to deterministically pick a mesh color via
-   * hashing into ELEMENT_COLORS. Children sharing a colorKey share a
-   * color; the meaning of the key is the caller's choice (e.g. an IFC
-   * class for IFC seeds, a `kind` property for another domain). When
-   * absent the parent's `color` is used.
-   */
+  /** Hashed into ELEMENT_COLORS, so children with the same key share a colour; what the key means is the
+   *  caller's choice. Without one the parent's `color` is used. */
   colorKey?: string;
 }
 

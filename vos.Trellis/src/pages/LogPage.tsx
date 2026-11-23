@@ -8,8 +8,8 @@ import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDow
 import { toast } from '../components/common/toastStore';
 import { ConnectionMark } from '../components/common/ConnectionMark';
 
-/** Live tail of the Mycelium broker log — or a service's own log when ?service=<connection id> is
- *  set, titled by ?name=. Keyed by service so switching sources remounts the view with fresh state. */
+/** `?service=` names a service's own log by connection identifier and `?name=` titles it; without them it is the
+ *  broker's log. Keyed by service, so switching logs starts a fresh view. */
 export function LogPage() {
   const [parameters] = useSearchParams();
   const service = parameters.get('service') ?? undefined;

@@ -123,8 +123,6 @@ public class RequestContractValidationMiddlewareTests
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
-    // --- helpers ---
-
     private static HttpContext NewContext(string body, object[]? endpointMetadata = null)
     {
         var ctx = new DefaultHttpContext
