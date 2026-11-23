@@ -85,7 +85,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public bool RunCreationStarted { get; private set; }
 
     public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
-        string? refusal = null, bool rehearsal = false, Guid? repeats = null, Guid? callRecordId = null)
+        string? refusal = null, bool rehearsal = false, Guid? repeats = null, Guid? callRecordId = null, long? queueNumber = null)
     {
         RunCreationStarted = true;
         await RunCreationHeldUntil;
@@ -95,7 +95,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy, repeats));
         if (refusal is not null)
         {
-            StatusUpdates.Add(RunStatus.Refused);
+            lock (StatusUpdates) StatusUpdates.Add(RunStatus.Refused);
             RunError = refusal;
         }
         var recorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : (JsonElement?)null;
@@ -103,8 +103,31 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model)
         {
             Runs[runId] = (pipelineId, recorded ?? default);
-            RunStatuses[runId] = refusal is null ? RunStatus.Running : RunStatus.Refused;
+            RunStatuses[runId] = refusal is not null ? RunStatus.Refused : queueNumber is null ? RunStatus.Running : RunStatus.Queued;
+            if (queueNumber is { } number) QueueNumbers[runId] = number;
         }
+    }
+
+    public Dictionary<Guid, long> QueueNumbers { get; } = new();
+    public Exception? BeginFailure { get; set; }
+    public Task BeginHeldUntil { get; set; } = Task.CompletedTask;
+
+    private int _beginsAsked;
+    public int BeginsAsked => Volatile.Read(ref _beginsAsked);
+
+    public async Task BeginQueuedRunAsync(Guid runId, CancellationToken ct)
+    {
+        Interlocked.Increment(ref _beginsAsked);
+        await BeginHeldUntil;
+        if (BeginFailure is { } failure) throw failure;
+        lock (_model) RunStatuses[runId] = RunStatus.Running;
+    }
+
+    public Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken ct)
+    {
+        lock (_model)
+            return Task.FromResult<IReadOnlyList<QueuedRun>>(RunStatuses.Where(run => run.Value == RunStatus.Queued)
+                .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key])).ToList());
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
@@ -257,12 +280,22 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     private static bool Unfinished(NodeRecord record) => record.Status is RunStatus.Trying or RunStatus.Running;
 
-    public Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)
+    public Task RecordReadHeldUntil { get; set; } = Task.CompletedTask;
+
+    private int _recordReadsHeld;
+    public int RecordReadsHeld => Volatile.Read(ref _recordReadsHeld);
+
+    public async Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)
     {
-        if (RecordReadFailure is { } failure) return Task.FromException<RunRecord?>(failure);
+        if (!RecordReadHeldUntil.IsCompleted)
+        {
+            Interlocked.Increment(ref _recordReadsHeld);
+            await RecordReadHeldUntil;
+        }
+        if (RecordReadFailure is { } failure) throw failure;
         lock (_model)
         {
-            if (!Runs.TryGetValue(runId, out var run)) return Task.FromResult<RunRecord?>(null);
+            if (!Runs.TryGetValue(runId, out var run)) return null;
             var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId,
                 record => (_itemRecords.TryGetValue(record.Key, out var items) ? record.Value with { Items = items.Values.ToList() } : record.Value)
                     with { Watching = Watches.GetValueOrDefault(record.Key) });
@@ -270,8 +303,8 @@ internal sealed class FakeGateway : IMyceliumGateway
             lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
             Guid? repeatedBy;
             lock (RunsCreated) repeatedBy = RunsCreated.Where(created => created.Repeats == runId).Select(created => (Guid?)created.RunId).FirstOrDefault();
-            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running),
-                repeatedBy, CallRecordsOfRuns.TryGetValue(runId, out var callRecord) ? callRecord : null));
+            return new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running),
+                repeatedBy, CallRecordsOfRuns.TryGetValue(runId, out var callRecord) ? callRecord : null);
         }
     }
 
@@ -306,7 +339,7 @@ internal sealed class FakeGateway : IMyceliumGateway
             NodeRunsPersisted.Add((nodeName, null, RunStatus.Succeeded, outputs));
             WatchWrites.Add((nodeName, RunStatus.Succeeded, watch));
         }
-        StatusUpdates.Add(RunStatus.Running);
+        lock (StatusUpdates) StatusUpdates.Add(RunStatus.Running);
         lock (_model)
         {
             ResumesWritten.Add((runId, nodeId));
@@ -374,15 +407,18 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null, bool heldUntilReported = false)
     {
-        StatusUpdates.Add(status);
+        lock (StatusUpdates) StatusUpdates.Add(status);
         if (error != null) RunError = error;
         lock (_model)
         {
             RunStatuses[runId] = status;
             if (RunStatus.IsFinished(status) && heldUntilReported) HeldUntilReported.Add(runId);
         }
+        if (RunStatus.IsFinished(status)) OnRunFinished();
         return Task.CompletedTask;
     }
+
+    public Action OnRunFinished { get; set; } = () => { };
 
     public Dictionary<Guid, string> RunStatuses { get; } = new();
 
@@ -437,7 +473,8 @@ internal sealed class FakeGateway : IMyceliumGateway
                 return Task.FromResult(new StopRequested(stopRequestId, StopReason, targetId == requestedBy ? [] : [targetId]));
             List<Guid> about;
             lock (RunsCreated) about = RunsCreated.Where(run => run.Subject?.Id == targetId).Select(run => run.RunId).ToList();
-            var going = about.Where(run => run != requestedBy && RunStatuses.GetValueOrDefault(run) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying).ToList();
+            var going = about.Where(run => run != requestedBy
+                && RunStatuses.GetValueOrDefault(run) is RunStatus.Queued or RunStatus.Running or RunStatus.Waiting or RunStatus.Trying).ToList();
             return Task.FromResult(new StopRequested(stopRequestId, StopReason, going));
         }
     }

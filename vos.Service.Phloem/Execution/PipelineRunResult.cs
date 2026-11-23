@@ -4,6 +4,8 @@ namespace vos.Service.Phloem.Execution;
 
 public static class RunStatus
 {
+    // Recorded, and not begun: its pipeline already holds as many runs at once as it allows.
+    public const string Queued = "queued";
     public const string Running = "running";
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";

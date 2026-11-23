@@ -34,7 +34,8 @@ public sealed class PipelineExecutor
         IMyceliumGateway gateway,
         ILogger<PipelineExecutor> logger,
         ModelClock clock,
-        int maxConcurrency = 4)
+        int maxConcurrency = 4,
+        Func<TimeSpan, Task>? pause = null)
     {
         _gateway = gateway;
         _logger = logger;
@@ -51,7 +52,7 @@ public sealed class PipelineExecutor
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
-        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false, Guid? callRecordId = null)
+        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false, Guid? callRecordId = null, bool waitsForItsPlace = false)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
@@ -75,6 +76,10 @@ public sealed class PipelineExecutor
 
         return await SweepAsync(rid, dag, runParams, new Progress(_clock), rehearsal, callRecordId, cancellationToken);
     }
+
+    public Task<int> RecoverQueuedAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+
+    public int PipelinesHoldingPlaces => 0;
 
     private void Report(Guid runId, Guid? callRecordId, string status, string? error)
     {

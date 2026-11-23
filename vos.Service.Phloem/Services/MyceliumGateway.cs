@@ -174,7 +174,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
         JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null,
-        Guid? callRecordId = null)
+        Guid? callRecordId = null, long? queueNumber = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -206,6 +206,10 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         if (repeats is { } repeated) await RelateIfBoundAsync(runId, PipelineRoles.RepeatedRun, repeated, cancellationToken);
         if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
     }
+
+    public Task BeginQueuedRunAsync(Guid runId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<QueuedRun>>([]);
 
     // A run is recorded without the relationship rather than refused, since the run has already begun.
     private async Task RelateIfBoundAsync(Guid runId, Role role, Guid targetId, CancellationToken cancellationToken)

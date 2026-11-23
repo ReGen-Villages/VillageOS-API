@@ -45,7 +45,12 @@ public interface IMyceliumGateway
     // A run a state entry started is held even when refused, so a restart can still send its report.
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
         JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null,
-        Guid? callRecordId = null);
+        Guid? callRecordId = null, long? queueNumber = null);
+
+    Task BeginQueuedRunAsync(Guid runId, CancellationToken cancellationToken);
+
+    // Each queued run the orchestrator holds, its pipeline named whether or not the model still holds it.
+    Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken);
 
     // Upsert a NodeRun Thing and set its status — running before its service is called, then the terminal
     // status — on one Thing per key (deterministic id) so the live view sees a property change, not duplicate
