@@ -8,11 +8,11 @@ import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, SeriesTable } from './chartChrome';
 import { rampColour } from './chartRamp';
 import { classHolding, drawnClassesOf, type DrawnClass } from './chartClasses';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { MOST_CELLS_A_MAP_DRAWS, cellBounds, cellsIn, extentOf, gridOf, mercator, outerRingsOf, shareOnScale } from './gridGeometry';
 import { formatNumber } from './format';
 import { useChartSurface } from './useChartSurface';
 
-const FALLBACK_WIDTH = 480;
 const PLOT_HEIGHT = 280;
 const LEGEND_STEPS = 24;
 const OUTLINE_DASH = '4 3';
