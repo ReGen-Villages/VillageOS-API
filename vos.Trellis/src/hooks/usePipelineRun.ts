@@ -31,7 +31,7 @@ export function usePipelineRun({ model, savedId, nodes, setNodes, thingIdByCanva
   }, [nodes]);
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
-  const runActive = !!runId && (liveRunStatus === undefined || ['running', 'waiting', 'trying'].includes(liveRunStatus));
+  const runActive = !!runId && (liveRunStatus === undefined || ['queued', 'running', 'waiting', 'trying'].includes(liveRunStatus));
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
   const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
 

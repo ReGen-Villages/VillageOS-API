@@ -29,7 +29,7 @@ public static class RunStatus
     // A rehearsal stopped at a node whose service does not rehearse, or that waits.
     public const string CannotRehearse = "cannotRehearse";
 
-    public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
+    public static bool IsFinished(string status) => status is not (Queued or Running or Waiting or Trying);
 
     public static string StoppedBecause(string? reason) => $"Run stopped: {reason}";
 }

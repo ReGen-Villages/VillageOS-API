@@ -182,8 +182,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         var now = Now();
         var properties = new Dictionary<string, string?>
         {
-            [ModelNames.Status] = refusal is null ? RunStatus.Running : RunStatus.Refused,
-            ["pipelineId"] = pipelineId.ToString(),
+            [ModelNames.Status] = refusal is not null ? RunStatus.Refused : queueNumber is null ? RunStatus.Running : RunStatus.Queued,
+            [ModelNames.PipelineId] = pipelineId.ToString(),
             [ModelNames.StartedUtc] = now,
             [ModelNames.FinishedUtc] = refusal is null ? null : now,
             [ModelNames.Parameters] = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.GetRawText() : null,
@@ -193,6 +193,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         if (callRecordId is { } callRecord) properties[ModelNames.CallRecordId] = callRecord.ToString();
+        if (queueNumber is { } number) properties[ModelNames.QueueNumber] = number.ToString(CultureInfo.InvariantCulture);
         var runKind = await BoundAsync(PipelineRoles.PipelineRun, cancellationToken);
         var relationships = new List<(Guid, Guid, Guid)>
         {
@@ -207,9 +208,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
     }
 
-    public Task BeginQueuedRunAsync(Guid runId, CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<QueuedRun>>([]);
+    public Task BeginQueuedRunAsync(Guid runId, CancellationToken cancellationToken) =>
+        WriteThingInOneFragmentAsync(runId, RunName(runId),
+            new Dictionary<string, string?> { [ModelNames.Status] = RunStatus.Running, [ModelNames.StartedUtc] = Now() }, [], cancellationToken);
 
     // A run is recorded without the relationship rather than refused, since the run has already begun.
     private async Task RelateIfBoundAsync(Guid runId, Role role, Guid targetId, CancellationToken cancellationToken)
@@ -412,7 +413,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        if (graph.Thing(runId) is not { } run || graph.OutgoingTargets(run, ModelNames.Of).FirstOrDefault() is not { } pipeline)
+        // The relationship to the pipeline goes when the pipeline is deleted, and a run left without it still has to be ended.
+        if (graph.Thing(runId) is not { } run || (graph.OutgoingTargets(run, ModelNames.Of).FirstOrDefault()?.Id ?? PipelineNamedBy(run)) is not { } pipelineId)
             return null;
         var repeatedBy = graph.IncomingAlong(run, PipelineRoles.RepeatedRun).FirstOrDefault()?.Id;
 
@@ -438,9 +440,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         foreach (var (nodeId, ofNode) in items)
             if (nodes.TryGetValue(nodeId, out var aggregate))
                 nodes[nodeId] = aggregate with { Items = ofNode.Values.ToList() };
-        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
+        return new RunRecord(runId, pipelineId, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
             run.PropertyString(ModelNames.Status) ?? string.Empty, repeatedBy, CallRecordOf(run));
     }
+
+    private static Guid? PipelineNamedBy(GraphThing run) =>
+        Guid.TryParse(run.PropertyString(ModelNames.PipelineId), out var pipelineId) ? pipelineId : null;
 
     private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)
     {
@@ -558,6 +563,20 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             .ToList();
     }
 
+    public async Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken)
+    {
+        var graph = await HeldRunsAsync(cancellationToken);
+        if (graph.Bound(PipelineRoles.Orchestrator) is not { } orchestrator) return [];
+        return graph.OutgoingTargets(orchestrator, ModelNames.Has)
+            .Where(run => run.PropertyString(ModelNames.Status) == RunStatus.Queued)
+            .Select(run => PipelineNamedBy(run) is { } pipelineId
+                && long.TryParse(run.PropertyString(ModelNames.QueueNumber), NumberStyles.Integer, CultureInfo.InvariantCulture, out var queueNumber)
+                ? new QueuedRun(run.Id, pipelineId, queueNumber)
+                : null)
+            .OfType<QueuedRun>()
+            .ToList();
+    }
+
     private async Task<PipelineGraph> HeldRunsAsync(CancellationToken cancellationToken)
     {
         var selector = new
@@ -648,7 +667,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             return new StopRequested(stopRequestId, reason, requestedBy.Contains(target.Id) ? [] : [target.Id]);
 
         var going = graph.IncomingAlong(target, PipelineRoles.RunSubject)
-            .Where(run => !requestedBy.Contains(run.Id) && run.PropertyString(ModelNames.Status) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying)
+            .Where(run => !requestedBy.Contains(run.Id) && run.PropertyString(ModelNames.Status) is { } status && !RunStatus.IsFinished(status))
             .Select(run => run.Id)
             .ToList();
         return new StopRequested(stopRequestId, reason, going);

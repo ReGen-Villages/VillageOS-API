@@ -95,7 +95,7 @@ public interface IMyceliumGateway
     Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken cancellationToken);
 
     // The reason a stop request carries, and the runs it stops: the target itself when it is a run, otherwise the
-    // runs about it still running, waiting or trying, read off its run-subject relationships. The run a stop node's
+    // runs about it not yet finished, read off its run-subject relationships. The run a stop node's
     // request is requestedBy is never among them.
     Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken);
 
@@ -104,8 +104,8 @@ public interface IMyceliumGateway
 
     Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
 
-    // Null when the model holds no such run. Reading a run's node runs back also tells the gateway they exist,
-    // so a later status is written to the same Thing after a restart.
+    // Null when the model holds no such run; one whose pipeline is deleted is still read. Reading a run's node runs back
+    // also tells the gateway they exist, so a later status is written to the same Thing after a restart.
     Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken);
 
     // Each waiting node run with the watch it holds and the state of the platform's call record answering it.

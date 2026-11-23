@@ -76,6 +76,8 @@ try
             if (waits.WatchedAgain > 0) Log.Information("Watched again for {Count} waiting node run(s) whose watch was missing a relationship", waits.WatchedAgain);
             var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
             if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
+            var queued = await executor.RecoverQueuedAsync(CancellationToken.None);
+            if (queued > 0) Log.Information("Queued {Count} run(s) again that had not begun", queued);
         }
         catch (Exception ex)
         {
@@ -149,7 +151,7 @@ try
 
             case SpawnKind.Http:
                 // The caller, such as a program, waits for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal, waitsForItsPlace: true);
                 return Results.Ok(result);
 
             case SpawnKind.Relationship when trigger.RelationshipId is { } written
