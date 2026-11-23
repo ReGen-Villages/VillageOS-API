@@ -13,6 +13,8 @@ public sealed class HeldModelToken
     // the service's own credential.
     public static HeldModelToken None { get; } = new(null, null, NullLogger.Instance);
 
+    public static HeldModelToken Current => None;
+
     private readonly IServiceTokenExchange? _exchange;
     private readonly ILogger _logger;
     private ModelScopedBearer? _bearer;

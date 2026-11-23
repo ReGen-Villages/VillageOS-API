@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
+using vos.Service.Shared;
 using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Tests;
@@ -24,6 +26,11 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<Guid> RelatedFromAsked { get; } = new();
     public List<IReadOnlyCollection<Guid>> StartReadsWidenedBy { get; } = new();
     public JsonElement? RunResult { get; private set; }
+
+    // A null token stands for the service's own credential.
+    public ConcurrentQueue<(Guid RunId, string? Token)> WrittenUnder { get; } = new();
+
+    private void RecordToken(Guid runId) => WrittenUnder.Enqueue((runId, MyceliumModelToken.Current));
 
     // A graph caches what it has resolved, as each snapshot the broker answers does, so runs read at once each need
     // their own; set this where runs start concurrently.
@@ -88,6 +95,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         string? refusal = null, bool rehearsal = false, Guid? repeats = null, Guid? callRecordId = null, long? queueNumber = null)
     {
         RunCreationStarted = true;
+        RecordToken(runId);
         await RunCreationHeldUntil;
         if (RunCreationFailure is not null) throw RunCreationFailure;
         if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
@@ -118,6 +126,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public async Task BeginQueuedRunAsync(Guid runId, CancellationToken ct)
     {
         Interlocked.Increment(ref _beginsAsked);
+        RecordToken(runId);
         await BeginHeldUntil;
         if (BeginFailure is { } failure) throw failure;
         lock (_model) RunStatuses[runId] = RunStatus.Running;
@@ -154,6 +163,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
         IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null, Watch? watch = null)
     {
+        RecordToken(runId);
         lock (NodeStatuses)
         {
             NodeStatuses.Add((nodeName, status));
@@ -334,6 +344,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task ResumeFromWaitAsync(Guid runId, Guid nodeId, string nodeName, IReadOnlyDictionary<string, JsonElement> outputs, Guid? decision, Watch watch,
         CancellationToken ct)
     {
+        RecordToken(runId);
         lock (NodeStatuses)
         {
             NodeStatuses.Add((nodeName, RunStatus.Succeeded));
@@ -408,6 +419,7 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null, bool heldUntilReported = false)
     {
+        RecordToken(runId);
         lock (StatusUpdates) StatusUpdates.Add(status);
         if (error != null) RunError = error;
         lock (_model)
