@@ -347,6 +347,22 @@ public class MetabolismTests : IAsyncLifetime
             "the loop runs its first tick and stamps when it ran");
     }
 
+    // A restart ticks at once, so restarting for a value already held would apply the quantity one extra time.
+    [Theory]
+    [InlineData("quantity", "5.0")]
+    [InlineData("frequencySeconds", "60")]
+    [InlineData("unit", "\"kWh\"")]
+    [InlineData("propertyPath", "\"quantity\"")]
+    [InlineData("startDelaySeconds", "0")]
+    public void A_value_already_held_leaves_the_simulation_running(string property, string asWritten)
+    {
+        var running = _engine.Register(MakeConfig(), HeldModelToken.None);
+
+        _engine.UpdateProperty("rel-1", property, JsonDocument.Parse(asWritten).RootElement);
+
+        _engine.GetAll().Should().ContainSingle().Which.Should().BeSameAs(running);
+    }
+
     // A property change arrives on the change stream, which carries no call's token, and restarts the loop.
     [Fact]
     public async Task Bug8006_ASimulationRestartedByAPropertyChange_KeepsTheTokenItWasGiven()

@@ -628,6 +628,34 @@ public class PipelineModelTests
         PipelineDagBuilder.Build(none.Fixture.Build(), none.PipelineId).Problems.Should().ContainMatch("*'Echo'*holds 0 items at once*");
     }
 
+    private static PipelineDag DemoStatingRunsAtOnce(object stated)
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.State(fx.Get("Demo"), ModelNames.RunsAtOnce, stated);
+        return PipelineDagBuilder.Build(fx.Build(), pipelineId);
+    }
+
+    [Fact]
+    public void Build_ReadsHowManyRunsAPipelineHoldsAtOnce_AndNoLimitWithoutOne()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).RunsAtOnce.Should().BeNull();
+        DemoStatingRunsAtOnce("").RunsAtOnce.Should().BeNull();
+        DemoStatingRunsAtOnce(5).RunsAtOnce.Should().Be(5);
+        DemoStatingRunsAtOnce("5").RunsAtOnce.Should().Be(5);
+        DemoStatingRunsAtOnce(5).Problems.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(2.5)]
+    [InlineData("a few")]
+    [InlineData(1e12)]
+    public void Build_RefusesAPipelineWhoseRunsAtOnceIsNotAWholeNumberOfAtLeastOne(object stated) =>
+        DemoStatingRunsAtOnce(stated).Problems.Should().ContainMatch("'Demo' holds * runs at once; *whole number of at least one*");
+
     [Fact]
     public void A_retry_pause_grows_by_its_multiplier_each_attempt_and_its_spread_adds_up_to_that_fraction()
     {

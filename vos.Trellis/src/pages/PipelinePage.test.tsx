@@ -144,6 +144,29 @@ describe('PipelinePage', () => {
     expect(screen.queryByRole('button', { name: 'Run' })).toBeNull();
   });
 
+  it('shows a run no place was free for as queued, and offers Cancel', async () => {
+    const { things, relationships, id } = catalystFixture();
+    const relate = (subject: string, predicate: string, target: string) =>
+      relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
+    things.push(
+      { Id: 'of', Name: 'of', Properties: {} },
+      { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: {} },
+      { Id: ROLE.PipelineRun, Name: 'pipelineRun role', Properties: {} },
+      { Id: 'in-line', Name: 'run 4', Properties: { status: 'queued', startedUtc: '2026-10-15T09:00:00Z' } },
+    );
+    relate(ROLE.PipelineRun, id.binds, 'run-kind');
+    relate('in-line', id.is, 'run-kind');
+    relate('in-line', 'of', id.digest);
+    useModelStore.setState({ things, relationships, loaded: true });
+
+    render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Run history' }), { target: { value: 'in-line' } });
+
+    expect(screen.getByText('Run queued…')).toHaveClass('text-amber-600');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run' })).toBeNull();
+  });
+
   it('saves an Output rule and a choice set in the node inspector, and the wire it already had taken on success', async () => {
     const { id } = catalystFixture();
     render(<PipelinePage />);

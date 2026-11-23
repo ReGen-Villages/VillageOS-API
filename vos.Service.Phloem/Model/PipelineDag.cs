@@ -146,6 +146,7 @@ public sealed class PipelineDag
     public Guid PipelineId { get; init; }
     public string Name { get; init; } = string.Empty;
     public bool Published { get; init; }
+    public int? RunsAtOnce { get; init; }
     public IReadOnlyList<DagNode> Nodes { get; init; } = Array.Empty<DagNode>();
     public IReadOnlyList<DagWire> Wires { get; init; } = Array.Empty<DagWire>();
     public Guid Success { get; init; }

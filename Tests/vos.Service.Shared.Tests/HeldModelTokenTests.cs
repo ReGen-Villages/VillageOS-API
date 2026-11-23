@@ -111,6 +111,66 @@ public class HeldModelTokenTests
         exchange.Presented.Should().HaveCount(1);
     }
 
+    private static async Task<HeldModelToken> HeldAsync() =>
+        (await SwapDuringACallCarrying(TokenExpiringIn(TimeSpan.FromMinutes(5)), new ScriptedExchange(TokenExpiringIn(TimeSpan.FromHours(24)))))!;
+
+    [Fact]
+    public async Task Bug8737_WorkActingUnderAHeldToken_CanReadWhichOneItIs_AndOutsideItThereIsNone()
+    {
+        var held = await HeldAsync();
+        HeldModelToken? during = null;
+
+        await held.ActAsync(async () =>
+        {
+            await Task.Yield();
+            during = HeldModelToken.Current;
+        });
+
+        during.Should().BeSameAs(held);
+        HeldModelToken.Current.Should().BeSameAs(HeldModelToken.None);
+    }
+
+    [Fact]
+    public async Task Bug8737_WorkActingUnderASecondHeldToken_LeavesTheFirstInForceOnceItEnds()
+    {
+        var (outer, inner) = (await HeldAsync(), await HeldAsync());
+        HeldModelToken? during = null, after = null;
+
+        await outer.ActAsync(async () =>
+        {
+            await inner.ActAsync(() =>
+            {
+                during = HeldModelToken.Current;
+                return Task.CompletedTask;
+            });
+            after = HeldModelToken.Current;
+        });
+
+        during.Should().BeSameAs(inner);
+        after.Should().BeSameAs(outer);
+    }
+
+    [Fact]
+    public async Task Bug8737_WorkActingUnderNoHeldTokenInsideAnothers_GoesOnUnderTheOuterOne()
+    {
+        var outer = await HeldAsync();
+        HeldModelToken? during = null;
+        string? outerToken = null, presented = null;
+
+        await outer.ActAsync(async () =>
+        {
+            outerToken = MyceliumModelToken.Current;
+            await HeldModelToken.None.ActAsync(() =>
+            {
+                (during, presented) = (HeldModelToken.Current, MyceliumModelToken.Current);
+                return Task.CompletedTask;
+            });
+        });
+
+        during.Should().BeSameAs(outer);
+        presented.Should().Be(outerToken);
+    }
+
     [Fact]
     public async Task AReplacementMyceliumRefuses_LeavesTheWorkActingUnderTheTokenItHas()
     {

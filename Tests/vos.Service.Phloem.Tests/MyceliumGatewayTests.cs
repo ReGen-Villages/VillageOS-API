@@ -675,6 +675,146 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task CreateRunAsync_GivenAQueueNumber_RecordsTheRunQueuedWithIt_AndHeldByTheOrchestrator()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, queueNumber: 42);
+
+        var properties = (await CreatedThings(handler)).Single().GetProperty("properties");
+        properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Queued);
+        properties.GetProperty(ModelNames.QueueNumber).GetProperty("value").GetString().Should().Be("42");
+        (await CreatedRelationships(handler)).Should().Contain((OrchestratorId, PredicateId, runId));
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_GivenNoQueueNumber_WritesNone()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await CreatedThings(handler)).Single().GetProperty("properties").TryGetProperty(ModelNames.QueueNumber, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task BeginQueuedRunAsync_MarksTheRunRunning_AndStartedAtTheModelsTime()
+    {
+        var runId = Guid.NewGuid();
+        var began = new DateTimeOffset(2030, 6, 1, 12, 0, 0, TimeSpan.Zero);
+        var (gateway, handler) = NewGateway(clock: new Microsoft.Extensions.Time.Testing.FakeTimeProvider(began));
+
+        await gateway.BeginQueuedRunAsync(runId, CancellationToken.None);
+
+        var written = (await CreatedThings(handler)).Single();
+        written.GetProperty("id").GetGuid().Should().Be(runId);
+        written.GetProperty("properties").EnumerateObject().Select(property => (property.Name, property.Value.GetProperty("value").GetString()))
+            .Should().BeEquivalentTo([(ModelNames.Status, RunStatus.Running), (ModelNames.StartedUtc, began.ToString("o"))]);
+    }
+
+    [Fact]
+    public async Task QueuedRunsAsync_ReadsEachQueuedRunTheOrchestratorHolds_WithItsNumberAndThePipelineItNames()
+    {
+        var binds = Guid.NewGuid();
+        var has = Guid.NewGuid();
+        var queuedRun = Guid.NewGuid();
+        var runningRun = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var callRecord = Guid.NewGuid();
+        object Thing(Guid id, string name, object properties) => new { id, name, isArchetype = false, properties, states = Array.Empty<string>() };
+        object Text(string value) => new { value, typeInfo = "vos.String" };
+        object Edge(Guid subject, Guid predicate, Guid target) => new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    Thing(PipelineRoles.Orchestrator.Id, "orchestrator role", new { }),
+                    Thing(binds, ModelNames.Binds, new { }),
+                    Thing(has, ModelNames.Has, new { }),
+                    Thing(OrchestratorId, "Phloem", new { }),
+                    Thing(queuedRun, "PipelineRun", new { status = Text(RunStatus.Queued), queueNumber = Text("42"), pipelineId = Text(pipelineId.ToString()),
+                        callRecordId = Text(callRecord.ToString()) }),
+                    Thing(runningRun, "PipelineRun", new { status = Text(RunStatus.Running), pipelineId = Text(pipelineId.ToString()) }),
+                },
+                relationships = new[]
+                {
+                    Edge(PipelineRoles.Orchestrator.Id, binds, OrchestratorId),
+                    Edge(OrchestratorId, has, queuedRun),
+                    Edge(OrchestratorId, has, runningRun),
+                },
+            },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().Equal(new QueuedRun(queuedRun, pipelineId, 42, callRecord));
+    }
+
+    [Fact]
+    public async Task QueuedRunsAsync_WhereTheModelBindsNoOrchestrator_ReadsNone()
+    {
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}"""));
+
+        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(ModelNames.PipelineId, null)]
+    [InlineData(ModelNames.QueueNumber, null)]
+    [InlineData(ModelNames.QueueNumber, "next")]
+    public async Task QueuedRunsAsync_LeavesOutAQueuedRunThatNamesNoPipelineOrNoNumber(string name, string? written)
+    {
+        var (binds, has, queuedRun) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        static object Text(string value) => new { value, typeInfo = "vos.String" };
+        var properties = new Dictionary<string, object>
+        {
+            [ModelNames.Status] = Text(RunStatus.Queued), [ModelNames.PipelineId] = Text(Guid.NewGuid().ToString()), [ModelNames.QueueNumber] = Text("42"),
+        };
+        properties.Remove(name);
+        if (written is not null) properties[name] = Text(written);
+        object Thing(Guid id, string named, object held) => new { id, name = named, properties = held };
+        object Edge(Guid subject, Guid predicate, Guid target) => new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    Thing(PipelineRoles.Orchestrator.Id, "orchestrator role", new { }), Thing(binds, ModelNames.Binds, new { }),
+                    Thing(has, ModelNames.Has, new { }), Thing(OrchestratorId, "Phloem", new { }), Thing(queuedRun, "PipelineRun", properties),
+                },
+                relationships = new[] { Edge(PipelineRoles.Orchestrator.Id, binds, OrchestratorId), Edge(OrchestratorId, has, queuedRun) },
+            },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReadRunRecordAsync_OfARunWhosePipelineTheModelNoLongerHolds_StillNamesThePipelineTheRunCarries(bool carriesOne)
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        object Text(string value) => new { value, typeInfo = "vos.String" };
+        var properties = new Dictionary<string, object> { [ModelNames.Status] = Text(RunStatus.Queued) };
+        if (carriesOne) properties[ModelNames.PipelineId] = Text(pipelineId.ToString());
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new { things = new[] { new { id = runId, name = "PipelineRun", properties } }, relationships = Array.Empty<object>() },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        (record?.PipelineId, record?.Status).Should().Be(carriesOne ? ((Guid?)pipelineId, RunStatus.Queued) : (null, null));
+    }
+
+    [Fact]
     public async Task WaitingAndUnfinishedNodeRunsAreReadFromWhatTheOrchestratorHolds()
     {
         var (gateway, handler) = NewGateway(request =>
@@ -1333,13 +1473,20 @@ public class MyceliumGatewayTests
         (await gateway.IsStopAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeFalse();
     }
 
-    [Fact]
-    public async Task StopRequestedAsync_ReadsTheReasonAndTheRunsStillGoingAboutTheTarget()
+    [Theory]
+    [InlineData(RunStatus.Queued)]
+    [InlineData(RunStatus.Running)]
+    [InlineData(RunStatus.Waiting)]
+    [InlineData(RunStatus.Trying)]
+    public async Task StopRequestedAsync_ReadsTheReasonAndTheRunsNotYetFinishedAboutTheTarget(string unfinished)
     {
         var request = Guid.NewGuid();
         var plot = Guid.NewGuid();
-        var waitingRun = Guid.NewGuid();
+        var unfinishedRun = Guid.NewGuid();
         var finishedRun = Guid.NewGuid();
+        var runWithNoStatus = Guid.NewGuid();
+        var runThatAsked = Guid.NewGuid();
+        var requestedBy = Guid.NewGuid();
         var runArchetype = Guid.NewGuid();
         var about = Guid.NewGuid();
         var binds = Guid.NewGuid();
@@ -1360,8 +1507,12 @@ public class MyceliumGatewayTests
                         [stopKind.ToString()] = new { sourceName = "StopRequest", properties = new { reason = new { value = "site withdrawn", typeInfo = "vos.String" } } },
                     }),
                     Thing(plot, "Plot 7", new { }),
-                    Thing(waitingRun, "PipelineRun a", new { status = new { value = RunStatus.Waiting, typeInfo = "vos.String" } }),
+                    Thing(unfinishedRun, "PipelineRun a", new { status = new { value = unfinished, typeInfo = "vos.String" } }),
                     Thing(finishedRun, "PipelineRun b", new { status = new { value = RunStatus.Succeeded, typeInfo = "vos.String" } }),
+                    Thing(runWithNoStatus, "PipelineRun c", new { }),
+                    Thing(runThatAsked, "PipelineRun d", new { status = new { value = unfinished, typeInfo = "vos.String" } }),
+                    Thing(PipelineRoles.RequestedBy.Id, "requestedBy role", new { }),
+                    Thing(requestedBy, "requestedBy", new { }),
                     Thing(binds, ModelNames.Binds, new { }),
                     Thing(PipelineRoles.RunSubject.Id, "runSubject role", new { }),
                     Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role", new { }),
@@ -1373,9 +1524,13 @@ public class MyceliumGatewayTests
                 {
                     Edge(PipelineRoles.RunSubject.Id, binds, about),
                     Edge(PipelineRoles.PipelineRun.Id, binds, runArchetype),
-                    Edge(waitingRun, about, plot),
+                    Edge(unfinishedRun, about, plot),
                     Edge(finishedRun, about, plot),
-                    Edge(waitingRun, isPredicate, runArchetype),
+                    Edge(runWithNoStatus, about, plot),
+                    Edge(runThatAsked, about, plot),
+                    Edge(PipelineRoles.RequestedBy.Id, binds, requestedBy),
+                    Edge(request, requestedBy, runThatAsked),
+                    Edge(unfinishedRun, isPredicate, runArchetype),
                 },
             },
         });
@@ -1383,8 +1538,8 @@ public class MyceliumGatewayTests
 
         var stop = await gateway.StopRequestedAsync(request, plot, CancellationToken.None);
 
-        stop.Should().BeEquivalentTo(new StopRequested(request, "site withdrawn", [waitingRun]));
-        (await gateway.StopRequestedAsync(request, waitingRun, CancellationToken.None)).Runs.Should().Equal(waitingRun);
+        stop.Should().BeEquivalentTo(new StopRequested(request, "site withdrawn", [unfinishedRun]));
+        (await gateway.StopRequestedAsync(request, unfinishedRun, CancellationToken.None)).Runs.Should().Equal(unfinishedRun);
     }
 
     [Theory]

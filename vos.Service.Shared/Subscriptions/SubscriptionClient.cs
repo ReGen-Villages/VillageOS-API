@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -14,9 +15,10 @@ public interface ISubscriptionClient
     Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default);
     IAsyncEnumerable<ModelChangeEvent> StreamAsync(Guid subscriptionId, long fromSequence, CancellationToken ct = default);
 
-    // Raised once the stream has re-established a dropped connection. Replay covers Facts, but a
-    // derived value (a derived-property recompute) is published live-only and is absent from the journal, so a
-    // subscriber computing from one must re-read after a gap rather than trust the resume.
+    // Raised once a stream is open again after a gap, whether on the same subscription or on one opened because
+    // the broker no longer held it. Replay covers Facts, but a derived value (a derived-property recompute) is
+    // published live-only and is absent from the journal, so a subscriber computing from one must re-read after
+    // a gap rather than trust the resume.
     event Action? Reconnected;
 }
 
@@ -29,6 +31,8 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(2);
 
     public event Action? Reconnected;
+
+    private bool _streamWasLost;
 
     public SubscriptionClient(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
@@ -81,24 +85,29 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
     // Follow the subscription's live change stream, resuming after fromSequence
     // (typically the snapshot watermark). Yields each change in commit order exactly once,
-    // reconnecting transparently on drops until ct is cancelled.
+    // reconnecting transparently on drops until ct is cancelled or the broker no longer holds the subscription.
     public async IAsyncEnumerable<ModelChangeEvent> StreamAsync(
         Guid subscriptionId, long fromSequence, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var lastSequence = fromSequence;
-        var everConnected = false;
 
         while (!ct.IsCancellationRequested)
         {
-            var connection = await ConnectAsync(subscriptionId, lastSequence, ct);
+            var (connection, gone) = await ConnectAsync(subscriptionId, lastSequence, ct);
+            if (gone)
+            {
+                _streamWasLost = true;
+                // Waited before ending, so a broker that holds none of the subscriptions it opens is not asked in a tight loop.
+                await DelayReconnectAsync(ct);
+                yield break;
+            }
             if (connection is null)
             {
                 if (!await DelayReconnectAsync(ct)) yield break;
                 continue;
             }
 
-            if (everConnected) Reconnected?.Invoke();
-            everConnected = true;
+            if (_streamWasLost) Reconnected?.Invoke();
 
             using (connection.Response)
             {
@@ -115,6 +124,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
                 }
             }
 
+            _streamWasLost = true;
             // Stream ended (server closed or network drop). Reconnect with Last-Event-ID.
             if (!await DelayReconnectAsync(ct)) yield break;
         }
@@ -122,7 +132,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
     private sealed record Connection(HttpResponseMessage Response, Stream Stream);
 
-    private async Task<Connection?> ConnectAsync(Guid subscriptionId, long lastSequence, CancellationToken ct)
+    private async Task<(Connection? Connection, bool Gone)> ConnectAsync(Guid subscriptionId, long lastSequence, CancellationToken ct)
     {
         try
         {
@@ -133,18 +143,24 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
                 request.Headers.TryAddWithoutValidation("Last-Event-ID", lastSequence.ToString());
 
             var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                response.Dispose();
+                Logger.LogWarning("The broker no longer holds subscription {SubscriptionId}, so its stream ends", subscriptionId);
+                return (null, true);
+            }
             response.EnsureSuccessStatusCode();
             var stream = await response.Content.ReadAsStreamAsync(ct);
-            return new Connection(response, stream);
+            return (new Connection(response, stream), false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return null;
+            return (null, false);
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "SSE connect to subscription {SubscriptionId} failed; will retry", subscriptionId);
-            return null;
+            return (null, false);
         }
     }
 

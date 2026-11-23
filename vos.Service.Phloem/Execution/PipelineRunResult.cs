@@ -4,6 +4,8 @@ namespace vos.Service.Phloem.Execution;
 
 public static class RunStatus
 {
+    // Recorded, and not begun: its pipeline already holds as many runs at once as it allows.
+    public const string Queued = "queued";
     public const string Running = "running";
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";
@@ -27,7 +29,7 @@ public static class RunStatus
     // A rehearsal stopped at a node whose service does not rehearse, or that waits.
     public const string CannotRehearse = "cannotRehearse";
 
-    public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
+    public static bool IsFinished(string status) => status is not (Queued or Running or Waiting or Trying);
 
     public static string StoppedBecause(string? reason) => $"Run stopped: {reason}";
 }
