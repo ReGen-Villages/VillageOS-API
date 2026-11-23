@@ -721,6 +721,7 @@ public class MyceliumGatewayTests
         var queuedRun = Guid.NewGuid();
         var runningRun = Guid.NewGuid();
         var pipelineId = Guid.NewGuid();
+        var callRecord = Guid.NewGuid();
         object Thing(Guid id, string name, object properties) => new { id, name, isArchetype = false, properties, states = Array.Empty<string>() };
         object Text(string value) => new { value, typeInfo = "vos.String" };
         object Edge(Guid subject, Guid predicate, Guid target) => new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
@@ -734,7 +735,8 @@ public class MyceliumGatewayTests
                     Thing(binds, ModelNames.Binds, new { }),
                     Thing(has, ModelNames.Has, new { }),
                     Thing(OrchestratorId, "Phloem", new { }),
-                    Thing(queuedRun, "PipelineRun", new { status = Text(RunStatus.Queued), queueNumber = Text("42"), pipelineId = Text(pipelineId.ToString()) }),
+                    Thing(queuedRun, "PipelineRun", new { status = Text(RunStatus.Queued), queueNumber = Text("42"), pipelineId = Text(pipelineId.ToString()),
+                        callRecordId = Text(callRecord.ToString()) }),
                     Thing(runningRun, "PipelineRun", new { status = Text(RunStatus.Running), pipelineId = Text(pipelineId.ToString()) }),
                 },
                 relationships = new[]
@@ -747,7 +749,7 @@ public class MyceliumGatewayTests
         });
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
 
-        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().Equal(new QueuedRun(queuedRun, pipelineId, 42));
+        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().Equal(new QueuedRun(queuedRun, pipelineId, 42, callRecord));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -22,21 +23,42 @@ public class RunsAtOnceTests
     private readonly PipelineExecutor _executor;
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource<NodeCallResult>> _answers = new();
     private readonly List<TimeSpan> _pauses = new();
+    private readonly ApplicationLifetime _lifetime = new(NullLogger<ApplicationLifetime>.Instance);
+    private readonly CapturingLogger<PipelineExecutor> _log = new();
+    private Func<Task> _duringAPause;
 
     public RunsAtOnceTests()
     {
         (_drawing, _pipelineId) = TestGraphs.DemoPipeline();
         _gateway = new FakeGateway(_drawing.Build()) { FreshGraph = () => _drawing.Build(), OnCallAsync = CallAsync };
-        _executor = NewExecutor();
+        _duringAPause = () =>
+        {
+            _gateway.RecordReadFailure = null;
+            _gateway.LoadFailure = null;
+            return Task.CompletedTask;
+        };
+        _executor = new PipelineExecutor(_gateway, _log, new ModelClock(), pause: length =>
+        {
+            lock (_pauses) _pauses.Add(length);
+            return _duringAPause();
+        }, lifetime: _lifetime);
     }
 
-    private PipelineExecutor NewExecutor() => new(_gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock(), pause: length =>
+    private int Pauses
     {
-        lock (_pauses) _pauses.Add(length);
-        _gateway.RecordReadFailure = null;
-        _gateway.LoadFailure = null;
-        return Task.CompletedTask;
-    });
+        get { lock (_pauses) return _pauses.Count; }
+    }
+
+    private async Task<TaskCompletionSource> TheModelIsNeverReadAgainAfterAsync(Guid runId, Action<Exception> failing)
+    {
+        var pause = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _duringAPause = () => pause.Task;
+        _gateway.OnRunFinished = () => failing(new HttpRequestException("the broker is away"));
+        AnswerOf(runId).SetResult(Succeeding("echo"));
+        await Settle.UntilAsync(() => Pauses == 1, "the next run's turn came and the model could not be read");
+        _gateway.OnRunFinished = () => { };
+        return pause;
+    }
 
     private Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope) =>
         subdomain == "gen" ? AnswerOf(envelope.GetProperty("runId").GetGuid()).Task : Task.FromResult(Succeeding("echo"));
@@ -527,6 +549,97 @@ public class RunsAtOnceTests
 
         await BegunAsync(runs[1]);
         lock (_pauses) _pauses.Should().Equal(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task A_stop_ends_a_queued_run_whose_record_is_never_read_and_its_pause_and_its_turn_passes_to_the_next()
+    {
+        Limit(1);
+        var callRecord = Guid.NewGuid();
+        var first = await StartAsync();
+        var second = await StartAsync(callRecordId: callRecord);
+        var third = await StartAsync();
+        await TheModelIsNeverReadAgainAfterAsync(first, failure => _gateway.RecordReadFailure = failure);
+        var request = Guid.NewGuid();
+
+        var stopping = _executor.StopAsync(request, second, CancellationToken.None);
+
+        await StatusAsync(second, RunStatus.Cancelled);
+        _gateway.RunError.Should().Be("withdrawn by its owner");
+        await Settle.UntilAsync(() => Pauses == 2, "the turn passes to the third run, which cannot be read either");
+        await FluentActions.Awaiting(() => Settle.ForAsync(stopping, "the stop ends")).Should().ThrowAsync<HttpRequestException>("the stop reads the record as well");
+        _gateway.StoppedBy.Should().Equal((second, request));
+        _gateway.RunStatusOf(third).Should().Be(RunStatus.Queued);
+        await Settle.UntilAsync(() => _gateway.ReportsSentSoFar().Count == 2, "both reports reach the broker");
+        _gateway.ReportsSentSoFar().Select(sent => (sent.CallRecordId, sent.Report.Word))
+            .Should().Equal((callRecord, CallReport.Received.Word), (callRecord, CallReport.Failed("reason").Word));
+    }
+
+    [Fact]
+    public async Task A_shutdown_ends_the_pause_of_a_queued_run_whose_record_is_never_read_and_leaves_it_queued_for_the_restart()
+    {
+        Limit(1);
+        var first = await StartAsync();
+        var second = Guid.NewGuid();
+        var waited = Task.Run(() => _executor.RunAsync(_pipelineId, default, CancellationToken.None, second, waitsForItsPlace: true));
+        await StatusAsync(second, RunStatus.Queued);
+        var third = await StartAsync();
+        await TheModelIsNeverReadAgainAfterAsync(first, failure => _gateway.RecordReadFailure = failure);
+
+        _lifetime.StopApplication();
+
+        await Settle.ForAsync(waited, "the pause ends with the shutdown");
+        (await waited).Error.Should().Be("The run never began: the orchestrator is stopping.");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+        new[] { second, third }.Select(_gateway.RunStatusOf).Should().AllBe(RunStatus.Queued);
+        Pauses.Should().Be(1, "no run takes the place of the one that could not begin");
+    }
+
+    [Fact]
+    public async Task A_shutdown_ends_the_reading_of_a_drawing_that_is_never_read()
+    {
+        Limit(1);
+        var runs = await StartAsync(2);
+        var pause = await TheModelIsNeverReadAgainAfterAsync(runs[0], failure => _gateway.LoadFailure = failure);
+
+        _lifetime.StopApplication();
+        pause.SetResult();
+
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+        Pauses.Should().Be(1);
+        _gateway.RunStatusOf(runs[1]).Should().Be(RunStatus.Queued);
+    }
+
+    [Fact]
+    public async Task No_queued_run_begins_while_the_orchestrator_is_stopping()
+    {
+        Limit(1);
+        var runs = await StartAsync(2);
+
+        _lifetime.StopApplication();
+        await FinishAsync(runs[0]);
+
+        await NothingElseBeginsAsync(runs[0]);
+        _gateway.RunStatusOf(runs[1]).Should().Be(RunStatus.Queued);
+    }
+
+    [Fact]
+    public async Task A_queued_run_that_fails_unexpectedly_as_it_begins_is_logged_and_its_turn_passes_to_the_next()
+    {
+        Limit(1);
+        var runs = await StartAsync(3);
+        _gateway.OnRunFinished = () => _gateway.RecordReadFailure = new HttpRequestException("the broker is away");
+        _duringAPause = () =>
+        {
+            _gateway.RecordReadFailure = null;
+            throw new InvalidOperationException("no timer can be made");
+        };
+
+        AnswerOf(runs[0]).SetResult(Succeeding("echo"));
+
+        await BegunAsync(runs[2]);
+        _log.ErrorLines.Should().ContainSingle().Which.Should()
+            .StartWith($"Queued run {runs[1]} of pipeline {_pipelineId} failed to run").And.Contain("no timer can be made");
     }
 
     [Fact]

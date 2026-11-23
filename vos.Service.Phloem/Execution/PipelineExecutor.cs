@@ -37,7 +37,8 @@ public sealed class PipelineExecutor
         ILogger<PipelineExecutor> logger,
         ModelClock clock,
         int maxConcurrency = 4,
-        Func<TimeSpan, Task>? pause = null)
+        Func<TimeSpan, Task>? pause = null,
+        IHostApplicationLifetime? lifetime = null)
     {
         _gateway = gateway;
         _logger = logger;

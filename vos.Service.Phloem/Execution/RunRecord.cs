@@ -39,4 +39,4 @@ public sealed record HeldNodeRun(Guid RunId, Guid NodeId);
 // A node run, or one of its items, paused between attempts or caught in the middle of a call.
 public sealed record UnfinishedNodeRun(Guid RunId, Guid NodeId);
 
-public sealed record QueuedRun(Guid RunId, Guid PipelineId, long QueueNumber);
+public sealed record QueuedRun(Guid RunId, Guid PipelineId, long QueueNumber, Guid? CallRecordId = null);

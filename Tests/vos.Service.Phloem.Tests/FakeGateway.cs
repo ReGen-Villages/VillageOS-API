@@ -127,7 +127,8 @@ internal sealed class FakeGateway : IMyceliumGateway
     {
         lock (_model)
             return Task.FromResult<IReadOnlyList<QueuedRun>>(RunStatuses.Where(run => run.Value == RunStatus.Queued)
-                .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key])).ToList());
+                .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key],
+                    CallRecordsOfRuns.TryGetValue(run.Key, out var callRecord) ? callRecord : null)).ToList());
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();

@@ -131,7 +131,19 @@ public class RunPlacesTests
     }
 
     [Fact]
-    public void Numbers_keep_rising_on_a_clock_that_stands_still_and_past_one_read_back()
+    public void Two_starts_in_the_same_millisecond_are_given_distinct_numbers_in_the_order_they_came()
+    {
+        var places = new RunPlaces(new FakeTimeProvider(new DateTimeOffset(2030, 6, 1, 12, 0, 0, TimeSpan.Zero)));
+        places.Join(Pipeline, Guid.NewGuid(), 1, () => { });
+
+        var first = places.Join(Pipeline, Guid.NewGuid(), 1, () => { }).QueueNumber!.Value;
+        var second = places.Join(Pipeline, Guid.NewGuid(), 1, () => { }).QueueNumber!.Value;
+
+        second.Should().BeGreaterThan(first);
+    }
+
+    [Fact]
+    public void Numbers_keep_rising_past_one_read_back()
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2030, 6, 1, 12, 0, 0, TimeSpan.Zero));
         var places = new RunPlaces(clock);
