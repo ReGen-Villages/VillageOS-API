@@ -111,7 +111,8 @@ public sealed class AnEngineThatRestarts : IAsyncLifetime
           "Id": "a1000000-0000-0000-0000-000000000001",
           "Name": "Restarted engine",
           "Things": [
-            { "Id": "a1000000-0000-0000-0000-000000000002", "Name": "is" },
+            { "Id": "a1000000-0000-0000-0000-000000000002", "Name": "is", "Properties": {} },
+            { "Id": "a1000000-0000-0000-0000-000000000004", "Name": "binds", "Properties": {} },
             { "Id": "a1000000-0000-0000-0000-000000000003", "Name": "Study",
               "Properties": { "population": { "typeInfo": "vos.Double", "value": 100.0 } } }
           ],
