@@ -1,10 +1,11 @@
+using System.Text.Json;
 using vos.Service.Metabolism.Models;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Metabolism.Services;
 
-// Owns Metabolism's single Mycelium subscription. Subscribes at startup,
-// streams relationship-property changes into the engine, and keeps the subscription's
+// Owns Metabolism's single Mycelium subscription. Subscribes at startup, and again when the broker no longer holds
+// the subscription, streams relationship-property changes into the engine, and keeps the subscription's
 // membership in step with the engine's simulations — adding a relationship through its subject on
 // Register and removing both on Cancel. An open stream is also the
 // service's liveness signal to Mycelium.
@@ -17,7 +18,7 @@ public sealed class MetabolismSubscriptionService : IHostedService
     private readonly IHostEnvironment _environment;
     private readonly ILogger<MetabolismSubscriptionService> _logger;
 
-    private Guid _subscriptionId;
+    private volatile SubscribeResult? _subscription;
     private CancellationTokenSource? _cts;
 
     public MetabolismSubscriptionService(
@@ -49,74 +50,99 @@ public sealed class MetabolismSubscriptionService : IHostedService
         _engine.RelationshipRegistered -= OnRelationshipRegistered;
         _engine.RelationshipCancelled -= OnRelationshipCancelled;
         _cts?.Cancel();
-        if (_subscriptionId != Guid.Empty)
+        if (_subscription is { } subscription)
         {
-            try { await _subscriptions.UnsubscribeAsync(_subscriptionId, cancellationToken); }
+            try { await _subscriptions.UnsubscribeAsync(subscription.SubscriptionId, cancellationToken); }
             catch (Exception ex) { _logger.LogDebug(ex, "Unsubscribe on shutdown failed"); }
         }
     }
 
     private async Task RunAsync(CancellationToken ct)
     {
-        SubscribeResult? sub = null;
+        while (await SubscribeWithRetryAsync(ct) is { } subscription)
+            await FollowUntilGoneAsync(subscription, ct);
+    }
+
+    private async Task<SubscribeResult?> SubscribeWithRetryAsync(CancellationToken ct)
+    {
         for (var attempt = 0; !ct.IsCancellationRequested; attempt++)
         {
-            try { sub = await _subscriptions.SubscribeAsync(new SubscriptionSelector { IncludeSnapshot = false }, ct); break; }
-            catch (OperationCanceledException) { return; }
+            try { return await _subscriptions.SubscribeAsync(new SubscriptionSelector { IncludeSnapshot = false }, ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return null; }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Metabolism subscribe failed (attempt {Attempt}); retrying", attempt + 1);
                 try { await Task.Delay(Backoff[Math.Min(attempt, Backoff.Length - 1)], ct); }
-                catch (OperationCanceledException) { return; }
+                catch (OperationCanceledException) { return null; }
             }
         }
-        if (sub is null) return;
-        _subscriptionId = sub.SubscriptionId;
+        return null;
+    }
 
-        // Catch up: cover relationships registered before the subscription existed.
+    private async Task FollowUntilGoneAsync(SubscribeResult subscription, CancellationToken ct)
+    {
+        _subscription = subscription;
         foreach (var entry in _engine.GetAll())
-            await AddMembershipAsync(entry.Config, ct);
+            await CatchUpAsync(subscription, entry.Config, ct);
 
         _logger.LogInformation("Metabolism subscribed to Mycelium ({SubId}); streaming from {Watermark}",
-            _subscriptionId, sub.Watermark);
+            subscription.SubscriptionId, subscription.Watermark);
 
         try
         {
-            await foreach (var change in _subscriptions.StreamAsync(_subscriptionId, sub.Watermark, ct))
+            await foreach (var change in _subscriptions.StreamAsync(subscription.SubscriptionId, subscription.Watermark, ct))
                 if (change.IsRelationshipPropertyChange && change.PropertyName is not null)
                     _engine.UpdateProperty(change.EntityId.ToString(), change.PropertyName, change.Value);
         }
         catch (OperationCanceledException) { /* shutting down */ }
     }
 
+    // A simulation registered before the subscription was opened may have been edited since, and no stream carried it.
+    private async Task CatchUpAsync(SubscribeResult subscription, SimulationConfig simulation, CancellationToken ct)
+    {
+        if (await AddMembershipAsync(subscription, simulation, includeSnapshot: true, ct) is not { } added) return;
+        foreach (var relationship in added.Snapshot.Relationships.Where(held => held.Id.ToString() == simulation.RelationshipId))
+            foreach (var (name, stated) in relationship.ValuesStated())
+                if (stated.Value.ValueKind != JsonValueKind.Null)
+                    _engine.UpdateProperty(simulation.RelationshipId, name, stated.Value);
+    }
+
     private void OnRelationshipRegistered(SimulationConfig simulation)
-        => _ = AddMembershipAsync(simulation, _cts?.Token ?? CancellationToken.None);
+    {
+        if (_subscription is not { } subscription) return;
+        _ = AddMembershipAsync(subscription, simulation, includeSnapshot: false, _cts?.Token ?? CancellationToken.None);
+    }
 
     private void OnRelationshipCancelled(SimulationConfig simulation)
     {
-        if (_subscriptionId == Guid.Empty) return;
-        _ = RemoveMembershipAsync(simulation);
+        if (_subscription is not { } subscription) return;
+        _ = RemoveMembershipAsync(subscription, simulation);
     }
 
     // The broker resolves Ids against Things only, so the relationship is reached from its subject with a
     // relationship rule. The subject comes with it and its own changes travel too; the stream hands the
     // engine relationship changes alone.
-    private async Task AddMembershipAsync(SimulationConfig simulation, CancellationToken ct)
+    private async Task<AddObjectsResult?> AddMembershipAsync(
+        SubscribeResult subscription, SimulationConfig simulation, bool includeSnapshot, CancellationToken ct)
     {
-        if (_subscriptionId == Guid.Empty || !Guid.TryParse(simulation.SubjectId, out var subjectId)) return;
+        if (!Guid.TryParse(simulation.SubjectId, out var subjectId)) return null;
         var selector = new SubscriptionSelector
         {
             Ids = new() { subjectId },
             IncludeIsAncestors = false,
             IncludeRelationships = true,
             Relationships = new() { new RelationshipRule { Direction = "outgoing" } },
-            IncludeSnapshot = false,
+            IncludeSnapshot = includeSnapshot,
         };
-        try { await _subscriptions.AddObjectsAsync(_subscriptionId, selector, ct); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Failed to add {RelId} to subscription membership", simulation.RelationshipId); }
+        try { return await _subscriptions.AddObjectsAsync(subscription.SubscriptionId, selector, ct); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to add {RelId} to subscription membership", simulation.RelationshipId);
+            return null;
+        }
     }
 
-    private async Task RemoveMembershipAsync(SimulationConfig simulation)
+    private async Task RemoveMembershipAsync(SubscribeResult subscription, SimulationConfig simulation)
     {
         var leaving = new List<Guid>();
         if (Guid.TryParse(simulation.RelationshipId, out var relationshipId)) leaving.Add(relationshipId);
@@ -124,7 +150,7 @@ public sealed class MetabolismSubscriptionService : IHostedService
             leaving.Add(subjectId);
         if (leaving.Count == 0) return;
 
-        try { await _subscriptions.RemoveObjectsAsync(_subscriptionId, leaving, _cts?.Token ?? CancellationToken.None); }
+        try { await _subscriptions.RemoveObjectsAsync(subscription.SubscriptionId, leaving, _cts?.Token ?? CancellationToken.None); }
         catch (Exception ex) { _logger.LogDebug(ex, "Failed to remove {RelId} from subscription membership", simulation.RelationshipId); }
     }
 

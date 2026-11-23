@@ -32,7 +32,7 @@ internal sealed class ModelFollower
     private readonly object _watchedLock = new();
 
     private ModelScopedBearer _bearer;
-    private Guid _subscriptionId;
+    private SubscribeResult? _subscription;
     private CancellationTokenSource? _cancellation;
 
     public ModelFollower(
@@ -57,8 +57,10 @@ internal sealed class ModelFollower
     public void Watch(Guid subjectId, IReadOnlyCollection<Guid> readsFrom)
     {
         List<Guid> joined, abandoned;
+        SubscribeResult? subscription;
         lock (_watchedLock)
         {
+            subscription = _subscription;
             var reads = new HashSet<Guid>(readsFrom) { subjectId };
             joined = reads.Where(thing => !_subjectsByWatched.ContainsKey(thing)).ToList();
             abandoned = ReleaseWhatTheSubjectNoLongerReads(subjectId, reads);
@@ -73,11 +75,11 @@ internal sealed class ModelFollower
             _readBySubject[subjectId] = reads;
         }
 
-        if (_subscriptionId == Guid.Empty) return;
+        if (subscription is null) return;
         foreach (var thing in joined)
-            _ = AddToMembershipAsync(thing);
+            _ = AddToMembershipAsync(subscription, thing);
         if (abandoned.Count > 0)
-            _ = RemoveFromMembershipAsync(abandoned);
+            _ = RemoveFromMembershipAsync(subscription, abandoned);
     }
 
     // Drops the subject from everything it has stopped reading, and answers with the Things no
@@ -149,9 +151,11 @@ internal sealed class ModelFollower
     {
         _subscriptions.Reconnected -= OnReconnected;
         _cancellation?.Cancel();
-        if (_subscriptionId == Guid.Empty) return;
+        SubscribeResult? subscription;
+        lock (_watchedLock) subscription = _subscription;
+        if (subscription is null) return;
 
-        try { await _subscriptions.UnsubscribeAsync(_subscriptionId, cancellationToken); }
+        try { await _subscriptions.UnsubscribeAsync(subscription.SubscriptionId, cancellationToken); }
         catch (Exception exception)
         {
             _logger.LogDebug(exception, "{Service}: unsubscribe on shutdown failed for model {ModelId}",
@@ -167,20 +171,22 @@ internal sealed class ModelFollower
     {
         await ExtendTokenAsync(cancellationToken);
 
-        var subscription = await SubscribeWithRetryAsync(cancellationToken);
-        if (subscription is null) return;
+        while (await SubscribeWithRetryAsync(cancellationToken) is { } subscription)
+            await FollowUntilGoneAsync(subscription, cancellationToken);
+    }
 
-        _subscriptionId = subscription.SubscriptionId;
-        foreach (var thing in WatchedThings())
-            await AddToMembershipAsync(thing);
+    private async Task FollowUntilGoneAsync(SubscribeResult subscription, CancellationToken cancellationToken)
+    {
+        foreach (var thing in HoldAndListWatchedThings(subscription))
+            await AddToMembershipAsync(subscription, thing);
 
         _logger.LogInformation(
             "{Service} is following its inputs in model {ModelId} on Mycelium ({SubscriptionId}) from {Watermark}",
-            _inputs.ServiceName, ModelId, _subscriptionId, subscription.Watermark);
+            _inputs.ServiceName, ModelId, subscription.SubscriptionId, subscription.Watermark);
 
         try
         {
-            await foreach (var change in _subscriptions.StreamAsync(_subscriptionId, subscription.Watermark, cancellationToken))
+            await foreach (var change in _subscriptions.StreamAsync(subscription.SubscriptionId, subscription.Watermark, cancellationToken))
             {
                 if (!change.IsPropertyChange || change.PropertyName is null) continue;
                 if (!_inputs.InputProperties().Contains(change.PropertyName)) continue;
@@ -229,7 +235,7 @@ internal sealed class ModelFollower
         for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
         {
             try { return await _subscriptions.SubscribeAsync(new SubscriptionSelector { IncludeSnapshot = false }, cancellationToken); }
-            catch (OperationCanceledException) { return null; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return null; }
             catch (Exception exception)
             {
                 _logger.LogWarning(exception, "{Service}: subscribe to model {ModelId} failed (attempt {Attempt}); retrying",
@@ -270,12 +276,12 @@ internal sealed class ModelFollower
 
     // The Thing and its type chain, and none of its relationships: a change is mapped to a subject by the
     // Thing it arrived on, so a relationship in the membership would only ever be delivered and dropped.
-    private async Task AddToMembershipAsync(Guid watched)
+    private async Task AddToMembershipAsync(SubscribeResult subscription, Guid watched)
     {
         try
         {
             var added = await _subscriptions.AddObjectsAsync(
-                _subscriptionId,
+                subscription.SubscriptionId,
                 new SubscriptionSelector
                 {
                     Ids = new List<Guid> { watched },
@@ -286,7 +292,8 @@ internal sealed class ModelFollower
                 _cancellation?.Token ?? CancellationToken.None);
 
             lock (_watchedLock)
-                RecordTypeChainOf(watched, added.Snapshot.Things.Select(thing => thing.Id).Where(id => id != watched));
+                if (ReferenceEquals(subscription, _subscription)) // an answer from a subscription since lost is out of date
+                    RecordTypeChainOf(watched, added.Snapshot.Things.Select(thing => thing.Id).Where(id => id != watched));
         }
         catch (Exception exception)
         {
@@ -300,12 +307,12 @@ internal sealed class ModelFollower
     // A Thing no subject reads any more keeps arriving on the stream until the subscription is
     // told to drop it, and a service that re-registers per recompute would otherwise grow its membership
     // for the lifetime of the model.
-    private async Task RemoveFromMembershipAsync(IReadOnlyCollection<Guid> things)
+    private async Task RemoveFromMembershipAsync(SubscribeResult subscription, IReadOnlyCollection<Guid> things)
     {
         try
         {
             await _subscriptions.RemoveObjectsAsync(
-                _subscriptionId, things, _cancellation?.Token ?? CancellationToken.None);
+                subscription.SubscriptionId, things, _cancellation?.Token ?? CancellationToken.None);
         }
         catch (Exception exception)
         {
@@ -315,9 +322,15 @@ internal sealed class ModelFollower
         }
     }
 
-    private List<Guid> WatchedThings()
+    // Held and listed under one lock, so a Thing watched at the same moment is added by the list or by its own watch.
+    private List<Guid> HoldAndListWatchedThings(SubscribeResult subscription)
     {
-        lock (_watchedLock) return _subjectsByWatched.Keys.ToList();
+        lock (_watchedLock)
+        {
+            _subscription = subscription;
+            _watchedThingsByAncestor.Clear();
+            return _subjectsByWatched.Keys.ToList();
+        }
     }
 
     private List<Guid> Subjects()
