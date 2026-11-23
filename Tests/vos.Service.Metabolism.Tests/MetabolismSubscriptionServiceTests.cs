@@ -43,6 +43,7 @@ public class MetabolismSubscriptionServiceTests
         public List<ModelChangeEvent> ToStream { get; } = new();
         public List<SnapshotRelationship> Held { get; } = new();
         public int SubscribesToTimeOut { get; set; }
+        public Guid? RefusedSubject { get; set; }
 
         public IReadOnlyList<Guid> Opened { get { lock (_opened) return _opened.ToList(); } }
 
@@ -67,6 +68,8 @@ public class MetabolismSubscriptionServiceTests
 
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
+            if (RefusedSubject is { } refused && selector.Ids!.Contains(refused))
+                throw new HttpRequestException("the broker refused the membership change");
             lock (Added)
             {
                 Added.Add(selector);
@@ -276,6 +279,26 @@ public class MetabolismSubscriptionServiceTests
         update.rel.Should().Be(relationshipId.ToString());
         update.prop.Should().Be("quantity");
         ((JsonElement)update.val!).GetInt32().Should().Be(7);
+    }
+
+    [Fact]
+    public async Task A_simulation_that_cannot_be_added_to_the_new_subscription_leaves_the_others_followed()
+    {
+        var engine = new RecordingMetabolism();
+        var fake = new FakeSubscriptionClient();
+        var refused = Guid.NewGuid();
+        var followed = Guid.NewGuid();
+        engine.Register(ASimulation(Guid.NewGuid(), refused), HeldModelToken.None);
+        engine.Register(ASimulation(Guid.NewGuid(), followed), HeldModelToken.None);
+        var svc = Service(fake, engine);
+        await svc.StartAsync(default);
+
+        fake.RefusedSubject = refused;
+        fake.LoseTheSubscription();
+
+        await Settle.UntilAsync(() => fake.NewestSubscriptionHolds(followed), "the other simulation's subject joins the new subscription");
+        await engine.StopAllAsync();
+        await svc.StopAsync(default);
     }
 
     [Fact]
