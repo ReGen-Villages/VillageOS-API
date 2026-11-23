@@ -20,7 +20,10 @@ public static class SubmissionShapeReader
         [LandIntakeRoles.StudiedSite, LandIntakeRoles.ProposedSite, LandIntakeRoles.ServiceOrder];
 
     // Read where bound and left out where not, so a model that reads no soil still takes submissions.
-    private static readonly Role[] OptionalArchetypeRoles = [LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare];
+    private static readonly Role[] OptionalArchetypeRoles =
+    [
+        LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare, LandIntakeRoles.SlopeClassShare, LandIntakeRoles.AspectShare,
+    ];
 
     public static SubscriptionSelector Selector() => new()
     {
@@ -56,7 +59,8 @@ public static class SubmissionShapeReader
                 Archetype(LandIntakeRoles.PersonalDetail), Archetype(LandIntakeRoles.ProgrammeAllocation),
                 Archetype(LandIntakeRoles.HazardAssessment), Archetype(LandIntakeRoles.SubmittedSource),
                 Archetype(LandIntakeRoles.Submission),
-                ArchetypeWhereBound(LandIntakeRoles.SoilHorizon), ArchetypeWhereBound(LandIntakeRoles.LandCoverShare)),
+                ArchetypeWhereBound(LandIntakeRoles.SoilHorizon), ArchetypeWhereBound(LandIntakeRoles.LandCoverShare),
+                ArchetypeWhereBound(LandIntakeRoles.SlopeClassShare), ArchetypeWhereBound(LandIntakeRoles.AspectShare)),
             Predicate(LandIntakeRoles.StudiedSite), Predicate(LandIntakeRoles.ProposedSite),
             Predicate(LandIntakeRoles.ServiceOrder));
     }
