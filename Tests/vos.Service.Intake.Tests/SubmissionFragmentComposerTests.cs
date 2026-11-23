@@ -584,6 +584,77 @@ public class SubmissionFragmentComposerTests
         }
     }
 
+    private static DeclaredTerms Assessed(string[] names) => new(
+        new DeclaredTerm("assesses", WillowBend.AssessesPredicateId),
+        [.. names.Select(name => new DeclaredTerm(name, WillowBend.TermId(name)))]);
+
+    private static DeclaredVocabulary TerrainVocabulary => WillowBend.KnownVocabulary with
+    {
+        SlopeClasses = Assessed(WillowBend.SlopeClassNames),
+        AspectDirections = Assessed(WillowBend.AspectNames),
+    };
+
+    private static ResolvedArchetypes TerrainArchetypes => WillowBend.KnownArchetypes with
+    {
+        SlopeClassShare = new DeclaredTerm("SlopeClassShare", WillowBend.SlopeClassShareArchetypeId),
+        AspectShare = new DeclaredTerm("AspectShare", WillowBend.AspectShareArchetypeId),
+    };
+
+    private static ComposedSubmission ComposeWith(ResolvedArchetypes archetypes, DeclaredVocabulary vocabulary) =>
+        SubmissionFragmentComposer.Compose(
+            WillowBend.Submission(), WillowBend.KnownPredicates, archetypes, vocabulary, WillowBend.ArrivedAt, elevation: null);
+
+    private static ComposedSubmission ComposeWithTerrain() => ComposeWith(TerrainArchetypes, TerrainVocabulary);
+
+    private static List<FragmentThing> SharesOf(ComposedSubmission composed, Guid archetype) =>
+        [.. composed.Fragment.Things.Where(thing => IsEdgeTo(composed, thing.Id, archetype))];
+
+    private static void AssertTheSiteHasASharePerTerm(ComposedSubmission composed, Guid archetype, string[] names)
+    {
+        var site = Named(composed, "Willow Bend");
+        var shares = SharesOf(composed, archetype);
+
+        shares.Should().HaveCount(names.Length);
+        foreach (var name in names)
+        {
+            var share = shares.Single(thing => Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(name)));
+            share.Name.Should().Be($"Willow Bend {name}");
+            Holds(composed, site.Id, share.Id).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public void Every_slope_class_the_model_declares_is_a_share_the_site_has() =>
+        AssertTheSiteHasASharePerTerm(ComposeWithTerrain(), WillowBend.SlopeClassShareArchetypeId, WillowBend.SlopeClassNames);
+
+    [Fact]
+    public void Every_aspect_the_model_declares_is_a_share_the_site_has() =>
+        AssertTheSiteHasASharePerTerm(ComposeWithTerrain(), WillowBend.AspectShareArchetypeId, WillowBend.AspectNames);
+
+    [Fact]
+    public void A_slope_share_and_an_aspect_share_of_one_name_are_two_Things()
+    {
+        var composed = ComposeWithTerrain();
+        var slope = SharesOf(composed, WillowBend.SlopeClassShareArchetypeId).Single(thing => thing.Name == "Willow Bend flat");
+        var aspect = SharesOf(composed, WillowBend.AspectShareArchetypeId).Single(thing => thing.Name == "Willow Bend flat");
+
+        slope.Id.Should().NotBe(aspect.Id);
+    }
+
+    [Fact]
+    public void A_model_declaring_no_slope_class_or_aspect_composes_no_share_of_either()
+    {
+        var composed = ComposeWith(TerrainArchetypes, WillowBend.KnownVocabulary);
+
+        SharesOf(composed, WillowBend.SlopeClassShareArchetypeId).Should().BeEmpty();
+        SharesOf(composed, WillowBend.AspectShareArchetypeId).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_model_binding_no_share_archetype_composes_no_share_for_the_classes_it_declares() =>
+        ComposeWith(WillowBend.KnownArchetypes, TerrainVocabulary).Fragment.Things
+            .Should().NotContain(thing => thing.Name == "Willow Bend flat");
+
     [Fact]
     public void A_model_declaring_no_soil_vocabulary_composes_no_horizon()
     {

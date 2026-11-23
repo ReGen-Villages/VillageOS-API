@@ -29,7 +29,7 @@ public static class DeclaredVocabularyReader
     [
         LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
         LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
-        LandIntakeRoles.LandCoverClass,
+        LandIntakeRoles.LandCoverClass, LandIntakeRoles.SlopeClass, LandIntakeRoles.AspectDirection,
     ];
 
     // The predicates a relationship to a term is written with, the archetype a study `is`, and where a site
@@ -66,7 +66,9 @@ public static class DeclaredVocabularyReader
         Term(OneBound(snapshot, LandIntakeRoles.SiteStudy, "what a study of a site is")),
         AreaMethod(snapshot),
         TermsWhereBound(snapshot, LandIntakeRoles.SoilDepth, "the depths a site's soil is read at"),
-        TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"));
+        TermsWhereBound(snapshot, LandIntakeRoles.LandCoverClass, "the classes a site's land cover is read in"),
+        TermsWhereBound(snapshot, LandIntakeRoles.SlopeClass, "the classes a site's slope is read in"),
+        TermsWhereBound(snapshot, LandIntakeRoles.AspectDirection, "the directions a site's ground faces"));
 
     // Every route answers a model with no usable area method as it answers any model that was never seeded.
     public static AreaMethodChoice AreaMethod(SnapshotDocument snapshot)
@@ -81,7 +83,7 @@ public static class DeclaredVocabularyReader
         }
     }
 
-    // None where the model reads no soil or land cover, so a submission into it is still composed, as with water demands.
+    // None where the model declares no such vocabulary, so a submission into it is still composed, as with water demands.
     private static DeclaredTerms? TermsWhereBound(SnapshotDocument snapshot, Role archetypeRole, string whatItDeclares) =>
         snapshot.Bound(archetypeRole).Count == 0
             ? null

@@ -33,6 +33,10 @@ public class LandIntakeRolesTests
     [InlineData("placeNesting", "c3c9edde-b271-5a52-8f23-cc6bae9ea1d1")]
     [InlineData("shownUnder", "70b382c6-edfa-5295-9b43-de0471b147a4")]
     [InlineData("historySource", "db993771-bdc0-513f-a5c2-dab3e999471d")]
+    [InlineData("slopeClass", "5d4a58bc-6177-5b10-8619-f78851d54173")]
+    [InlineData("slopeClassShare", "35b8a44c-d5ff-5dc3-bc31-d53e596854a8")]
+    [InlineData("aspectDirection", "ee170eb3-5323-5601-88be-9c764477c447")]
+    [InlineData("aspectShare", "eaff61c7-9ed9-5c26-9040-42c88f5d8f99")]
     public void The_derivation_agrees_with_the_identifiers_the_templates_declare(string word, string declared)
     {
         RoleIdentity.Of(word).Should().Be(Guid.Parse(declared));

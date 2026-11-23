@@ -247,7 +247,7 @@ public static class SubmissionFragmentComposer
 
         foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
 
-        // The site has one Thing per declared term, so each soil depth and each land-cover class is read on its own, as each hazard is graded on its own assessment.
+        // The site has one Thing per declared term, so each soil depth, land-cover class, slope class and aspect is read on its own, as each hazard is graded on its own assessment.
         void OnePerTerm(DeclaredTerm? archetype, DeclaredTerms? declared, string kind)
         {
             if (archetype is null || declared is null) return;
@@ -264,6 +264,8 @@ public static class SubmissionFragmentComposer
 
         OnePerTerm(archetypes.SoilHorizon, vocabulary.SoilDepths, "soil");
         OnePerTerm(archetypes.LandCoverShare, vocabulary.LandCoverClasses, "landcover");
+        OnePerTerm(archetypes.SlopeClassShare, vocabulary.SlopeClasses, "slope");
+        OnePerTerm(archetypes.AspectShare, vocabulary.AspectDirections, "aspect");
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",

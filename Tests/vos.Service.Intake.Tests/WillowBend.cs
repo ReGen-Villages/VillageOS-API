@@ -49,6 +49,14 @@ public static class WillowBend
 
     public static readonly string[] LandCoverClassNames = ["tree-cover", "cropland", "built-up"];
 
+    public static readonly Guid SlopeClassShareArchetypeId = new("70707070-7070-7070-7070-707070707070");
+
+    public static readonly string[] SlopeClassNames = ["under-2-percent", "flat"];
+
+    public static readonly Guid AspectShareArchetypeId = new("80808080-8080-8080-8080-808080808080");
+
+    public static readonly string[] AspectNames = ["north-facing", "flat"];
+
     public static ResolvedArchetypes KnownArchetypes =>
         new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),
             new("Contact", ContactArchetypeId), new("ProgrammeAllocation", ProgrammeAllocationArchetypeId),
