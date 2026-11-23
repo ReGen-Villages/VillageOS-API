@@ -5,6 +5,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { PipelineNodeData } from './PipelineNodeView';
 
 const RUN_STATUS_COLOR: Record<string, string> = {
+  queued: 'text-amber-600',
   running: 'text-blue-600',
   waiting: 'text-amber-600',
   succeeded: 'text-green-600',
