@@ -3398,6 +3398,8 @@
         return [widget.cells, widget.coverage, ...(widget.outlines ?? []).map((outline) => outline.shape)];
       case "gridMap":
         return [widget.grid, widget.outline, ...(widget.classes ?? []).flatMap((entry) => [entry.from, entry.to])];
+      case "profileLine":
+        return [widget.profile, widget.span?.from, widget.span?.to];
       case "lineSeries":
         return widget.series.map((entry) => entry.value);
       case "heatmap":
@@ -3582,6 +3584,20 @@
   }
   function asInAForm(value) {
     return encodeURIComponent(value).replace(/%20/g, "+").replace(/[!'()~]/g, (kept) => `%${kept.charCodeAt(0).toString(16).toUpperCase()}`);
+  }
+
+  // vos.Tendril/src/utils/gridValue.ts
+  var GRID_NUMBERS = ["originLatitude", "originLongitude", "cellSizeMetres", "latitudeStepDegrees", "longitudeStepDegrees"];
+  function gridOf(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+    const held2 = value;
+    if (GRID_NUMBERS.some((name) => typeof held2[name] !== "number" || !Number.isFinite(held2[name]))) return null;
+    if (held2.latitudeStepDegrees <= 0 || held2.longitudeStepDegrees <= 0) return null;
+    const { rows, columns, values } = held2;
+    if (!Number.isInteger(rows) || !Number.isInteger(columns) || rows < 1 || columns < 1) return null;
+    if (!Array.isArray(values) || values.length !== rows * columns) return null;
+    if (!values.every((cell) => cell === null || typeof cell === "number" && Number.isFinite(cell))) return null;
+    return held2;
   }
 
   // vos.Tendril/src/widgets/writeRequest.ts
@@ -3801,6 +3817,33 @@
     return runs;
   }
 
+  // vos.Tendril/src/wording/profileReading.ts
+  function profilePoints(value) {
+    const grid = gridOf(value);
+    if (!grid || grid.rows !== 1 && grid.columns !== 1) return null;
+    return grid.values.map((value2, at) => ({ distanceMetres: at * grid.cellSizeMetres, value: value2 }));
+  }
+  function profileSpanOf(from, to) {
+    const start = asNumber(from ?? null);
+    const end = asNumber(to ?? null);
+    return start !== null && end !== null ? { from: start, to: end } : null;
+  }
+  function profileFigures(points, span) {
+    let lowest = Infinity;
+    let highest = -Infinity;
+    for (const point of points) {
+      if (point.value === null) continue;
+      if (span && (point.distanceMetres < span.from || point.distanceMetres > span.to)) continue;
+      if (point.value < lowest) lowest = point.value;
+      if (point.value > highest) highest = point.value;
+    }
+    return lowest <= highest ? { lowest, highest, difference: highest - lowest } : null;
+  }
+  function profileWords(figures, format, unit, language) {
+    const worded = (value) => `${formatNumberIn(value, format, language)}${unit ? ` ${unit}` : ""}`;
+    return { lowest: worded(figures.lowest), highest: worded(figures.highest), difference: worded(figures.difference) };
+  }
+
   // vos.Tendril/src/wording/readWidget.ts
   async function readWidget(widget, context) {
     const language = context.language ?? BASE_LANGUAGE;
@@ -3843,6 +3886,18 @@
           });
         }
         return { ...titled, type: "working", rows };
+      }
+      case "profileLine": {
+        const points = profilePoints(await resolveBinding(widget.profile, context));
+        const span = widget.span ? profileSpanOf(await resolveBinding(widget.span.from, context), await resolveBinding(widget.span.to, context)) : null;
+        const figures = points ? profileFigures(points, span) : null;
+        return {
+          ...titled,
+          type: "profileLine",
+          span,
+          figures,
+          worded: figures ? profileWords(figures, widget.format, widget.unit, language) : null
+        };
       }
       default: {
         const slots = [];
