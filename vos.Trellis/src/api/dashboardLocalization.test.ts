@@ -8,6 +8,7 @@ import type {
   FunnelWidget,
   GridMapWidget,
   ProfileLineWidget,
+  RaisedSurfaceWidget,
   PolarSharesWidget,
   KpiWidget,
   LeaderboardWidget,
@@ -561,6 +562,33 @@ describe('localizeSpecification over a profileLine widget', () => {
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('De oeste a este');
+    expect(localized.hint).toBe('un punto por celda');
+    expect(localized.unit).toBe('metros');
+  });
+});
+
+describe('localizeSpecification over a raisedSurface widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'raisedSurface',
+              title: 'Levels in 3D',
+              hint: 'one point per cell',
+              unit: 'metres',
+              surface: { kind: 'value', property: 'levels' },
+            } satisfies RaisedSurfaceWidget] }],
+    translations: {
+      es: {
+          'Levels in 3D': 'Niveles en 3D',
+          'one point per cell': 'un punto por celda',
+          'metres': 'metros',
+      },
+    },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as RaisedSurfaceWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Niveles en 3D');
     expect(localized.hint).toBe('un punto por celda');
     expect(localized.unit).toBe('metros');
   });

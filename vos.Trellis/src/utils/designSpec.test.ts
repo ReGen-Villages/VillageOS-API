@@ -70,6 +70,7 @@ describe('unboundSlots', () => {
     expect(unboundSlots(emptyWidget('table', 't'))).toEqual(['rows']);
     expect(unboundSlots(emptyWidget('leaderboard', 't'))).toEqual(['entities']);
     expect(unboundSlots(emptyWidget('profileLine', 't'))).toEqual(['profile']);
+    expect(unboundSlots(emptyWidget('raisedSurface', 't'))).toEqual(['surface']);
     expect(unboundSlots(figure('bound'))).toEqual([]);
   });
 });

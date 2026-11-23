@@ -85,6 +85,14 @@ describe('the profile line', () => {
     expect(container.querySelector('rect[data-span]')).toBeNull();
   });
 
+  it('shades nothing on a line of one point, which has no stretch to shade', () => {
+    const onePoint = held({ kind: 'value', property: 'onePoint' }, along(1, 1, [80]));
+    const { container } = draw({ ...spanning(-30, 90), profile: onePoint });
+
+    expect(container.querySelectorAll('circle[data-distance]')).toHaveLength(1);
+    expect(container.querySelector('rect[data-span]')).toBeNull();
+  });
+
   it('writes the same figures for a span past the end as for one that stops there', () => {
     draw(spanning(30, 500));
     const past = screen.getByText(/^Lowest/).textContent;

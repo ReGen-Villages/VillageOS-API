@@ -592,6 +592,21 @@ describe('subscriptionForSpec over a profileLine widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a raisedSurface widget', () => {
+  it('asks for the binding the widget holds', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'raisedSurface',
+              title: 'Levels in 3D',
+              surface: { kind: 'aggregate', archetype: 'Levels', reduction: 'count' },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Levels']));
+  });
+});
+
 describe('subscriptionForSpec over a stackedShares widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(
