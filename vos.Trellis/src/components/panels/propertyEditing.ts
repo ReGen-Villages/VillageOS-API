@@ -8,7 +8,7 @@ export type EditorKind = 'checkbox' | 'dateTime' | 'wholeNumber' | 'number' | 't
 
 /** Types with no inline control worth offering. A JSON body typed into a narrow panel field is not
  *  editing, and a half-valid body saved into one of these is worse than no edit at all. */
-const READ_ONLY_TYPES = new Set(['vos.IfcGeometry', 'vos.GeoJson']);
+const READ_ONLY_TYPES = new Set(['vos.IfcGeometry', 'vos.GeoJson', 'vos.Grid']);
 
 export function editorForType(type: string): EditorKind {
   if (READ_ONLY_TYPES.has(type)) return 'readOnly';

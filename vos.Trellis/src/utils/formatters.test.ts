@@ -161,6 +161,28 @@ describe('formatPropertyValue by declared type', () => {
     expect(formatPropertyValue(42, 'vos.Guid')).toBe('42');
   });
 
+  it('shows a grid as its size and cell size in metres, not as every value it holds', () => {
+    const grid = {
+      originLatitude: 25.1, originLongitude: 55.4, cellSizeMetres: 30,
+      latitudeStepDegrees: 0.00027, longitudeStepDegrees: 0.0003, rows: 28, columns: 28,
+      values: new Array(784).fill(1.5),
+    };
+    expect(formatPropertyValue(grid, 'vos.Grid')).toBe('28 × 28 cells, 30 m');
+  });
+
+  it('shows a grid with no metre size by its steps in degrees', () => {
+    const grid = { latitudeStepDegrees: 0.00027, longitudeStepDegrees: 0.0003, rows: 28, columns: 30, values: [] };
+    expect(formatPropertyValue(grid, 'vos.Grid')).toBe('28 × 30 cells, 0.00027° × 0.0003°');
+  });
+
+  it('shows a grid with neither cell size as its rows and columns alone', () => {
+    expect(formatPropertyValue({ rows: 2, columns: 3, values: [] }, 'vos.Grid')).toBe('2 × 3 cells');
+  });
+
+  it('names a grid it cannot read, rather than emptying it into the cell', () => {
+    expect(formatPropertyValue({ values: [1, 2, 3] }, 'vos.Grid')).toBe('grid');
+  });
+
   it('shows a mesh with no triangles as the vertices it has', () => {
     expect(formatPropertyValue({ positions: new Array(9).fill(0) }, 'vos.IfcGeometry')).toBe('mesh (3 vertices)');
   });
