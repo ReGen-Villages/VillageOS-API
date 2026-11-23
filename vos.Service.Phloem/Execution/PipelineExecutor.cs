@@ -102,9 +102,10 @@ public sealed class PipelineExecutor
     private long? TakePlaceOrQueue(PipelineDag dag, Guid runId, Guid? callRecordId, TaskCompletionSource? handedOver)
     {
         var pipelineId = dag.PipelineId;
+        var held = HeldModelToken.Current;
         var joining = _places.Join(pipelineId, runId, dag.RunsAtOnce, () =>
         {
-            if (handedOver is null || !handedOver.TrySetResult()) BeginInBackground(runId, pipelineId, callRecordId);
+            if (handedOver is null || !handedOver.TrySetResult()) BeginInBackground(runId, pipelineId, callRecordId, held);
         });
         foreach (var begin in joining.HandedOver) begin();
         return joining.QueueNumber;
@@ -143,11 +144,20 @@ public sealed class PipelineExecutor
         }
     }
 
-    private void BeginInBackground(Guid runId, Guid pipelineId, Guid? callRecordId) => _ = Task.Run(async () =>
+    private void BeginInBackground(Guid runId, Guid pipelineId, Guid? callRecordId, HeldModelToken held)
     {
-        try { await BeginQueuedAsync(runId, pipelineId, callRecordId, CancellationToken.None); }
-        catch (Exception ex) { _logger.LogError(ex, "Queued run {RunId} of pipeline {PipelineId} failed to run", runId, pipelineId); }
-    });
+        // Its place is handed over in the context of another run, whose token it must not act under.
+        using var detached = ExecutionContext.SuppressFlow();
+        _ = Task.Run(async () =>
+        {
+            try { await held.ActAsync(() => BeginQueuedAsync(runId, pipelineId, callRecordId, CancellationToken.None)); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Queued run {RunId} of pipeline {PipelineId} failed to run", runId, pipelineId);
+                LeavePlace(pipelineId, runId);
+            }
+        });
+    }
 
     private async Task<PipelineRunResult> BeginOnceHandedOverAsync(
         Guid runId, Guid pipelineId, Guid? callRecordId, TaskCompletionSource handedOver, CancellationToken cancellationToken)
@@ -224,7 +234,8 @@ public sealed class PipelineExecutor
     {
         var queued = await _gateway.QueuedRunsAsync(cancellationToken);
         foreach (var run in queued)
-            _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber, () => BeginInBackground(run.RunId, run.PipelineId, run.CallRecordId));
+            _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber,
+                () => BeginInBackground(run.RunId, run.PipelineId, run.CallRecordId, HeldModelToken.None));
         foreach (var pipelineId in queued.Select(run => run.PipelineId).Distinct())
             await HandOverAsync(pipelineId);
         return queued.Count;

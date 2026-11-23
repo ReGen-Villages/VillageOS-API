@@ -308,7 +308,7 @@ public class HandleEndpointTests
 
         factory.Log.Lines.Should().ContainSingle(line => line.StartsWith("Answered", StringComparison.Ordinal))
             .Which.Should().MatchRegex(
-                $@"^Answered 200 for {Watching} in \d+ ms: checking for a stop \d+ ms, looking up the node run \d+ ms, "
+                $@"^Answered 200 for {Watching} in \d+ ms: swapping the call's token \d+ ms, checking for a stop \d+ ms, looking up the node run \d+ ms, "
                 + @"finding the pipeline it starts \d+ ms$");
     }
 

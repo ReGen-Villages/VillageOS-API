@@ -3,6 +3,7 @@ using vos.Service.Auth;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Services;
 using Serilog;
@@ -44,6 +45,7 @@ try
             sp.GetRequiredService<ModelClock>(),
             launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
+    builder.Services.AddServiceTokenExchange(myceliumUrl);
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
@@ -86,7 +88,8 @@ try
     }));
 
     // Takes { pipelineId, params? }, runs the pipeline to its end, and answers with the result.
-    var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, ILogger<Program> log) =>
+    var handleEndpoint = app.MapPost("/handle", async (
+        HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, IServiceTokenExchange exchange, ILogger<Program> log) =>
     {
         var timings = new AnswerTimings();
         JsonElement root;
@@ -104,7 +107,7 @@ try
         var target = trigger.Kind == SpawnKind.Http ? trigger.PipelineId : trigger.TargetId;
         try
         {
-            var answer = await AnswerAsync(httpContext, executor, starter, trigger, timings);
+            var answer = await AnswerAsync(httpContext, executor, starter, exchange, log, trigger, timings);
             log.LogInformation("Answered {StatusCode} for {TargetId} in {TotalMilliseconds} ms: {Steps}",
                 (answer as IStatusCodeHttpResult)?.StatusCode, target, timings.TotalMilliseconds, timings.Steps);
             return answer;
@@ -119,8 +122,12 @@ try
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
     static async Task<IResult> AnswerAsync(
-        HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, SpawnTrigger trigger, AnswerTimings timings)
+        HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, IServiceTokenExchange exchange, ILogger<Program> log,
+        SpawnTrigger trigger, AnswerTimings timings)
     {
+        if (trigger.Kind == SpawnKind.Invalid)
+            return Results.BadRequest(new { error = trigger.Error });
+
         // The broker's name for this call in its request log. A call without one, or with one that is not an
         // identifier, still runs; the run simply records no request.
         var requestId = Guid.TryParse(httpContext.Request.Headers[RequestLogHeader].ToString(), out var named) ? named : (Guid?)null;
@@ -133,6 +140,22 @@ try
             heldSubject = reading.Subject;
         }
 
+        var held = await timings.TimeAsync("swapping the call's token",
+            () => HeldModelToken.SwapFromTheCallAsync(exchange, log, httpContext.RequestAborted));
+        if (held is null)
+            return Results.Json(
+                new { error = "Mycelium would not swap this call's token for one that outlasts the run" },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+
+        IResult? answer = null;
+        await held.ActAsync(async () => answer = await AnswerUnderTheHeldTokenAsync(httpContext, executor, starter, trigger, timings, requestId, heldSubject));
+        return answer!;
+    }
+
+    static async Task<IResult> AnswerUnderTheHeldTokenAsync(
+        HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, SpawnTrigger trigger, AnswerTimings timings,
+        Guid? requestId, RunSubject? heldSubject)
+    {
         switch (trigger.Kind)
         {
             case SpawnKind.Http when trigger.Async:
@@ -203,12 +226,10 @@ try
                     : Results.BadRequest(new { error = notStartedAgain });
 
             case SpawnKind.CarryOn:
+            default:
                 return await executor.CarryOnAsync(trigger.TargetId, httpContext.RequestAborted) is { } notCarriedOn
                     ? Results.BadRequest(new { error = notCarriedOn })
                     : Results.Ok(new { success = true, accepted = true, runId = trigger.TargetId });
-
-            default:
-                return Results.BadRequest(new { error = trigger.Error });
         }
     }
 

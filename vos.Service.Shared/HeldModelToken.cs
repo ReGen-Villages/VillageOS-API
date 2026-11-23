@@ -13,6 +13,11 @@ public sealed class HeldModelToken
     // the service's own credential.
     public static HeldModelToken None { get; } = new(null, null, NullLogger.Instance);
 
+    private static readonly AsyncLocal<HeldModelToken?> _current = new();
+
+    // For work left to begin later, outside the context it was asked for in.
+    public static HeldModelToken Current => _current.Value ?? None;
+
     private readonly IServiceTokenExchange? _exchange;
     private readonly ILogger _logger;
     private ModelScopedBearer? _bearer;
@@ -45,6 +50,7 @@ public sealed class HeldModelToken
         }
 
         await ReplaceIfDueAsync(cancellationToken);
+        _current.Value = this;
         await MyceliumModelToken.ActingForAsync(Volatile.Read(ref _bearer)!.Token, work);
     }
 
