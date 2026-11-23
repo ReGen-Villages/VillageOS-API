@@ -27,7 +27,7 @@ public sealed record ResolvedPredicates(
 public sealed record ResolvedArchetypes(
     DeclaredTerm Site, DeclaredTerm Parcel, DeclaredTerm Project, DeclaredTerm Contact, DeclaredTerm ProgrammeAllocation,
     DeclaredTerm HazardAssessment, DeclaredTerm SubmittedSource, DeclaredTerm Submission, DeclaredTerm? SoilHorizon = null,
-    DeclaredTerm? LandCoverShare = null);
+    DeclaredTerm? LandCoverShare = null, DeclaredTerm? SlopeClassShare = null, DeclaredTerm? AspectShare = null);
 
 public sealed record DeclaredTerm(string Name, Guid Id);
 
@@ -53,5 +53,5 @@ public sealed record DeclaredVocabulary(
     DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
     DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting, IReadOnlyList<DeclaredDemand> WaterDemands,
     DeclaredTerm SiteStudy, AreaMethodChoice AreaMethod, DeclaredTerms? SoilDepths = null,
-    DeclaredTerms? LandCoverClasses = null);
+    DeclaredTerms? LandCoverClasses = null, DeclaredTerms? SlopeClasses = null, DeclaredTerms? AspectDirections = null);
 

@@ -191,7 +191,7 @@ public class DeclaredVocabularyReaderTests
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
-            LandIntakeRoles.LandCoverClass,
+            LandIntakeRoles.LandCoverClass, LandIntakeRoles.SlopeClass, LandIntakeRoles.AspectDirection,
             LandIntakeRoles.CategorizedAs, LandIntakeRoles.ObtainedBy, LandIntakeRoles.Assesses,
             LandIntakeRoles.ReportedLevel, LandIntakeRoles.SiteStudy, LandIntakeRoles.RootPlace,
             LandIntakeRoles.PlaceNesting,
@@ -200,7 +200,7 @@ public class DeclaredVocabularyReaderTests
         selector.BoundTypes.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.AllocationCategory, LandIntakeRoles.BoundarySource, LandIntakeRoles.HazardType,
             LandIntakeRoles.HazardLevel, LandIntakeRoles.WaterDemandComponent, LandIntakeRoles.SoilDepth,
-            LandIntakeRoles.LandCoverClass));
+            LandIntakeRoles.LandCoverClass, LandIntakeRoles.SlopeClass, LandIntakeRoles.AspectDirection));
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
             PlatformPredicates.Is, RoleBindings.BindsPredicateName);
@@ -264,6 +264,34 @@ public class DeclaredVocabularyReaderTests
         classes!.Terms.Select(term => term.Name).Should().Equal("cropland");
         classes.Predicate.Id.Should().Be(model.Id("assesses"));
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).LandCoverClasses.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_model_declaring_slope_classes_reads_them_and_one_declaring_none_reads_none()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("SlopeClass").Bound(LandIntakeRoles.SlopeClass, "SlopeClass")
+            .With("under-2-percent").Relate("under-2-percent", "is", "SlopeClass");
+
+        var classes = DeclaredVocabularyReader.Read(model.Build()).SlopeClasses;
+
+        classes!.Terms.Select(term => term.Name).Should().Equal("under-2-percent");
+        classes.Predicate.Id.Should().Be(model.Id("assesses"));
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SlopeClasses.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_model_declaring_aspects_reads_them_and_one_declaring_none_reads_none()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("AspectDirection").Bound(LandIntakeRoles.AspectDirection, "AspectDirection")
+            .With("north-facing").Relate("north-facing", "is", "AspectDirection");
+
+        var aspects = DeclaredVocabularyReader.Read(model.Build()).AspectDirections;
+
+        aspects!.Terms.Select(term => term.Name).Should().Equal("north-facing");
+        aspects.Predicate.Id.Should().Be(model.Id("assesses"));
+        DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).AspectDirections.Should().BeNull();
     }
 
     // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and

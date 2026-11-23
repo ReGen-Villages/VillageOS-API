@@ -17,7 +17,8 @@ public class SubmissionShapeReaderTests
         selector.Ids.Should().BeEquivalentTo(RoleBindings.Identifiers(
             LandIntakeRoles.Site, LandIntakeRoles.Parcel, LandIntakeRoles.Project, LandIntakeRoles.PersonalDetail,
             LandIntakeRoles.ProgrammeAllocation, LandIntakeRoles.HazardAssessment, LandIntakeRoles.SubmittedSource,
-            LandIntakeRoles.Submission, LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare, LandIntakeRoles.StudiedSite,
+            LandIntakeRoles.Submission, LandIntakeRoles.SoilHorizon, LandIntakeRoles.LandCoverShare,
+            LandIntakeRoles.SlopeClassShare, LandIntakeRoles.AspectShare, LandIntakeRoles.StudiedSite,
             LandIntakeRoles.ProposedSite, LandIntakeRoles.ServiceOrder));
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.Traverse.Should().ContainEquivalentOf(RoleBindings.FollowBindings);
@@ -74,5 +75,25 @@ public class SubmissionShapeReaderTests
         SubmissionShapeReader.Read(withLandCover.Build()).Archetypes.LandCoverShare
             .Should().Be(new DeclaredTerm("LandCoverShare", withLandCover.Id("LandCoverShare")));
         SubmissionShapeReader.Read(DeclaredModel.Seeded().Build()).Archetypes.LandCoverShare.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_slope_class_share_archetype_is_read_where_the_model_binds_one_and_absent_where_it_does_not()
+    {
+        var withSlopes = DeclaredModel.Seeded().WithArchetype("SlopeClassShare").Bound(LandIntakeRoles.SlopeClassShare, "SlopeClassShare");
+
+        SubmissionShapeReader.Read(withSlopes.Build()).Archetypes.SlopeClassShare
+            .Should().Be(new DeclaredTerm("SlopeClassShare", withSlopes.Id("SlopeClassShare")));
+        SubmissionShapeReader.Read(DeclaredModel.Seeded().Build()).Archetypes.SlopeClassShare.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_aspect_share_archetype_is_read_where_the_model_binds_one_and_absent_where_it_does_not()
+    {
+        var withAspects = DeclaredModel.Seeded().WithArchetype("AspectShare").Bound(LandIntakeRoles.AspectShare, "AspectShare");
+
+        SubmissionShapeReader.Read(withAspects.Build()).Archetypes.AspectShare
+            .Should().Be(new DeclaredTerm("AspectShare", withAspects.Id("AspectShare")));
+        SubmissionShapeReader.Read(DeclaredModel.Seeded().Build()).Archetypes.AspectShare.Should().BeNull();
     }
 }

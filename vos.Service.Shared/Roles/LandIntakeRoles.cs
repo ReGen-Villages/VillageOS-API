@@ -62,6 +62,10 @@ public static class LandIntakeRoles
     public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
     public static readonly Role LandCoverClass = new("landCoverClass", new("e849536c-e5de-52e1-a7c9-b0a59ee7f591"));
     public static readonly Role LandCoverShare = new("landCoverShare", new("865a1a58-ea9e-5699-8a76-73b48e705042"));
+    public static readonly Role SlopeClass = new("slopeClass", new("5d4a58bc-6177-5b10-8619-f78851d54173"));
+    public static readonly Role SlopeClassShare = new("slopeClassShare", new("35b8a44c-d5ff-5dc3-bc31-d53e596854a8"));
+    public static readonly Role AspectDirection = new("aspectDirection", new("ee170eb3-5323-5601-88be-9c764477c447"));
+    public static readonly Role AspectShare = new("aspectShare", new("eaff61c7-9ed9-5c26-9040-42c88f5d8f99"));
     public static readonly Role MeasuresAreaWith = new("measuresAreaWith", new("0ba45c9f-fdb9-53f1-9576-76fb041629e8"));
     public static readonly Role AreaMeasuredWith = new("areaMeasuredWith", new("b1cbb4b6-a7b6-50e7-b974-bbde68dd2d14"));
     public static readonly Role MeanSphereAreaMethod = new("meanSphereAreaMethod", new("5ec67ad4-faf3-54c5-bdd5-ccf6502b139b"));
@@ -80,6 +84,7 @@ public static class LandIntakeRoles
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
         SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare,
+        SlopeClass, SlopeClassShare, AspectDirection, AspectShare,
         MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
         VerifiedRequestBudget, UnverifiedRequestBudget,
     ];
