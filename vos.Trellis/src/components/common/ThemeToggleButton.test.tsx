@@ -21,7 +21,6 @@ describe('ThemeToggleButton', () => {
     render(<ThemeToggleButton />);
     const btn = screen.getByTestId('theme-toggle');
     expect(btn.getAttribute('aria-label')).toBe('Switch to dark mode');
-    // lucide-react renders an SVG; sniff the aria-label to confirm the icon
     expect(btn.querySelector('svg.lucide-moon')).not.toBeNull();
   });
 

@@ -2,7 +2,7 @@
 
 Run with:  pytest
 
-The contract itself (the endpoints, inbound JWT validation, registration, arguments) is tested in
+The contract itself (the endpoints, checking inbound tokens, registration, arguments) is tested in
 vos.Service.Python.Shared. This covers what this service adds: its handler, its demo endpoints, and
 that it is wired to the library. Registration is mocked so the tests never touch the network.
 """
@@ -36,7 +36,7 @@ def client():
 
 @pytest.fixture
 def signing(monkeypatch):
-    """Enable JWT auth against a stand-in for Mycelium's key pair; yields the private half."""
+    """Turn on token checking against a stand-in for Mycelium's key pair; yields the private half."""
     pair = ec.generate_private_key(ec.SECP256R1())
     verification_key = base64.b64encode(
         pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)

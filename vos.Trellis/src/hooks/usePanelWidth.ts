@@ -1,13 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
-/**
- * How wide a side panel stands, and the drag that changes it.
- *
- * A panel beside the canvas has one side facing the work. `handleSide` says which one, so the same
- * gesture — pull the handle away from the canvas to make room — reads the same on both sides of
- * the screen. Nothing here is written down: a width is where somebody has put a panel while they
- * are working, not a setting, and the page opens on the width it was designed for.
- */
+/** `handleSide` lets one gesture, pulling the handle away from the canvas, mean the same on both sides of the
+ *  screen. A width is not saved, because it is where someone put a panel while working, not a setting. */
 export interface PanelWidthBounds {
   initial: number;
   min: number;
@@ -19,7 +13,7 @@ export interface PanelWidthBounds {
 /** How much one arrow key moves the handle. Coarse enough to cross a panel in a few presses. */
 const KEYBOARD_STEP = 24;
 
-export interface PanelWidth {
+interface PanelWidth {
   width: number;
   isResizing: boolean;
   handleProperties: {
@@ -40,9 +34,7 @@ export interface PanelWidth {
 export function usePanelWidth({ initial, min, max, handleSide }: PanelWidthBounds): PanelWidth {
   const [width, setWidth] = useState(initial);
   const [isResizing, setIsResizing] = useState(false);
-  // Where the pointer was and how wide the panel was when the drag began. Held together so a
-  // drag reads as one gesture: following the pointer's own position instead would jump the handle
-  // to wherever the handle was grabbed, by however far in it the person clicked.
+  // Measured from where the drag began, or the handle would jump by however far into it the person clicked.
   const from = useRef<{ pointerX: number; width: number } | null>(null);
 
   const held = useCallback((wanted: number) => Math.min(max, Math.max(min, wanted)), [min, max]);
@@ -97,8 +89,8 @@ export function usePanelWidth({ initial, min, max, handleSide }: PanelWidthBound
       onPointerDown,
       onPointerMove,
       onPointerUp,
-      // A drag that ends where no pointer-up reaches us — released off the window, or taken away
-      // by the browser — would otherwise leave the panel following a pointer nobody is pressing.
+      // A drag released off the window, or taken by the browser, sends no pointer-up, and the panel would
+      // follow a pointer nobody is pressing.
       onLostPointerCapture: letGo,
       onKeyDown,
       role: 'separator',

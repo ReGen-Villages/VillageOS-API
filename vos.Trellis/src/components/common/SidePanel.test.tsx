@@ -47,9 +47,7 @@ describe('SidePanel', () => {
     expect(screen.queryByRole('separator')).toBeNull();
   });
 
-  // The handle belongs on the side facing the work, which is the far side from the window frame
-  // whichever way the panel stands. Getting this the wrong way round puts a panel's handle against the window frame,
-  // where dragging it does nothing anybody wanted.
+  // Against the window frame, dragging the handle does nothing anybody wanted.
   it('puts the separator on the side facing the work, whichever side the panel stands on', () => {
     const { unmount } = panel('left');
     const onTheLeft = screen.getByRole('complementary', { name: 'The panel' });

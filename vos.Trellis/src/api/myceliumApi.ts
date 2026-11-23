@@ -12,7 +12,7 @@ export interface StartupProgress {
 
 /** A page the platform declares for the signed-in caller: a dashboard specification about the
  *  platform itself rather than about a model, drawn exactly as a model's own `Dashboard` Thing. */
-export interface DeclaredPage {
+interface DeclaredPage {
   name: string;
   specification: unknown;
 }
@@ -20,7 +20,7 @@ export interface DeclaredPage {
 export const myceliumApi = {
   getPages: () => apiClient.get<DeclaredPage[]>('/api/mycelium/pages'),
 
-  /** Unauthenticated — check seed loading progress before login completes. */
+  /** Asked before sign-in, so it carries no credential. */
   getStartupStatus: async (): Promise<StartupProgress> => {
     const baseUrl = import.meta.env.VITE_BROKER_URL || '';
     const res = await fetch(`${baseUrl}/api/mycelium/startup-status`);
@@ -28,8 +28,6 @@ export const myceliumApi = {
     return res.json();
   },
   getServices: () => apiClient.get<RegisteredService[]>('/api/mycelium/services'),
-
-  getService: (id: string) => apiClient.get<RegisteredService>(`/api/mycelium/services/${id}`),
 
   startService: (id: string) =>
     apiClient.action(`start service ${id}`, () => apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/start`)),

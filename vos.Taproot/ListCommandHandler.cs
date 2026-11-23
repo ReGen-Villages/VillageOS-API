@@ -4,8 +4,8 @@ namespace vos.Taproot
 {
     public class ListCommandHandler : CommandHandlerWithOutputOptions
     {
-        public ListCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
-            : base(arg, writer, mycelium, options)
+        public ListCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : base(arg, writer, mycelium)
         {
         }
 
@@ -13,7 +13,7 @@ namespace vos.Taproot
         {
             try
             {
-                var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (tok.Length == 0)
                 {
                     ShowUsage();
@@ -129,7 +129,6 @@ namespace vos.Taproot
                 if (!(prop.Value.TryGetProperty("IsInherited", out var ii) && ii.ValueKind == JsonValueKind.True))
                     continue;
                 if (!prop.Value.TryGetProperty("Value", out var val)) continue;
-                // The key is already the qualified path (source chain + leaf), matching the prior format.
                 _writer.WriteLine($"    {prop.Name}: {val.FormatPropertyValue()} (inherited)");
             }
         }
@@ -285,9 +284,8 @@ namespace vos.Taproot
             _writer.WriteLine($"    Reached by: {ResolvedOrNotStated(handler, "Trigger")}");
         }
 
-        // A value the platform resolved, or a plain statement that nothing did. Standing a default in
-        // for silence would have this command state something no model says — which is how the run mode
-        // came to read as "daemon" for every service whatever it declared.
+        // A value the platform resolved, or a plain statement that nothing did, because a default shown for
+        // silence would have this command state something no model says.
         private static string ResolvedOrNotStated(JsonElement handler, string field) =>
             handler.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String
                 ? value.GetString()!

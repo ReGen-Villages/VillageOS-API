@@ -15,7 +15,8 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-// The SSE coordinator streams changes into the engine and keeps membership in step.
+// The subscription service streams changes into the engine and keeps what the subscription follows in
+// step with the engine's simulations.
 public class MetabolismSubscriptionServiceTests
 {
     private sealed class RecordingMetabolism : Services.Metabolism

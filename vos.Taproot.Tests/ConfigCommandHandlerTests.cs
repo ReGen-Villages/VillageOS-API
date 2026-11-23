@@ -87,8 +87,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Property Mode Configuration:", output);
     }
 
-    // The fixtures below are the reply the platform actually sends: a field named Mode, and the modes
-    // it accepts. Reading a field it does not send printed an empty default and nothing failed.
+    // The fixtures below are the reply the platform actually sends: a field named Mode, and the modes it accepts.
     [Fact]
     public async Task Mode_WithNoArgs_ShowsCurrentConfigAndTheModesThePlatformReports()
     {
@@ -107,8 +106,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Available modes: FullHistory, RingBuffer, SampledByObservations, SampledByTime, CurrentOnly", output);
     }
 
-    // The client used to print a list of modes it was built with, which could
-    // disagree with the platform's.
     [Fact]
     public async Task Mode_WithNoArgs_ReportsAModeThisClientWasNeverBuiltWith()
     {
@@ -224,7 +221,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
-        // The mode name gets lowercased in HandlePropertyModeAsync before being passed to SetDefaultModeAsync
+        // The handler lowercases the mode name before it sends it.
         _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null, null, null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode CurrentOnly");
@@ -234,7 +231,6 @@ public class ConfigCommandHandlerTests
     }
 
     // The per-property route answers with a field called Mode, like the default-mode route does.
-    // Nothing covered this path, so the field it reads was never checked against a reply.
     [Fact]
     public async Task Mode_SetForOneProperty_PrintsTheModeThePlatformReports()
     {
@@ -248,8 +244,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Set property 'flowRate' mode to FullHistory", _writer.ToString());
     }
 
-    // A word that is not a subcommand is a mode name, and the platform decides
-    // whether it is one. The client used to refuse it first, from a list of its own.
     [Fact]
     public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()
     {

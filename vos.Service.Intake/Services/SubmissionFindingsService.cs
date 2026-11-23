@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Intake.Services;
 
@@ -28,9 +29,9 @@ public sealed class SubmissionFindingsService(
     // The findings for one submission, or null where the reference and the address do not name
     // one between them.
     public async Task<Findings?> ReadAsync(
-        string submissionId, string emailAddress, CancellationToken cancellation)
+        string submissionId, string emailAddress, Role page, CancellationToken cancellation)
     {
-        var declarations = await ReadDeclarationsAsync(submissionId, emailAddress, cancellation);
+        var declarations = await ReadDeclarationsAsync(submissionId, emailAddress, page, cancellation);
         if (declarations is null) return null;
 
         var siteId = StableIdentity.Derive(submissionId, SiteRole);
@@ -62,8 +63,8 @@ public sealed class SubmissionFindingsService(
         string submissionId, Func<string, bool> ticketIssuedFor, JsonElement question, CancellationToken cancellation)
     {
         var contactId = StableIdentity.Derive(submissionId, ContactRole);
-        using var declared = await mycelium.ReadAsync(FindingsReader.DeclarationSelector(contactId), cancellation);
-        var address = FindingsReader.ReadDeclarations(declared.RootElement, contactId).ContactAddress;
+        using var contact = await mycelium.ReadAsync(FindingsReader.ContactSelector(contactId), cancellation);
+        var address = FindingsReader.ReadContactAddress(contact.RootElement, contactId);
         if (address is null || !ticketIssuedFor(address)) return null;
 
         var asked = new Dictionary<string, object?> { ["thingId"] = StableIdentity.Derive(submissionId, SiteRole) };
@@ -78,13 +79,13 @@ public sealed class SubmissionFindingsService(
     private const string ContactRole = "contact";
 
     private async Task<SubmitterDeclarations?> ReadDeclarationsAsync(
-        string submissionId, string emailAddress, CancellationToken cancellation)
+        string submissionId, string emailAddress, Role page, CancellationToken cancellation)
     {
         var contactId = StableIdentity.Derive(submissionId, ContactRole);
         using var declared = await mycelium.ReadAsync(
-            FindingsReader.DeclarationSelector(contactId), cancellation);
+            FindingsReader.DeclarationSelector(contactId, page), cancellation);
 
-        var declarations = FindingsReader.ReadDeclarations(declared.RootElement, contactId);
+        var declarations = FindingsReader.ReadDeclarations(declared.RootElement, contactId, page);
 
         // The ticket proved a mailbox and the reference named a submission; this is where the two meet.
         // Compared under the same normalisation a code was answered under, so somebody who verified one

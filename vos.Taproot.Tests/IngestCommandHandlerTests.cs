@@ -5,7 +5,6 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Covers the `ingest <file.ifc>` command: upload an IFC to the Xylem service and report counts.
 public class IngestCommandHandlerTests : IDisposable
 {
     private readonly Mock<MyceliumClient> _myceliumMock;
@@ -146,7 +145,7 @@ public class IngestCommandHandlerTests : IDisposable
     public async Task Ingest_without_a_service_url_errors()
     {
         var path = WriteIfc();
-        await Execute(path); // no --url and no VOS_INGEST_URL
+        await Execute(path);
 
         _writer.ToString().Should().Contain("URL");
         _myceliumMock.Verify(m => m.IngestIfcAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);

@@ -17,8 +17,6 @@ const POSITION_EVENTS = [
  * Fits the view to the extent of nearly every node rather than every node. The force layout
  * occasionally throws a few nodes far out for a second or two; fitted to every node, Sigma shrinks
  * the whole drawing to make room for them.
- *
- * Must be rendered as a child of <SigmaContainer>.
  */
 export function ViewFitController() {
   const sigma = useSigma();

@@ -1,9 +1,7 @@
 namespace vos.Pages;
 
-public sealed record PageReaderOptions
+public sealed class PageReaderOptions
 {
-    public int EngineMemoryCeilingMebibytes { get; init; } = 128;
-
-    /// <summary>Told what the reader warns about: a question a page description asks that cannot be asked.</summary>
+    // Told what the reader warns about: a question a page description asks that cannot be asked.
     public Action<string>? Warned { get; init; }
 }

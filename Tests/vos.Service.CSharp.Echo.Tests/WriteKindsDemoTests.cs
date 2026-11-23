@@ -1,5 +1,3 @@
-// Verifies WriteKindsDemo drives one of each write kind on the right routes and aggregates the result.
-
 using System.Net;
 using System.Text;
 using System.Text.Json;

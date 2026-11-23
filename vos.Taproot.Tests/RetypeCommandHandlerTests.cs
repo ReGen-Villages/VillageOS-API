@@ -2,10 +2,10 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
-// Covers `retype`: swap ONE of a Thing's is-relationships, preserving multiple inheritance.
 public class RetypeCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };
@@ -19,7 +19,6 @@ public class RetypeCommandHandlerTests
     private static readonly Guid RelA = Guid.NewGuid();
     private static readonly Guid RelB = Guid.NewGuid();
 
-    private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
     private static string Edge(Guid id, Guid subj, Guid pred, Guid tgt) =>
         $"{{\"Id\":\"{id}\",\"SubjectId\":\"{subj}\",\"PredicateId\":\"{pred}\",\"TargetId\":\"{tgt}\"}}";
 
@@ -27,10 +26,10 @@ public class RetypeCommandHandlerTests
 
     private void SetupModel(params string[] edges)
     {
-        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Json($"[{{\"Id\":\"{IsId}\",\"Name\":\"is\"}}]"));
-        _mycelium.Setup(m => m.GetAllRelationshipsAsync()).ReturnsAsync(Json("[" + string.Join(",", edges) + "]"));
+        _mycelium.Setup(m => m.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{IsId}\",\"Name\":\"is\"}}]"));
+        _mycelium.Setup(m => m.GetAllRelationshipsAsync()).ReturnsAsync(Parse("[" + string.Join(",", edges) + "]"));
         _mycelium.Setup(m => m.DeleteRelationshipAsync(It.IsAny<Guid>())).ReturnsAsync(true);
-        _mycelium.Setup(m => m.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>())).ReturnsAsync(Json("{}"));
+        _mycelium.Setup(m => m.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>())).ReturnsAsync(Parse("{}"));
     }
 
     [Fact]
@@ -45,7 +44,7 @@ public class RetypeCommandHandlerTests
     [Fact]
     public async Task Non_is_edges_are_left_untouched()
     {
-        SetupModel(Edge(RelA, ThingId, Guid.NewGuid(), TypeA)); // a non-is edge
+        SetupModel(Edge(RelA, ThingId, Guid.NewGuid(), TypeA));
         await Execute($"{ThingId} {NewType}");
         _mycelium.Verify(m => m.DeleteRelationshipAsync(It.IsAny<Guid>()), Times.Never);
         _mycelium.Verify(m => m.CreateRelationshipAsync(ThingId, IsId, NewType), Times.Once);

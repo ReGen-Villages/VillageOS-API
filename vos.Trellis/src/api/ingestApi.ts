@@ -1,9 +1,9 @@
 import { apiClient } from './client';
 import i18n from '../i18n';
 
-// A count is null when the ingest succeeded and the service could not read it off what the ingest tool
-// printed. It is not nought: the model was written.
-export interface IngestResult {
+// A count is null when the ingest succeeded but the service could not read the count from the tool's
+// output; it is not nought, because the model was written.
+interface IngestResult {
   success: boolean;
   thingsCreated: number | null;
   thingsUpdated: number | null;
@@ -11,13 +11,12 @@ export interface IngestResult {
   error?: string | null;
 }
 
-export type IngestMode = 'merge' | 'new-model';
+type IngestMode = 'merge' | 'new-model';
 
-// Read at call time (not module load) so it is configurable and testable.
+// Read at call time so a test can set it.
 const ingestUrl = () => (import.meta.env.VITE_INGEST_URL as string | undefined) || '';
 
 export const ingestApi = {
-  /** Whether an ingestion service URL is configured — drives whether the upload UI is offered. */
   configured: () => ingestUrl().length > 0,
 
   upload: async (file: File, name: string, mode: IngestMode): Promise<IngestResult> => {

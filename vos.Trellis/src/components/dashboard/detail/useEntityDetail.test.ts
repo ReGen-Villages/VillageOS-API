@@ -38,7 +38,7 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
   return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
-// root -has-> child. One related Thing, so each round is a small, countable fan-out.
+// root has child: one related Thing, so each round's requests can be counted.
 function index() {
   return buildModelIndex(
     [thing('root', 'ROOT-1'), thing('child', 'CHILD-1'), thing('has', 'has')],
@@ -101,10 +101,6 @@ describe('useEntityDetail', () => {
 
   const rounds = () => mockGetStateTransitions.mock.calls.length;
 
-  // The dashboard bumps `nonce` every 400 ms while a sim runs. A round costs a history request,
-  // so following every bump would put one open window into requests per second. The throttle is
-  // leading-edge — the first bump after a quiet period refreshes promptly — so what must not
-  // happen is a round per bump, not a round at all.
   it('does not start a fetch round per nonce bump', async () => {
     const modelIndex = index();
     const { rerender } = renderHook(({ nonce }) => useEntityDetail(modelIndex, 'root', detail, nonce), {
@@ -113,7 +109,7 @@ describe('useEntityDetail', () => {
     await settle();
     expect(rounds()).toBe(1);
 
-    const bumps = 5; // ~2 s of dashboard bumps, inside one 5 s throttle window
+    const bumps = 5; // about two seconds of refreshes, inside one window
     for (let n = 1; n <= bumps; n++) {
       rerender({ nonce: n });
       await act(async () => {
@@ -122,12 +118,9 @@ describe('useEntityDetail', () => {
     }
 
     expect(rounds()).toBeLessThan(bumps);
-    expect(rounds()).toBeLessThanOrEqual(2); // initial round + one leading-edge refresh
+    expect(rounds()).toBeLessThanOrEqual(2); // the first round, and one refresh as the window opens
   });
 
-  // Guards against throttle-by-debounce: a value that keeps changing resets a debounce
-  // forever, so the window would never refresh while the sim is busy — the failure mode
-  // is silent staleness rather than a visible error.
   it('still refreshes under a continuously bumping nonce', async () => {
     const modelIndex = index();
     const { rerender } = renderHook(({ nonce }) => useEntityDetail(modelIndex, 'root', detail, nonce), {
@@ -230,8 +223,8 @@ describe('useEntityDetail', () => {
     expect(result.current.coverage?.RangesKeepingNoHistory).toEqual(['idle']);
   });
 
-  // A model with no active reactive engine 503s on state history. The window must still render
-  // its states and relations rather than losing the whole round to one rejected request.
+  // A model with no active reactive engine answers 503 for state history, and the window must still show its
+  // states and relations rather than lose the whole round to one refused request.
   it('leaves coverage null and still resolves when the endpoint rejects', async () => {
     mockGetStateTransitions.mockRejectedValue(new Error('503'));
     const modelIndex = index();

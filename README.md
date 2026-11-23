@@ -24,9 +24,9 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 
 - Sigma.js v3 + graphology for graph rendering
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
-- Server-Sent Events (SSE) real-time updates with flash effects
+- Live updates from the Mycelium's event stream, with each changed node flashing on the graph
 - Zustand state management
-- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic), reading every binding through Tendril
+- An **Operations** dashboard drawn from a JSON page description the model holds: figures, charts, funnels, tables, leaderboards and the widgets that write, each binding read through Tendril, so the console holds no word of any one domain
 - Dashboard, Operations, Compose, Design, Land intake, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the model publishes (the land-intake template's Submissions review among them) and every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Tendril (page reader and writing widgets)
@@ -46,7 +46,7 @@ inside a C# process, so a program that is not a browser answers a page as Trelli
 **vos.Taproot** — Command-line interface for the Mycelium.
 
 - Interactive shell with command history and line editing
-- CRUD commands (create, get, list, delete, set, query, find), with narrowed lists
+- Commands to create, read, change and delete Things (create, get, list, delete, set, rename, retype, query, find), with narrowed lists
 - Ranges and states, including each Thing's state history
 - Temporal queries (snapshot, at, history, mutations)
 - Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
@@ -60,25 +60,27 @@ make the same calls.
 
 | Service | Type | Description |
 |---------|------|-------------|
-| vos.Service.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
-| vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
-| vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.Service.Phloem | Production | Pipeline orchestrator — runs a user-authored pipeline of microservice nodes; spawned synchronously through Mycelium, calls each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
+| vos.Service.Delta | Production | Registers data sources under endpoint templates that inherit from one root through `is`, discovers each source's schema, and undoes the steps already taken when a later one fails |
+| vos.Service.Tributary | Production | Calls an HTTP endpoint and reshapes the answer with a JSONata expression, signing in by exchanging a token and paging by offset where the endpoint's settings ask (as an ArcGIS server does); also a pipeline step that fetches, or asks for a Thing's history to be judged |
+| vos.Service.Metabolism | Production | Consume and produce simulation: lowers or raises a target property's quantity at a configured rate, for the `consumes` and `produces` predicates |
+| vos.Service.Phloem | Production | Pipeline orchestrator: runs a pipeline of service nodes drawn in the model, started by a request through Mycelium, a relationship, a Thing entering a state or the clock, and calls each node through Mycelium's endpoint forwarding (see [SERVICES.md §16](docs/SERVICES.md)) |
 | vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.ModelIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
-| vos.Service.Forage | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each compute connection the `siteAnalysisConnection` role binds (see [FORAGE.md](docs/FORAGE.md)) |
+| vos.Service.Forage | Production | Discovery's pipeline steps: resolves a site against every data source covering it, plans each source's calls for the discovery drawing, records what they came to and marks the site discovered (see [FORAGE.md](docs/FORAGE.md)) |
 | vos.Service.Intake | Production | Takes a land-intake submission and composes the Site, Parcel and study it becomes, applied as one all-or-nothing fragment; registers with nothing and holds its own credential (see [LAND_INTAKE.md](docs/LAND_INTAKE.md)) |
 | vos.Service.Feedback | Production | Takes a bug report or an idea from a signed-in person's report panel and files it as an Azure DevOps work item, with the screenshot attached; asks the platform to accept the caller's token, holds the DevOps access token, and reads each application's project and area from the `Destinations` section of its settings |
-| vos.Service.EnergyBalance | Production | Site energy verdict — reads a study's generation inputs (e.g. solar: PV area × resource × efficiency) and consumption, and writes whether the site is net positive, the one energy figure a formula on the study cannot hold; a Handled-Predicate service in the same family as Metabolism |
+| vos.Service.EnergyBalance | Production | Site energy verdict as a pipeline node: from the generation inputs wired into it (solar array area, resource and efficiency, and other generation) and the consumption, answers solar and total generation, the share of consumption and whether the site is net positive |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing calls it about a study |
+| vos.Service.Transect | Production | Measures a parcel's border again as a pipeline node, with the area method the model configures and the formula the intake measures a submission with, and writes the area and the method onto the parcel. Launched by Mycelium when a pipeline first calls it. |
+| vos.Service.Phyllotaxis | In development | The layout generator, which draws the village on a site. So far it holds the placement on the terrain: the reservoirs on the lowest gentle ground that water drains to, the village core on flat ground above them, the wind turbines on the highest ground spaced by rotor, the solar fields over the crops where the land throws least shade, and the waste plant downwind beyond its buffer. Not yet a pipeline node |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
 | vos.Service.Quadrat | In development (Python) | Raster reader — the value at a point, statistics over a polygon or box, the area of each land-cover class or elevation band in it, or the values along a line, from a GeoTIFF; a command line, and a service answering pipeline nodes (see [its README](vos.Service.Quadrat/README.md)) |
-| vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline node |
+| vos.Service.CSharp.Echo | Example (C#) | The smallest service the platform manages, showing its whole life, from launch to shutdown; the reference service, and the reference pipeline node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
 | vos.Service.Python.Echo | Example (Python) | The same handler in FastAPI |
 | vos.Service.Rust.Echo | Example (Rust) | The same handler in Axum |
 
-Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one JWT signed on the P-256 elliptic curve) that every example above implements.
+Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the contract any language can meet (HTTP and one JSON Web Token signed on the P-256 elliptic curve) that every example above implements.
 
 ## Prerequisites
 
@@ -105,13 +107,21 @@ npm run build    # Production build into ./dist (type-checks first)
 npm test         # Run tests
 npm run test:integration   # Tests that need a running Mycelium (see below)
 npm run lint     # Lint
+npm run rewrite:saved-drawing   # Rewrites the saved-drawing fixture (see below)
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
 build — and on `develop` stops the wiki publish. It runs when `develop` or
-`main` moves and for every pull request into `develop` or `main` on GitHub; a pull request from
-outside the organisation waits for an owner's comment. Run them before pushing rather than finding
+`main` moves and for every pull request into `develop` or `main` on GitHub. A pull request from a
+fork is never built: an owner who has read it pushes its commits to a branch in this repository and
+opens the pull request from that branch, which is built. Run them before pushing rather than finding
 out from the build.
+
+`npm run rewrite:saved-drawing` rewrites
+`Tests/vos.BrokerContract.Tests/AgainstTheEngine/Fixtures/the-pipelines-page-saves-a-wait-and-a-relate-box.json`
+from what the Pipelines page saves now. Run it only after a deliberate change to what the page sends
+on save, and read the fixture's diff. `savedDrawing.test.ts` fails until the fixture matches, and the
+engine case `PhloemRunsADrawingThePipelinesPageSavedTests` replays the fixture as an editor.
 
 A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
 a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
@@ -131,6 +141,17 @@ start one. Point it elsewhere with `VOS_INTEGRATION_URL`,
 `VOS_INTEGRATION_USERNAME` and `VOS_INTEGRATION_PASSWORD`.
 
 Trellis connects to the Mycelium at `https://localhost:7243` by default.
+
+#### Building directly into a Mycelium's wwwroot
+
+Set `VOS_MYCELIUM_WWWROOT` to an absolute path to have `npm run build` write the
+bundle straight into a Mycelium's static file folder:
+
+```bash
+VOS_MYCELIUM_WWWROOT=/absolute/path/to/VillageOS/vos.Mycelium/wwwroot npm run build
+```
+
+When the variable is unset, the build lands in `vos.Trellis/dist/`.
 
 ### Testing a service against the real platform
 
@@ -152,18 +173,6 @@ dotnet test Tests/vos.BrokerContract.Tests
 With nothing staged every case still compiles and each is reported as skipped, saying no engine is
 staged, rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
 that build has the engine to stage; point it at a staged engine elsewhere with `-p:VosRelease=`.
-
-#### Building directly into a Mycelium's wwwroot
-
-Set `VOS_MYCELIUM_WWWROOT` to an absolute path to have `npm run build` emit the
-bundle straight into a Mycelium's static file directory, e.g.:
-
-```bash
-VOS_MYCELIUM_WWWROOT=/absolute/path/to/VillageOS/vos.Mycelium/wwwroot npm run build
-```
-
-When the env var is unset, the build lands in `vos.Trellis/dist/` as a normal
-local artifact.
 
 ## Documentation
 

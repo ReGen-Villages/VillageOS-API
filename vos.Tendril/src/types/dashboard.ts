@@ -40,7 +40,7 @@ export type NumberFormat =
 /** A step of a history reduction as the specification writes it. A parameter — a percentile, a band's bound, a
  *  threshold — is a number, or a binding onto the model's own value (a setpoint a Thing declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
-export type BoundNumber = number | Binding;
+type BoundNumber = number | Binding;
 export interface HistoryStepBinding {
   fold: HistoryFold;
   function: HistoryFunction;
@@ -191,7 +191,7 @@ export type Binding =
    *  the figure has none, and a property of that name on it is some other property.
    *
    *  The inputs come from the model, never from taking `formula` apart: a client that parsed the
-   *  criteria grammar would be a second parser drifting from the one the platform evaluates with. A
+   *  criteria grammar would be a second parser that can disagree with the one the platform evaluates with. A
    *  formula's terms reached through a path are not among them, because a page cannot resolve one
    *  against the Thing it is showing.
    *
@@ -242,10 +242,10 @@ export type Binding =
     }
   /** The newest point of a series, as the number a tile shows. The tile and the line beneath it then
    *  ask the platform one question — each answer costs a walk over every instance of the archetype —
-   *  and the figure is a point of that line rather than a second reading that can drift from it. */
+   *  and the figure is a point of that line rather than a second reading that can disagree with it. */
   | { kind: 'latest'; series: Extract<Binding, { kind: 'timeseries' }> }
-  /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
-   *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
+  /** Delegate to a model-side service via POST /api/endpoints/{subdomain}, for aggregation only
+   *  the model's own service can do. `select` is a dot-path into the JSON reply, and a
    *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),
    *  so the service can answer for the same entity the rest of the page is showing. */
   | { kind: 'service'; endpoint: string; body?: unknown; select?: string }
@@ -452,7 +452,7 @@ export interface BulletRow {
   value: Binding;
   /** Track ceiling in the row's own units; the bar, target marker and band are drawn as a
    *  fraction of it. Default 1, so a 0..1 value fills the track — the utilization case. Set it
-   *  (e.g. 200 for a percentage that can run past 100) so a value beyond 1 isn't pinned to the edge. */
+   *  (such as 200 for a percentage that can run past 100) so a value beyond 1 isn't pinned to the edge. */
   max?: number;
   /** Target marker, in the row's own units (0..{@link max}). */
   target?: number;
@@ -693,7 +693,7 @@ export interface DensityGridAxis {
 /** A shape drawn over a density grid, such as a comfort zone, or a line, such as a humidity curve.
  *  `shape` is a `value` binding onto a property holding a GeoJSON Polygon or LineString whose coordinates are in the
  *  chart's own units, across then up; a polygon is filled faintly and a line is not. */
-export interface DensityGridOutline {
+interface DensityGridOutline {
   label: string;
   colour: string;
   shape: Binding;
@@ -736,7 +736,7 @@ export interface GridMapWidget {
 }
 
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
-export interface DepthProfilePart {
+interface DepthProfilePart {
   label: string;
   key: string;
   colour: string;
@@ -762,7 +762,7 @@ export interface DepthProfileWidget {
 
 /** One line of a series chart: what it is called in the legend, and the binding whose groups it
  *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
-export interface LineSeriesEntry {
+interface LineSeriesEntry {
   label: string;
   value: Binding;
 }
@@ -785,7 +785,7 @@ export interface LineSeriesWidget {
 /** Where the chart stands on Earth and in what clock, so it can draw when the sun rises and sets:
  *  each a binding onto the model's own figures. The offset is the one the platform folded the hours
  *  in; left unbound, the curves are drawn in universal time as the platform folds by default. */
-export interface SunPosition {
+interface SunPosition {
   latitude: Binding;
   longitude: Binding;
   utcOffsetSeconds?: Binding;
@@ -815,7 +815,7 @@ export interface HeatmapWidget {
 /** One class of a stacked share chart: what it is called, the colour the model gives it, and the
  *  binding whose groups are its share of each month — a `history` binding folded by `monthOfYear`
  *  with `ShareWithin` between the class's bounds, answering a fraction. */
-export interface StackedSharesClass {
+interface StackedSharesClass {
   label: string;
   /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
   colour: string | Binding;
@@ -824,11 +824,6 @@ export interface StackedSharesClass {
   annual?: Binding;
 }
 
-/** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
- *  the bottom — the thermal-stress distribution across the year. The shares are the model's answers
- *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
- *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
- *  out, and so is a month no class was answered for. */
 /** Classes read from the model rather than listed: `groups` is a row binding, one row per group Thing,
  *  carrying its order, label and colour under the keys named; `counts` is a `history` binding folded by
  *  `monthOfYear,value` and counted, keyed by each group's `id`; `annual`, folded by `value`, is the column
@@ -845,6 +840,11 @@ export interface StackedSharesCounted {
   wordingKey?: string;
 }
 
+/** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
+ *  the bottom — the thermal-stress distribution across the year. The shares are the model's answers
+ *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
+ *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
+ *  out, and so is a month no class was answered for. */
 export interface StackedSharesWidget {
   type: 'stackedShares';
   title?: string;
@@ -878,7 +878,7 @@ export interface DivergingBarWidget {
 
 /** One series of a small-multiples panel: what it is called, the binding whose groups are its figure
  *  per month and hour — a `history` binding folded by `monthOfYear,hourOfDay` — and how it is written. */
-export interface SmallMultiplesSeries {
+interface SmallMultiplesSeries {
   label: string;
   value: Binding;
   unit?: string;
@@ -934,7 +934,7 @@ export interface ActionChoice {
 
 /** One choice for each Thing `from` returns, labelled by that Thing's wording; a press relates the
  *  row to it along `predicate`, so a decision added to the model is offered with no page edit. */
-export interface DrawnChoices {
+interface DrawnChoices {
   from: Binding;
   predicate: string;
 }
@@ -1070,7 +1070,7 @@ export type Widget = Placed & (
 export interface DashboardSection {
   title?: string;
   hint?: string;
-  /** 'kpi-strip' = equal columns; 'split' = weighted 2-col; 'single' = full width; 'grid' = each
+  /** 'kpi-strip' = equal columns; 'split' = two weighted columns; 'single' = full width; 'grid' = each
    *  widget where its own placement says, on {@link GRID_COLUMNS} columns. */
   layout?: 'kpi-strip' | 'split' | 'single' | 'grid';
   /** Relative column widths for 'split'/'kpi-strip'. */
@@ -1081,7 +1081,7 @@ export interface DashboardSection {
    *  tile is hovered or focused, its other widgets the gallery a click opens, and a card in the
    *  gallery opens the widget full width. A section with no widgets is a muted tile reading "not
    *  assessed". A section naming no theme, and every section on a page that draws no themes, renders
-   *  as a list exactly as before. */
+   *  as a list. */
   theme?: string;
   /** Marks the section whose `kpi` widgets are the facts about the land: the explore page draws them
    *  as cards beside the map — the figure, the title, and where the model says it came from in place
@@ -1114,7 +1114,7 @@ export interface RelationSpecification {
   direction?: 'out' | 'in';
   /**
    * Keep only related Things of this archetype (its `is`-target name). Omit to keep every
-   * match — needed when one predicate (e.g. `has`) reaches several archetypes at once.
+   * match — needed when one predicate, such as `has`, reaches several archetypes at once.
    */
   archetype?: string;
   /** Heading for the group. Defaults to the predicate name. */
@@ -1127,7 +1127,7 @@ export interface RelationSpecification {
   /**
    * Fold this relation's matched Thing onto the parent row instead of rendering it as its own
    * nested card: its selected `properties` are hoisted onto the parent relationship. Use for a one-hop
-   * lookup that belongs on the parent line — e.g. a task's resource code, which lives on the
+   * lookup that belongs on the parent line — such as a task's resource code, which lives on the
    * referenced Resource. Ignored on a top-level relation (there is no parent row to fold onto).
    */
   inline?: boolean;
@@ -1138,7 +1138,7 @@ export interface RelationSpecification {
 /**
  * How to render a detail window for a single Thing when a row is clicked. Entirely model
  * vocabulary — Trellis reads the shape, the model supplies the property keys and predicate
- * names (like {@link ScopeRef.viaPredicate}). Absent → rows aren't clickable.
+ * names (like {@link ScopeReference.viaPredicate}). Absent, rows aren't clickable.
  */
 export interface DetailSpecification {
   /** Property whose value titles the window. Falls back to the Thing's name. */
@@ -1155,13 +1155,13 @@ export interface DetailSpecification {
 
 /**
  * Per-locale translations of the specification's own display strings, keyed first by
- * locale code (`es`, `nl`, …) then by the BASE (as-authored) string. Trellis
- * renders a display string `s` as `translations[activeLocale]?.[s] ?? s`, so an
+ * locale code (`es`, `ar-AE`, …) then by the BASE (as-authored) string. Trellis
+ * reads a display string from the exact locale's block laid over its language's, so an
  * absent locale or an untranslated string falls back to the base text — never a
  * blank or a raw key. Only human-facing labels are looked up; model vocabulary
  * (state names, property keys, predicate names, archetypes) is never translated.
- * See `localizeSpecification` in src/api/dashboardLocalization.ts and the authoring
- * contract in docs/FIELD_GUIDE.md, Part IX.
+ * See `localizeSpecification` in vos.Trellis/src/api/dashboardLocalization.ts and the
+ * authoring contract in docs/FIELD_GUIDE.md, Part IX.
  */
 export type SpecificationTranslations = Record<string, Record<string, string>>;
 

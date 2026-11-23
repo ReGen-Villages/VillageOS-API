@@ -17,8 +17,8 @@ public static class RoleIdentity
     public static Guid Of(string word) => StableIdentifier.DeriveVersion5(Namespace, word);
 }
 
-// RFC 4122 version 5 (name-based, SHA-1), in canonical byte order, so a derivation done anywhere agrees
-// with one done here.
+// The standard name-based identifier (RFC 4122 version 5, from a SHA-1 hash), in canonical byte order, so
+// a derivation done anywhere agrees with one done here.
 public static class StableIdentifier
 {
     public static Guid DeriveVersion5(Guid namespaceIdentifier, string name)

@@ -3,11 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// Runs every test in this assembly as a machine set to Swedish would, where Å and Ö sort after Z. The
-/// engine takes its default language from the process environment the first time it is asked, and a
-/// value set through .NET alone never reaches it, so it is set in the C library before any engine exists.
-/// </summary>
+// Runs every test in this assembly as a machine set to Swedish would, where Å and Ö sort after Z. The
+// engine takes its default language from the process environment the first time it is asked, and a
+// value set through .NET alone never reaches it, so it is set in the C library before any engine exists.
 internal static class AMachineThatIsNotEnglish
 {
     [DllImport("libc", EntryPoint = "setenv")]

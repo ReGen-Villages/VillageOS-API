@@ -477,7 +477,7 @@ public class SubmissionEndpointTests
         using var client = factory.CreateClient();
 
         HttpResponseMessage? refused = null;
-        for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
+        for (var attempt = 0; attempt <= RequestBudget.Fallback.RequestCount; attempt++)
             refused = await AskFromAsync(client, from: "203.0.113.5", attempt);
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
@@ -490,7 +490,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
+        for (var attempt = 0; attempt <= RequestBudget.Fallback.RequestCount; attempt++)
             await AskFromAsync(client, from: "203.0.113.5", attempt);
 
         (await AskFromAsync(client, from: "203.0.113.6", attempt: 0)).StatusCode

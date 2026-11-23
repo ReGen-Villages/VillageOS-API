@@ -6,6 +6,8 @@
 # A feature branch is built when its pull request is validated and again after the merge; building
 # every push as well took an agent from the pool a third time for a result nothing waits on.
 trigger:
+  # Every build runs on one machine, so a build for each merge would queue each merge behind the last.
+  batch: true
   branches:
     include:
       - develop
@@ -406,7 +408,7 @@ jobs:
   # Built here because nothing else exercises their configuration, and a page that will not build is one
   # nobody discovers until they come to place it on the site.
   - script: npm run build:public
-    displayName: 'Build the public submission form, findings page and explore page'
+    displayName: 'Build the public pages'
     workingDirectory: vos.Trellis
     condition: always()
 

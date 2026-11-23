@@ -73,8 +73,7 @@ function discard({ root, output }) {
   fs.rmSync(output, { recursive: true, force: true });
 }
 
-// The guard that stops the wiki drifting again: a document that is neither published nor
-// deliberately withheld is a decision nobody made.
+// A document that is neither published nor deliberately withheld is a decision nobody made.
 test('every repository document is either mapped to a page or explicitly excluded', () => {
   const unaccounted = unaccountedDocuments(REPO_ROOT, manifest);
   assert.deepEqual(unaccounted, [], `add these to wiki-map.json as a page or an exclusion: ${unaccounted}`);
@@ -152,9 +151,8 @@ test('the file address names the branch the build publishes the wiki from', () =
   assert.equal(manifest.wiki.repositoryFileAddress, `https://github.com/ReGen-Villages/VillageOS-API/blob/${published[1]}/`);
 });
 
-// What makes the manifest a guard rather than a suggestion is the build going red, and that is the
-// exit code rather than the thrown error — a script that printed the problem and exited 0 would
-// leave every pipeline using it green.
+// The build fails on the exit code, not on the thrown error, so a script that printed the problem
+// and exited 0 would leave every pipeline using it passing.
 test('run as a command, an unaccounted document exits non-zero', () => {
   const repository = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
   try {
@@ -206,9 +204,6 @@ test('a document git ignores is a working note, not a document the repository ca
   }
 });
 
-// The blind spot this discovery was widened for: a document written anywhere but docs/ or the root was
-// invisible here, so it was neither published nor recorded as withheld and the guard above stayed green
-// while the wiki silently lacked it.
 test('a document in any other directory is carried too', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
   try {
@@ -227,8 +222,8 @@ test('a document in any other directory is carried too', () => {
   }
 });
 
-// Walking every directory would otherwise wander into dependency and build trees, which hold thousands
-// of documents that are nobody's decision.
+// Walking every directory would otherwise read dependency and build folders, which hold many
+// documents nobody here decides about.
 test('build and dependency directories are not walked', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
   try {
@@ -288,9 +283,8 @@ test('no handoff is carried, and no document points at one', () => {
 
 // A link to the wiki root promises the whole wiki. Written where a document was meant — "see the
 // Mycelium Guide in the wiki" — it sends a reader to a wiki that does not hold it, and they conclude
-// the documentation is missing rather than that the link is wrong. Four guides did exactly that,
-// naming this wiki for material that lives on the other repository's. Only the two index files,
-// which really are talking about the whole wiki, may carry one.
+// the documentation is missing rather than that the link is wrong. Only the index files, which
+// really are talking about the whole wiki, may carry one.
 test('only an index links to the wiki root; a document is cited by name', () => {
   const allowed = ['README.md', 'docs/README.md'];
   const tracked = execFileSync('git', ['ls-files', '*.md'], { cwd: REPO_ROOT, encoding: 'utf8' })
@@ -314,9 +308,9 @@ test('every mapped document exists and every page path is unique', () => {
   }
 });
 
-// A wiki page's ground follows the reader's colour scheme, and an image cannot see the page it sits
-// on. A diagram that paints its own ground is a white slab on a dark page; one that carries a
-// dark-scheme stylesheet and no ground reads on either.
+// A wiki page's background follows the reader's colour scheme, and an image cannot see the page it
+// sits on. A diagram that paints its own background shows as a white block on a dark page; one that
+// carries a dark-scheme stylesheet and no background reads on either.
 test('every diagram a published page attaches follows the reader\'s colour scheme', () => {
   const diagrams = new Set();
   for (const { doc } of manifest.pages) {

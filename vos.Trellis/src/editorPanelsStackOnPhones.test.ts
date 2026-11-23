@@ -4,11 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/**
- * Fixed-width columns beside a canvas leave it a sliver on a phone, so below a tablet's width each editor
- * panel takes the full width and stacks above or below the canvas. jsdom lays nothing out, so this reads
- * the classes the editors are drawn with.
- */
+/** Fixed-width columns would leave a canvas almost no width on a phone; jsdom lays nothing out, so this
+ *  reads the editors' classes. */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const read = (path: string) => readFileSync(join(SOURCE_DIRECTORY, path), 'utf8');

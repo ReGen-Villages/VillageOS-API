@@ -275,6 +275,14 @@ def declare_service_calls(model, ranges):
     and at a subdomain a page's form and action list post to."""
     kit = model.kit
     service_kind = kit.archetype("Service")
+    kit.things[service_kind]["Properties"] = {
+        "ExecutablePath": typed("", "vos.String"),
+        # Empty, because where a service is built depends on the machine, so whoever runs the seed with a live service writes it in.
+        "ExecutablePathTemplate": typed("", "vos.String"),
+        "ServicePort": typed(0, "vos.LongInteger"),
+        "ServiceArgs": typed("", "vos.String"),
+        "AutoStart": typed(False, "vos.Boolean"),
+    }
     connection_kind = kit.archetype("Connection", "PlatformServiceConnection")
     model.configured += [service_kind, connection_kind]
     triggered_by = model.predicate("triggeredBy")
@@ -299,10 +307,15 @@ def declare_service_calls(model, ranges):
                         {"ServiceAssembly": typed("vos.Service.CSharp.Echo", "vos.String")}, archetype=True)
     model.relate(prototype, model.is_, service_kind)
     model.relate(prototype, completes_when, when_the_service_answers)
-    service = kit.thing(identifier("service", "Echo service"), "Echo service", {
-        "ServicePort": typed(ECHO_PORT, "vos.LongInteger"),
-        "AutoStart": typed(False, "vos.Boolean"),
-    })
+    service = kit.thing(identifier("service", "Echo service"), "Echo service")
+    # A value stated over a name declared two kinds up is read only where it is nested under each kind on the way.
+    kit.things[service]["InheritedOverrides"] = {prototype: {
+        "SourceId": prototype, "SourceName": "Echo prototype", "Properties": {},
+        "Inherited": {service_kind: {
+            "SourceId": service_kind, "SourceName": "Service", "Inherited": None,
+            "Properties": {"ServicePort": typed(ECHO_PORT, "vos.LongInteger"), "AutoStart": typed(False, "vos.Boolean")},
+        }},
+    }}
     model.relate(service, model.is_, prototype)
 
     surveys = kit.thing(identifier("connection", "surveysCatchment"), "surveysCatchment",
@@ -511,25 +524,6 @@ def as_seed(kit):
     }
 
 
-def dump_seed(seed, path):
-    """The playground's layout, one Thing or relationship a line, with every letter written as itself so a name
-    outside ASCII reads as the name."""
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("{\n")
-        keys = list(seed.keys())
-        for position, key in enumerate(keys):
-            tail = "" if position == len(keys) - 1 else ","
-            value = seed[key]
-            if isinstance(value, list):
-                f.write(f"  {json.dumps(key)}: [\n")
-                for row, entity in enumerate(value):
-                    f.write("    " + json.dumps(entity, ensure_ascii=False) + ("" if row == len(value) - 1 else ",") + "\n")
-                f.write(f"  ]{tail}\n")
-            else:
-                f.write(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)}{tail}\n")
-        f.write("}\n")
-
-
 def committed_seeds():
     """Each committed file and the seed it holds. The second carries a page whose description cannot be read,
     which the seed validator refuses, so it is kept apart from the seed that has to pass."""
@@ -548,7 +542,7 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     for committed, seed in committed_seeds().items():
         path = folder / committed.name
-        dump_seed(seed, path)
+        playground.dump_seed(seed, path)
         print(f"Wrote {path}: {len(seed['Things'])} things, {len(seed['Relationships'])} relationships.")
     refusals = folder / COMMITTED_SEED_WITH_AN_UNREADABLE_PAGE.name.replace(".json", ".refusals.txt")
     refusals.write_text(REFUSALS_OF_THE_UNREADABLE_PAGE, encoding="utf-8")

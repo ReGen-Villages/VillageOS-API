@@ -21,7 +21,7 @@ def sample_point(path, lon, lat, resampling="nearest", band=1):
         if resampling == "nearest":
             value = _cell(dataset, band, int(row), int(column))
         else:
-            value = _bilinear(dataset, band, row, column)
+            value = bilinear(row, column, dataset.height, dataset.width, lambda r, c: _cell(dataset, band, r, c))
         return {
             "value": value,
             "nodata": value is None,
@@ -39,7 +39,8 @@ def _cell(dataset, band, row, column):
     return None if cell is masked_arrays.masked else float(cell)
 
 
-def _bilinear(dataset, band, row, column):
+def bilinear(row, column, height, width, cell_at):
+    """A cell beyond the raster's edge reads as the edge cell beside it."""
     # A cell's value belongs to its centre, half a cell in from the corner the transform measures to.
     row_from_centre = row - 0.5
     column_from_centre = column - 0.5
@@ -51,7 +52,7 @@ def _bilinear(dataset, band, row, column):
             weight = weight_r * weight_c
             if weight == 0:
                 continue
-            cell = _cell(dataset, band, min(max(r, 0), dataset.height - 1), min(max(c, 0), dataset.width - 1))
+            cell = cell_at(min(max(r, 0), height - 1), min(max(c, 0), width - 1))
             if cell is None:
                 return None
             total += cell * weight

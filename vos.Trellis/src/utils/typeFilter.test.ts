@@ -148,7 +148,7 @@ describe('applyTypeFilter', () => {
     const result = applyTypeFilter([...things, hasP], allRelationships, new Set(['t-wall']));
     const relationshipIds = result.relationships.map((r) => r.Id);
     expect(relationshipIds).not.toContain('rContains');  // both walls hidden
-    expect(relationshipIds).not.toContain('r1');         // is-rel to hidden t-wall
+    expect(relationshipIds).not.toContain('r1');         // `is` to the hidden t-wall
     expect(relationshipIds).toContain('r4');             // d1 → t-door, both still visible
   });
 

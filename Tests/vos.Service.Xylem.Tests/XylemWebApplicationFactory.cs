@@ -1,7 +1,3 @@
-using System.Net;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using vos.Service.Xylem.Services;
@@ -12,37 +8,19 @@ namespace vos.Service.Xylem.Tests;
 // Stands the ingest service up with the ingest tool and the model clear both answered here, so a test
 // drives the routes and reads what each collaborator was asked. Settings go in through the host builder;
 // the launch-setting reader falls back to them when no command-line flag is present.
-public sealed class XylemWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class XylemWebApplicationFactory : ServiceWebApplicationFactory<Program>
 {
-    public const string MyceliumUrl = "http://platform.test";
+    public XylemWebApplicationFactory() => MyceliumUrl = "http://platform.test";
 
     public FakeRunner Runner { get; } = new();
     public FakePreparer Preparer { get; } = new();
 
-    public string? VerificationKey { get; set; }
-    public string? Issuer { get; set; }
-    public string? Audience { get; set; }
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ReplaceServices(IServiceCollection services)
     {
-        builder.UseEnvironment("Testing");
-        builder.UseSetting("Port", "5000");
-        builder.UseSetting("MyceliumUrl", MyceliumUrl);
-        builder.UseSetting("Token", "test-token");
-        if (VerificationKey != null) builder.UseSetting("VerificationKey", VerificationKey);
-        if (Issuer != null) builder.UseSetting("Issuer", Issuer);
-        if (Audience != null) builder.UseSetting("Audience", Audience);
-
-        builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<IHttpClientFactory>();
-            services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(
-                new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound))));
-            services.RemoveAll<IModelIngestRunner>();
-            services.AddSingleton<IModelIngestRunner>(Runner);
-            services.RemoveAll<IModelPreparer>();
-            services.AddSingleton<IModelPreparer>(Preparer);
-        });
+        services.RemoveAll<IModelIngestRunner>();
+        services.AddSingleton<IModelIngestRunner>(Runner);
+        services.RemoveAll<IModelPreparer>();
+        services.AddSingleton<IModelPreparer>(Preparer);
     }
 
     public sealed class FakeRunner : IModelIngestRunner

@@ -2,10 +2,10 @@ namespace vos.Service.EnergyBalance.Services;
 
 public sealed record EnergyBalanceInputs(
     double SolarPvAreaM2,
-    double SolarResourceKwhPerM2PerYear,   // GTI at optimum tilt
+    double SolarResourceKwhPerM2PerYear,   // sunlight on a panel at its best tilt
     double ModuleEfficiency,               // 0..1, measured at the panel under standard test conditions
     double PerformanceRatio,               // 0..1, everything lost between the panel and the meter
-    double OtherGenerationMwhPerYear,      // firm/callable: wind + biomass + biogas
+    double OtherGenerationMwhPerYear,      // generation that can be called on: wind, biomass and biogas
     double AnnualConsumptionMwhPerYear);
 
 public sealed record EnergyBalanceOutputs(

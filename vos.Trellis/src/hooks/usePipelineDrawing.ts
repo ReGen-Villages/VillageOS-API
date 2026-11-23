@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addEdge, useEdgesState, useNodesState, type Connection, type Edge, type Node } from '@xyflow/react';
-import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
-import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
+import { PipelineModel, ROLE, judgeConnection, type ChoiceInformation, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { relateRefusalReason, relatingLine } from '../pipeline/relate';
@@ -253,7 +253,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
-    commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
+    commitBaseline({ nodes: loadedNodes, edges: loadedEdges });
     return true;
   }, [model, connections, setNodes, setEdges, commitBaseline]);
 
@@ -265,7 +265,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setEditingPipelineId(null);
     setThingIdByCanvasId({});
     setError(null);
-    commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
+    commitBaseline({ nodes: [], edges: [] });
   }, [setNodes, setEdges, commitBaseline, setError, t]);
 
   const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {
@@ -287,7 +287,7 @@ export function usePipelineDrawing({ model, connections, setError }: PipelineDra
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  const setChoices = useCallback((nodeId: string, choices: EditorChoice[]) => {
+  const setChoices = useCallback((nodeId: string, choices: ChoiceInformation[]) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, choices } } : n)));
     const kept = new Set(choices.map((choice) => choice.id));

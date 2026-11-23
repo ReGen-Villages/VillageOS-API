@@ -6,10 +6,10 @@ import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { groupsByKey, monthNames, rowLabel, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
-const FALLBACK_WIDTH = 480;
 const ONE_ROSE = 260;
 const SMALLEST_ROSE = 96;
 const ROSE_GAP = 12;

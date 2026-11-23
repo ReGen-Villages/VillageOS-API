@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -21,8 +22,6 @@ public class SeedCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
     [Fact]
     public async Task Execute_NoArgs_ShowsUsage()
     {
@@ -35,14 +34,6 @@ public class SeedCommandHandlerTests
         Assert.Contains("seed load", output);
         Assert.Contains("seed save", output);
         Assert.Contains("seed reload", output);
-    }
-
-    [Fact]
-    public async Task Execute_NullArg_ShowsUsage()
-    {
-        await ExecuteHandler(null!);
-
-        Assert.Contains("Usage:", _writer.ToString());
     }
 
     [Fact]
@@ -96,11 +87,6 @@ public class SeedCommandHandlerTests
         Assert.Contains("forest", output);
         Assert.Contains("village", output);
     }
-
-    // Note: the production fallback `seed.GetStringOrDefault("Name", seed.ToString())` throws
-    // on a non-object seed because TryGetProperty rejects string elements. The outer try-catch
-    // converts the throw into "Error: ..." output — a latent bug worth tracking separately.
-    // Happy path (object seeds with Name) is exercised in List_WithSeeds_PrintsName above.
 
     [Fact]
     public async Task Load_NoArg_ShowsUsage()

@@ -6,13 +6,13 @@ import { asRows, nullableNumber, useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { rampColour } from './chartRamp';
 import { linearScale, niceTicks } from './chartScale';
 import { groupsByKey, windowOf } from './historySeries';
 import { formatNumber } from './format';
 import { useChartSurface } from './useChartSurface';
 
-const FALLBACK_WIDTH = 480;
 const PLOT_HEIGHT = 260;
 const TOP_GUTTER = 8;
 const AXIS_BAND = 34;

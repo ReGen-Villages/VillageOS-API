@@ -12,9 +12,7 @@ const SUBMISSION: SubmissionDocument = {
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 
-/** The ticket exchange first, then whatever the test says the submission is answered with. Every faked
- *  answer carries a header map because every real one does — the accepting route reads the renewed
- *  ticket off it. */
+/** Every faked answer carries headers, because a real accepted post returns the renewed ticket in one. */
 function answering(submissionAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
@@ -52,8 +50,7 @@ describe('posting a submission', () => {
     expect(accepted.reference).toBe('sub-ref-1');
   });
 
-  // The service holds its own credential and decides for itself who may submit. A form sent under a
-  // planner's token would work only for a planner, and this is the route a stranger uses.
+  // A form sent under a planner's token would work only for a planner, and this is the route a stranger uses.
   it('carries no credential', async () => {
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
@@ -158,7 +155,7 @@ describe('what the form draws itself with', () => {
 
     const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/form');
-    expect(requestOptions).toBeUndefined();
+    expect(requestOptions).toEqual({ method: 'GET', headers: {} });
     expect(options.allocationCategories).toEqual(['residential']);
   });
 
@@ -180,8 +177,6 @@ describe('what the form draws itself with', () => {
     expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
   });
 
-  // A source whose tile address is a path is the intake service's own route to imagery it proxies — the
-  // public pages are served from a site of their own, so the path is the service's, not the page's.
   it('resolves a tile address that is a path against the intake service', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -246,9 +241,8 @@ describe('what the form draws itself with', () => {
     expect((await intakeApi.formOptions()).layerKinds).toEqual([]);
   });
 
-  // A deployment whose model is not seeded answers this route with a problem document, and a form that
-  // read the absent fields as an empty model would offer a programme step with nothing in it and no
-  // explanation.
+  // A deployment with no seeded model answers with a problem document; read as an empty model, the form
+  // would offer an empty programme step with no explanation.
   it('raises what the service said rather than reading a refusal as an empty model', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -257,5 +251,177 @@ describe('what the form draws itself with', () => {
     });
 
     await expect(intakeApi.formOptions()).rejects.toThrow('cannot answer');
+  });
+});
+
+describe('the lookups a deployment may not register', () => {
+  it('answers no parcel and no places where the service answers that nothing is there', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, headers: new Headers(), json: () => Promise.resolve({}) });
+
+    await expect(intakeApi.parcelAt(39.5, -8.4)).resolves.toBeNull();
+    await expect(intakeApi.searchPlaces('Willow', 'ticket-1')).resolves.toEqual({ places: [], ticket: 'ticket-1' });
+  });
+
+  it('raises any other refusal of a lookup rather than reading it as nothing there', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ detail: 'This service cannot answer at the moment.' }),
+    });
+
+    await expect(intakeApi.parcelAt(39.5, -8.4)).rejects.toThrow('cannot answer');
+    await expect(intakeApi.searchPlaces('Willow', 'ticket-1')).rejects.toThrow('cannot answer');
+  });
+
+  it('posts a lookup as JSON and reads the form options with no body', async () => {
+    fetchMock.mockResolvedValue({ ok: true, headers: new Headers(), json: () => Promise.resolve({ places: [] }) });
+
+    await intakeApi.searchPlaces('Willow', 'ticket-1');
+    const [, posted] = fetchMock.mock.calls[0];
+    expect(posted).toMatchObject({ method: 'POST', body: JSON.stringify({ query: 'Willow' }) });
+    expect(posted.headers['Content-Type']).toBe('application/json');
+
+    await intakeApi.formOptions();
+    const [, read] = fetchMock.mock.calls[1];
+    expect(read.method).toBe('GET');
+    expect(read.body).toBeUndefined();
+    expect(read.headers['Content-Type']).toBeUndefined();
+  });
+});
+
+describe('how the form measures a border', () => {
+  it.each(['meanSphereAreaMethod', 'wgs84EllipsoidAreaMethod'])('carries the area method the service names, %s', async (areaMethod) => {
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ areaMethod }) });
+
+    expect((await intakeApi.formOptions()).areaMethod).toBe(areaMethod);
+  });
+
+  // Measuring with a method the model did not name would show an area the submission then disagrees with.
+  it.each([undefined, 'geodesicAreaMethod'])('carries no area method where the service names none this page measures with (%s)', async (areaMethod) => {
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ areaMethod }) });
+
+    expect((await intakeApi.formOptions()).areaMethod).toBeNull();
+  });
+});
+
+const BORDER = [
+  { latitude: 25.15, longitude: 55.55 },
+  { latitude: 25.15, longitude: 55.56 },
+  { latitude: 25.16, longitude: 55.56 },
+];
+
+function answeringWithTicket(status: number, body: object, renewed: string | null = 'ticket-2') {
+  fetchMock.mockResolvedValue({
+    ok: status < 400,
+    status,
+    headers: new Headers(renewed === null ? {} : { 'X-Submission-Ticket': renewed }),
+    json: () => Promise.resolve(body),
+  });
+}
+
+describe('the place search after sign-in', () => {
+  it('carries the ticket, so it is counted against the signed-in budget, and renews it', async () => {
+    const place = { name: 'Al Awir 2, Dubai', latitude: 25.15, longitude: 55.55 };
+    answeringWithTicket(200, { places: [place] });
+
+    const answered = await intakeApi.searchPlaces('Al Awir', 'ticket-1');
+
+    const [, posted] = fetchMock.mock.calls[0];
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(answered).toEqual({ places: [place], ticket: 'ticket-2' });
+  });
+});
+
+describe('the plots in view', () => {
+  const view ={ southLatitude: 25.1, westLongitude: 55.5, northLatitude: 25.2, eastLongitude: 55.6 };
+
+  it('asks for the plots inside the view at its zoom under the ticket, and renews the ticket', async () => {
+    const plot = { boundary: BORDER, identifier: 'plot 7', areaHectares: 1.2 };
+    answeringWithTicket(200, { plots: [plot], attributions: ['Land register'] });
+
+    const answered = await intakeApi.plotsInView(view, 15, 'ticket-1');
+
+    const [url, posted] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/plots-in-view');
+    expect(JSON.parse(posted.body)).toEqual({ ...view, zoom: 15 });
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(answered).toEqual({ plots: [plot], attributions: ['Land register'], ticket: 'ticket-2' });
+  });
+
+  it('answers no plots where the model has no register for the view', async () => {
+    answeringWithTicket(404, { code: 'noPlots' }, null);
+
+    expect(await intakeApi.plotsInView(view, 15, 'ticket-1')).toEqual({ plots: null, attributions: [], ticket: 'ticket-1' });
+  });
+});
+
+describe('the elevation within a border', () => {
+  it('asks for the border under the ticket and reads the heights it answers', async () => {
+    answeringWithTicket(200, { elevationMetres: 31.6, elevationMinimumMetres: 18.2, elevationMaximumMetres: 44.9, attribution: 'Terrain' });
+
+    const answered = await intakeApi.borderElevation(BORDER, 'ticket-1');
+
+    const [url, posted] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/border-elevation');
+    expect(JSON.parse(posted.body)).toEqual({ boundary: BORDER });
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(answered).toEqual({
+      elevation: { siteMetres: 31.6, lowestMetres: 18.2, highestMetres: 44.9, attribution: 'Terrain' },
+      ticket: 'ticket-2',
+    });
+  });
+
+  it('answers no elevation where no height is held for the border', async () => {
+    answeringWithTicket(404, { code: 'noElevation' }, null);
+
+    expect(await intakeApi.borderElevation(BORDER, 'ticket-1')).toEqual({ elevation: null, ticket: 'ticket-1' });
+  });
+});
+
+describe('reading a border file', () => {
+  it('sends the file with the address the ticket was issued for, as a form, and takes the largest area', async () => {
+    const largestArea = { shape: 1, boundary: BORDER, hectares: 62.5 };
+    answeringWithTicket(200, { shapes: [{ name: 'Barn' }, { name: 'Willow Bend' }], largestArea });
+    const file = new File(['<kml/>'], 'parcel.kml');
+
+    const answered = await intakeApi.readFile(file, 'ana.ferreira@example.pt', 'ticket-1');
+
+    const [url, posted] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/read-file');
+    expect(posted.method).toBe('POST');
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(posted.headers['Content-Type']).toBeUndefined();
+    expect((posted.body as FormData).get('file')).toBe(file);
+    expect((posted.body as FormData).get('emailAddress')).toBe('ana.ferreira@example.pt');
+    expect(answered).toEqual({ largestArea: { name: 'Willow Bend', boundary: BORDER, hectares: 62.5 }, ticket: 'ticket-2' });
+  });
+
+  it('answers no largest area for a file holding no polygon', async () => {
+    answeringWithTicket(200, { shapes: [{ name: 'A track' }], largestArea: null });
+
+    expect((await intakeApi.readFile(new File([''], 'track.gpx'), 'ana.ferreira@example.pt', 'ticket-1')).largestArea).toBeNull();
+  });
+
+  it('raises what the service said when it refuses the file', async () => {
+    answeringWithTicket(400, { error: 'The file is not one this service reads.' }, null);
+
+    await expect(intakeApi.readFile(new File([''], 'notes.txt'), 'ana.ferreira@example.pt', 'ticket-1')).rejects.toThrow(
+      'not one this service reads',
+    );
+  });
+});
+
+describe('keeping the imported file with the submission', () => {
+  it('sends the file as a form to the submission documents under the ticket, and renews the ticket', async () => {
+    answeringWithTicket(200, { documentId: 'doc-1' });
+    const file = new File(['<kml/>'], 'parcel.kml');
+
+    const ticket = await intakeApi.sendDocument('sub-1', file, 'ticket-1');
+
+    const [url, posted] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/sub-1/documents');
+    expect(posted.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect((posted.body as FormData).get('file')).toBe(file);
+    expect(ticket).toBe('ticket-2');
   });
 });

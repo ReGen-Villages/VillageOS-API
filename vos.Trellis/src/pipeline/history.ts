@@ -1,12 +1,5 @@
-// Undo history + optimistic-save baseline for the pipeline editor.
-//
-// Two jobs, one small structure:
-//  - Undo: `record` the editor state *before* each mutation; `undo` pops the last one back.
-//  - Optimistic rollback: `commit` the state after a successful save/load as the baseline;
-//    `rollbackTarget` returns it so a rejected save can restore the last server-confirmed state.
-//
-// Generic over the snapshot type and free of React Flow, so it is trivially unit-tested. The caller
-// supplies immutable snapshots (e.g. structuredClone of { nodes, edges }); this module never mutates them.
+// Undo keeps the editor's state from before each change, and the state the last save or load confirmed is what
+// a refused save returns to. The caller passes copies it will not change, and nothing here changes them.
 
 export const MAX_HISTORY = 50;
 
@@ -18,7 +11,7 @@ export class EditorHistory<T> {
     this.baseline = baseline;
   }
 
-  /** Record the state *before* a mutation so `undo` can restore it. Bounded to MAX_HISTORY (oldest dropped). */
+  /** The oldest is dropped past MAX_HISTORY. */
   record(previous: T): void {
     this.past.push(previous);
     if (this.past.length > MAX_HISTORY) this.past.shift();
@@ -37,7 +30,7 @@ export class EditorHistory<T> {
     this.past = [];
   }
 
-  /** The last server-confirmed state to roll back to when a save is rejected (null before any save/load). */
+  /** Null before any save or load. */
   rollbackTarget(): T | null {
     return this.baseline;
   }

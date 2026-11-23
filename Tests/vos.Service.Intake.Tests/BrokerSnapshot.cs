@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -23,7 +24,7 @@ public sealed class BrokerSnapshot
 
     private sealed record Node(
         Guid Id, string Name, bool IsArchetype, Dictionary<string, object> Properties,
-        Dictionary<string, object> InheritedOverrides, string[] States);
+        Dictionary<string, object>? InheritedOverrides, string[] States);
 
     private sealed record Edge(Guid Id, Guid SubjectId, Guid PredicateId, Guid TargetId);
 
@@ -43,9 +44,10 @@ public sealed class BrokerSnapshot
     // Values written for names an archetype declares, in the store the model actually puts
     // them in: the declaration is cloned under the archetype's id and the value written inside it, so a
     // submitted value is never an own property, so a reader looking only at the own map finds nothing.
-    private static Dictionary<string, object> OverridesUnder(Dictionary<string, object>? overriding) =>
+    // A Thing overriding nothing has no store at all, null as the broker writes it, not an empty one.
+    private static Dictionary<string, object>? OverridesUnder(Dictionary<string, object>? overriding) =>
         overriding is null or { Count: 0 }
-            ? []
+            ? null
             : new Dictionary<string, object>
             {
                 [ContactArchetype.ToString()] = new
@@ -187,7 +189,8 @@ public sealed class BrokerSnapshot
     public static readonly Guid ParcelArchetype = new("66666666-6666-6666-6666-666666666666");
     public static readonly Guid ContactArchetype = new("88888888-8888-8888-8888-888888888888");
     public static readonly Guid DashboardArchetype = new("a15028e3-4e81-5543-8795-fa511b7487aa");
-    public static readonly Guid Page = new("b7fa446c-294f-55d5-b9c1-e32743ccdf15");
+    public static readonly Guid ProPage = new("b7fa446c-294f-55d5-b9c1-e32743ccdf15");
+    public static readonly Guid LitePage = new("c4a1e8d2-6b3f-5a70-9e21-7d5c0b8f4a19");
 
     public static Guid SiteOf(string submissionId) => StableIdentity.Derive(submissionId, "site");
 
@@ -219,13 +222,22 @@ public sealed class BrokerSnapshot
                         "states": [{"state": "EnergyNetPositive", "reads": "the site makes what it uses"}]}}]}]}
         """;
 
+    // A second page over the same land, so a test can tell which of two bound pages was served.
+    public const string LitePageSpecification = """
+        {"title": "Weather report",
+         "sections": [
+           {"title": "The land", "widgets": [
+             {"type": "kpi", "title": "Stated area",
+              "value": {"kind": "property", "thing": "$scope", "property": "statedAreaHectares"}}]}]}
+        """;
+
     // The model a submitter's page is drawn from: the roles with what each binds, the archetypes, one
     // submitter's site with its parcel, study and contact — and a second submitter's, which is what a test
     // about who may read what needs there to be.
     public static BrokerSnapshot WithTwoSubmissions(string submissionId = WillowBend.SubmissionId)
     {
         var snapshot = new BrokerSnapshot()
-            .Thing(IsPredicate, SubmissionFragmentComposer.IsPredicateName)
+            .Thing(IsPredicate, PlatformPredicates.Is)
             .Thing(HasPredicate, SubmissionFragmentComposer.HasPredicateName)
             .Thing(StudiesPredicate, "studies")
             .Thing(ObtainedByPredicate, "obtainedBy")
@@ -234,12 +246,18 @@ public sealed class BrokerSnapshot
             .Thing(ParcelArchetype, "Parcel", isArchetype: true)
             .Thing(ContactArchetype, "Contact", isArchetype: true)
             .Thing(DashboardArchetype, "Dashboard", isArchetype: true)
-            .Thing(Page, "Site Submission Dashboard", properties: new Dictionary<string, object>
+            .Thing(ProPage, "Pro Data page", properties: new Dictionary<string, object>
             {
                 [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = PageSpecification },
             })
-            .Relate(Page, IsPredicate, DashboardArchetype)
-            .Bound(FindingsReader.PageRole, Page)
+            .Relate(ProPage, IsPredicate, DashboardArchetype)
+            .Thing(LitePage, "Lite Data page", properties: new Dictionary<string, object>
+            {
+                [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = LitePageSpecification },
+            })
+            .Relate(LitePage, IsPredicate, DashboardArchetype)
+            .Bound(LandIntakeRoles.SubmitterProDataPage, ProPage)
+            .Bound(LandIntakeRoles.SubmitterLiteDataPage, LitePage)
             .Bound(FindingsReader.PersonalDetailRole, ContactArchetype);
 
         return snapshot.WithSubmission(submissionId, "Willow Bend").WithSubmission(OtherSubmissionId, "Alder Rise");

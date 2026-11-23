@@ -8,7 +8,6 @@ import { rangeApi } from '../../api/rangeApi';
 import { toast } from '../common/toastStore';
 import { Trash2, Plus, Check, X } from 'lucide-react';
 
-/** A relationship's ranges + states, bundled for display in the thing's Ranges tab. */
 export interface RelationshipRangesEntry {
   relationshipId: string;
   relationshipName: string;

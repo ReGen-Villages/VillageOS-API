@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -22,8 +23,6 @@ public class UserCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
-
     // The act the handler posted, as the route would read it.
     private object? _posted;
 
@@ -32,7 +31,7 @@ public class UserCommandHandlerTests
         _myceliumMock
             .Setup(m => m.AdministerAccountsAsync(It.IsAny<object>()))
             .Callback<object>(act => _posted = act)
-            .ReturnsAsync(Json(json));
+            .ReturnsAsync(Parse(json));
     }
 
     private JsonElement Posted() => JsonSerializer.SerializeToElement(_posted!);
@@ -254,14 +253,6 @@ public class UserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_NullArg_ShowsUsage()
-    {
-        await ExecuteHandler(null!);
-
-        Assert.Contains("Usage:", _writer.ToString());
-    }
-
-    [Fact]
     public async Task Execute_UnknownSubcommand_ShowsUsage()
     {
         await ExecuteHandler("unknown");
@@ -324,7 +315,7 @@ public class UserCommandHandlerTests
     public async Task ChangePassword_ReaderEof_TreatsAsEmptyPassword()
     {
         var userId = Guid.NewGuid();
-        var reader = new StringReader(""); // both ReadLine() return null → empty string per implementation
+        var reader = new StringReader(""); // Nothing to read answers both password prompts with an empty string.
         _myceliumMock
             .Setup(b => b.ChangePasswordAsync(userId, "", ""))
             .ReturnsAsync(System.Text.Json.JsonDocument.Parse("{}").RootElement);

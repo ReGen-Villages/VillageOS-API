@@ -19,8 +19,8 @@ const thingNames = new Map<string, string>([
 
 describe('searchProperties', () => {
   it('surfaces an inherited property the instance never overrode (regression for #5909)', () => {
-    // The server keys inherited properties by qualified path and tags them IsInherited with the source.
-    // Before the fix, search walked the client override-only tree, which does not contain this value.
+    // The server keys an inherited property by its path and says where it came from; the store does not hold
+    // this value at all.
     const effectiveProperties = {
       [INSTANCE_ID]: {
         'Home.energy_rating': effectiveProperty('A+', true, HOME_ID),
@@ -38,7 +38,7 @@ describe('searchProperties', () => {
       ownerType: 'thing',
       ownerId: INSTANCE_ID,
       ownerName: 'Serpentine-Home-4',
-      inheritedFrom: 'Home',           // source guid resolved to name for the "via" badge
+      inheritedFrom: 'Home',           // the source's identifier resolved to its name for the "via" badge
     });
   });
 

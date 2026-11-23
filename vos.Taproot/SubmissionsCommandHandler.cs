@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using static vos.Taproot.ModelReading;
+using static vos.PlatformClient.ModelReading;
 
 namespace vos.Taproot;
 
@@ -10,8 +10,8 @@ namespace vos.Taproot;
 // Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through the
 // predicate the model binds to the proposed-site role, and the dispositions are the Things under the archetype
 // the model binds to the disposition role. A model that spells either differently keeps answering, which is
-// the whole reason both are Things. Each role's identifier is the standard version 5 identifier of its word.
-public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
+// why both are Things. Each role's identifier is the standard version 5 identifier of its word.
+public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumClient client)
 {
     public static readonly Guid ProposedSiteRoleId = new("ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b");
     public static readonly Guid DispositionArchetypeRoleId = new("f4c54fc1-2c17-54bc-b8e8-c467e8fa321a");
@@ -30,23 +30,16 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     public async Task ExecuteAsync()
     {
-        if (client == null || !CommandParser.TryParseSubcommand(arg, out var subcommand, out var args))
-        {
-            ShowHelp();
-            return;
-        }
-
         try
         {
-            switch (subcommand.ToLowerInvariant())
+            await Subcommands.RunAsync(arg, new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
-                case "list": await ListAsync(); break;
-                case "reject": await RejectAsync(args); break;
-                case "decide": await DecideAsync(args); break;
-                case "promote": await PromoteAsync(args); break;
-                case "dispose": await DisposeAsync(args); break;
-                default: ShowHelp(); break;
-            }
+                ["list"] = _ => ListAsync(),
+                ["reject"] = RejectAsync,
+                ["decide"] = DecideAsync,
+                ["promote"] = PromoteAsync,
+                ["dispose"] = DisposeAsync,
+            }, ShowHelp);
         }
         catch (Exception exception)
         {
@@ -62,7 +55,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     private async Task ListAsync()
     {
-        var model = await ModelSnapshot.ReadAsync(client!);
+        var model = await ModelSnapshot.ReadAsync(client);
         var submissions = SubmissionsIn(model).ToList();
 
         if (submissions.Count == 0)
@@ -91,7 +84,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ModelSnapshot.ReadAsync(client!);
+        var model = await ModelSnapshot.ReadAsync(client);
         // Everything after the subcommand, because a submission's name is the site's followed by a word and
         // the parser splits on spaces. Nothing follows it, so there is nothing to take the rest from it.
         if (Identify(model, string.Join(' ', args)) is not { } submission)
@@ -119,7 +112,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ModelSnapshot.ReadAsync(client!);
+        var model = await ModelSnapshot.ReadAsync(client);
         var held = DispositionsIn(model).ToList();
         var chosen = held.Where(one => one.Name == args[0] || one.Id.ToString() == args[0]).ToList();
         if (chosen.Count != 1)
@@ -150,7 +143,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ModelSnapshot.ReadAsync(client!);
+        var model = await ModelSnapshot.ReadAsync(client);
         if (Identify(model, args[0]) is not { } submission)
             return;
 
@@ -164,7 +157,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
         var followed = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // The project's name is whatever is left, so a model can be called what a planner would call it.
-        var promoted = await client!.PromoteAsync(
+        var promoted = await client.PromoteAsync(
             submission.Id, promotedTerm.Name, followed, args[1], string.Join(' ', args[3..]));
         CommandParser.WriteFormattedJson(writer, promoted);
         await StampResolvedAtAsync(submission);
@@ -191,7 +184,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ModelSnapshot.ReadAsync(client!);
+        var model = await ModelSnapshot.ReadAsync(client);
         if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
         {
             writer.WriteLine($"This model binds no predicate to the role {ProposedSiteRoleWord}.");
@@ -239,7 +232,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                 continue;
             }
 
-            var removed = await client!.PruneAsync(submission.Id, followed);
+            var removed = await client.PruneAsync(submission.Id, followed);
             taken++;
             foreach (var one in Removed(removed))
                 writer.WriteLine($"  {one}");
@@ -273,12 +266,12 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        await client!.CreateRelationshipAsync(submission.Id, predicate, disposition.Id);
+        await client.CreateRelationshipAsync(submission.Id, predicate, disposition.Id);
         await StampResolvedAtAsync(submission);
     }
 
     private Task StampResolvedAtAsync(Submission submission) =>
-        client!.SetPropertyAsync(submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
+        client.SetPropertyAsync(submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
 
     private Submission? Identify(ModelSnapshot model, string named)
     {
@@ -306,8 +299,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
             yield break;
 
-        // Resolved once for the listing: a binding read scans the model, and read per submission it would cost
-        // a queue of hundreds half a second in a model of tens of thousands of Things.
+        // Resolved once for the listing, because a binding read scans the whole model.
         var resolvedAs = BoundBy(model, DispositionPredicateRoleId);
 
         // One submission per relationship: a submission is only a submission because it proposes a site, so the

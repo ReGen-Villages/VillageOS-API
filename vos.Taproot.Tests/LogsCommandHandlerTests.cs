@@ -1,9 +1,9 @@
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -14,8 +14,6 @@ public class LogsCommandHandlerTests
     private readonly StringWriter _writer = new();
 
     private Task Execute(string arg) => new LogsCommandHandler(arg, _writer, _myceliumMock.Object).ExecuteAsync();
-
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     [Fact]
     public async Task Execute_NoSubcommand_ShowsUsage()
@@ -130,21 +128,5 @@ public class LogsCommandHandlerTests
         await Execute("tail");
 
         _writer.ToString().Should().Contain("Error:").And.Contain("offline");
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> Events(params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-        {
-            await Task.Yield();
-            yield return one;
-        }
-    }
-
-    private static async IAsyncEnumerable<ServerSentEvent> EndlessAfter([EnumeratorCancellation] CancellationToken token, params ServerSentEvent[] events)
-    {
-        foreach (var one in events)
-            yield return one;
-        await Task.Delay(Timeout.Infinite, token);
     }
 }

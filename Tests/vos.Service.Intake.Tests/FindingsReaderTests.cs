@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
@@ -14,37 +15,54 @@ public class FindingsReaderTests
     private static readonly Guid ThisSite = BrokerSnapshot.SiteOf(WillowBend.SubmissionId);
     private static readonly Guid OtherSite = BrokerSnapshot.SiteOf(BrokerSnapshot.OtherSubmissionId);
 
-    [Fact]
-    public void It_reads_the_page_the_model_binds_and_the_address_the_submission_names()
+    public static TheoryData<string, string> EachPage() => new()
+    {
+        { LandIntakeRoles.SubmitterProDataPage.Word, BrokerSnapshot.PageSpecification },
+        { LandIntakeRoles.SubmitterLiteDataPage.Word, BrokerSnapshot.LitePageSpecification },
+    };
+
+    private static Role Page(string word) => LandIntakeRoles.SubmitterPages.Single(role => role.Word == word);
+
+    [Theory]
+    [MemberData(nameof(EachPage))]
+    public void It_reads_the_page_asked_for_and_the_address_the_submission_names(string page, string specification)
     {
         using var model = BrokerSnapshot.WithTwoSubmissions().Parsed();
 
-        var declared = FindingsReader.ReadDeclarations(model.RootElement, ThisContact);
+        var declared = FindingsReader.ReadDeclarations(model.RootElement, ThisContact, Page(page));
 
-        declared.Specification.Should().Contain("Site submission");
+        declared.Specification.Should().Be(specification);
         declared.PersonalDetailArchetype.Should().Be(BrokerSnapshot.ContactArchetype);
         declared.ContactAddress.Should().Be(BrokerSnapshot.AddressOn("Willow Bend"));
     }
 
     // A deployment that was never seeded for this, not a request anybody can correct.
-    [Theory]
-    [InlineData("submitterFindingsDashboard")]
-    [InlineData("personalDetail")]
-    public void It_refuses_a_model_binding_either_role_to_nothing(string unbound)
+    [Fact]
+    public void It_refuses_a_model_binding_the_page_asked_for_to_nothing()
     {
-        var role = new[] { FindingsReader.PageRole, FindingsReader.PersonalDetailRole }.Single(one => one.Word == unbound);
-        using var model = BrokerSnapshot.WithTwoSubmissions().Unbound(role).Parsed();
+        using var model = BrokerSnapshot.WithTwoSubmissions().Unbound(LandIntakeRoles.SubmitterProDataPage).Parsed();
 
-        var refusal = Assert.Throws<ModelNotSeededError>(
-            () => FindingsReader.ReadDeclarations(model.RootElement, ThisContact));
+        var refusal = Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
 
-        refusal.Message.Should().Contain(unbound);
+        refusal.Message.Should().Contain(LandIntakeRoles.SubmitterProDataPage.Word);
+    }
+
+    [Fact]
+    public void It_refuses_a_model_binding_the_personal_detail_role_to_nothing()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions().Unbound(FindingsReader.PersonalDetailRole).Parsed();
+
+        var refusal = Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
+
+        refusal.Message.Should().Contain(FindingsReader.PersonalDetailRole.Word);
     }
 
     // Which of them was meant is not this service's to guess, and guessing would draw one submitter a page
     // somebody authored for a different reader.
     [Fact]
-    public void It_refuses_a_model_binding_the_page_role_to_two_pages()
+    public void It_refuses_a_model_binding_the_page_asked_for_to_two_pages()
     {
         var secondPage = Guid.NewGuid();
         using var model = BrokerSnapshot.WithTwoSubmissions()
@@ -52,10 +70,113 @@ public class FindingsReaderTests
             {
                 [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = "{}" },
             })
-            .Bound(FindingsReader.PageRole, secondPage)
+            .Bound(LandIntakeRoles.SubmitterProDataPage, secondPage)
             .Parsed();
 
-        Assert.Throws<ModelNotSeededError>(() => FindingsReader.ReadDeclarations(model.RootElement, ThisContact));
+        Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
+    }
+
+    [Fact]
+    public void It_refuses_a_model_binding_the_personal_detail_role_to_two_archetypes()
+    {
+        var people = Guid.NewGuid();
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Thing(people, "People", isArchetype: true)
+            .Bound(FindingsReader.PersonalDetailRole, people)
+            .Parsed();
+
+        Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
+    }
+
+    // Only the declared pages may be asked for, so a request cannot reach the personal-detail archetype, or any
+    // other Thing a project binds, by naming its role.
+    [Theory]
+    [InlineData("f7976253-aff8-5f8e-b5cf-dd822312c2ee", "submitterProDataPage")]
+    [InlineData("5bf9dc23-f819-5480-9cc4-b57cec64540c", "submitterLiteDataPage")]
+    [InlineData("2e154d0e-6477-5e2b-9d61-faf40f7d39d1", null)]
+    [InlineData("3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7", null)]
+    [InlineData("0f6a3b2c-9d1e-4f8a-b7c6-5e4d3c2b1a09", null)]
+    [InlineData(null, null)]
+    public void Only_a_declared_page_role_is_offered(string? asked, string? offered)
+    {
+        (FindingsReader.OfferedPage(asked is null ? null : Guid.Parse(asked))?.Word).Should().Be(offered);
+    }
+
+    // The address alone needs no page, so a model binding none still answers whose submission it is.
+    [Fact]
+    public void The_contacts_address_is_read_with_no_role_bound()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Unbound(LandIntakeRoles.SubmitterProDataPage)
+            .Unbound(LandIntakeRoles.SubmitterLiteDataPage)
+            .Unbound(FindingsReader.PersonalDetailRole)
+            .Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().Be(BrokerSnapshot.AddressOn("Willow Bend"));
+    }
+
+    [Fact]
+    public void A_contact_holding_nothing_has_no_address()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions().Without(ThisContact).Thing(ThisContact, "Willow Bend Contact").Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().BeNull();
+    }
+
+    [Fact]
+    public void A_contact_whose_overrides_name_no_address_has_none()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Without(ThisContact)
+            .Thing(ThisContact, "Willow Bend Contact", overriding: new Dictionary<string, object>
+            {
+                ["preferredLanguage"] = new { typeInfo = "vos.String", value = "pt" },
+            })
+            .Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().BeNull();
+    }
+
+    [Fact]
+    public void It_refuses_a_page_carrying_no_specification()
+    {
+        var bare = Guid.NewGuid();
+        using var model = BrokerSnapshot.WithTwoSubmissions()
+            .Unbound(LandIntakeRoles.SubmitterProDataPage)
+            .Thing(bare, "A page with nothing to draw")
+            .Bound(LandIntakeRoles.SubmitterProDataPage, bare)
+            .Parsed();
+
+        var refusal = Assert.Throws<ModelNotSeededError>(() =>
+            FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage));
+
+        refusal.Message.Should().Contain($"carries no '{FindingsReader.SpecificationProperty}'");
+    }
+
+    [Fact]
+    public void A_contact_the_model_does_not_hold_has_no_address()
+    {
+        using var model = BrokerSnapshot.WithTwoSubmissions().Without(ThisContact).Parsed();
+
+        FindingsReader.ReadContactAddress(model.RootElement, ThisContact).Should().BeNull();
+    }
+
+    // The one contact and nothing it relates to: its relationships would say what its site holds, to a read that
+    // answers nobody.
+    [Fact]
+    public void The_address_read_asks_for_the_one_contact_and_nothing_else()
+    {
+        var selector = FindingsReader.ContactSelector(ThisContact);
+
+        selector.Ids.Should().Equal(ThisContact);
+        selector.Names.Should().BeNull();
+        selector.Traverse.Should().BeNull();
+        selector.IncludeRelationships.Should().BeFalse();
+        selector.IncludeIsAncestors.Should().BeFalse();
+        selector.Types.Should().BeNull();
+        selector.All.Should().BeFalse();
     }
 
     // The roles are what the reader asks for, so a model calling its page and its contact archetype anything
@@ -66,17 +187,17 @@ public class FindingsReaderTests
         var page = Guid.NewGuid();
         var people = Guid.NewGuid();
         using var model = BrokerSnapshot.WithTwoSubmissions()
-            .Unbound(FindingsReader.PageRole).Unbound(FindingsReader.PersonalDetailRole)
+            .Unbound(LandIntakeRoles.SubmitterProDataPage).Unbound(FindingsReader.PersonalDetailRole)
             .Thing(page, "What the land says", properties: new Dictionary<string, object>
             {
                 [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = "{}" },
             })
             .Thing(people, "People", isArchetype: true)
-            .Bound(FindingsReader.PageRole, page)
+            .Bound(LandIntakeRoles.SubmitterProDataPage, page)
             .Bound(FindingsReader.PersonalDetailRole, people)
             .Parsed();
 
-        var declared = FindingsReader.ReadDeclarations(model.RootElement, ThisContact);
+        var declared = FindingsReader.ReadDeclarations(model.RootElement, ThisContact, LandIntakeRoles.SubmitterProDataPage);
 
         declared.Specification.Should().Be("{}");
         declared.PersonalDetailArchetype.Should().Be(people);
@@ -86,11 +207,12 @@ public class FindingsReaderTests
     // relationships: the contact's own relationships would say what its site holds, to a read that answers
     // nobody.
     [Fact]
-    public void The_declaration_read_asks_for_the_roles_and_the_one_contact_and_nothing_else()
+    public void The_declaration_read_asks_for_the_page_asked_for_the_personal_detail_role_and_the_one_contact_and_nothing_else()
     {
-        var selector = FindingsReader.DeclarationSelector(ThisContact);
+        var selector = FindingsReader.DeclarationSelector(ThisContact, LandIntakeRoles.SubmitterLiteDataPage);
 
-        selector.Ids.Should().Equal(ThisContact, FindingsReader.PageRole.Id, FindingsReader.PersonalDetailRole.Id);
+        selector.Ids.Should().Equal(
+            ThisContact, LandIntakeRoles.SubmitterLiteDataPage.Id, FindingsReader.PersonalDetailRole.Id);
         selector.Names.Should().Equal(RoleBindings.BindsPredicateName);
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Relationships.Should().ContainSingle()
@@ -273,7 +395,7 @@ public class FindingsReaderTests
         var reached = new HashSet<Guid>
         {
             site, BrokerSnapshot.StudyOf(WillowBend.SubmissionId), BrokerSnapshot.ParcelOf(WillowBend.SubmissionId),
-            BrokerSnapshot.ContactOf(WillowBend.SubmissionId), BrokerSnapshot.ContactArchetype, BrokerSnapshot.Page,
+            BrokerSnapshot.ContactOf(WillowBend.SubmissionId), BrokerSnapshot.ContactArchetype, BrokerSnapshot.ProPage,
             BrokerSnapshot.SiteArchetype, BrokerSnapshot.StudyArchetype, BrokerSnapshot.ParcelArchetype,
             BrokerSnapshot.IsPredicate, BrokerSnapshot.HasPredicate, BrokerSnapshot.StudiesPredicate,
         };

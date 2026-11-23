@@ -279,7 +279,7 @@ function walkRules(walks: RelationStep[][]): NamedTraverseRule[] {
  * their members would arrive to be counted a second time and thrown away. A type with a member per
  * event is exactly where that is worst.
  *
- * `stateList` stays even though its rows now arrive complete, because two things still read the
+ * `stateList` stays even though its rows arrive complete, because two things still read the
  * row's own Thing out of the page's set: a `computed` column resolves with that Thing as its scope
  * and walks its relationships, and a detail card opened on the row reads its properties and relations.
  * Dropping it needs both of those to ask for what the page does not hold.

@@ -2,14 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-/**
- * Every change a person asks Trellis for is reported to the broker, which tells the people the model
- * names. A write added without `apiClient.action` would be the one change nobody hears of, and nothing
- * else would fail to say so.
- *
- * A write is an `apiClient.post`, `put` or `del`. Each must sit inside an `apiClient.action(` begun on its
- * own line or one of the two above it, or be one of the reads below that travel as a POST.
- */
+/** A write without `apiClient.action` would be the one change nobody hears of, and nothing else would say
+ *  so. A write is an `apiClient.post`, `put` or `del`; each sits inside an `apiClient.action(` begun on its
+ *  own line or one of the two above it, or is one of the reads below sent as a POST. */
 const SOURCE = resolve(__dirname, '..');
 const WRITE = /apiClient\.(post|put|del)\s*</;
 

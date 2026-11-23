@@ -2,13 +2,12 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-// The reactive engines' capacity, from the CLI: `engines` prints both engines' totals for the
-// current model, `engines ranges` / `engines derived` drill in to every reactor with its owner,
-// what it watches or declares, and its footprint.
+// `engines` prints both reactive engines' totals for the current model, and `engines ranges` or
+// `engines derived` lists every reactor with its owner, what it watches or declares, and its footprint.
 public class EnginesCommandHandler
 {
     // The path a reduction declares when its members are every instance of the related
-    // type, connected to the owner or not — a symbol on the wire, spelled out here.
+    // type, connected to the owner or not; the platform sends it as this symbol.
     private const string EveryInstance = "*";
 
     private readonly TextWriter _writer;
@@ -26,7 +25,7 @@ public class EnginesCommandHandler
     {
         try
         {
-            var tok = (_arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var tok = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             switch (tok.Length == 0 ? "" : tok[0])
             {
                 case "":

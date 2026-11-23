@@ -1,19 +1,9 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClosesOnEscapeOrPressOutside } from '../../hooks/useClosesOnEscapeOrPressOutside';
 import { useUiStore } from '../../stores/uiStore';
 
-/**
- * Radial predicate selector menu — opens on right-click of the graph background.
- *
- * Shows all predicates arranged in a circle around the cursor position.
- * Each slice displays the predicate name, edge count, and color stripe.
- * Supports multi-select: clicking a predicate toggles it on/off with a checkmark.
- * The most-used predicate sits at 12 o'clock, proceeding clockwise by usage.
- * Centre button clears all selections and closes the menu.
- *
- * Rendered as a sibling to SigmaCanvas (outside SigmaContainer), absolutely
- * positioned within the graph page's relative container.
- */
+/** Rendered beside the Sigma canvas, outside its container, and positioned within the graph page. */
 export function RadialPredicateMenu() {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.radialMenuOpen);
@@ -24,34 +14,7 @@ export function RadialPredicateMenu() {
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const closeRadialMenu = useUiStore((s) => s.closeRadialMenu);
   const menuReference = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeRadialMenu();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, closeRadialMenu]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
-        closeRadialMenu();
-      }
-    };
-    // Listening at once would let the click that opened the menu close it.
-    const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick);
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [open, closeRadialMenu]);
+  useClosesOnEscapeOrPressOutside(open, menuReference, closeRadialMenu);
 
   const handleToggle = useCallback(
     (predicateId: string) => {
@@ -67,8 +30,8 @@ export function RadialPredicateMenu() {
 
   if (!open || !position || predicateStatistics.length === 0) return null;
 
-  const RADIUS = 130; // distance from centre to each button
-  const BUTTON_SIZE = 56; // px, button diameter
+  const RADIUS = 130;
+  const BUTTON_SIZE = 56;
   const count = predicateStatistics.length;
   const hasActive = activePredicateIds.size > 0;
 
@@ -82,7 +45,6 @@ export function RadialPredicateMenu() {
         transform: 'translate(-50%, -50%)',
       }}
     >
-      {/* Centre clear button */}
       <button
         onClick={handleClear}
         className="pointer-events-auto absolute rounded-full bg-zinc-800/90 backdrop-blur border border-zinc-700
@@ -99,7 +61,6 @@ export function RadialPredicateMenu() {
         {hasActive ? '\u2715' : '\u2022'}
       </button>
 
-      {/* Predicate slices arranged radially */}
       {predicateStatistics.map((stat, i) => {
         const angle = ((2 * Math.PI) / count) * i - Math.PI / 2;
         const x = Math.cos(angle) * RADIUS;
@@ -125,22 +86,18 @@ export function RadialPredicateMenu() {
             }}
             title={t('graph.radial.slice', { name: stat.predicateName, edges: stat.edgeCount })}
           >
-            {/* Color stripe */}
             <div
               className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
               style={{ backgroundColor: stat.color }}
             />
-            {/* Checkmark for active predicates */}
             {isActive && (
               <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center">
                 <span className="text-[8px] text-white font-bold">{'\u2713'}</span>
               </div>
             )}
-            {/* Predicate name */}
             <div className="mt-1 font-medium truncate px-1 text-[10px] leading-tight">
               {stat.predicateName}
             </div>
-            {/* Edge count */}
             <div className="text-[9px] text-zinc-500 mt-0.5">
               {stat.edgeCount}
             </div>

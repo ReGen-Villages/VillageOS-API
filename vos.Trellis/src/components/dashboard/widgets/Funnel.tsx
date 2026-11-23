@@ -11,9 +11,7 @@ import { formatNumber } from './format';
 
 const DEFAULT_COLORS = ['#f43f5e', '#f59e0b', '#f59e0b', '#0ea5e9', '#3b82f6', '#3b82f6', '#10b981'];
 
-/** Pipeline funnel: one bar per stage, click a stage to drill into its rows.
- *  When `searchable`, a search box filters the selected stage's rows, or — with no
- *  stage selected — searches across every stage's rows at once. */
+/** With `searchable`, a search filters the chosen stage's rows, or every stage's rows when none is chosen. */
 export function Funnel({
   widget,
   context,
@@ -40,8 +38,7 @@ export function Funnel({
   const onRowClick =
     widget.rowDetail && openDetail ? (row: Row) => openDetail(String(row.id)) : undefined;
 
-  // Cross-stage search resolves every stage's drill rows and merges them; only fetched
-  // while a cross-stage search is active (empty bindings array otherwise → no calls).
+  // Every stage's rows are read only while a search across stages is active.
   const allDrills = useBindings(searchAllStages ? widget.stages.map((s) => s.drill) : [], context);
   const mergedRows = useMemo(() => {
     if (!searchAllStages) return [];

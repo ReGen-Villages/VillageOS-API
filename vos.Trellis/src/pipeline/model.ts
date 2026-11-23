@@ -1,17 +1,11 @@
 import type { VosThing, VosRelationship } from '@tendril-ui/tendril';
 import { NOTIFIED_CONNECTION_ROLE_ID, PREDICATE_ROLE_ID, statedProperties, wordingIn, wordsInLanguage } from '@tendril-ui/tendril';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
-// ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
-// `is`, `has`, `of` and `binds` are the platform's own built-in predicates and are matched by name. Which Thing
-// plays which role is not a name at all: each role is a Thing the model declares under a fixed identifier, and
-// it binds the Thing playing it along `binds` — the same contract Phloem reads, so a model may call every
-// archetype and predicate below whatever suits it.
+// Reads the graph as Phloem does. `is`, `has`, `of` and `binds` are the platform's own predicates and are
+// matched by name; every other role is a Thing under a fixed identifier that binds what plays it along `binds`,
+// so a model may name its archetypes and predicates as it likes.
 
-/** Each role's identifier is the standard version 5 identifier of the role's word, so every model declares the
- *  same role Thing. Archetypes first; then the predicates the platform calls services on, what an external system
- *  sends and is told, where a kind of message arrives, what a boundary node stands for, and which pipeline a
- *  connection's trigger starts. */
+/** Each identifier is the version 5 identifier of the role's word, so every model declares the same role Thing. */
 export const ROLE = {
   Pipeline: 'f8bc9986-6eef-54d9-9940-4aca2497109b',
   PipelineNode: 'f273f058-e3d6-5a20-aa37-34638ce64735',
@@ -116,9 +110,9 @@ export const RELATE_REFUSALS = [
   'standsForAConnection', 'namesNoConnection', 'connectionBindsNoService', 'connectionNamesNoState', 'connectionNamesTwoStates',
 ] as const;
 
-export type RelateRefusal = (typeof RELATE_REFUSALS)[number];
+type RelateRefusal = (typeof RELATE_REFUSALS)[number];
 
-export type RelateReading =
+type RelateReading =
   | { accepted: true; connectionId: string; serviceId: string; stateId: string }
   | { accepted: false; refusal: RelateRefusal; connectionId?: string };
 
@@ -137,7 +131,7 @@ export interface PipelineNamed {
 }
 
 /** How a connection is reached, told by the role its trigger plays. Empty where its trigger plays none of them. */
-export type TriggerKind = 'http' | 'graph' | 'state' | '';
+type TriggerKind = 'http' | 'graph' | 'state' | '';
 
 const TRIGGER_KIND_ROLE: Record<Exclude<TriggerKind, ''>, string> = {
   http: ROLE.HttpTrigger,
@@ -153,13 +147,13 @@ const END_KIND_OF_TRIGGER: Record<TriggerKind, EndKind | undefined> = {
 };
 
 /** A kind of message an external system sends or is told, and the HTTP connection it arrives at where one is declared. */
-export interface MessageKindInformation {
+interface MessageKindInformation {
   id: string;
   name: string;
   arrivesAtConnectionId?: string;
 }
 
-export interface ExternalSystemInformation {
+interface ExternalSystemInformation {
   id: string;
   name: string;
   sends: MessageKindInformation[];
@@ -212,19 +206,22 @@ export interface PortInformation {
   required: boolean;
 }
 
-export interface WireRead {
+export const WIRE_TEXT_FIELDS = ['fromPath', 'toPath', 'itemTransform', 'listTransform'] as const;
+export type WireTextField = (typeof WIRE_TEXT_FIELDS)[number];
+
+export function wireTextFrom<Value>(valueOf: (field: WireTextField) => Value): Record<WireTextField, Value> {
+  return Object.fromEntries(WIRE_TEXT_FIELDS.map((field) => [field, valueOf(field)])) as Record<WireTextField, Value>;
+}
+
+interface WireRead extends Record<WireTextField, string> {
   wireId: string;
   targetId: string;
   outPortId: string;
   inPortId: string;
-  fromPath: string;
-  toPath: string;
-  itemTransform: string;
-  listTransform: string;
   takenOn: RelationshipAndTarget[];
 }
 
-export interface RelationshipAndTarget {
+interface RelationshipAndTarget {
   relationshipId: string;
   thingId: string;
 }
@@ -298,6 +295,10 @@ export class PipelineModel {
   relationshipsAndTargetsAlong(subjectId: string, roleId: string): RelationshipAndTarget[] {
     return this.relationshipsAlong(subjectId, roleId)
       .map((relationship) => ({ relationshipId: relationship.Id, thingId: relationship.TargetId }));
+  }
+
+  private firstReachedThatIs(subjectId: string, alongRoleId: string, kindRoleId: string): VosThing | undefined {
+    return this.reachedAlong(subjectId, alongRoleId).find((reached) => this.isOf(reached.Id, kindRoleId));
   }
 
   private relationshipsAlong(subjectId: string, roleId: string): VosRelationship[] {
@@ -433,10 +434,8 @@ export class PipelineModel {
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
-      const watched = this.reachedAlong(connection.Id, ROLE.StateWatch)
-        .find((range) => this.isOf(range.Id, ROLE.Range));
-      const started = this.reachedAlong(connection.Id, ROLE.PipelineStart)
-        .find((pipeline) => this.isOf(pipeline.Id, ROLE.Pipeline));
+      const watched = this.firstReachedThatIs(connection.Id, ROLE.StateWatch, ROLE.Range);
+      const started = this.firstReachedThatIs(connection.Id, ROLE.PipelineStart, ROLE.Pipeline);
       const subdomain = connection.Properties.Subdomain;
       const interval = watched ? Number(watched.Properties[EVALUATION_INTERVAL_PROPERTY] ?? 0) : 0;
       const binding = this.bindingOf(connection.Id);
@@ -471,7 +470,7 @@ export class PipelineModel {
 
   /** Mirrors RelatingOf in vos.Service.Phloem/Model/PipelineDagBuilder.cs, so the page never offers a box the run refuses. */
   relatingOf(thingId: string): RelateReading {
-    const connection = this.reachedAlong(thingId, ROLE.NotifiedConnection).find((called) => this.isOf(called.Id, ROLE.Connection));
+    const connection = this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection);
     if (!connection)
       return { accepted: false, refusal: this.isOf(thingId, ROLE.Connection) ? 'standsForAConnection' : 'namesNoConnection' };
     const service = this.outgoing(connection.Id, 'has').find((held) => this.isOf(held.Id, ROLE.Service));
@@ -501,8 +500,7 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
-      .find((c) => this.isOf(c.Id, ROLE.Connection));
+    const arrivesAt = this.firstReachedThatIs(kind.Id, ROLE.ArrivesAt, ROLE.Connection);
     return { id: kind.Id, name: kind.Name, ...(arrivesAt ? { arrivesAtConnectionId: arrivesAt.Id } : {}) };
   }
 
@@ -515,7 +513,7 @@ export class PipelineModel {
         .sort((a, b) => a.name.localeCompare(b.name));
     return this.thingsOf(ROLE.ExternalSystem)
       .map((system) => {
-        const through = this.reachedAlong(system.Id, ROLE.ToldThrough).find((connection) => this.isOf(connection.Id, ROLE.Connection));
+        const through = this.firstReachedThatIs(system.Id, ROLE.ToldThrough, ROLE.Connection);
         return {
           id: system.Id,
           name: system.Name,
@@ -574,7 +572,7 @@ export class PipelineModel {
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
-    if (!thing.IsArchetype && this.reachedAlong(thingId, ROLE.NotifiedConnection).some((called) => this.isOf(called.Id, ROLE.Connection)))
+    if (!thing.IsArchetype && this.firstReachedThatIs(thingId, ROLE.NotifiedConnection, ROLE.Connection))
       return { ...named, kind: 'relationship', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
       const trigger = this.triggerOf(thingId);
@@ -604,7 +602,7 @@ export class PipelineModel {
   }
 
   /** Does this Thing `is`, directly or through its `is`-chain, what the role binds? The walk starts above the
-   *  Thing, so an archetype never plays its own role (memoised: pure over the graph). */
+   *  Thing, so an archetype never plays its own role. Remembered, because the graph does not change within a build. */
   isOf(thingId: string, roleId: string): boolean {
     const key = `${thingId} ${roleId}`;
     const cached = this.roleCache.get(key);
@@ -711,8 +709,7 @@ export class PipelineModel {
       const stated = this.stated(held.Id);
       out.push({
         wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
-        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''),
-        itemTransform: String(stated.itemTransform ?? ''), listTransform: String(stated.listTransform ?? ''),
+        ...wireTextFrom((field) => String(stated[field] ?? '')),
         takenOn: this.relationshipsAndTargetsAlong(held.Id, ROLE.TakenOn),
       });
     }
@@ -724,33 +721,26 @@ export class PipelineModel {
     return this.things.find((t) => t.Name === name)?.Id;
   }
 
-  /** The predicate a wire reaches the node it feeds along. */
-  wirePredicateId(): string | undefined {
-    return this.boundTo(ROLE.WirePredicate);
-  }
-
-  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
-   * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
-   * node's aggregate record (no `index`) drives the ring; per-item fan-out records are counted separately. */
+  /** Phloem records each node's progress on a node-run Thing the run `has`. Only the node's whole record, the one
+   *  with no `index`, drives its status ring; the records per item are counted in nodeRunProgress. */
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       const stated = this.stated(nodeRun.Id);
-      if (stated.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
+      if (stated.index !== undefined) continue; // a record per item, counted in nodeRunProgress
       const nodeId = stated.nodeId;
       if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(stated.status ?? '');
     }
     return out;
   }
 
-  /** Fan-out progress per node, from the per-item records (those carrying an `index`): how many of the items that
-   * reached the node have finished, and how many items there were where they were spread out. Items can go on to
-   * different nodes, so a node's own count is the records it has, not the first count. Empty for non-fan-out nodes. */
+  /** From the records per item, which carry an `index`. Items can go on to different nodes, so a node's count is
+   *  the records it has, not the first count. Empty for a node that does not spread items out. */
   nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
     const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       const stated = this.stated(nodeRun.Id);
-      if (stated.index === undefined) continue; // aggregate record
+      if (stated.index === undefined) continue; // the node's whole record
       const nodeId = stated.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
@@ -767,7 +757,7 @@ export class PipelineModel {
     return typeof s === 'string' ? s : undefined;
   }
 
-  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel. */
+  /** Finished and running runs, each a Thing `of` the pipeline, newest first. */
   runsOf(pipelineId: string): RunInformation[] {
     const runs: RunInformation[] = [];
     for (const t of this.things) {
@@ -819,7 +809,7 @@ export function wireEnds(
   return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
 }
 
-export type ConnectionVerdict =
+type ConnectionVerdict =
   | { kind: 'accept' }
   | { kind: 'ignore' }
   | { kind: 'incompatible'; from: string; to: string };

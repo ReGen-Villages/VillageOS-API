@@ -36,6 +36,12 @@ internal static class MyceliumStub
         return null;
     }
 
+    // The registration a handle test names "EP", read the three ways Tributary reads it before it calls out.
+    internal static HttpResponseMessage? RouteEndpoint(HttpRequestMessage request, Guid id, string properties) =>
+        RouteFindThing(request, id, "EP")
+        ?? RouteEffectiveProperties(request, id, properties)
+        ?? RouteKindsFromProperties(request, id, properties);
+
     internal static HttpResponseMessage? RouteFindThing(HttpRequestMessage request, Guid id, string name)
     {
         if (request.Method == HttpMethod.Get

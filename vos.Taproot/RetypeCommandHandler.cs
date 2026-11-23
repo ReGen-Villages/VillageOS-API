@@ -2,11 +2,10 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-// Repoint a Thing's type to a different archetype. Multiple inheritance is a first-class feature, so this
-// changes only ONE type relationship, never collapses the rest:
-//   retype <thing> <new>         — swap when the Thing has 0 or 1 type; refuses (asks for <old>) if it has many
+// Points a Thing at a different archetype. A Thing may be of several types, so this changes only one
+// type relationship and leaves the rest:
+//   retype <thing> <new>         — swap when the Thing has no type or one; refuses (asks for <old>) if it has more
 //   retype <thing> <old> <new>   — replace only the <old> type relationship, leaving the Thing's other is-relationships intact
-// Uses existing relationship APIs — no broker change.
 public class RetypeCommandHandler
 {
     private readonly TextWriter _writer;
@@ -16,7 +15,7 @@ public class RetypeCommandHandler
 
     public RetypeCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
-        _arg = arg ?? string.Empty;
+        _arg = arg;
         _writer = writer;
         _mycelium = mycelium;
         _resolver = new NameResolver(mycelium);

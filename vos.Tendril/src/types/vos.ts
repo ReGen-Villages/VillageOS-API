@@ -1,4 +1,4 @@
-// Core domain model types — mirrors Mycelium PascalCase JSON serialization
+// The model's types, with field names in Pascal case because Mycelium writes its JSON that way.
 
 /**
  * Which kinds of write a property accepts, as the model declares it: a value a person asserts
@@ -53,7 +53,7 @@ export interface VosThing {
 /** How one computed value is worked out. One form is described and never both: `Expression` for a
  *  formula, or the reduction's fields. `Reads` names what it reads by the name you can look up on the
  *  Thing you already have — never parse `Expression` to recover them, since a second parser in a client
- *  drifts from the one the platform evaluates with. */
+ *  can disagree with the one the platform evaluates with. */
 export interface DerivedDefinition {
   Expression?: string;
   Function?: string;
@@ -266,7 +266,7 @@ export interface PropertyBindingDto {
  *  compared with each other all report nothing rather than a number a reader would take for one. */
 export interface CriteriaComparisonDto {
   PropertyName: string;
-  /** The operator as the criteria language writes it, e.g. ">=". */
+  /** The operator as the criteria language writes it, such as ">=". */
   Operator: string;
   Value: unknown;
 }
@@ -325,7 +325,6 @@ export interface RelationshipStates {
 }
 
 // Composite range summary, answered in one call rather than one fetch per range and state
-
 export interface RelationshipRangeSummary {
   RelationshipId: string;
   RelationshipName: string;

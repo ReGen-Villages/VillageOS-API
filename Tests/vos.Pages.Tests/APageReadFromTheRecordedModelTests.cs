@@ -3,10 +3,8 @@ using Xunit;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// The library against Things and answers a running Mycelium gave: every page must come out as the
-/// same reader resolved it in Node from the same answers.
-/// </summary>
+// The library against Things and answers a running Mycelium gave: every page must come out as the
+// same reader resolved it in Node from the same answers.
 public class APageReadFromTheRecordedModelTests
 {
     private const string English = "en";
@@ -66,13 +64,35 @@ public class APageReadFromTheRecordedModelTests
 
         var read = JsonDocument.Parse(Assert.Single(await reader.ReadPageAsync(page.Id, [null], English, model, s_none))).RootElement;
 
-        var bindings = read.GetProperty("sections").EnumerateArray()
+        var widgets = read.GetProperty("sections").EnumerateArray()
             .SelectMany(section => section.GetProperty("widgets").EnumerateArray())
-            .SelectMany(widget => widget.GetProperty("bindings").EnumerateArray())
             .ToList();
-        var fromTheService = Assert.Single(bindings, binding => binding.GetProperty("kind").GetString() == "service");
-        Assert.Equal(JsonValueKind.Null, fromTheService.GetProperty("result").ValueKind);
-        Assert.Contains(bindings, binding => binding.GetProperty("kind").GetString() == "thingList" && binding.GetProperty("result").GetArrayLength() > 0);
+        var askingTheService = Assert.Single(widgets, widget => widget.TryGetProperty("title", out var title) && title.GetString() == "Service answer");
+        Assert.Equal(JsonValueKind.Null, askingTheService.GetProperty("value").ValueKind);
+        Assert.Equal("—", askingTheService.GetProperty("worded").GetString());
+        Assert.Contains(widgets, widget => widget.TryGetProperty("worded", out var worded) && worded.GetString() != "—");
+        Assert.DoesNotContain(widgets, widget => widget.TryGetProperty("unreadable", out _));
+    }
+
+    [Fact]
+    public async Task The_inputs_the_origins_and_the_explanation_of_each_Things_figures_are_what_the_reader_in_Node_answered()
+    {
+        using var reader = new PageReader();
+        var model = RecordedModel.OfTheCatchmentsSeed();
+        var explained = 0;
+
+        foreach (var thing in model.Things)
+        {
+            AssertSameJson(thing.Inputs, await reader.InputsOfAsync(thing.Id, figure: null, English, model, s_none));
+            foreach (var (figure, answer) in thing.Explained)
+            {
+                AssertSameJson(answer, await reader.ExplainAsync(thing.Id, figure, English, model, s_none));
+                explained++;
+            }
+            foreach (var (property, origin) in thing.Origins) AssertSameJson(origin, await reader.OriginOfAsync(thing.Id, property, model, s_none));
+        }
+
+        Assert.True(explained > 0, "the recording holds at least one Thing with a derived figure");
     }
 
     private static void AssertSameJson(JsonElement expected, string actual) =>

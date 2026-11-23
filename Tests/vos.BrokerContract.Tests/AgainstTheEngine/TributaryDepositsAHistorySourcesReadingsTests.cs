@@ -58,8 +58,7 @@ public class TributaryDepositsAHistorySourcesReadingsTests : IClassFixture<TheEn
         var endpointRoot = await _engine.DeclareOnceAsync("Endpoint", isArchetype: true);
         var historyKind = await _engine.DeclareOnceAsync("HistoryEndpoint", isArchetype: true);
         await _engine.RelateAsync(historyKind, isPredicate, endpointRoot);
-        if (await _engine.FindAsync(LandIntakeRoles.HistorySource.Word) is null)
-            await _engine.BindAsync(LandIntakeRoles.HistorySource, historyKind);
+        await _engine.BindOnceAsync(LandIntakeRoles.HistorySource, historyKind);
 
         var registration = await _engine.DeclareAsync($"climate-history {Guid.NewGuid():N}");
         await _engine.RelateAsync(registration, isPredicate, historyKind);
@@ -91,8 +90,7 @@ public class TributaryDepositsAHistorySourcesReadingsTests : IClassFixture<TheEn
     {
         var isPredicate = await _engine.DeclareOnceAsync("is");
         var directoryKind = await _engine.DeclareOnceAsync("Directory", isArchetype: true);
-        if (await _engine.FindAsync(DirectoryRole.Word) is null)
-            await _engine.BindAsync(DirectoryRole, directoryKind);
+        await _engine.BindOnceAsync(DirectoryRole, directoryKind);
         var directory = await _engine.DeclareAsync($"Sign-in directory {Guid.NewGuid():N}",
             properties: new Dictionary<string, object?> { [Property] = 0.0 });
         await _engine.RelateAsync(directory, isPredicate, directoryKind);

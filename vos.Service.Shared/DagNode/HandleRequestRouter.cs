@@ -4,7 +4,7 @@ namespace vos.Service.Shared.DagNode;
 
 public enum HandleRequestKind
 {
-    // A pipeline run invoking this service as a node: hand it to the DAG-node path.
+    // A pipeline run calling this service as a step.
     NodeEnvelope,
 
     // A graph relationship naming the Thing it acts on: read that Thing's inputs, recompute,

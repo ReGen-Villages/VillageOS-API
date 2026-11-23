@@ -1,7 +1,6 @@
-// Mycelium service types — mirrors Mycelium PascalCase JSON.
-// A service carries its supervised daemon's live state inline (IsRunning/ProcessId/LastContactTime).
+// The broker's JSON, with its capitalised names. A service carries its daemon's live state inline.
 
-export interface ServiceStatistics {
+interface ServiceStatistics {
   RequestsForwarded: number;
   TotalResponseMilliseconds: number;
   AverageResponseMilliseconds: number;
@@ -34,7 +33,7 @@ export interface ActivityEvent {
 
 export type HealthStatus = 'Healthy' | 'Unhealthy' | 'Unreachable' | 'Unknown';
 
-export interface EndpointServiceStatistics {
+interface EndpointServiceStatistics {
   RequestCount: number;
   TotalResponseMs: number;
   AverageResponseMs: number;

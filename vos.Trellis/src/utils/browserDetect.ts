@@ -1,5 +1,5 @@
-// Safari has a strict WebGL context limit (~4). Sigma uses 3 contexts, so
-// Three.js 3D rendering needs 1 more — only safe on Chrome/Firefox (~16 limit).
+// Safari allows few WebGL contexts and Sigma takes most of them, so the 3D view's extra one is safe only on
+// Chrome and Firefox.
 
 export function isSafari(): boolean {
   if (typeof navigator === 'undefined') return false;

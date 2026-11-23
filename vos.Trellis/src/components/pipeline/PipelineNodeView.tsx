@@ -1,8 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
-import type { EditorChoice } from '../../pipeline/serialize';
+import type { ChoiceInformation, EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
@@ -20,7 +19,7 @@ export interface PipelineNodeData {
   standsFor?: EndInformation;
   /** What really happens at this end today, where drawing it is not what makes it happen. */
   note?: string;
-  choices?: EditorChoice[];
+  choices?: ChoiceInformation[];
   chosen?: Record<string, string>;
   rule?: string;
   waitsFor?: string;

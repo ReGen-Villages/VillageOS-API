@@ -24,7 +24,7 @@ public static class EndpointKindResolver
     // a relationship points at, and the relationship rules add the relationships, but the Thing naming a relationship is neither.
     // The walk below compares that name, so a predicate left out here is a role that matches nothing
     // and reads as "reaches no kind" — a wrong answer that looks like a valid one.
-    private static readonly string[] PredicatesRead = ["is", .. EndpointKindRoles.All];
+    private static readonly string[] PredicatesRead = [PlatformPredicates.Is, .. EndpointKindRoles.All];
 
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
@@ -36,7 +36,7 @@ public static class EndpointKindResolver
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [
-            new TraverseRule { Predicate = "is", Depth = TemplateChainDepth },
+            new TraverseRule { Predicate = PlatformPredicates.Is, Depth = TemplateChainDepth },
             .. EndpointKindRoles.All.Select(role => new TraverseRule { Predicate = role }),
             RoleBindings.FollowBindings,
         ],
@@ -105,7 +105,7 @@ public static class EndpointKindResolver
             foreach (var edge in snapshot.Relationships)
                 if (edge.SubjectId == current
                     && thingsById.TryGetValue(edge.PredicateId, out var predicate)
-                    && string.Equals(predicate.Name, "is", StringComparison.Ordinal))
+                    && string.Equals(predicate.Name, PlatformPredicates.Is, StringComparison.Ordinal))
                     frontier.Enqueue(edge.TargetId);
         }
     }

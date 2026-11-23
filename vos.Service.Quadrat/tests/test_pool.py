@@ -103,11 +103,24 @@ def test_a_worker_ends_when_the_service_that_started_it_is_killed():
     from pathlib import Path
 
     def running(process_id):
-        try:
-            os.kill(process_id, 0)
-        except ProcessLookupError:
+        if os.name != "nt":
+            try:
+                os.kill(process_id, 0)
+            except ProcessLookupError:
+                return False
+            return True
+        # On Windows os.kill ends the process it is given instead of probing it.
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        handle = kernel32.OpenProcess(0x1000, False, process_id)
+        if not handle:
             return False
-        return True
+        try:
+            code = ctypes.c_ulong()
+            return bool(kernel32.GetExitCodeProcess(ctypes.c_void_p(handle), ctypes.byref(code))) and code.value == 259
+        finally:
+            kernel32.CloseHandle(ctypes.c_void_p(handle))
 
     folder = Path(__file__).resolve().parent
     parent = subprocess.Popen([sys.executable, str(folder / "pool_parent.py")], stdout=subprocess.PIPE, text=True, cwd=folder.parent)

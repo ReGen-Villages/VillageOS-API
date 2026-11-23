@@ -1,16 +1,11 @@
-/**
- * How this client reads a model's own vocabulary: the Thing a role binds, and the terms declared under it.
- * Every page that finds something through a role reads it through here, so there is one answer to what a
- * binding means rather than one per page.
- *
- * Nothing here names an archetype. A vocabulary is found through the role Thing that binds its archetype,
- * so a model that renamed the archetype keeps answering and a project that declares a term of its own is
- * offered it without a line changing here.
- */
+/** Every page finding something through a role reads it here, so a binding means one thing everywhere. Nothing
+ *  here names an archetype, so a model that renames one keeps answering and a deployment's own term is offered
+ *  without a change here. */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import type { AreaMethod } from '../utils/borderArea';
 import { wordingIn, type TermWording } from '@tendril-ui/tendril';
 
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
@@ -83,6 +78,23 @@ function termThingsBound(reading: ModelReading, roleId: string): VosThing[] {
     }
   }
   return terms.sort((left, right) => left.Name.localeCompare(right.Name));
+}
+
+const AREA_METHOD_ROLES: readonly (readonly [string, AreaMethod])[] = [
+  [LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'meanSphereAreaMethod'],
+  [LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'wgs84EllipsoidAreaMethod'],
+];
+
+/** The method the parcel archetype measures with, as the intake reads it. None where it chooses none or two, or a
+ *  Thing no method role binds, so a page shows no area rather than one the submission would disagree with. */
+export function areaMethodConfigured(reading: ModelReading): AreaMethod | null {
+  const parcel = boundBy(reading, LAND_INTAKE_ROLE.Parcel);
+  const measuresAreaWith = boundBy(reading, LAND_INTAKE_ROLE.MeasuresAreaWith);
+  const chosen = reading.relationships
+    .filter((edge) => edge.SubjectId === parcel && edge.PredicateId === measuresAreaWith)
+    .map((edge) => edge.TargetId);
+  if (chosen.length !== 1) return null;
+  return AREA_METHOD_ROLES.find(([role]) => boundBy(reading, role) === chosen[0])?.[1] ?? null;
 }
 
 /**

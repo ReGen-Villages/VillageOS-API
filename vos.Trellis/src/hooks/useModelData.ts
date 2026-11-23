@@ -16,32 +16,24 @@ import { readModelLoadProperties } from '../utils/guiSettings';
 import { DISPLAY_SETTINGS_ROLE_ID } from '@tendril-ui/tendril';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 
-/** Coalesce a burst of SSE structural events into one store write. A high-throughput
- *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
- *  its own rebuild of the whole store saturates the main thread and makes Trellis degrade as the
- *  model grows. We buffer events and flush once per window instead. */
+/** A busy model sends hundreds of creations a second, and rebuilding the store for each would hold the main
+ *  thread, so events are buffered and applied once per window. */
 const FLUSH_DEBOUNCE_MILLISECONDS = 150;
 
 /** What happened to one property in a flush window: it was given a value, or it was retracted. */
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 
 /**
- * The properties this model says its pages are drawn with, or none when it says nothing.
- *
- * Read before the model itself because it decides what to ask for. It costs one small request, next to a
- * load that is megabytes — and the platform never narrows the settings Thing, so this could not have
- * ridden in the load it configures.
- *
- * A model that says nothing, or a read that fails, loads everything. Narrowing on a guess would strip
- * properties a page needs; loading everything is only slower.
+ * Read before the model, because it decides what to ask for; it is one small request, and the settings
+ * Thing is never narrowed, so it could not come with the load it configures. A model that says nothing, or
+ * a failed read, loads everything, because narrowing on a guess would drop properties a page needs.
  */
 async function declaredModelLoadProperties(): Promise<string[]> {
   try {
     const settings = await thingApi.getBoundBy(DISPLAY_SETTINGS_ROLE_ID);
     const declared = readModelLoadProperties(settings?.Properties ?? null);
-    // The navigation lists a model's dashboards on every page, and it reads each one out of this
-    // property. A model that narrows its load without naming it is not asking for fewer dashboards
-    // in the navigation — it is describing what its pages are drawn with.
+    // The navigation reads every dashboard from this property, and a model narrowing its load is describing
+    // its pages, not asking for fewer dashboards.
     if (declared.length && !declared.includes(DASHBOARD_SPECIFICATION_PROPERTY)) declared.push(DASHBOARD_SPECIFICATION_PROPERTY);
     return declared;
   } catch {
@@ -54,46 +46,31 @@ function holdsNarrowedSet(): boolean {
   return loaded && !holdsWholeModel;
 }
 
-/**
- * A page that asked for the whole model must not be shown a narrower page's set as though it were
- * the model, so that set goes when the page asks rather than when its subscription opens: until
- * then the page would draw someone else's answer as its own.
- */
+/** Cleared when the page asks rather than when its subscription opens, because until then a page that asked
+ *  for the whole model would draw a narrower page's set as the model. */
 function leaveANarrowedSet(next: SubscriptionSelector): void {
   if (next.all && holdsNarrowedSet()) useModelStore.getState().clear();
 }
 
-/**
- * The whole-model read. Exported so a mutation handler can refresh after its own action without
- * going through the hook, and the only load that honours the properties the model says its pages
- * are drawn with.
- *
- * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
- * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones.
- */
+/** Exported so a change can refresh after itself without the hook; the only load that honours the
+ *  properties the model says its pages use. `silent` withholds the failure message for a page already
+ *  drawn, because that message stays until dismissed and a retrying loop would stack them. */
 export async function reloadModelData(options?: { silent?: boolean }): Promise<void> {
   try {
     const declared = await declaredModelLoadProperties();
     const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
-    // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
-    // this the Operations page sits on "Loading model…" forever.
+    // Pages such as OperationsPage wait on this, and without it would show "Loading model…" for ever.
     useModelStore.getState().markLoaded({ wholeModel: true });
   } catch {
     if (!options?.silent) toast.error(i18n.t('modelPage.loadFailed'));
   }
 }
 
-/**
- * The load a newly opened subscription either is or asks for.
- *
- * A narrowed subscription already answered with the Things the page is about, so its snapshot is
- * the load — no second read, and a reconnect refills the page the same way rather than waiting for
- * the stream to re-deliver what it missed. A whole-model subscription is loaded through the model
- * read instead, which is the only one that honours the properties the model says its pages are
- * drawn with.
- */
+/** A narrowed subscription's snapshot already is the load, so there is no second read, and a reconnect
+ *  refills the page the same way rather than waiting for the stream to send what it missed. A whole-model
+ *  subscription loads through the model read, the only one that honours the properties its pages use. */
 function loadWhatOpened(opened: SubscriptionOpened): void {
   if (opened.covered) {
     useModelStore.getState().setThings(opened.covered.things);
@@ -102,8 +79,7 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
     useModelStore.getState().markLoaded({ wholeModel: false });
     return;
   }
-  // A load the user is waiting on says when it failed; a refresh behind an already-drawn page does
-  // not, because an error toast does not auto-dismiss and a retrying loop would stack them.
+  // Only a load the person is waiting on reports its failure.
   const waitedOn = !useModelStore.getState().loaded;
   void reloadModelData({ silent: !waitedOn });
 }
@@ -112,9 +88,7 @@ function entityId(data: unknown): string | undefined {
   return (data as { EntityId?: string } | undefined)?.EntityId;
 }
 
-/** The Thing a creation or entry carries, in the shape the store holds — the snapshot's shape,
- *  unwrapped the same way — with the states it held when the event was written. An event carrying
- *  none has nothing to apply. */
+/** In the shape the store holds, unwrapped as the snapshot is, with the states it held when the event was written. */
 function carriedThing(data: unknown): { thing: VosThing; states: string[] } | undefined {
   const thing = (data as { Thing?: VosThing & { States: string[] } } | undefined)?.Thing;
   return thing ? { thing: unwrapThing(thing), states: thing.States } : undefined;
@@ -138,13 +112,9 @@ function carriedRelationship(data: unknown): VosRelationship | undefined {
 }
 
 /**
- * App-shell hook: owns model-data lifecycle so every authenticated page sees a
- * populated useModelStore from mount. Mount once in AuthenticatedApp.
- *
- * The load comes from whatever subscription the mounted pages declared, so a page that is about a
- * handful of Things is sent those and no more. The shell's own declaration is the least any page
- * needs — the dashboards the navigation lists and the Thing the model states its display settings
- * on — and a page reading across the model widens it by declaring so.
+ * Mounted once, above the routes. The load is whatever subscription the mounted pages declared, so a page
+ * about a handful of Things is sent those. The shell declares the least any page needs, the dashboards the
+ * navigation lists and the Thing holding the display settings, and a page reading across the model widens it.
  */
 export function useModelData(): void {
   const { on } = useSse();
@@ -152,12 +122,9 @@ export function useModelData(): void {
   useDefaultSubscription(NAVIGATION_AND_SETTINGS);
 
   useEffect(() => {
-    // Buffered live updates: SSE events accumulate here and flush together, so a burst
-    // of structural changes becomes one store write instead of a rebuild of the whole store each.
-    // Property buffers are keyed by entity AND property name: keying by entity alone kept only the
-    // last change in a window, which the full model reload on save used to hide.
-    // Of one window's events for an entity the last word wins: an arrival cancels a pending
-    // removal and a removal cancels a pending arrival.
+    // Property changes are keyed by entity and property name, because keying by entity kept only the last
+    // change in a window. Within a window the last event for an entity wins: an arrival cancels a pending
+    // removal, and a removal a pending arrival.
     const pending = {
       thingUpserts: new Map<string, VosThing>(),
       thingRemove: new Set<string>(),
@@ -188,9 +155,8 @@ export function useModelData(): void {
       schedule();
     };
 
-    // Applied only while the relationship is on screen — as the opened relationship, or hanging off the
-    // opened node. Asking about the node alone dropped every change to the relationship whose own panel was
-    // in front of the user, because selecting a relationship clears the node selection.
+    // Applied only while the relationship is on screen, opened itself or attached to the opened node.
+    // Selecting a relationship clears the node selection, so asking about the node alone would miss it.
     const onRelationshipProperty = (eventArguments: unknown[], change: PropertyChange) => {
       const [relationshipId, propertyName] = eventArguments as [string, string | undefined];
       if (!relationshipId || propertyName === undefined) return;
@@ -276,11 +242,8 @@ export function useModelData(): void {
       on('RelationshipEntered', relationshipArrived),
       on('RelationshipDeleted', relationshipGone),
       on('RelationshipLeft', relationshipGone),
-      // Every property update lands in the store, not just graph-rendering ones. The Operations
-      // dashboard reads live operational properties (stored quantities, thresholds, KPIs) straight from the
-      // store, so dropping their updates left it showing stale or blank cells for anything changed
-      // after the last full load. The debounced applyBatch coalesces the high rate into one write
-      // per window.
+      // Every property change is kept, not only those the graph draws, because the operations dashboard reads
+      // live values from the store.
       on('PropertyChanged', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
       on('PropertyObserved', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
       on('PropertyDeleted', (...eventArguments) => onThingProperty(eventArguments, { deleted: true })),

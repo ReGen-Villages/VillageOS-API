@@ -1,10 +1,6 @@
-// Fails a build whose worker asks for a file the build did not produce.
-//
-// A worker named for its address alone is copied without its import graph, so the library's own
-// second half is never emitted and the worker fails to load — no tile is ever parsed, no error is
-// shown, and every map in every built deployment draws its background colour and nothing else.
-// It cannot be caught by a unit test: it exists only in built output, and the
-// development server hides it by resolving the import out of the installed package.
+// Fails a build whose worker asks for a file the build did not produce. A worker named by its address alone
+// is copied without its imports, then fails to load with no error, and every map draws only its background
+// colour. Only built output shows it, because the development server finds the import in the installed package.
 //
 //   node ci/every-worker-carries-its-imports.mjs <built directory> [more directories]
 
@@ -17,12 +13,8 @@ if (directories.length === 0) {
   process.exit(2);
 }
 
-/** What one file asks another file for. Read off `from` and `import(` rather than parsed, because the
- *  files are minified and what matters is only the specifier — which is written without a space after
- *  `import{…}`, so a pattern demanding one finds nothing at all.
- *
- *  Kept to specifiers that name a script file, so an ordinary string that happens to follow the word
- *  `from` is not mistaken for one, and addresses reaching another host are left alone. */
+/** Matched rather than parsed, because the files are minified and write `import{…}` with no space. Only a
+ *  script file on this host counts, so a plain string after the word `from` is not taken for one. */
 function scriptImportsIn(source) {
   const asked = new Set();
   for (const [, specifier] of source.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*["']([^"']+)["']/g)) {
@@ -52,8 +44,7 @@ for (const directory of directories) {
   for (const file of filesUnder(directory)) {
     const source = readFileSync(file, 'utf8');
     for (const asked of scriptImportsIn(source)) {
-      // A specifier naming a script resolves against the asking file, whether or not it says so with
-      // a leading dot: that is how the browser reads the one the library's worker writes.
+      // Resolved against the asking file even without a leading dot, as the browser resolves the one the library's worker writes.
       const target = asked.startsWith('/')
         ? resolve(directory, `.${asked}`)
         : resolve(dirname(file), asked);

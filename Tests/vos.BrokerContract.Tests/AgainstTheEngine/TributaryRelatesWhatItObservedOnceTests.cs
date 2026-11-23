@@ -13,7 +13,7 @@ using TributaryClient = vos.Service.Tributary.Services.MyceliumClient;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Calls that read the endpoint before either has written both relate the site, and refusing the second failed its slice for good (Bug 8455).
+// Calls that read the endpoint before either has written both relate the site, and refusing the second would fail its slice for good.
 public class TributaryRelatesWhatItObservedOnceTests : IClassFixture<TheEngine>
 {
     private const string Property = "flowRegime";

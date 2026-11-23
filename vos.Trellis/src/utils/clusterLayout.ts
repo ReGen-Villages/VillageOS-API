@@ -1,14 +1,8 @@
 import type Graph from 'graphology';
 
-/**
- * Layout primitives that let predicate clustering run inside the off-thread
- * ForceAtlas2 engine, which cannot be told to skip a node or an edge.
- *
- * The engine reads a node's `fixed` attribute and an edge-weight getter on the main
- * thread when it builds the layout matrices, so pinning the background with
- * `fixed` and zeroing non-active edge weights clusters the active members
- * without a per-frame main-thread simulation.
- */
+/** The ForceAtlas2 worker cannot be told to skip a node or edge, but it reads each node's `fixed` attribute
+ *  and the edge weights when it starts, so pinning the rest and zeroing other edges clusters the active
+ *  members without a simulation on the main thread every frame. */
 
 /** Nodes touched by at least one edge whose predicate is in the active set. */
 export function collectClusterNodeIds(
@@ -32,7 +26,6 @@ export function applyClusterFixedFlags(graph: Graph, clusterNodeIds: Set<string>
   });
 }
 
-/** Release every node so the whole graph is free to move again. */
 export function clearFixedFlags(graph: Graph): void {
   graph.forEachNode((node) => {
     graph.setNodeAttribute(node, 'fixed', false);

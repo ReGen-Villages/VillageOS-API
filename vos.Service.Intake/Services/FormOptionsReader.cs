@@ -1,5 +1,7 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
+using vos.Service.Shared;
+using vos.Service.Shared.Geometry;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -45,8 +47,9 @@ public static class FormOptionsReader
     public static SubscriptionSelector Selector() => new()
     {
         Ids = RoleBindings.Identifiers(
-            [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource]),
-        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+            [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource,
+                .. AreaMethodReader.Roles]),
+        Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
         Traverse = [RoleBindings.FollowBindings, PositionLookupReader.FollowFallbacks],
@@ -79,7 +82,8 @@ public static class FormOptionsReader
             Wording(snapshot, [
                 .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
                 .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
-            ]));
+            ]),
+            DeclaredVocabularyReader.AreaMethod(snapshot).RoleWord);
     }
 
     private static List<DeclaredLayerKind> LayerKinds(
@@ -98,7 +102,7 @@ public static class FormOptionsReader
             .. kinds.Where(kind => thingsById.ContainsKey(kind.Id))
                 .Select(kind => new DeclaredLayerKind(
                     kind.Name,
-                    Text(thingsById[kind.Id], ColourProperty),
+                    thingsById[kind.Id].StatedText(ColourProperty),
                     [
                         .. themes.Where(theme => kindAndTheme.Contains((kind.Id, theme.Id)))
                             .Select(theme => theme.Name ?? string.Empty),
@@ -118,7 +122,7 @@ public static class FormOptionsReader
         foreach (var term in terms)
         {
             if (!thingsById.TryGetValue(term.Id, out var thing)) continue;
-            if (WordsByLanguage(Text(thing, WordingProperty)) is { Count: > 0 } words)
+            if (WordsByLanguage(thing.StatedText(WordingProperty)) is { Count: > 0 } words)
                 wording.TryAdd(term.Name, words);
         }
         return wording;
@@ -153,7 +157,7 @@ public static class FormOptionsReader
         [
             .. DeclaredVocabularyReader.AllocationCategories(snapshot).Terms
                 .Where(term => thingsById.ContainsKey(term.Id))
-                .Select(term => (term.Name, Share: Number(thingsById[term.Id], DefaultShareProperty)))
+                .Select(term => (term.Name, Share: thingsById[term.Id].StatedNumber(DefaultShareProperty)))
                 .Where(category => category.Share is not null)
                 .Select(category => new DeclaredShare(category.Name, category.Share!.Value)),
         ];
@@ -197,41 +201,25 @@ public static class FormOptionsReader
                 .Select(declared => thingsById[declared.Id])
                 // Ordered tiles first, as the model orders them; the rest keep the name order the terms
                 // arrive in, so a page draws the same grid on every read.
-                .OrderBy(theme => WholeNumber(theme, OrderProperty) ?? long.MaxValue),
+                .OrderBy(theme => theme.StatedWholeNumber(OrderProperty) ?? long.MaxValue),
         ];
     }
 
     private static DeclaredTheme Theme(SnapshotThing thing) => new(
         thing.Name ?? string.Empty,
-        Text(thing, ColourProperty),
-        Text(thing, IconProperty),
-        WholeNumber(thing, OrderProperty));
-
-    private static long? WholeNumber(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated
-        && stated.Value.ValueKind == JsonValueKind.Number && stated.Value.TryGetInt64(out var number)
-            ? number
-            : null;
+        thing.StatedText(ColourProperty),
+        thing.StatedText(IconProperty),
+        thing.StatedWholeNumber(OrderProperty));
 
     private static DeclaredBasemapSource Source(SnapshotThing thing) => new(
         thing.Id,
         thing.Name ?? string.Empty,
-        Text(thing, AttributionProperty),
-        Text(thing, StyleUrlProperty),
-        Text(thing, TileUrlProperty),
-        Number(thing, MaximumZoomProperty),
-        Text(thing, TerrainTileUrlProperty),
-        Text(thing, TerrainEncodingProperty),
-        Number(thing, TerrainExaggerationProperty),
-        Text(thing, BuildingSourceLayerProperty));
-
-    private static string? Text(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
-            ? stated.Value.GetString()
-            : null;
-
-    private static double? Number(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.Number
-            ? stated.Value.GetDouble()
-            : null;
+        thing.StatedText(AttributionProperty),
+        thing.StatedText(StyleUrlProperty),
+        thing.StatedText(TileUrlProperty),
+        thing.StatedNumber(MaximumZoomProperty),
+        thing.StatedText(TerrainTileUrlProperty),
+        thing.StatedText(TerrainEncodingProperty),
+        thing.StatedNumber(TerrainExaggerationProperty),
+        thing.StatedText(BuildingSourceLayerProperty));
 }

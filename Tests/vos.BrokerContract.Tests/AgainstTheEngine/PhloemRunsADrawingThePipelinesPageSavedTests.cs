@@ -12,6 +12,7 @@ using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Tests.Shared;
 using Xunit;
+using static vos.BrokerContract.Tests.AgainstTheEngine.EngineArrangement;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -64,7 +65,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
 
         await WriteNowAsync(study, RecordedAt);
         await AnsweredAsync(run.RunId);
-        // The platform's call along resumesRun reaches a stand-in rather than Phloem's /handle (Test Case 8536), so the answer it completes is read back as a starting orchestrator reads it.
+        // The platform's call along resumesRun reaches a stand-in rather than Phloem's /handle, so the answer it completes is read back as a starting orchestrator reads it.
         (await executor.RecoverWaitsAsync(CancellationToken.None)).Resumed.Should().Be(1);
 
         var relating = await Gateway().ReadRunRecordAsync(run.RunId, CancellationToken.None);
@@ -133,7 +134,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
         }
 
         Guid TheOneThatIs(string kind) => Guid.Parse(Resolve(fragment["Relationships"]!.AsArray()
-            .Single(relationship => relationship!["Name"]!.GetValue<string>() == ModelNames.Is
+            .Single(relationship => relationship!["Name"]!.GetValue<string>() == PlatformPredicates.Is
                 && relationship["Target"]!.GetValue<string>() == $"{{{{model:{kind}}}}}")!["Subject"]!.GetValue<string>()));
         return new SavedDrawing(TheOneThatIs("arch-pipeline"), TheOneThatIs("arch-wait"), TheOneThatIs("arch-relate"), TheOneThatIs("arch-output"));
     }
@@ -141,46 +142,46 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
     // Declared by the administrator, as the platform's seed would be; only the page's own save is an editor's.
     private async Task<IReadOnlyDictionary<string, Guid>> TheModelTheDrawingNamesAsync()
     {
-        foreach (var builtIn in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var builtIn in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(builtIn);
-        var @is = await _engine.TheOnlyThingNamedAsync(ModelNames.Is);
+        var @is = await _engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var model = new Dictionary<string, Guid> { ["is"] = @is, ["has"] = has };
 
-        var connectionKind = model["arch-connection"] = await PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
+        var connectionKind = model["arch-connection"] = await _engine.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
             Marked("__IsConnectionArchetype"));
-        var serviceKind = model["arch-service"] = await PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true, Marked("__IsServiceArchetype"));
-        var range = await PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
-        var judges = await PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
-        await PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
-        var notifies = model["notifies"] = await PlayingAsync(PipelineRoles.NotifiedConnection, "notifies",
+        var serviceKind = model["arch-service"] = await _engine.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true, Marked("__IsServiceArchetype"));
+        var range = await _engine.PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
+        var judges = await _engine.PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
+        await _engine.PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
+        var notifies = model["notifies"] = await _engine.PlayingAsync(PipelineRoles.NotifiedConnection, "notifies",
             properties: Marked("__IsNotifiedConnectionPredicate"));
-        await PlayingAsync(PipelineRoles.CallRecord, "handledBy");
-        await PlayingAsync(PipelineRoles.AwaitedThing, "awaits");
-        await PlayingAsync(PipelineRoles.RunSubject, "about");
-        await PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
-        var nodeRun = await PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
-        await PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
-        model["arch-pipeline"] = await PlayingAsync(PipelineRoles.Pipeline, "Pipeline", isArchetype: true);
-        var nodeKind = model["arch-node"] = await PlayingAsync(PipelineRoles.PipelineNode, "PipelineNode", isArchetype: true);
-        model["arch-input"] = await PlayingAsync(PipelineRoles.PipelineInput, "PipelineInput", isArchetype: true);
-        model["arch-output"] = await PlayingAsync(PipelineRoles.PipelineOutput, "PipelineOutput", isArchetype: true);
-        model["arch-wait"] = await PlayingAsync(PipelineRoles.PipelineWait, "PipelineWait", isArchetype: true);
-        model["arch-relate"] = await PlayingAsync(PipelineRoles.PipelineRelate, "PipelineRelate", isArchetype: true);
-        var portKind = model["arch-port"] = await PlayingAsync(PipelineRoles.Port, "Port", isArchetype: true);
-        model["arch-wire"] = await PlayingAsync(PipelineRoles.PipelineWire, "PipelineWire", isArchetype: true);
-        model["input-connector"] = await PlayingAsync(PipelineRoles.InputConnector, "inputConnector");
-        model["output-connector"] = await PlayingAsync(PipelineRoles.OutputConnector, "outputConnector");
-        model["taken-on"] = await PlayingAsync(PipelineRoles.TakenOn, "takenOn");
-        model["success"] = await PlayingAsync(PipelineRoles.Success, "success");
-        model["fail"] = await PlayingAsync(PipelineRoles.Fail, "fail");
-        await PlayingAsync(PipelineRoles.ErrorPort, "error", properties: PortNamed("error", ModelNames.DirectionOut, "string"));
-        await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath", isArchetype: true);
-        await PlayingAsync(PipelineRoles.ComparesWith, "comparesWith");
-        model["stands-for"] = await PlayingAsync(PipelineRoles.StandsFor, "standsFor");
-        var provenBy = model["proven-by"] = await PlayingAsync(PipelineRoles.CompletionRange, "provenBy");
-        model["awaits-through"] = await PlayingAsync(PipelineRoles.AwaitsThrough, "awaitsThrough");
-        model["reached-along"] = await PlayingAsync(PipelineRoles.ReachedAlong, "reachedAlong");
+        await _engine.PlayingAsync(PipelineRoles.CallRecord, "handledBy");
+        await _engine.PlayingAsync(PipelineRoles.AwaitedThing, "awaits");
+        await _engine.PlayingAsync(PipelineRoles.RunSubject, "about");
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
+        var nodeRun = await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
+        model["arch-pipeline"] = await _engine.PlayingAsync(PipelineRoles.Pipeline, "Pipeline", isArchetype: true);
+        var nodeKind = model["arch-node"] = await _engine.PlayingAsync(PipelineRoles.PipelineNode, "PipelineNode", isArchetype: true);
+        model["arch-input"] = await _engine.PlayingAsync(PipelineRoles.PipelineInput, "PipelineInput", isArchetype: true);
+        model["arch-output"] = await _engine.PlayingAsync(PipelineRoles.PipelineOutput, "PipelineOutput", isArchetype: true);
+        model["arch-wait"] = await _engine.PlayingAsync(PipelineRoles.PipelineWait, "PipelineWait", isArchetype: true);
+        model["arch-relate"] = await _engine.PlayingAsync(PipelineRoles.PipelineRelate, "PipelineRelate", isArchetype: true);
+        var portKind = model["arch-port"] = await _engine.PlayingAsync(PipelineRoles.Port, "Port", isArchetype: true);
+        model["arch-wire"] = await _engine.PlayingAsync(PipelineRoles.PipelineWire, "PipelineWire", isArchetype: true);
+        model["input-connector"] = await _engine.PlayingAsync(PipelineRoles.InputConnector, "inputConnector");
+        model["output-connector"] = await _engine.PlayingAsync(PipelineRoles.OutputConnector, "outputConnector");
+        model["taken-on"] = await _engine.PlayingAsync(PipelineRoles.TakenOn, "takenOn");
+        model["success"] = await _engine.PlayingAsync(PipelineRoles.Success, "success");
+        model["fail"] = await _engine.PlayingAsync(PipelineRoles.Fail, "fail");
+        await _engine.PlayingAsync(PipelineRoles.ErrorPort, "error", properties: PortNamed("error", ModelNames.DirectionOut, "string"));
+        await _engine.PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.ComparesWith, "comparesWith");
+        model["stands-for"] = await _engine.PlayingAsync(PipelineRoles.StandsFor, "standsFor");
+        var provenBy = model["proven-by"] = await _engine.PlayingAsync(PipelineRoles.CompletionRange, "provenBy");
+        model["awaits-through"] = await _engine.PlayingAsync(PipelineRoles.AwaitsThrough, "awaitsThrough");
+        model["reached-along"] = await _engine.PlayingAsync(PipelineRoles.ReachedAlong, "reachedAlong");
         model["carries"] = await _engine.DeclareOnceAsync("carries");
 
         async Task<Guid> KindPortAsync(string id, string kind, string name, string direction)
@@ -256,22 +257,4 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
     private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
         (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
 
-    private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
-    {
-        var played = await _engine.DeclareOnceAsync(name, isArchetype, properties);
-        if (await _engine.FindAsync($"{role.Word} role") is not null) return played;
-        await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
-        return played;
-    }
-
-    private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
-
-    private static Dictionary<string, object?> PortNamed(string name, string direction, string type) => new()
-    {
-        [ModelNames.PortName] = name, [ModelNames.Direction] = direction, [ModelNames.PortType] = type,
-    };
-
-    private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
-    private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
 }

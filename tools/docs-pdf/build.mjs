@@ -58,7 +58,7 @@ const NUMBERED = /^(\d+)\.\s+(.+)$/;
 
 const ROMAN = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
 
-/** The figure to set large on a divider: a part's ordinal, an appendix's letter. */
+/** The figure to set large on a divider: a part's number, an appendix's letter. */
 export function numeral(label) {
   const [kind, token = ''] = label.split(/\s+/);
   if (/^appendix$/i.test(kind)) return token;

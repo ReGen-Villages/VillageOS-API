@@ -3,12 +3,8 @@ import type { ThingRangesResponse, ThingStates } from '@tendril-ui/tendril';
 import type { RelationshipRangesEntry } from '../components/panels/RangesTabContent';
 import { rangeApi } from '../api/rangeApi';
 
-/**
- * Lazily fetches a composite range summary when the 'ranges' tab is active.
- * Point-in-time: statesVersion is snapshotted when the tab opens or thingId
- * changes, so live SSE pushes are ignored until the user navigates away
- * and back or selects a different node.
- */
+/** Read only while the ranges tab is open, once per opening and per Thing: live changes are ignored until
+ *  the person opens the tab again or picks another Thing. */
 export function useNodeRangesData(
   thingId: string,
   tab: string,

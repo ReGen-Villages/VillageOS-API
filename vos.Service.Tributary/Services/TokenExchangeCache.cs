@@ -96,7 +96,7 @@ public sealed class TokenExchangeCache
             throw new InvalidOperationException($"Token response from '{request.TokenUrl}' was not valid JSON.", ex);
         }
 
-        // A failure envelope (e.g. ArcGIS {error:{...}}) simply has no token at the configured path.
+        // A failure envelope (such as ArcGIS {error:{...}}) simply has no token at the configured path.
         if (!TryNavigate(root, request.TokenPath, out var tokenElement) || tokenElement.ValueKind != JsonValueKind.String)
             throw new InvalidOperationException(
                 $"Token response from '{request.TokenUrl}' had no token at path '{request.TokenPath}'.");

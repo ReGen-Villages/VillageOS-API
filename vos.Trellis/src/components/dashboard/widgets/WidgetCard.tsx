@@ -1,11 +1,8 @@
 import type { ReactNode } from 'react';
 
-/** Standard Trellis card wrapper used by every dashboard widget.
- *
- *  `min-w-0` keeps the card inside the column it was placed in: a grid item's own minimum width is
- *  its content's otherwise, so a widget holding something wide — a table with one long cell — pushes
- *  past its column and takes the page's width with it. Bounded, the widget scrolls within the card
- *  instead. The section bounds its columns too; see `OperationsPage.Section`. */
+/** `min-w-0` keeps the card in its column, because a grid item's minimum width is otherwise its content's, and
+ *  a table with one long cell would take the page's width; bounded, the widget scrolls within the card. The
+ *  section bounds its columns too (`OperationsPage.Section`). */
 export function WidgetCard({
   title,
   hint,

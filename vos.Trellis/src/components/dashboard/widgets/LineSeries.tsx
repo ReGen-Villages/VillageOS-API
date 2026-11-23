@@ -5,18 +5,12 @@ import type { ResolveContext } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale, niceTicks, paddedDomain } from './chartScale';
+import { AxisUnit, ChartTooltip, HistoryWindow, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf } from './chartFrame';
+import { linearScale, paddedDomain } from './chartScale';
 import { groupsByKey, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
-const PLOT_HEIGHT = 220;
-const TOP_GUTTER = 8;
-const AXIS_BAND = 22;
-const LEFT_GUTTER = 40;
-const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
-const TICK_COUNT = 5;
 const LINE_WIDTH = 2;
 const MARKER_RADIUS = 2.5;
 const SURFACE_GAP = 2;
@@ -50,19 +44,15 @@ export function LineSeries({ widget, context }: { widget: LineSeriesWidget; cont
   const drawn = series.flatMap((entry) => [...entry.groups.values()]);
   const domain = paddedDomain(
     drawn.length ? [Math.min(...drawn), Math.max(...drawn)] : [0, 1], widget.floor, widget.ceiling);
-  const width = measuredWidth || FALLBACK_WIDTH;
-  const plotTop = TOP_GUTTER;
-  const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
-  const y = linearScale(domain, [plotBottom, plotTop]);
-  const x = linearScale([0, Math.max(1, keys.length - 1)], [LEFT_GUTTER, width - RIGHT_GUTTER]);
-  const ticks = niceTicks(domain[0], domain[1], TICK_COUNT).filter((tick) => tick >= domain[0] && tick <= domain[1]);
+  const { width, height, plotTop, plotBottom, plotLeft, plotRight, y, ticks } = frameOf(measuredWidth, domain);
+  const x = linearScale([0, Math.max(1, keys.length - 1)], [plotLeft, plotRight]);
   const figure = (value: number | undefined) =>
     value === undefined ? '—' : `${formatNumber(value, widget.format)}${widget.unit ? ` ${widget.unit}` : ''}`;
 
   const nearest = (event: MouseEvent<SVGSVGElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     const across = ((event.clientX - box.left) / box.width) * width;
-    const at = Math.round(((across - LEFT_GUTTER) / (width - LEFT_GUTTER - RIGHT_GUTTER)) * (keys.length - 1));
+    const at = Math.round(((across - plotLeft) / (plotRight - plotLeft)) * (keys.length - 1));
     setActive(Math.min(keys.length - 1, Math.max(0, at)));
   };
   const step = (event: KeyboardEvent<SVGSVGElement>) => {
@@ -81,8 +71,8 @@ export function LineSeries({ widget, context }: { widget: LineSeriesWidget; cont
       <div ref={measure} className="relative mt-2">
         <svg
           width={width}
-          height={plotBottom + AXIS_BAND}
-          viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={`${widget.title ?? ''}: ${series.map((entry) => entry.label).join(', ')}`}
           tabIndex={0}
@@ -93,19 +83,8 @@ export function LineSeries({ widget, context }: { widget: LineSeriesWidget; cont
           onKeyDown={step}
           className="block max-w-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
-          {ticks.map((tick) => (
-            <g key={tick}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={y(tick)} y2={y(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={y(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'integer')}
-              </text>
-            </g>
-          ))}
-          {widget.unit && (
-            <text x={LEFT_GUTTER - 6} y={plotBottom + 15} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)">
-              {widget.unit}
-            </text>
-          )}
+          <ValueGridlines ticks={ticks} y={y} left={plotLeft} right={plotRight} />
+          <AxisUnit unit={widget.unit} left={plotLeft} plotBottom={plotBottom} />
           {yearTicks(keys).map((tick) => (
             <g key={tick.label}>
               <line x1={x(tick.at)} x2={x(tick.at)} y1={plotTop} y2={plotBottom} stroke="var(--chart-grid)" strokeWidth={1} />

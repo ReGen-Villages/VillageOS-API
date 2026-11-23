@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export const CALL_SETTING_SOURCES = ['connection', 'service', 'serviceArchetype', 'builtIn'] as const;
 
-export type CallSettingSource = (typeof CALL_SETTING_SOURCES)[number];
+type CallSettingSource = (typeof CALL_SETTING_SOURCES)[number];
 
 export interface CallSetting {
   value: unknown;

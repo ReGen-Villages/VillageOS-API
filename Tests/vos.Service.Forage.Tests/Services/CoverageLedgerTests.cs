@@ -11,10 +11,10 @@ namespace vos.Service.Forage.Tests.Services;
 
 // What a run records about each call, and which calls it makes at all.
 //
-// A site was discovered exactly once ever while the state that starts a run counted `observed` relationships: the
-// first source to answer ended the occupancy for every source, so a partial failure was never retried
-// and a source added later never reached an existing site. The coverage Things replace that count, and
-// this decides what goes on them.
+// Counting `observed` relationships to decide whether a site needs a run would discover a site exactly
+// once ever: the first source to answer would end the occupancy for every source, so a partial failure
+// would never be retried and a source added later would never reach an existing site. The coverage Things
+// are counted instead, and this decides what goes on them.
 //
 // Both halves fail quietly if they are wrong. A call skipped when its answer never landed leaves a value
 // missing with nothing saying why; a call made when the answer already stands calls a provider that has
@@ -268,8 +268,8 @@ public class CoverageLedgerTests
         _writer.Facts.Should().Contain((coverageId, "resolvedAt", modelInstant.UtcDateTime));
     }
 
-    // The provider's own words, kept where a planner reaches them from the gap they explain — the report
-    // that was a response body the broker discarded and then a log line nobody reads.
+    // The provider's own words, kept where a planner reaches them from the gap they explain rather than in
+    // a response body the broker discards and a log line nobody reads.
     [Fact]
     public async Task AFailedCallKeepsTheProvidersReasonAndStaysUnresolved()
     {

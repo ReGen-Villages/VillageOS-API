@@ -3,8 +3,8 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.CSharp.Echo.Services;
 
-// Echo as a pipeline DAG node: copies the message input straight to the
-// echo output. The reference node — the smallest thing that proves the envelope end to end.
+// Echo as a pipeline step: copies the message input straight to the echo output. The reference step,
+// the smallest thing that shows a step's request and answer working end to end.
 public sealed class EchoNode : DagNodeService
 {
     public EchoNode(IHttpClientFactory httpClientFactory, ILogger<EchoNode> logger, string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)

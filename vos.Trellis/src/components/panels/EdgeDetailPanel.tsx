@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Copy, Trash2, Pencil } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import type { VosRelationship, VosThing, ThingRangesResponse, ThingStates } from '@tendril-ui/tendril';
 import { formatGuid } from '../../utils/formatters';
 import { relationshipLabel } from '../../utils/relationshipLabel';
-import { toast } from '../common/toastStore';
+import { CopyIdButton, EditModeToggle } from './DetailPanelControls';
 import { EditablePropertyList } from './EditablePropertyList';
 import { withDeclaredTypes } from './editableProperties';
 import { RangesTabContent } from './RangesTabContent';
@@ -83,11 +83,6 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
     return () => { cancelled = true; };
   }, [relationship.Id, tab, statesVersion, rangesRequest]);
 
-  const copyId = () => {
-    navigator.clipboard.writeText(relationship.Id);
-    toast.information(t('panels.node.idCopied'));
-  };
-
   const tabs: Array<{ key: typeof tab; label: string }> = [
     { key: 'ranges', label: t('panels.edge.rangesTab') },
     { key: 'properties', label: t('panels.edge.propertiesTab', { count: ownPropertyCount }) },
@@ -98,9 +93,7 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         <div className="min-w-0">
           <h3 className="font-semibold text-sm truncate">{relationshipLabel(relationship, (id) => allThings.get(id)?.Name)}</h3>
-          <button onClick={copyId} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-            <Copy size={10} /> {formatGuid(relationship.Id)}
-          </button>
+          <CopyIdButton id={relationship.Id} />
         </div>
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-200">
           <X size={16} />
@@ -148,18 +141,12 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
         {tab === 'properties' && (
           <div>
             <div className="flex items-center justify-end mb-1">
-              <button
-                onClick={() => setEditMode((v) => !v)}
+              <EditModeToggle
+                editing={editMode}
+                onToggle={() => setEditMode((v) => !v)}
                 disabled={!resolvedProperties}
-                className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
-                  editMode
-                    ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-                }`}
                 title={editMode ? t('panels.node.exitEditMode') : t('panels.node.editProperties')}
-              >
-                <Pencil size={12} />
-              </button>
+              />
             </div>
             <EditablePropertyList
               properties={props}

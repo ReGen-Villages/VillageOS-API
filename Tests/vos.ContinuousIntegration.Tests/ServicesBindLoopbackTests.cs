@@ -24,7 +24,7 @@ public class ServicesBindLoopbackTests
         var root = RepositoryRoot.Find();
 
         var wrong = ServiceEntryPoints.Under(root)
-            .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Calls: ServiceBindings.BindingCallsIn(File.ReadAllText(entryPoint))))
+            .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Calls: ServiceBindings.BindingCallsIn(ServiceEntryPoints.SourceOf(root, entryPoint))))
             .Where(entryPoint => entryPoint.Calls.Count == 0 || !entryPoint.Calls.All(ServiceBindings.IsLoopback))
             .Select(entryPoint => entryPoint.Path)
             .ToList();
@@ -40,7 +40,7 @@ public class ServicesBindLoopbackTests
         var root = RepositoryRoot.Find();
 
         var exposed = EntryPoints(root)
-            .Where(entryPoint => ServiceBindings.ReachesBeyondLoopback(File.ReadAllText(entryPoint)))
+            .Where(entryPoint => ServiceBindings.ReachesBeyondLoopback(ServiceEntryPoints.SourceOf(root, entryPoint)))
             .Select(entryPoint => Path.GetRelativePath(root, entryPoint))
             .ToList();
 

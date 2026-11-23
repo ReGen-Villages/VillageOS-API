@@ -68,7 +68,6 @@ function toContainerCoords(event: MouseEvent, container: HTMLElement) {
   return { x: event.clientX - rectangle.left, y: event.clientY - rectangle.top };
 }
 
-/** Wires Sigma pointer events to the UI store. Child of <SigmaContainer>. */
 export function GraphEvents() {
   const sigma = useSigma();
   const registerEvents = useRegisterEvents();

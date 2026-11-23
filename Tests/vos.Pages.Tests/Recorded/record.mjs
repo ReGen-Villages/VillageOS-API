@@ -16,22 +16,24 @@ const reader = globalThis.pageReader;
 const recording = mycelium
   ? { recordingOf, selections: {}, reads: {}, refusedReads: {} }
   : JSON.parse(fs.readFileSync(recordingPath, 'utf8'));
-const model = mycelium ? await aRunningMycelium(mycelium) : whatWasRecorded(recording);
+const model = mycelium ? await aRunningMycelium(mycelium) : whatWasRecorded();
+
+async function answered(asked, ask) {
+  if (asked in recording.refusedReads) throw new Error(recording.refusedReads[asked]);
+  if (!(asked in recording.reads)) {
+    try {
+      recording.reads[asked] = JSON.stringify(await ask());
+    } catch (refused) {
+      recording.refusedReads[asked] = String(refused.message ?? refused);
+      throw refused;
+    }
+  }
+  return recording.reads[asked];
+}
 
 const host = {
-  async read(method, argumentsJson) {
-    const asked = `${method} ${argumentsJson}`;
-    if (asked in recording.refusedReads) throw new Error(recording.refusedReads[asked]);
-    if (!(asked in recording.reads)) {
-      try {
-        recording.reads[asked] = JSON.stringify(await model.ask(method, JSON.parse(argumentsJson)));
-      } catch (refused) {
-        recording.refusedReads[asked] = String(refused.message ?? refused);
-        throw refused;
-      }
-    }
-    return recording.reads[asked];
-  },
+  get: (path) => answered(`GET ${path}`, () => model.get(path)),
+  post: (path, bodyJson) => answered(`POST ${path} ${bodyJson}`, () => model.post(path, bodyJson)),
 };
 
 let held = 0;
@@ -57,16 +59,46 @@ for (const page of recording.listed.filter((one) => one.readable)) {
   recording.pages.push(read);
 }
 
+// A few Things whose kind derives figures are also asked about on their own: their inputs, each
+// derived figure explained, and where each input's value came from. A few, because each one costs
+// the recording the Things its selector reaches.
+const THINGS_ASKED_ABOUT = 2;
+recording.things = [];
+for (const page of recording.pages) {
+  const everyScope = recording.selections[reader.selectorFor(navigation, page.pageId, JSON.stringify(page.scopes.map((scope) => scope.id)))];
+  const isId = everyScope.things.find((one) => one.Name === 'is')?.Id;
+  const derivingKinds = new Set(everyScope.things.filter((one) => one.DerivedProperties && Object.keys(one.DerivedProperties).length > 0).map((one) => one.Id));
+  const ofADerivingKind = new Set(everyScope.relationships.filter((one) => one.PredicateId === isId && derivingKinds.has(one.TargetId)).map((one) => one.SubjectId));
+  const asked = everyScope.things
+    .filter((one) => !one.IsArchetype && ofADerivingKind.has(one.Id))
+    .sort((a, b) => (a.Name < b.Name ? -1 : 1))
+    .slice(0, THINGS_ASKED_ABOUT);
+  for (const thing of asked) {
+    let held = await hold(reader.selectorForThing(thing.Id, '[]'));
+    const memberKinds = reader.memberKindsOf(held, thing.Id);
+    if (memberKinds !== '[]') held = await hold(reader.selectorForThing(thing.Id, memberKinds));
+    const inputs = JSON.parse(await reader.inputsOfThing(held, thing.Id, null, 'en', host));
+    const explained = {};
+    for (const figure of new Set([...inputs.inputs, ...inputs.leftOut].map((input) => input.figure))) {
+      explained[figure] = JSON.parse(await reader.explain(held, thing.Id, figure, 'en', host));
+    }
+    const origins = {};
+    for (const input of inputs.inputs.filter((one) => one.heldBy)) origins[input.term] = JSON.parse(reader.originOf(held, thing.Id, input.term));
+    recording.things.push({ thingId: thing.Id, name: thing.Name, inputs, explained, origins });
+  }
+}
+
 fs.writeFileSync(recordingPath, `${JSON.stringify(recording, null, 1)}\n`);
-console.log(`${recording.recordingOf}: ${recording.listed.length} page(s) listed, ${recording.pages.length} read; `
+console.log(`${recording.recordingOf}: ${recording.listed.length} page(s) listed, ${recording.pages.length} read, ${recording.things.length} Thing(s) asked about; `
   + `${Object.keys(recording.selections).length} selection(s), ${Object.keys(recording.reads).length} read(s) answered, `
   + `${Object.keys(recording.refusedReads).length} refused`);
 
-function whatWasRecorded(recorded) {
+function whatWasRecorded() {
   const notRecorded = (what) => { throw new Error(`The recording holds no answer for ${what}. Record again from a running Mycelium.`); };
   return {
     select: async (selectorJson) => notRecorded(`the selector ${selectorJson}`),
-    ask: async (method, given) => notRecorded(`${method} ${JSON.stringify(given)}`),
+    get: async (path) => notRecorded(`GET ${path}`),
+    post: async (path, bodyJson) => notRecorded(`POST ${path} ${bodyJson}`),
   };
 }
 
@@ -87,37 +119,12 @@ async function aRunningMycelium(address) {
   const post = async (path, body) =>
     answerOf(await fetch(address + path, { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) }), path);
 
-  const asks = {
-    thingsInState: ([state, narrowing]) => get(statePath(state, narrowing)),
-    thingRanges: ([thingId]) => get(`/api/things/${thingId}/ranges`).catch(() => null),
-    aggregate: ([query]) => post('/api/temporal/aggregate', query),
-    reduce: ([query]) => post('/api/temporal/reduce', query),
-    fromService: ([endpoint, body]) => post(endpoint, body ?? {}),
-  };
   return {
     async select(selectorJson) {
       const answer = await post('/api/snapshots', selectorJson);
       return { things: answer.snapshot.things, relationships: answer.snapshot.relationships };
     },
-    ask: (method, given) => asks[method](given),
+    get,
+    post,
   };
-}
-
-function statePath(state, narrowing) {
-  const path = `/api/states/${encodeURIComponent(state)}/things`;
-  if (!narrowing) return path;
-  const query = new URLSearchParams();
-  if (narrowing.alsoIn?.length) query.set('alsoIn', narrowing.alsoIn.join(','));
-  if (narrowing.notIn?.length) query.set('notIn', narrowing.notIn.join(','));
-  if (narrowing.type) query.set('type', narrowing.type);
-  if (narrowing.within && narrowing.withinPredicate) {
-    query.set('within', narrowing.within);
-    query.set('withinPredicate', narrowing.withinPredicate);
-  }
-  if (narrowing.includeArchetypes) query.set('includeArchetypes', 'true');
-  if (narrowing.limit !== undefined) query.set('limit', String(narrowing.limit));
-  if (narrowing.properties?.length) query.set('properties', narrowing.properties.join(','));
-  if (narrowing.countOnly) query.set('countOnly', 'true');
-  const suffix = query.toString();
-  return suffix ? `${path}?${suffix}` : path;
 }

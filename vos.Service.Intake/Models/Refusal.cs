@@ -51,6 +51,7 @@ public static class RefusalCode
     public const string ModelRefused = "modelRefused";
 
     public const string ReferenceAndAddressNeeded = "referenceAndAddressNeeded";
+    public const string PageNotOffered = "pageNotOffered";
     public const string NotYourSubmission = "notYourSubmission";
     public const string ReductionMalformed = "reductionMalformed";
 

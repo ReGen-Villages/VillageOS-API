@@ -2,12 +2,12 @@
  * Dashboard discovery + generic binding resolver.
  *
  * Discovery: a model's pages are the Things beneath the archetype the page role binds, each with a
- * `specification` JSON property. We find them in the already-loaded model store and parse their
- * specifications.
+ * `specification` JSON property. They are found in the already-loaded model store and their
+ * specifications parsed here.
  *
  * Resolution: every widget slot is a {@link Binding}. `resolveBinding` maps the
  * generic binding *kind* to a concrete data source — the loaded model for most of
- * them, and for the four it cannot answer, the {@link ModelReads} its context
+ * them, and for those it cannot answer, the {@link ModelReads} its context
  * carries. Nothing here opens a connection, which is what lets the page a
  * submitter opens with no credential resolve the same specifications the application does.
  * The binding *values* — state names, archetypes, properties — come from the
@@ -55,7 +55,7 @@ import {
 
 export type Row = Record<string, unknown>;
 /** A value a `value` binding hands over whole: a geometry, a grid. */
-export type HeldObject = Record<string, unknown>;
+type HeldObject = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | HeldObject | null;
 
 export interface ModelIndex {
@@ -153,7 +153,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     }
   }
   // Precompute the `is`-hierarchy once: children-by-archetype for a
-  // transitive walk. Replaces a per-query scan of every relationship.
+  // transitive walk, rather than a scan of every relationship per query.
   const isId = predicateNameToId.get(IS_PREDICATE);
   const isChildren = new Map<string, string[]>();
   const isParents = new Map<string, string[]>();
@@ -220,13 +220,12 @@ function adjacency(predicateId: string, inbound: boolean, index: ModelIndex): Ma
 
 /**
  * Ids of the Things that are of the given archetype, **transitively** over the `is`-chain
- * and counting **instances only**. Archetypes are subtyped (Resident is Party,
- * GardenPlot is Location), so a direct-relationship match would miss every real instance under a
- * parent archetype. We descend the is-chain; a Thing that declares itself an archetype is a
- * sub-type and is descended into, not counted. Cycle-guarded.
+ * and counting **instances only**. An archetype can be a subtype of another, so a direct-relationship
+ * match would miss every real instance under a parent archetype. The walk descends the is-chain; a Thing
+ * that declares itself an archetype is a sub-type and is descended into, not counted. Cycle-guarded.
  *
  * Descending on the declaration rather than on "does anything `is` this Thing" is what makes it
- * right for a type with no members yet: the old rule returned such a type as a row of its own.
+ * right for a type with no members yet, which the other rule would return as a row of its own.
  *
  * The answer is remembered on the index and handed out by reference, so callers read it and
  * never write to it.
@@ -276,15 +275,10 @@ export function thingsOfArchetypeBoundBy(roleId: string, index: ModelIndex): Vos
   return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
 }
 
-/** The Thing a role binds, or undefined where the model binds nothing under it. */
+/** The Thing a role binds, or undefined where the model binds nothing under it or more than one Thing. */
 export function thingIdBoundBy(roleId: string, index: ModelIndex): string | undefined {
-  return boundBy(roleId, index)[0];
-}
-
-/** The instances beneath the archetype a role binds, transitively, as `thingsOfArchetype` answers for a name. */
-function thingsBoundAndBeneath(roleId: string, index: ModelIndex): VosThing[] {
-  const archetypeId = thingIdBoundBy(roleId, index);
-  return archetypeId ? thingsWithIds(instancesBelow([archetypeId], index), index) : [];
+  const bound = boundBy(roleId, index);
+  return bound.length === 1 ? bound[0] : undefined;
 }
 
 function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
@@ -296,9 +290,9 @@ function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
   return out;
 }
 
-/** Discover dashboards from an already-built model index. Prefer this on the hot path
- *  so the caller can share one index across discovery, scope, and binding resolution
- *  instead of rebuilding it three times per model change.
+/** Discover dashboards from an already-built model index. Prefer this wherever it runs on every
+ *  model change, so the caller can share one index across discovery, scope, and binding resolution
+ *  instead of rebuilding it for each.
  *
  *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
  *  dashboard's position in the navigation would move whenever the model changed. */
@@ -314,7 +308,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex, language: string 
   // Every page Thing is listed, including one whose specification did not read. A specification is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
-  const found = thingsBoundAndBeneath(PAGE_ROLE_ID, index).map((thing) => ({
+  const found = thingsOfArchetypeBoundBy(PAGE_ROLE_ID, index).map((thing) => ({
     thing,
     specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
@@ -398,7 +392,7 @@ export interface ResolveContext {
   /** Bumped on live events, so a generation of reads is not shared with the one after it. Part of
    *  identity only. */
   nonce?: number;
-  /** What answers the four questions a loaded model cannot — state membership, a Thing's ranges, a
+  /** What answers the questions a loaded model cannot — state membership, a Thing's ranges, a
    *  reduction over history, a model-side service. Supplied by whoever built the context, so this
    *  file resolves the same specifications whether the broker is reachable or not. */
   reads: ModelReads;
@@ -597,7 +591,7 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
 
 /** One input at the bottom of a derived figure. `heldBy` is the Thing whose value it is; an input a
  *  total reads is held by each member instead, and carries the members' kind and no single holder. */
-export interface FigureInput {
+interface FigureInput {
   figure: string;
   term: string;
   heldBy?: string;
@@ -610,7 +604,7 @@ export interface FigureInput {
 
 /** An input left out because nothing can say which way it moves the figure: the definition declares
  *  no direction for it, or two routes to it move the figure opposite ways. */
-export interface InputLeftOut {
+interface InputLeftOut {
   figure: string;
   term: string;
   memberKind?: string;
@@ -748,7 +742,7 @@ async function thingsReached(
  *
  * A walk reaching several sources names them all and reports no instant. A set of sources resolved
  * at different times has no one instant, and showing one of them would attribute the figure to a
- * source that may not have produced it — the confusion this vocabulary exists to end.
+ * source that may not have produced it, which is the mistake an origin exists to prevent.
  */
 async function recordedSourceOf(
   carrying: VosThing,
@@ -809,7 +803,7 @@ function selectPath(object: unknown, path?: string): unknown {
 
 /** The Things an aggregate reduces: the archetype's instances, narrowed to the scope and to the
  *  filters the binding states. Shared with the breakdown a figure opens to, so the rows a reader is
- *  shown are the rows the figure was reduced from rather than a second walk that could drift.
+ *  shown are the rows the figure was reduced from rather than a second walk that could disagree.
  *
  *  Starts from the scope's members when there is a scope, not from the archetype: as a per-row
  *  column this asks about one row's handful of members, while the archetype can hold every Thing

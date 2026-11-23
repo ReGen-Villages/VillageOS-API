@@ -18,7 +18,7 @@ public class ForageReadsOneSitesRelationshipsTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task A_site_read_carries_its_own_isIn_and_no_other_sites()
     {
-        var isPredicate = await _engine.DeclareOnceAsync(CoveringSourceResolver.IsPredicateName);
+        var isPredicate = await _engine.DeclareOnceAsync(PlatformPredicates.Is);
         var isIn = await _engine.DeclareOnceAsync(CoveringSourceResolver.IsInPredicate);
         var covers = await _engine.DeclareOnceAsync(CoveringSourceResolver.CoversPredicate);
         var resolvedBy = await _engine.DeclareOnceAsync(CoveringSourceResolver.ResolvedByPredicate);

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using static vos.Taproot.Tests.BrokerAnswers;
 
 namespace vos.Taproot.Tests;
 
@@ -21,8 +22,6 @@ public class MyceliumStatusCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
-
     [Fact]
     public async Task Execute_NoArgs_ShowsUsage()
     {
@@ -32,14 +31,6 @@ public class MyceliumStatusCommandHandlerTests
         Assert.Contains("Usage:", output);
         Assert.Contains("mycelium status", output);
         Assert.Contains("mycelium endpoints", output);
-    }
-
-    [Fact]
-    public async Task Execute_NullArg_ShowsUsage()
-    {
-        await ExecuteHandler(null!);
-
-        Assert.Contains("Usage:", _writer.ToString());
     }
 
     [Fact]
@@ -101,7 +92,6 @@ public class MyceliumStatusCommandHandlerTests
     [Fact]
     public async Task Endpoints_MissingFields_FallsBackToUnknown()
     {
-        // Endpoint with neither Subdomain nor BaseUrl exercises the GetStringOrDefault default branch.
         _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[{}]"));
 
         await ExecuteHandler("endpoints");

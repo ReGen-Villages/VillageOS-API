@@ -5,8 +5,8 @@ using vos.Service.Tributary.Models;
 
 namespace vos.Service.Tributary.Services;
 
-// Tributary as a pipeline step, chosen by the `step` setting on its box. A list on a collection input is run once per
-// item by the orchestrator, so each item is fetched or judged, and tried again, on its own.
+// Tributary as a pipeline step, chosen by the `step` its service holds in callParameters. A list on a collection input is
+// run once per item by the orchestrator, so each item is fetched or judged, and tried again, on its own.
 public sealed class TributaryStep : DagNodeService
 {
     public const string StepSetting = "step";
@@ -62,11 +62,10 @@ public sealed class TributaryStep : DagNodeService
         {
             service = $"Tributary {kind.Title}",
             ports = kind.Ports,
-            settings = new[] { new { name = StepSetting, required = true, values = new[] { kind.Name }, @default = kind.Name } },
         }
         : null;
 
-    // A box naming no step is fetched only until the drawings name every step (Story 8508 removes it).
+    // A box naming no step is fetched only while some drawing still has such a box.
     protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken) =>
         (context.Param(StepSetting) is { ValueKind: JsonValueKind.String } step ? step.GetString() : null) switch
         {

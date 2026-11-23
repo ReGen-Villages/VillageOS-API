@@ -81,24 +81,16 @@ describe('pickChunk', () => {
 
   describe('rule ordering — regression guards', () => {
     it('routes three-stdlib to vendor-three even though it could match the catch-all', () => {
-      // Without the leading three(-[\w-]+)? rule, three-stdlib would fall through to
-      // `vendor` and split three.js identity across chunks.
       expect(pickChunk('/x/node_modules/three-stdlib/loaders/GLTFLoader.js')).toBe('vendor-three');
     });
 
     it('routes react to vendor-react not vendor', () => {
-      // Without the explicit react rule, this would hit the node_modules catch-all
-      // and rebundle the largest stable dep into the volatile vendor chunk.
       expect(pickChunk('/x/node_modules/react/cjs/react.production.min.js')).toBe('vendor-react');
     });
 
     it('does NOT route preact, react-router, or react-three to vendor-react', () => {
-      // Guards against an over-broad regex like /react/ matching anything with
-      // "react" in the path. The rule must match the package boundary.
       expect(pickChunk('/x/node_modules/preact/dist/preact.js')).toBe('vendor');
       expect(pickChunk('/x/node_modules/react-router/dist/index.js')).toBe('vendor');
-      // @react-three is already routed to vendor-three by the earlier rule, but
-      // verify that staying defensive about ordering doesn't accidentally swap them.
       expect(pickChunk('/x/node_modules/@react-three/fiber/dist/index.js')).toBe('vendor-three');
     });
   });

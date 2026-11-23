@@ -28,8 +28,6 @@ describe('assetsApi.getContent', () => {
     vi.restoreAllMocks();
   });
 
-  // The token rides a header, never the address: an address is recorded in logs and history,
-  // and a bare <img src> would arrive with no credential at all and be refused.
   it('asks the asset route with the bearer token in a header', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValue(answeredWith(200, 'image/png', new ArrayBuffer(4)));

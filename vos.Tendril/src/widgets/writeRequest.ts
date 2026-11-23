@@ -2,6 +2,8 @@ import type { ActionChoice, ActionWidget, AskedValue, FormWidget } from '../type
 import type { Row } from '../api/dashboardApi';
 import { isPlatformRoute, postToEndpoint, type EndpointAnswer } from '../api/dashboardWrites';
 import type { ModelReads } from '../api/modelReads';
+import { PROPERTY_NAME_WORDING } from '../api/propertyNames';
+import { wordingIn, wordsInLanguage } from '../i18n/termWording';
 import { tendrilWord } from '../i18n/words';
 
 /** What a person has entered so far, by the key each value is sent under. A field taking several
@@ -50,7 +52,7 @@ function withValues(body: Record<string, unknown>, fields: AskedValue[] | undefi
  *  A route on the platform is also sent the row's id, because names are not unique; an endpoint
  *  forwarded to a project's own service is sent names only, since such a service may refuse a field
  *  it does not know. */
-export function actionRequest(widget: ActionWidget, row: Row, choice: ActionChoice, entered: Entered, route: string): Record<string, unknown> {
+function actionRequest(widget: ActionWidget, row: Row, choice: ActionChoice, entered: Entered, route: string): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (choice.act) body.view = choice.act;
   body.record = nameOf(widget, row);
@@ -93,8 +95,13 @@ export function offeredChoices(widget: ActionWidget, drawn: Row[], wordsOf: (row
   return [...fromTheModel, ...listedOnly];
 }
 
+/** What a choice the model offers is called in a language: the drawn Thing's own wording, or its name. */
+export function choiceLabelOf(drawn: Row, language: string): string {
+  return wordsInLanguage(wordingIn(drawn[PROPERTY_NAME_WORDING]) ?? undefined, language) ?? String(drawn.name ?? '');
+}
+
 /** Where a press is posted, or nothing where it relates the row to a drawn Thing instead. */
-export function routeFor(widget: ActionWidget, offered: OfferedChoice): string | undefined {
+function routeFor(widget: ActionWidget, offered: OfferedChoice): string | undefined {
   if (offered.choice.via) return offered.choice.via;
   return offered.drawnId === undefined ? widget.writes.via : undefined;
 }
@@ -135,7 +142,7 @@ export function pressOf(
 
 /** Sends the writes a press composed, in order, and stops at the first one refused, so a refused
  *  press is never stamped. Answers what the endpoint said on taking a post, or the refusal. A page
- *  that cannot stamp leaves the stamp out, as it always has. */
+ *  that cannot stamp leaves the stamp out. */
 export async function sendPress(
   writes: PressWrite[],
   reads: ModelReads,
@@ -163,6 +170,6 @@ export async function sendPress(
 /** The request a form makes: the act by name and every field a person filled. `act` names which
  *  of the form's two acts is being made — the press it writes under, or the read its preview
  *  offers, which asks the same fields the same way. */
-export function formRequest(widget: FormWidget, entered: Entered, act: string = widget.writes.act): Record<string, unknown> {
+export function formRequest(widget: FormWidget, entered: Entered, act: string): Record<string, unknown> {
   return withValues({ view: act }, widget.fields, entered);
 }

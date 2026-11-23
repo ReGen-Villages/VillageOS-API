@@ -21,9 +21,7 @@ describe('i18n instance', () => {
   });
 
   it('falls back to the base locale for a key missing from the target locale', () => {
-    // Every shipped locale is at full parity, so exercise fallback with an
-    // on-the-fly partial bundle: a locale that supplies one key falls back to
-    // the English base for every key it omits.
+    // Every shipped locale is complete, so the fallback is tried on a locale made here that supplies one key.
     i18n.addResourceBundle('zz', 'translation', { navigation: { logs: 'ZZ logs' } });
     expect(i18n.t('navigation.logs', { lng: 'zz' })).toBe('ZZ logs');
     expect(i18n.t('navigation.things', { lng: 'zz' })).toBe(i18n.t('navigation.things', { lng: 'en' }));

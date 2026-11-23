@@ -15,9 +15,9 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // Phloem's own gateway, writing a run's record into the real engine.
 //
-// Its unit tests answer every write with 200 whatever the body, so they agreed with the writer about
-// a rule neither of them applied and every case passed while no run in the live system was ever
-// recorded. These are the cases that could not have.
+// Its unit tests answer every write with 200 whatever the body, so they can agree with the writer about
+// a rule neither of them applies and pass every case while no run in the live system is recorded. Only
+// the real engine shows a write is taken.
 public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -35,22 +35,13 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     // by name — so the arrangement would break the thing it exists to set up.
     private async Task<Guid> AModelThatBindsItsRunRolesAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+        foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
-        await BindOnceAsync(PipelineRoles.PipelineRun, "PipelineRun");
-        await BindOnceAsync(PipelineRoles.NodeRun, "NodeRun");
+        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true);
+        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
 
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
-    }
-
-    private async Task BindOnceAsync(Role role, string archetypeName)
-    {
-        var archetype = await _engine.DeclareOnceAsync(archetypeName, isArchetype: true);
-        var roleName = $"{role.Word} role";
-        if (await _engine.FindAsync(roleName) is not null) return;
-        await _engine.DeclareAsync(roleName, identifier: role.Id);
-        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), archetype);
     }
 
     [FactAgainstTheEngine]

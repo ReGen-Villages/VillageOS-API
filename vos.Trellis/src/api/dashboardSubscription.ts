@@ -1,7 +1,3 @@
-/**
- * The subscription a dashboard opens in the console: what Tendril's selector says the page needs, and
- * the roles the console reads beside the page.
- */
 import { subscriptionForSpecification as selectorFor, type DashboardSpecification, type SubscriptionSelector } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 

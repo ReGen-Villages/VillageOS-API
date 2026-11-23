@@ -5,10 +5,9 @@ using Xunit;
 namespace vos.Service.Shared.Tests;
 
 // The broker answers a study's effective properties with its own under their bare name and
-// every inherited one under a key qualified by the set it came from. Since the shared study archetype
-// took over the assumptions, reading by bare name alone found none of them — and every handler test
-// stubbed the answer with bare keys, so the lookup was only ever exercised against a shape the broker
-// does not produce.
+// every inherited one under a key qualified by the set it came from. The assumptions live on the shared
+// study archetype, so reading by bare name alone finds none of them, and a stub answering with bare keys
+// would check the lookup only against a shape the broker does not produce.
 public class StudyInputsTests
 {
     private const string Service = "EnergyBalance";
@@ -75,6 +74,24 @@ public class StudyInputsTests
         var act = () => inputs.Number("daysOfSupply");
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*no value*");
+    }
+
+    [Fact]
+    public void A_number_held_as_text_is_read_as_that_number()
+    {
+        var inputs = Reading("""{ "SiteStudy.population": { "Value": "300.5" } }""");
+
+        inputs.Number("population").Should().Be(300.5);
+    }
+
+    [Fact]
+    public void Text_where_a_number_belongs_is_refused_naming_the_input()
+    {
+        var inputs = Reading("""{ "SiteStudy.population": { "Value": "three hundred" } }""");
+
+        var act = () => inputs.Number("population");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage($"{Service} input 'population' is not numeric: String.");
     }
 
     // An input a study does not carry is a figure that has not arrived rather than a fault, so a

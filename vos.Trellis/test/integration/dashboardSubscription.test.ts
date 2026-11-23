@@ -2,57 +2,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { subscriptionForSpecification } from '../../src/api/dashboardSubscription';
 import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification, type VosThing } from '@tendril-ui/tendril';
 import type { SubscriptionSelector } from '../../src/types/subscription';
+import { BASE_URL, login } from './signIn';
 
-// A dashboard now says what it is about and the platform answers with that and no more, which is
-// only true if the selector the client writes is one the platform reads. Nothing in the offline
-// suite can check that: it asserts the shape of a request nobody sends.
+// Only a running platform can say whether it reads the selector the client writes. Each dashboard must be
+// sent fewer Things than the model holds, because a subscription that covers everything narrows nothing.
 //
-// This signs in to a running platform, derives each of its dashboards' subscriptions from the specification
-// the model itself carries, and checks the platform answers each with the Things that dashboard
-// reads — and with fewer than the model holds, since a subscription that covers everything has
-// narrowed nothing.
-//
-// Needs a running Mycelium serving a model that publishes at least one dashboard.
-// Run with `npm run test:integration`.
-//   VOS_INTEGRATION_URL       default https://localhost:7243
-//   VOS_INTEGRATION_USERNAME  default admin
-//   VOS_INTEGRATION_PASSWORD  default admin
-//   VOS_INTEGRATION_MODEL     the model to sign in to, when the platform serves several
-
-const BASE_URL = process.env.VOS_INTEGRATION_URL || 'https://localhost:7243';
-const USERNAME = process.env.VOS_INTEGRATION_USERNAME || 'admin';
-const PASSWORD = process.env.VOS_INTEGRATION_PASSWORD || 'admin';
-const MODEL = process.env.VOS_INTEGRATION_MODEL;
-
-interface ModelChoiceResponse {
-  models?: { Id: string; Name: string }[];
-}
-
-async function requestToken(modelId?: string) {
-  const body: Record<string, string> = { Username: USERNAME, Password: PASSWORD };
-  if (modelId) body.ModelId = modelId;
-  return fetch(`${BASE_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-/** A platform serving several models wants one named. Which one matters here — it has to be one
- *  that publishes a dashboard — so the caller may name it, and otherwise the first offered is
- *  tried and the run says what it found if that one publishes none. */
-async function login(): Promise<string> {
-  let response = await requestToken(MODEL);
-  if (response.status === 400 && !MODEL) {
-    const choice = (await response.clone().json()) as ModelChoiceResponse;
-    const offered = choice.models?.[0]?.Id;
-    if (offered) response = await requestToken(offered);
-  }
-  if (!response.ok) {
-    throw new Error(`Could not sign in to ${BASE_URL}: ${response.status} ${await response.text()}`);
-  }
-  return ((await response.json()) as { token: string }).token;
-}
+// Needs a broker serving a model that publishes a dashboard; VOS_INTEGRATION_MODEL names that model where
+// there are several (see signIn.ts). Run with `npm run test:integration`.
 
 interface OpenedSubscription {
   subscriptionId: string;
@@ -79,7 +35,7 @@ function release(subscriptionId: string, token: string) {
   });
 }
 
-/** The specifications the model publishes, read the way the client reads them: JSON in a property. */
+/** JSON in a property, as the client reads it. */
 function specificationsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
   const found: { name: string; specification: DashboardSpecification }[] = [];
   for (const thing of things) {
@@ -123,8 +79,7 @@ describe('the subscription a dashboard opens', () => {
     }
   });
 
-  // A binding that names a Thing outright is the one case a walk cannot rescue: the page reads that
-  // Thing's properties out of what it was sent, and reads nothing if it was not sent.
+  // The page reads a Thing that a binding names outright only from what it was sent.
   it('carries every Thing the specifications name', async () => {
     for (const { name, specification } of published) {
       const selector = subscriptionForSpecification(specification, null);

@@ -61,8 +61,7 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r2']);
   });
 
-  // A batch could set a property but never take one away, so a deleted property stayed
-  // in the store until the whole model was reloaded.
+  // A batch has to take a property away too, or a deleted property stays until the model reloads.
   it('applyBatch removes a property from a thing and a relationship', () => {
     useModelStore.getState().setThings([{ ...thing('1', 'A'), Properties: { keep: 1, drop: 2 } }]);
     useModelStore.getState().setRelationships([{ ...relationship('r1', 'X'), Properties: { keep: 1, drop: 2 } }]);
@@ -88,7 +87,7 @@ describe('modelStore', () => {
     useModelStore.getState().setThings([thing('1', 'A')]);
     useModelStore.getState().setRelationships(relationships);
     useModelStore.getState().applyBatch({ thingUpserts: [thing('2', 'B')] });
-    // relationships not in the batch → same array reference preserved (no needless rebuild).
+    // no relationship in the batch, so the same array is kept and nothing is rebuilt
     expect(useModelStore.getState().relationships).toBe(relationships);
   });
 
@@ -105,10 +104,8 @@ describe('modelStore', () => {
   });
 });
 
-// A flush used to rebuild the whole index to change one Thing — a Map over every Thing in the
-// model, then a fresh array out of it — so its cost grew with the model however small the batch.
-// The index is kept and mutated instead, and what is asserted is how many entries a batch writes
-// into it: a count is stable where a stopwatch on a build agent is not.
+// What is asserted is how many entries a batch writes, because a count holds steady where timing on a
+// build agent does not.
 describe('a flush costs the size of the batch, not the size of the model', () => {
   const MODEL_SIZE = 50_000;
   const aModelOf = (count: number) => Array.from({ length: count }, (_, i) => thing(`T${i}`, `t${i}`));
@@ -141,9 +138,8 @@ describe('a flush costs the size of the batch, not the size of the model', () =>
     expect(useModelStore.getState().relationships).toHaveLength(MODEL_SIZE);
   });
 
-  // A kept index invites the fault where something writes the store without going through its
-  // actions and the index quietly disagrees with what the page draws. The hook's own test does
-  // exactly that through setState, so the index is rebuilt once against an array it does not know.
+  // Something writing the store past its actions, as the hook's own test does through setState, must not
+  // leave the index disagreeing with what the page draws.
   it('re-indexes once after the store was written round the back, then keeps the index', () => {
     useModelStore.getState().setThings(aModelOf(10));
     useModelStore.getState().applyBatch({ thingUpserts: [thing('T7', 'first')] });

@@ -261,7 +261,7 @@ export async function demoWriteKinds(cfg: Config, thingId: string, now: Date = n
   };
 }
 
-// Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/SERVICE_CONTRACT.md § "Selecting a slice".
+// Snapshot selector — subscribe to a slice. docs/SERVICE_CONTRACT.md § "Selecting a slice".
 
 export interface TraverseRule {
   predicate: string;

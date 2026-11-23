@@ -118,7 +118,7 @@ public sealed record SnapshotRelationship(
     Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States);
 
-// Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume. An entry or a
+// Sequence is the commit sequence, which is the stream's event id that a resume starts after. An entry or a
 // departure — a Thing or relationship a following subscription brought in or let go — rides beside the change
 // that caused it and carries no id, so its Sequence is 0; the change after it carries the sequence.
 //

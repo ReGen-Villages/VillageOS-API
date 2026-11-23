@@ -71,7 +71,7 @@ describe('ApiClient', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    apiClient.logout(); // reset state
+    apiClient.logout();
     fetchSpy = vi.spyOn(globalThis, 'fetch');
   });
 

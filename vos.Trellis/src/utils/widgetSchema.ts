@@ -3,12 +3,9 @@ import type { HistoryFold, HistoryFunction } from '@tendril-ui/tendril';
 import { en } from '../i18n/locales/en';
 
 /**
- * What each widget and each binding is made of, as fields the properties panel draws.
- *
- * The contract is written twice otherwise — once as types, once as controls — and the two drift the
- * day a key is added to one. Here each kind's fields are stated once, the panel draws them, and the
- * types hold the table to the union: a kind without a schema fails the build, and a field key the
- * English words do not name does not compile.
+ * Each kind's fields are stated once and the properties panel draws them, because a contract written both as
+ * types and as controls drifts apart the day a key is added to one. The types hold this table to the union,
+ * so a kind without a schema, or a field key no English word names, fails the build.
  */
 
 const EVERY_NUMBER_FORMAT: Record<NumberFormat, true> = {

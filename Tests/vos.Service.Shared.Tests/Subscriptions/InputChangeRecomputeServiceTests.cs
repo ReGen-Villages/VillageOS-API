@@ -11,11 +11,11 @@ using Xunit;
 namespace vos.Service.Shared.Tests.Subscriptions;
 
 // A compute service reads its inputs off a study and writes its results back onto the same study, so it
-// watches a Thing it also writes to. These pin what that makes delicate: an input change recomputes, an
+// watches a Thing it also writes to. These check what that makes delicate: an input change recomputes, an
 // output change does not, and a resumed stream recomputes, because a derived value is published live-only
 // and a resume never replays one.
 //
-// A daemon is also shared by every project while a subscription belongs to one model, so they pin the
+// A daemon is also shared by every project while a subscription belongs to one model, so they check the
 // second half too: each model is followed separately, and every recompute runs under its own model's
 // token so a handler writes back where the subject actually lives.
 public class InputChangeRecomputeServiceTests
@@ -216,7 +216,7 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_refused_release_leaves_the_subject_still_followed()
     {
-        // What this pins is that a refused release does not wedge the follower: the subject keeps
+        // What this checks is that a refused release does not stop the follower: the subject keeps
         // recomputing on the Things it still reads. It does not prove the guard inside the release —
         // that call is not awaited, so removing the catch leaves this passing, the same reason the
         // add-membership guard is tested through the opening pass instead. The guard stays for the log

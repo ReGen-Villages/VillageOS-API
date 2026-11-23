@@ -8,8 +8,8 @@
 //
 // Usage: node sync-wiki.js <generated-dir> <manifest> <output-dir>
 //
-// The transforms (convert, buildSidebar, flatName) and the file walk (mirror) are exported for unit
-// tests; the CLI runs only when invoked directly.
+// The transforms (convert, buildSidebar, flatName) and the file walk (mirror) are exported for the
+// tests; the command runs only when this file is run directly.
 
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +22,7 @@ const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageO
 const ATTACHMENTS = '.attachments';
 // The branch GitHub file links point at: the one the build publishes the wiki from, which the build
 // file names in its "Publish the wiki to GitHub" step. A link against any other branch answers 404,
-// and the test beside this reads the build file so the two cannot drift apart again.
+// and the test beside this reads the build file so the two cannot disagree.
 const REPO_BRANCH = 'develop';
 
 // The generator percent-encodes a literal hyphen in a page name, as an Azure DevOps wiki stores
@@ -32,9 +32,8 @@ function decodeName(name) {
   return decodeURIComponent(name);
 }
 
-// The GitHub page slug for a DevOps wiki path. Folders are flattened, so only the
-// last segment matters; the slug is the decoded segment with spaces as hyphens
-// (GitHub's own wiki slug convention).
+// The name GitHub addresses a DevOps wiki path's page by. Folders are flattened, so only the
+// last segment matters, decoded and with spaces as hyphens, as GitHub's own wiki names pages.
 function pageSlug(wikiPath) {
   const last = wikiPath.replace(/^\/+/, '').split('/').pop();
   return decodeName(last).replace(/ /g, '-');

@@ -179,7 +179,8 @@ public class FormOptionsEndpointTests
             .WithArchetype("LandUse").Bound(LandIntakeRoles.AllocationCategory, "LandUse")
             .With("putTo").Bound(LandIntakeRoles.CategorizedAs, "putTo")
             .Relate("Orchard", "is", "LandUse")
-            .Stating("Orchard", (FormOptionsReader.WordingProperty, """{"en": "Orchard", "fr": "Verger"}"""));
+            .Stating("Orchard", (FormOptionsReader.WordingProperty, """{"en": "Orchard", "fr": "Verger"}"""))
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel").WithAreaMethods();
         await using var factory = AnsweringWith(model.Build());
         using var client = factory.CreateClient();
 
@@ -311,7 +312,7 @@ public class FormOptionsEndpointTests
         using var client = factory.CreateClient();
 
         HttpResponseMessage? refused = null;
-        for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
+        for (var attempt = 0; attempt <= RequestBudget.Fallback.RequestCount; attempt++)
             refused = await client.GetAsync("/submissions/form");
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);

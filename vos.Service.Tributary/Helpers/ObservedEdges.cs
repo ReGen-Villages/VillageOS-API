@@ -1,3 +1,4 @@
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
@@ -42,7 +43,7 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
 
     public static object CreationFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate, Guid? predicateRoot)
     {
-        var isPredicate = heldIsPredicate ?? IdentifierOfAPredicateTheModelLacks("is");
+        var isPredicate = heldIsPredicate ?? IdentifierOfAPredicateTheModelLacks(PlatformPredicates.Is);
         var bindsPredicate = heldBindsPredicate ?? IdentifierOfAPredicateTheModelLacks(RoleBindings.BindsPredicateName);
         var things = new List<object>
         {
@@ -50,7 +51,7 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
             new { Id = LandIntakeRoles.Observed.Id, Name = "Observed" },
             new { Id = RoleIdentity.Of("role"), Name = "Role", IsArchetype = true },
         };
-        if (heldIsPredicate is null) things.Add(new { Id = isPredicate, Name = "is" });
+        if (heldIsPredicate is null) things.Add(new { Id = isPredicate, Name = PlatformPredicates.Is });
         if (heldBindsPredicate is null) things.Add(new { Id = bindsPredicate, Name = RoleBindings.BindsPredicateName });
 
         var relationships = new List<object>

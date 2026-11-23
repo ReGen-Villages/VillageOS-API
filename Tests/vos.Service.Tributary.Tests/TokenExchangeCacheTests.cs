@@ -188,7 +188,7 @@ public class TokenExchangeCacheTests
     }
 
     private static TokenExchangeCache Create(HttpMessageHandler handler, TimeProvider clock) =>
-        new(new PerCallFactory(handler), clock, Substitute.For<ILogger<TokenExchangeCache>>());
+        new(new PerCallHttpClientFactory(handler), clock, Substitute.For<ILogger<TokenExchangeCache>>());
 
     private static MockHttpMessageHandler TokenHandler(TimeProvider clock)
     {
@@ -202,11 +202,4 @@ public class TokenExchangeCacheTests
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-
-    private sealed class PerCallFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallFactory(HttpMessageHandler handler) { _handler = handler; }
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
 }

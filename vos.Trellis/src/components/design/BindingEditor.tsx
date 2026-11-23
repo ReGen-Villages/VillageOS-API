@@ -9,7 +9,8 @@ import type { BindingContext } from './bindingContext';
 import { ChoiceField, Field, TextField } from './DesignFields';
 import { OfferedField } from './OfferedField';
 import { FieldControl } from './FieldControls';
-import { labelFor, nestedClass, offeredFor, smallButtonClass, withKey } from './fieldSupport';
+import { dropAt, replaceAt } from '../../utils/listEdits';
+import { labelFor, nestedClass, offeredFor, smallButtonClass, valueAt, withKey } from './fieldSupport';
 import { Removable } from './Removable';
 
 /** The kind a Thing reference names: the row inside a column, the compared Thing at the top of a
@@ -56,7 +57,7 @@ export function BindingEditor({
   const kind = value ? kindOf(value, context) : undefined;
   const write = (key: string, next: unknown) => {
     if (!value) return;
-    onChange(withKey(value as unknown as Record<string, unknown>, key, next) as unknown as Binding);
+    onChange(withKey(value, key, next));
   };
 
   return (
@@ -94,7 +95,7 @@ function BindingPart({
   field, binding, kind, context, onWrite,
 }: { field: FieldSpecification; binding: Binding; kind?: string; context: BindingContext; onWrite: (key: string, next: unknown) => void }) {
   const { t } = useTranslation();
-  const held = (binding as unknown as Record<string, unknown>)[field.key];
+  const held = valueAt(binding, field.key);
   const label = labelFor('bindingField', field.key, t);
   switch (field.kind) {
     case 'scope':
@@ -190,7 +191,7 @@ function StepsEditor({
 }: { label: string; value: RelationStep[]; start: string | undefined; context: BindingContext; onChange: (value: RelationStep[]) => void }) {
   const { t } = useTranslation();
   const reached = kindReachedBy(start, value, context.offers);
-  const writeStep = (index: number, next: RelationStep) => onChange(value.map((held, at) => (at === index ? next : held)));
+  const writeStep = (index: number, next: RelationStep) => onChange(replaceAt(value, index, next));
   return (
     <Field title={label}>
       {() => (
@@ -199,9 +200,9 @@ function StepsEditor({
             const before = kindReachedBy(start, value.slice(0, index), context.offers);
             const after = kindReachedBy(start, value.slice(0, index + 1), context.offers);
             const carried = edgesByPredicate(before ? context.offers.edgesFrom(before) : []);
-            const set = (key: keyof RelationStep, next: unknown) => writeStep(index, withKey(step as unknown as Record<string, unknown>, key, next) as unknown as RelationStep);
+            const set = (key: keyof RelationStep, next: unknown) => writeStep(index, withKey(step, key, next));
             return (
-              <Removable key={index} name={step.predicate || t('design.list.item', { position: index + 1 })} onRemove={() => onChange(value.filter((_, at) => at !== index))}>
+              <Removable key={index} name={step.predicate || t('design.list.item', { position: index + 1 })} onRemove={() => onChange(dropAt(value, index))}>
                 <OfferedField
                   label={t('design.steps.predicate')}
                   value={step.predicate}
@@ -256,9 +257,9 @@ function FiltersEditor({
       {() => (
         <div className={nestedClass}>
           {value.map((filter, index) => {
-            const set = (next: Partial<PropertyFilter>) => write(value.map((held, at) => (at === index ? { ...held, ...next } : held)));
+            const set = (next: Partial<PropertyFilter>) => write(replaceAt(value, index, { ...filter, ...next }));
             return (
-              <Removable key={index} name={filter.property || t('design.list.item', { position: index + 1 })} onRemove={() => write(value.filter((_, at) => at !== index))}>
+              <Removable key={index} name={filter.property || t('design.list.item', { position: index + 1 })} onRemove={() => write(dropAt(value, index))}>
                 <OfferedField label={t('design.filters.property')} value={filter.property} mono offered={offeredFor('property', context, kind, t)} onCommit={(property) => set({ property })} />
                 <ChoiceField label={t('design.filters.operator')} value={filter.operator} options={FILTER_OPERATORS} emptyLabel="=" onCommit={(operator) => set({ operator: (operator || '=') as PropertyFilter['operator'] })} />
                 <TextField label={t('design.filters.value')} value={Array.isArray(filter.value) ? filter.value.join(',') : String(filter.value ?? '')} mono onCommit={(text) => set({ value: typed(filter.property, text) })} />
@@ -286,14 +287,14 @@ function ComputedEditor({
       {() => (
         <div className={nestedClass}>
           {value.map((column, index) => (
-            <Removable key={index} name={column.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(value.filter((_, at) => at !== index))}>
-              <TextField label={t('design.widgetField.key')} value={column.key} mono onCommit={(key) => write(value.map((held, at) => (at === index ? { ...held, key } : held)))} />
+            <Removable key={index} name={column.key || t('design.list.item', { position: index + 1 })} onRemove={() => write(dropAt(value, index))}>
+              <TextField label={t('design.widgetField.key')} value={column.key} mono onCommit={(key) => write(replaceAt(value, index, { ...column, key }))} />
               <BindingEditor
                 label={t('design.widgetField.value')}
                 value={column.value}
                 shape="number"
                 context={context}
-                onChange={(binding) => write(value.map((held, at) => (at === index ? { ...held, value: binding ?? { kind: 'const', value: 0 } } : held)))}
+                onChange={(binding) => write(replaceAt(value, index, { ...column, value: binding ?? { kind: 'const', value: 0 } }))}
               />
             </Removable>
           ))}

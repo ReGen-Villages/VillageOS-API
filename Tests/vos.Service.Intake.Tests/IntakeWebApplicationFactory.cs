@@ -22,7 +22,7 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     // Base64 of Mycelium's public signing key. This service checks no inbound credential, so
-    // setting it changes nothing — which is what a test says out loud, because it is one of the settings
+    // setting it changes nothing — which a test states plainly, because it is one of the settings
     // every service is launched with and could easily be believed to close the public route.
     public string? VerificationKey { get; set; }
 
@@ -80,6 +80,11 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     // A test that drives the pass by hand leaves it out, or the two would race over the same folders.
     public bool RunsTheReclaimPass { get; set; } = true;
 
+    // Off unless a test is about the budgets, because the refresher reads the model on its own clock and a test counting reads could not say when.
+    public bool ReadsRequestBudgets { get; set; }
+
+    public CapturingLogger<RequestBudgetRefresher> BudgetLog { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(EnvironmentName);
@@ -124,6 +129,9 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
             if (!RunsTheReclaimPass)
                 services.Remove(services.Single(descriptor => descriptor.ImplementationType == typeof(DocumentReclaimService)));
+            if (!ReadsRequestBudgets)
+                services.Remove(services.Single(descriptor => descriptor.ImplementationType == typeof(RequestBudgetRefresher)));
+            services.AddSingleton<ILogger<RequestBudgetRefresher>>(BudgetLog);
         });
     }
 

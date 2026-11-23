@@ -68,6 +68,7 @@ public class ARefusalCarriesThePlatformsReasonTests
             ["list ranges"] = client => client.GetRangesAsync(AnyId),
             ["read a range"] = client => client.GetRangeAsync(AnyId, "low"),
             ["list states"] = client => client.GetStatesAsync(AnyId),
+            ["read what a role binds"] = client => client.GetThingBoundByAsync(AnyId),
             ["validate criteria"] = client => client.ValidateCriteriaAsync("level <"),
         }
         .Concat(RoutesThatAnswerWhetherItWasThere.Select(route =>
@@ -140,11 +141,11 @@ public class ARefusalCarriesThePlatformsReasonTests
                 Content = new StringContent(
                     $$"""{"error":"{{ThePlatformsReason}}"}""", Encoding.UTF8, "application/json"),
             });
-        return new MyceliumClient("https://localhost:7243", "an-api-key", new HttpClient(handler));
+        return new MyceliumClient("https://localhost:7243", "an-api-key", handler);
     }
 
     private static IEnumerable<string> TaprootSources() =>
-        new[] { "vos.Taproot", "vos.Taproot.Client" }
+        new[] { "vos.Taproot", "vos.MyceliumClient" }
             .SelectMany(project => new DirectoryInfo(Path.Combine(RepositoryRoot.Find(), project))
                 .EnumerateFiles("*.cs", SearchOption.AllDirectories))
             .Where(file => !IsBuildOutput(file.FullName))

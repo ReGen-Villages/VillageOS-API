@@ -5,7 +5,7 @@ using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Tests;
 
-// Mycelium faked behind the gateway seam: one graph answers every read, and every write is recorded so a
+// Mycelium faked behind the gateway interface: one graph answers every read, and every write is recorded so a
 // test can say what the orchestrator told the model.
 internal sealed class FakeGateway : IMyceliumGateway
 {
@@ -219,7 +219,14 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<Guid> Cleared { get; } = new();
     public HashSet<Guid> RefusesToClear { get; } = new();
 
-    public Task<RunsToJudge> RunsToJudgeAsync(CancellationToken ct) => Task.FromResult(RunsJudged);
+    public int JudgingReadsThatFail { get; set; }
+
+    public Task<RunsToJudge> RunsToJudgeAsync(CancellationToken ct)
+    {
+        if (JudgingReadsThatFail <= 0) return Task.FromResult(RunsJudged);
+        JudgingReadsThatFail--;
+        return Task.FromException<RunsToJudge>(new HttpRequestException("the snapshot read failed"));
+    }
 
     public Task<int> ClearRunAsync(Guid runId, CancellationToken ct)
     {

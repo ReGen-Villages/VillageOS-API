@@ -86,9 +86,8 @@ describe('discoverBasemapSources', () => {
     expect(source).toMatchObject({ kind: 'raster', maximumZoom: 17 });
   });
 
-  // A signed-in page reads the model itself rather than being handed sources by the intake service, so
-  // what the model says about raising the ground has to be read here too. Read in only one of the two
-  // places, the same model draws land on the public page and a diagram on the wizard beside it.
+  // A signed-in page reads the model itself, not through the intake service, so terrain is read here too;
+  // otherwise one model draws land on the public page and a flat diagram on the wizard.
   it('reads what a source says about raising the ground', () => {
     const [source] = discoverBasemapSources(
       indexOf([
@@ -161,10 +160,8 @@ describe('discoverBasemapSources', () => {
     expect(found.map((s) => s.name)).toEqual(['Aerial', 'Streets']);
   });
 
-  // Seed normalization moves a value that shadows an archetype's declaration out of the Thing's own
-  // properties and into InheritedOverrides, leaving the archetype's valueless declaration as the only
-  // thing under that key on the archetype. A reader that only looked at own properties would find a
-  // model whose sources all declare an address and offer none of them.
+  // Seed normalization moves a value that overrides an archetype's declaration into InheritedOverrides,
+  // so a reader of own properties alone would find every source declaring an address and offer none.
   it('reads a source normalized the way a generated seed carries it', () => {
     const things = [
       thing('is', 'is'),

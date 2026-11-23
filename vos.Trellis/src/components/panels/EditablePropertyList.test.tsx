@@ -35,9 +35,8 @@ beforeEach(() => {
   useToastStore.setState({ toasts: [] });
 });
 
-// A property's type is a plain settable string on the platform, so one can report a name no write
-// route accepts. Sending it earns an opaque "Invalid type specified" from the server; the panel
-// should say which type it does not know instead.
+// A property's type is a plain string that can name a type no write route accepts, so the panel says which
+// type it does not know rather than send it for an opaque refusal.
 describe('a property reporting a type outside the platform set', () => {
   it('is not sent', () => {
     const input = editableRow('acme.PartNumber');
@@ -66,9 +65,6 @@ describe('a property reporting a type the platform accepts', () => {
   });
 });
 
-// The display row rounds a reading to the places the model asks for. An edit box holding that
-// rounded text would save the rounding back over the stored value as soon as anything else on the
-// row changed — editing works on the value, not on how the value is presented.
 describe('editing a reading', () => {
   function editableReading() {
     render(
@@ -95,7 +91,6 @@ describe('editing a reading', () => {
   });
 });
 
-// The control a property is edited with follows the type the platform declares for it.
 describe('the control offered for editing', () => {
   function rowFor(type: string, value: unknown) {
     render(
@@ -114,8 +109,6 @@ describe('the control offered for editing', () => {
     expect(rowFor('vos.Boolean', true)?.type).toBe('checkbox');
   });
 
-  // The picker's default step is a minute, which would drop the seconds off a timestamp a user only
-  // meant to nudge.
   it('is a picker for a date, keeping its seconds', () => {
     const picker = rowFor('vos.DateTime', '2026-08-05T09:20:14Z');
     expect(picker?.type).toBe('datetime-local');
@@ -134,8 +127,7 @@ describe('the control offered for editing', () => {
     expect(rowFor('vos.String', 'hello')?.type).toBe('text');
   });
 
-  // A JSON body typed into a narrow panel field is not editing. Saying so beats a disabled box,
-  // which reads as broken rather than deliberate.
+  // Saying so beats a disabled box, which reads as broken rather than deliberate.
   it('is absent for the types written by ingest, which say so instead', () => {
     expect(rowFor('vos.GeoJson', { Json: '{}' })).toBeNull();
     expect(screen.getByText('written by ingest')).toBeInTheDocument();
@@ -179,8 +171,8 @@ describe('a value the declared type cannot hold', () => {
   });
 });
 
-// Choosing "bool" and then typing the word "true" into a text box is the same guess this work
-// removes, just made by the user rather than by the code.
+// Choosing a boolean and then typing "true" into a text box would be a guess, made by the person rather
+// than the code.
 describe('the add-property row', () => {
   function addRow() {
     render(
@@ -235,8 +227,6 @@ describe('a displayed property', () => {
   });
 });
 
-// A ticket is a reference, not a reading: the row shows what it names rather than the hash,
-// the same way a reader would want any other reference resolved.
 describe('a displayed property holding an asset ticket', () => {
   const ticket = 'sha256:' + 'ab'.repeat(32);
 

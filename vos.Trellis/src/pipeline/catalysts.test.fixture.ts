@@ -5,7 +5,7 @@ import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 /** A model holding one of every catalyst and every output the Pipelines page reads. Every archetype
  *  and predicate is named something the console has never heard of and says what it is through the role
  *  Thing that binds it, so a fixture that resolves at all proves nothing is found by name. */
-export interface CatalystFixture {
+interface CatalystFixture {
   model: PipelineModel;
   things: VosThing[];
   relationships: VosRelationship[];
@@ -17,7 +17,7 @@ export interface CatalystFixture {
     | 'watcher' | 'watchesRunningLow' | 'runningLowBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
     | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
     | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly' | 'tellKind' | 'followOnKind' | 'stopKind' | 'officeLine'
-    | 'stops' | 'stopsCalled' | 'balances' | 'balancesCalled' | 'ripens' | 'ripensCalled' | 'tally',
+    | 'stops' | 'stopsCalled' | 'balances' | 'balancesCalled' | 'overflows' | 'overflowsCalled' | 'tally',
     string
   >;
 }
@@ -29,7 +29,7 @@ interface FixtureOptions {
   bindsTellFollowOnAndStop?: boolean;
   bindsRequestedBy?: boolean;
   drawsTheCadence?: boolean;
-  /** Also gives `ripens called` the one state that proves it, so the page can relate along `ripens`. */
+  /** Also gives `overflows called` the one state that proves it, so the page can relate along `overflows`. */
   bindsRelate?: boolean;
 }
 
@@ -182,9 +182,9 @@ export function catalystFixture({
   const balances = connection('balances', graph, handler);
   const balancesCalled = connection('balances called', graph, balancer);
   relate(balances, notifies, balancesCalled);
-  const ripens = thing('ripens');
-  const ripensCalled = connection('ripens called', graph, balancer);
-  relate(ripens, notifies, ripensCalled);
+  const overflows = thing('overflows');
+  const overflowsCalled = connection('overflows called', graph, balancer);
+  relate(overflows, notifies, overflowsCalled);
   if (bindsRelate) {
     const relateKind = nodeKind('Tie', ROLE.PipelineRelate);
     for (const [portName, direction] of [['thing', 'in'], ['thing', 'out'], ['written', 'out']]) {
@@ -192,7 +192,7 @@ export function catalystFixture({
       relate(port, is, portArchetype);
       relate(relateKind, has, port);
     }
-    relate(ripensCalled, thing('provenBy', playing(ROLE.CompletionRange)), thing('ripe'));
+    relate(overflowsCalled, thing('provenBy', playing(ROLE.CompletionRange)), thing('overflowing'));
   }
   relate(thing('Chore', {}, true), notifies, feeds);
 
@@ -264,7 +264,7 @@ export function catalystFixture({
       watcher, watchesRunningLow, runningLowBinding: bindings.get(watchesRunningLow)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
       offers, comparesWith, daily, rhythm, weekly, tellKind, followOnKind, stopKind, officeLine,
-      stops, stopsCalled, balances, balancesCalled, ripens, ripensCalled, tally,
+      stops, stopsCalled, balances, balancesCalled, overflows, overflowsCalled, tally,
     },
   };
 }

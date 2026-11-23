@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EditorHistory, MAX_HISTORY } from './history';
 
-// Undo history + optimistic-save baseline for the pipeline editor.
-// The module is pure and generic over the snapshot type, so it is unit-tested here without React Flow.
 type Snap = { v: number };
 
 describe('EditorHistory', () => {
@@ -47,7 +45,7 @@ describe('EditorHistory', () => {
     h.commit({ v: 99 }); // successful save/load
     expect(h.canUndo()).toBe(false);
     expect(h.size).toBe(0);
-    expect(h.undo()).toBeNull(); // saved state is the floor
+    expect(h.undo()).toBeNull(); // undo goes no further back than the saved state
   });
 
   it('rollbackTarget returns the last committed baseline', () => {

@@ -3,10 +3,8 @@ using System.Text.Json.Nodes;
 
 namespace vos.Pages.Tests;
 
-/// <summary>
-/// A small model in the shape a selection of Mycelium's answers with: a few reservoirs, the page that
-/// compares them, and a second page whose description cannot be read.
-/// </summary>
+// A small model in the shape a selection of Mycelium's answers with: a few reservoirs, the page that
+// compares them, and a second page whose description cannot be read.
 internal static class HandBuiltModel
 {
     public const string PageRoleId = "a18768bc-b4e7-513c-864f-842d674c1858";
@@ -18,6 +16,11 @@ internal static class HandBuiltModel
     public const string AsenReservoirId = "00000000-0000-4000-8000-000000000201";
     public const string OstraReservoirId = "00000000-0000-4000-8000-000000000202";
     public const string SpringReservoirId = "00000000-0000-4000-8000-000000000203";
+
+    public const string GateWidget = "Gates to the reservoirs";
+
+    public const string ReservoirsToDrainPageId = "00000000-0000-4000-8000-000000000103";
+    public const string DrainWidget = "Reservoirs to drain";
 
     public const string RunningLow = "RunningLow";
     public const string Capacity = "capacityCubicMetres";
@@ -54,6 +57,17 @@ internal static class HandBuiltModel
                     },
                     new
                     {
+                        type = "action",
+                        title = GateWidget,
+                        rows = new { kind = "thingList", archetype = "Reservoir" },
+                        writes = new
+                        {
+                            via = "gates",
+                            choices = new object[] { new { label = "Set the code", act = "setCode", asks = new object[] { new { key = "gateCode", label = "Code", kind = "secret" } } } },
+                        },
+                    },
+                    new
+                    {
                         type = "lineSeries",
                         title = "Inflow asked the wrong way round",
                         series = new object[]
@@ -79,6 +93,36 @@ internal static class HandBuiltModel
         },
     };
 
+    private static readonly object s_reservoirsToDrain = new
+    {
+        title = DrainWidget,
+        sections = new object[]
+        {
+            new
+            {
+                title = "Draining",
+                widgets = new object[]
+                {
+                    new
+                    {
+                        type = "action",
+                        title = DrainWidget,
+                        rows = new { kind = "thingList", archetype = "Reservoir" },
+                        asks = new object[]
+                        {
+                            new { key = "into", label = "Into", kind = "choice", options = new { kind = "stateList", state = RunningLow, archetype = "Reservoir" } },
+                        },
+                        writes = new
+                        {
+                            via = "draining",
+                            choices = new object[] { new { label = "Drain now" }, new { label = "Drain tomorrow" }, new { label = "Leave full" } },
+                        },
+                    },
+                },
+            },
+        },
+    };
+
     public static SelectedThings Selected()
     {
         var things = new JsonArray
@@ -91,10 +135,11 @@ internal static class HandBuiltModel
             Thing(RoleKindId, "Role", isKind: true),
             Thing(PredicateKindId, "Predicate", isKind: true),
             Thing(PageKindId, "Page", isKind: true),
-            Thing(ReservoirKindId, "Reservoir", isKind: true),
+            WithFigures(Thing(ReservoirKindId, "Reservoir", isKind: true, ("lossFraction", "vos.Double", 0.1))),
             Thing(SettingsId, "Display settings"),
             Thing(ReservoirLevelsPageId, "Reservoir levels", ("specification", "vos.String", JsonSerializer.Serialize(s_reservoirLevels))),
             Thing(UnreadablePageId, "Catchment inflow", ("specification", "vos.String", "{ this is not a page description")),
+            Thing(ReservoirsToDrainPageId, DrainWidget, ("specification", "vos.String", JsonSerializer.Serialize(s_reservoirsToDrain))),
             Thing(AsenReservoirId, "Åsen reservoir", (Capacity, "vos.Double", 100.0)),
             Thing(OstraReservoirId, "Östra reservoir", (Capacity, "vos.Double", 300.0)),
             Thing(SpringReservoirId, "Spring reservoir", (Capacity, "vos.Double", 200.0)),
@@ -120,9 +165,35 @@ internal static class HandBuiltModel
         Relate(BindsId, IsId, PredicateKindId);
         Relate(ReservoirLevelsPageId, IsId, PageKindId);
         Relate(UnreadablePageId, IsId, PageKindId);
+        Relate(ReservoirsToDrainPageId, IsId, PageKindId);
         foreach (var reservoir in new[] { AsenReservoirId, OstraReservoirId, SpringReservoirId }) Relate(reservoir, IsId, ReservoirKindId);
 
         return new SelectedThings(things.ToJsonString(), relationships.ToJsonString());
+    }
+
+    public const string UsableCapacity = "usableCubicMetres";
+    public const string Inflow = "inflowLitresPerDay";
+
+    private static JsonObject WithFigures(JsonObject kind)
+    {
+        kind["DerivedProperties"] = new JsonObject
+        {
+            [UsableCapacity] = new JsonObject
+            {
+                ["Expression"] = $"{Capacity} * (1 - lossFraction)",
+                ["Reads"] = new JsonArray(Capacity, "lossFraction"),
+                ["RisesWith"] = new JsonArray(Capacity),
+                ["FallsWith"] = new JsonArray("lossFraction"),
+            },
+            [Inflow] = new JsonObject
+            {
+                ["Function"] = "Sum",
+                ["RelatedType"] = "Spring",
+                ["Reads"] = new JsonArray("flowLitresPerDay"),
+                ["RisesWith"] = new JsonArray("flowLitresPerDay"),
+            },
+        };
+        return kind;
     }
 
     private static JsonObject Thing(string id, string name, params (string Property, string Type, object Value)[] properties) =>

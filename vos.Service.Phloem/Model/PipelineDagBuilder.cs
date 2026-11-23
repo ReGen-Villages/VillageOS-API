@@ -50,7 +50,7 @@ public static class PipelineDagBuilder
         {
             if (!nodesById.TryGetValue(nodeThing.Id, out var from)) continue;
 
-            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, ModelNames.Is))
+            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, PlatformPredicates.Is))
                 .Select(reached => reached.Id).ToHashSet();
             foreach (var targetId in graph.TargetIdsFrom(nodeThing).Distinct())
                 if (!heldOrKind.Contains(targetId) && nodesById.TryGetValue(targetId, out var to))
@@ -128,8 +128,9 @@ public static class PipelineDagBuilder
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
     {
-        // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
-        // are an Input source (params → outputs) or an Output sink (inputs → run result).
+        // Boundary nodes bind no Connection or Service: they declare their own ports (each a Port they
+        // `has`) and are an Input source, turning run parameters into outputs, or an Output sink, turning
+        // inputs into the run's result.
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
@@ -170,7 +171,7 @@ public static class PipelineDagBuilder
             NodeId = nodeThing.Id,
             Name = nodeThing.Name,
             Subdomain = subdomain!,
-            Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
+            Params = Judged(problems, () => ParamsOf(nodeThing, service), nodeThing.Properties),
             Ports = [.. ports.Select(p => p.Port), errorPort],
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
@@ -184,6 +185,35 @@ public static class PipelineDagBuilder
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
         };
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> ParamsOf(GraphThing nodeThing, GraphThing service)
+    {
+        var merged = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal);
+        if (!service.Properties.TryGetValue(ModelNames.CallParameters, out var held) || held.ValueKind == JsonValueKind.Null) return merged;
+
+        foreach (var (name, value) in CallParametersOf(nodeThing, service, held))
+            if (!merged.TryAdd(name, value))
+                throw new PipelineModelException($"Node '{nodeThing.Name}' sets '{name}', which its service '{service.Name}' already sets in "
+                    + $"{ModelNames.CallParameters}; a box cannot change what its service is called with.");
+        return merged;
+    }
+
+    private static IEnumerable<KeyValuePair<string, JsonElement>> CallParametersOf(GraphThing nodeThing, GraphThing service, JsonElement held)
+    {
+        var notAnObject = new PipelineModelException($"Service '{service.Name}' of node '{nodeThing.Name}' holds {ModelNames.CallParameters} "
+            + "that are not a JSON object, so the box could not be called with them.");
+        if (held.ValueKind != JsonValueKind.String) throw notAnObject;
+        try
+        {
+            using var parsed = JsonDocument.Parse(held.GetString()!);
+            if (parsed.RootElement.ValueKind != JsonValueKind.Object) throw notAnObject;
+            return parsed.RootElement.EnumerateObject().Select(entry => KeyValuePair.Create(entry.Name, entry.Value.Clone())).ToList();
+        }
+        catch (JsonException)
+        {
+            throw notAnObject;
+        }
     }
 
     // Each Thing the node chose is matched to the in port offering it; a choice no port offers refuses the
@@ -467,7 +497,7 @@ public static class PipelineDagBuilder
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
             yield return current;
-            foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
+            foreach (var parent in graph.OutgoingTargets(current, PlatformPredicates.Is))
                 stack.Push(parent);
         }
     }

@@ -1378,12 +1378,12 @@
       this.formats[name.toLowerCase().trim()] = createCachedFormatter(fc);
     }
     format(value, format, lng, options = {}) {
-      const formats = format.split(this.formatSeparator);
-      if (formats.length > 1 && formats[0].indexOf("(") > 1 && formats[0].indexOf(")") < 0 && formats.find((f) => f.indexOf(")") > -1)) {
-        const lastIndex = formats.findIndex((f) => f.indexOf(")") > -1);
-        formats[0] = [formats[0], ...formats.splice(1, lastIndex)].join(this.formatSeparator);
+      const formats2 = format.split(this.formatSeparator);
+      if (formats2.length > 1 && formats2[0].indexOf("(") > 1 && formats2[0].indexOf(")") < 0 && formats2.find((f) => f.indexOf(")") > -1)) {
+        const lastIndex = formats2.findIndex((f) => f.indexOf(")") > -1);
+        formats2[0] = [formats2[0], ...formats2.splice(1, lastIndex)].join(this.formatSeparator);
       }
-      const result = formats.reduce((mem, f) => {
+      const result = formats2.reduce((mem, f) => {
         const {
           formatName,
           formatOptions
@@ -2259,6 +2259,7 @@
 
   // vos.Tendril/src/types/vos.ts
   var DECLARED_WRITE_KINDS = ["FactOnly", "ObservationOnly"];
+  var ORIGIN_KINDS = ["stated", "measured", "assumed", "unknown"];
 
   // vos.Tendril/src/utils/precedenceOrder.ts
   function inPrecedenceOrder(a, b) {
@@ -2322,6 +2323,12 @@
       collectOverrides(set.Inherited, merged);
       Object.assign(merged, set.Properties);
     }
+  }
+  function statedProperties(thing) {
+    const stated = {};
+    collectOverrides(thing.InheritedOverrides, stated);
+    Object.assign(stated, thing.Properties);
+    return stated;
   }
   function effectiveProperties(thing, lookup) {
     return resolveEffective(thing, lookup, /* @__PURE__ */ new Set());
@@ -2472,8 +2479,14 @@
 
   // vos.Tendril/src/i18n/languages.ts
   var BASE_LANGUAGE = "en";
+  function primarySubtag(tag) {
+    return tag.split("-")[0]?.toLowerCase() ?? "";
+  }
 
   // vos.Tendril/src/i18n/termWording.ts
+  function wordsInLanguage(words, language) {
+    return words?.[language] ?? words?.[primarySubtag(language)] ?? words?.[BASE_LANGUAGE];
+  }
   function wordingIn(stated) {
     if (typeof stated !== "string") return null;
     try {
@@ -2638,12 +2651,13 @@
   function thingsOfArchetype(archetype, index) {
     return thingsWithIds(thingIdsOfArchetype(archetype, index), index);
   }
-  function thingIdBoundBy(roleId, index) {
-    return boundBy(roleId, index)[0];
+  function thingsOfArchetypeBoundBy(roleId, index) {
+    const archetype = thingIdBoundBy(roleId, index);
+    return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
   }
-  function thingsBoundAndBeneath(roleId, index) {
-    const archetypeId = thingIdBoundBy(roleId, index);
-    return archetypeId ? thingsWithIds(instancesBelow([archetypeId], index), index) : [];
+  function thingIdBoundBy(roleId, index) {
+    const bound = boundBy(roleId, index);
+    return bound.length === 1 ? bound[0] : void 0;
   }
   function thingsWithIds(ids, index) {
     const out = [];
@@ -2662,7 +2676,7 @@
       index.dashboards.set(language, inThisLanguage);
       return inThisLanguage;
     }
-    const found = thingsBoundAndBeneath(PAGE_ROLE_ID, index).map((thing) => ({
+    const found = thingsOfArchetypeBoundBy(PAGE_ROLE_ID, index).map((thing) => ({
       thing,
       specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY])
     }));
@@ -3291,6 +3305,38 @@
     if (typeof r === "string") return r;
     return asNumber(r);
   }
+  function asRows(r) {
+    return Array.isArray(r) && (r.length === 0 || typeof r[0] === "object") ? r : [];
+  }
+
+  // vos.Tendril/src/api/askedOptions.ts
+  var chooses = (field) => field.kind === "choice" || field.kind === "multichoice";
+  function rostersForRow(fields, context, rowId) {
+    const rowContext = { ...context, scopeId: rowId };
+    return Promise.all(
+      fields.map(async (field) => chooses(field) && field.options ? asRows(await resolveBinding(field.options, rowContext)) : [])
+    );
+  }
+
+  // vos.Tendril/src/api/dashboardWrites.ts
+  async function postToEndpoint(reads, via, body, wordRefusal) {
+    if (!reads.press) return { error: tendrilWord("cannotPress") };
+    let answer;
+    try {
+      answer = await reads.press(routeOf(via), body) ?? {};
+    } catch (refusal) {
+      answer = { error: refusal instanceof Error ? refusal.message : String(refusal) };
+    }
+    reads.recordAction?.(`send a form to ${via}`, answer.error === void 0);
+    if (answer.error === void 0) return answer;
+    return { ...answer, error: wordRefusal?.(answer) ?? String(answer.error) };
+  }
+  function routeOf(via) {
+    return isPlatformRoute(via) ? via : `/api/endpoints/${via}`;
+  }
+  function isPlatformRoute(via) {
+    return via.startsWith("/");
+  }
 
   // vos.Tendril/src/api/pageSelector.ts
   var NAVIGATION_AND_SETTINGS = {
@@ -3515,6 +3561,297 @@
     return specificationBindings(specification).some((binding) => binding.kind === "verdict" && binding.states.some((state) => !!state.levers));
   }
 
+  // vos.Tendril/src/api/stateQuery.ts
+  function thingsInStatePath(stateName, narrowing) {
+    const path = `/api/states/${encodeURIComponent(stateName)}/things`;
+    if (!narrowing) return path;
+    const asked = [];
+    const ask = (name, value) => asked.push(`${name}=${asInAForm(value)}`);
+    if (narrowing.alsoIn?.length) ask("alsoIn", narrowing.alsoIn.join(","));
+    if (narrowing.notIn?.length) ask("notIn", narrowing.notIn.join(","));
+    if (narrowing.type) ask("type", narrowing.type);
+    if (narrowing.within && narrowing.withinPredicate) {
+      ask("within", narrowing.within);
+      ask("withinPredicate", narrowing.withinPredicate);
+    }
+    if (narrowing.includeArchetypes) ask("includeArchetypes", "true");
+    if (narrowing.limit !== void 0) ask("limit", String(narrowing.limit));
+    if (narrowing.properties?.length) ask("properties", narrowing.properties.join(","));
+    if (narrowing.countOnly) ask("countOnly", "true");
+    return asked.length ? `${path}?${asked.join("&")}` : path;
+  }
+  function asInAForm(value) {
+    return encodeURIComponent(value).replace(/%20/g, "+").replace(/[!'()~]/g, (kept) => `%${kept.charCodeAt(0).toString(16).toUpperCase()}`);
+  }
+
+  // vos.Tendril/src/widgets/writeRequest.ts
+  function chosen(entered, key) {
+    const value = entered[key];
+    if (Array.isArray(value)) return value.filter((name) => name.trim() !== "");
+    return (value ?? "").trim() === "" ? [] : [String(value).trim()];
+  }
+  function nameOf(widget, row) {
+    return String(row[widget.label ?? "name"] ?? row.id ?? "");
+  }
+  function complete(fields, entered) {
+    return (fields ?? []).every((field) => field.optional || chosen(entered, field.key).length > 0);
+  }
+  function toSend(field, entered) {
+    const chosenNames = chosen(entered, field.key);
+    if (chosenNames.length === 0) return void 0;
+    if (field.kind === "multichoice") return chosenNames;
+    return field.kind === "number" ? Number(chosenNames[0]) : chosenNames[0];
+  }
+  function withValues(body, fields, entered) {
+    for (const field of fields ?? []) {
+      const value = toSend(field, entered);
+      if (value !== void 0) body[field.key] = value;
+    }
+    return body;
+  }
+  function actionRequest(widget, row, choice, entered, route) {
+    const body = {};
+    if (choice.act) body.view = choice.act;
+    body.record = nameOf(widget, row);
+    if (isPlatformRoute(route) && row.id !== void 0) body.recordId = String(row.id);
+    if (choice.target) body.reason = choice.target;
+    return withValues(body, asksOf(widget, choice), entered);
+  }
+  function asksOf(widget, choice) {
+    return choice.asks ?? widget.asks ?? [];
+  }
+  function offeredChoices(widget, drawn, wordsOf) {
+    const listed = widget.writes.choices;
+    const drawnNames = new Set(drawn.map((row) => String(row.name ?? "")));
+    const asListed = (choice) => ({ key: `listed:${listed.indexOf(choice)}`, choice });
+    const fromTheModel = drawn.map((row) => {
+      const replacing = listed.find((choice) => choice.target !== void 0 && choice.target === row.name);
+      const drawnId = String(row.id ?? "");
+      return replacing ? asListed(replacing) : { key: drawnId, choice: { label: wordsOf(row) }, drawnId };
+    });
+    const listedOnly = listed.filter((choice) => choice.target === void 0 || !drawnNames.has(choice.target)).map(asListed);
+    return [...fromTheModel, ...listedOnly];
+  }
+  function choiceLabelOf(drawn, language) {
+    return wordsInLanguage(wordingIn(drawn[PROPERTY_NAME_WORDING]) ?? void 0, language) ?? String(drawn.name ?? "");
+  }
+  function routeFor(widget, offered) {
+    if (offered.choice.via) return offered.choice.via;
+    return offered.drawnId === void 0 ? widget.writes.via : void 0;
+  }
+  function pressOf(widget, row, offered, entered, predicateIdOf) {
+    const rowId = String(row.id ?? "");
+    const writes = [];
+    const route = routeFor(widget, offered);
+    if (route) {
+      writes.push({ write: "post", via: route, body: actionRequest(widget, row, offered.choice, entered, route) });
+    } else {
+      const predicate = widget.writes.choicesFrom?.predicate ?? "";
+      const predicateId = predicateIdOf(predicate);
+      if (!predicateId) return { refusal: tendrilWord("cannotRelate", { predicate }) };
+      writes.push({ write: "relate", predicate, subjectId: rowId, predicateId, targetId: offered.drawnId });
+    }
+    if (widget.writes.stamps) writes.push({ write: "stamp", thingId: rowId, property: widget.writes.stamps });
+    return { writes };
+  }
+  async function sendPress(writes, reads, wordRefusal) {
+    let answer = {};
+    try {
+      for (const write of writes) {
+        if (write.write === "post") {
+          answer = await postToEndpoint(reads, write.via, write.body, wordRefusal);
+          if (answer.error) return answer;
+        } else if (write.write === "relate") {
+          if (!reads.relate) return { error: tendrilWord("cannotRelate", { predicate: write.predicate }) };
+          await reads.relate(write.subjectId, write.predicateId, write.targetId);
+        } else if (reads.stampTime) {
+          await reads.stampTime(write.thingId, write.property, /* @__PURE__ */ new Date());
+        }
+      }
+    } catch (refused) {
+      return { error: refused instanceof Error ? refused.message : String(refused) };
+    }
+    return answer;
+  }
+
+  // vos.Tendril/src/wording/formatNumber.ts
+  var formats = /* @__PURE__ */ new Map();
+  function numberIn(value, language, options = {}) {
+    const key = `${language}|${JSON.stringify(options)}`;
+    let format = formats.get(key);
+    if (!format) {
+      format = new Intl.NumberFormat(language, { numberingSystem: "latn", ...options });
+      formats.set(key, format);
+    }
+    return format.format(value);
+  }
+  function formatNumberIn(value, format, language) {
+    if (value === null || value === void 0 || isNaN(value)) return "—";
+    switch (format) {
+      case "integer":
+        return numberIn(Math.round(value), language);
+      case "decimal1":
+        return numberIn(value, language, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      case "decimal2":
+        return numberIn(value, language, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      case "percent":
+        return numberIn(value, language, { style: "percent", maximumFractionDigits: 0 });
+      case "percent1":
+        return numberIn(value, language, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      case "percentOutOf100":
+        return numberIn(value / 100, language, { style: "percent", maximumFractionDigits: 0 });
+      case "hours":
+        return `${numberIn(value, language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
+      case "money":
+        return numberIn(value, language, { style: "currency", currency: "USD" });
+      case "compact":
+        return numberIn(value, language, { notation: "compact", maximumFractionDigits: 1 });
+      case "bytes":
+        return formatBytes(value, language);
+      default:
+        return numberIn(value, language);
+    }
+  }
+  var BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+  var BYTE_FRACTION_DIGITS = 1;
+  function roundedAsShown(figure) {
+    return Math.round(figure * 10 ** BYTE_FRACTION_DIGITS) / 10 ** BYTE_FRACTION_DIGITS;
+  }
+  function formatBytes(value, language) {
+    const size = Math.abs(value);
+    let unitIndex = 0;
+    while (unitIndex < BYTE_UNITS.length - 1 && roundedAsShown(size / 1024 ** unitIndex) >= 1024) {
+      unitIndex++;
+    }
+    const figure = numberIn(value / 1024 ** unitIndex, language, { maximumFractionDigits: BYTE_FRACTION_DIGITS });
+    return `${figure} ${BYTE_UNITS[unitIndex]}`;
+  }
+
+  // vos.Tendril/src/wording/originSentence.ts
+  function originSentence(reads, saidBy) {
+    const substituted = reads.replace(/\{(source|resolvedAt)\}/g, (_, placeholder) => (placeholder === "source" ? saidBy.source : saidBy.resolvedAt) ?? "");
+    return substituted.replace(/\s{2,}/g, " ").trim();
+  }
+
+  // vos.Tendril/src/wording/verdictSentence.ts
+  function verdictSentence(reads, figures, language, format, unit) {
+    const substituted = reads.replace(/\{(value|target)\}/g, (_, placeholder) => {
+      const figure = placeholder === "value" ? figures.value : figures.target;
+      return figure === null ? "" : `${formatNumberIn(figure, format, language)}${unit ? ` ${unit}` : ""}`;
+    });
+    return substituted.replace(/\s{2,}/g, " ").trim();
+  }
+
+  // vos.Tendril/src/wording/figureReadings.ts
+  function figureText(value, format, language) {
+    if (typeof value === "string" && value !== "") return value;
+    return formatNumberIn(typeof value === "number" ? value : null, format, language);
+  }
+  function originLines(rows) {
+    return rows.filter((row) => ORIGIN_KINDS.includes(row.origin) && typeof row.reads === "string").map((row) => ({
+      origin: row.origin,
+      sentence: originSentence(row.reads, {
+        source: typeof row.source === "string" ? row.source : null,
+        resolvedAt: typeof row.resolvedAt === "string" ? row.resolvedAt : null
+      })
+    })).filter((line) => line.sentence !== "");
+  }
+  function verdictReadings(row, verdicts, language) {
+    const candidates = row.verdicts.kind === "verdict" ? row.verdicts.states : [];
+    return verdicts.map((verdict) => {
+      const offered = Array.isArray(verdict.levers) ? verdict.levers : [];
+      const wording = candidates.find((candidate) => candidate.state === verdict.state)?.levers;
+      return {
+        state: String(verdict.state),
+        sentence: verdictSentence(
+          typeof verdict.reads === "string" ? verdict.reads : "",
+          { value: nullableNumber(verdict.value), target: nullableNumber(verdict.target) },
+          language,
+          row.format,
+          row.unit
+        ),
+        levers: wording ? offered.map((lever) => leverReading(lever.direction === "raise" ? wording.raise : wording.lower, lever, language)) : []
+      };
+    }).filter((reading) => reading.sentence !== "");
+  }
+  function leverReading(wording, lever, language) {
+    const [before, after] = wording.split("{term}", 2);
+    const declaredName = wordsInLanguage(lever.words, language);
+    return {
+      lever,
+      before,
+      ...after !== void 0 ? { after } : {},
+      ...declaredName !== void 0 ? { declaredName } : {}
+    };
+  }
+  function leverSentence(reading) {
+    if (reading.after === void 0) return reading.before;
+    const named = reading.declaredName ?? (reading.lever.memberArchetype ? `${reading.lever.term} · ${reading.lever.memberArchetype}` : reading.lever.term);
+    return `${reading.before}${named}${reading.after}`;
+  }
+  function workingRuns(inputs, language) {
+    const runs = [];
+    for (const input of inputs) {
+      const formula = typeof input.formula === "string" ? input.formula : null;
+      const read = "memberArchetype" in input ? { term: String(input.term), memberKind: input.memberArchetype ? String(input.memberArchetype) : "" } : { term: String(input.term), value: formatNumberIn(input.value, void 0, language) };
+      const current = runs[runs.length - 1];
+      if (current && current.formula === formula) current.inputs.push(read);
+      else runs.push({ formula, inputs: [read] });
+    }
+    return runs;
+  }
+
+  // vos.Tendril/src/wording/readWidget.ts
+  async function readWidget(widget, context) {
+    const language = context.language ?? BASE_LANGUAGE;
+    const titled = widget.title !== void 0 ? { title: widget.title } : {};
+    switch (widget.type) {
+      case "kpi": {
+        const value = await resolveBinding(widget.value, context);
+        const origin = widget.origin ? asRows(await resolveBinding(widget.origin, context)) : [];
+        const isAWord = typeof value === "string" && value !== "";
+        return {
+          ...titled,
+          type: "kpi",
+          value,
+          worded: figureText(value, widget.format, language),
+          ...widget.unit && !isAWord ? { unit: widget.unit } : {},
+          origin: originLines(origin)
+        };
+      }
+      case "verdict": {
+        const rows = [];
+        for (const row of widget.rows) {
+          const verdicts = verdictReadings(row, asRows(await resolveBinding(row.verdicts, context)), language);
+          rows.push({
+            label: row.label,
+            verdicts: verdicts.map((verdict) => ({ state: verdict.state, sentence: verdict.sentence, levers: verdict.levers.map(leverSentence) }))
+          });
+        }
+        return { ...titled, type: "verdict", rows };
+      }
+      case "working": {
+        const rows = [];
+        for (const row of widget.rows) {
+          const value = asNumber(await resolveBinding(row.value, context));
+          rows.push({
+            label: row.label,
+            value,
+            worded: formatNumberIn(value, row.format, language),
+            ...row.unit ? { unit: row.unit } : {},
+            runs: workingRuns(asRows(await resolveBinding(row.working, context)), language)
+          });
+        }
+        return { ...titled, type: "working", rows };
+      }
+      default: {
+        const slots = [];
+        for (const binding of slotsOf(widget)) slots.push({ kind: binding.kind, result: await resolveBinding(binding, context) });
+        return { ...titled, type: widget.type, ..."columns" in widget && widget.columns ? { columns: widget.columns } : {}, slots };
+      }
+    }
+  }
+
   // vos.Pages/bundle/readerHost.ts
   void instance.init({
     lng: BASE_LANGUAGE,
@@ -3533,14 +3870,158 @@
     if (!page) throw new Error(`The Things held include no page with the identifier ${pageId}.`);
     return page;
   }
+  function thingOf(index, thingId) {
+    const thing = index.byId.get(thingId);
+    if (!thing) throw new Error(`The model holds no Thing with the identifier ${thingId}.`);
+    return thing;
+  }
   function readsAnsweredBy(host) {
-    const ask = async (method, ...given) => JSON.parse(await host.read(method, JSON.stringify(given)));
+    const got = async (path) => JSON.parse(await host.get(path));
+    const posted = async (path, body) => JSON.parse(await host.post(path, JSON.stringify(body ?? {})));
     return {
-      thingsInState: (state, narrowing) => ask("thingsInState", state, narrowing ?? null),
-      thingRanges: (thingId) => ask("thingRanges", thingId),
-      aggregate: (query) => ask("aggregate", query),
-      reduce: (query) => ask("reduce", query),
-      fromService: (endpoint, body) => ask("fromService", endpoint, body ?? null)
+      thingsInState: (state, narrowing) => got(thingsInStatePath(state, narrowing)),
+      // A Thing whose ranges cannot be read still reads: a verdict it holds is shown without its target.
+      thingRanges: (thingId) => got(`/api/things/${thingId}/ranges`).catch(() => null),
+      aggregate: (query) => posted("/api/temporal/aggregate", query),
+      reduce: (query) => posted("/api/temporal/reduce", query),
+      fromService: (endpoint, body) => posted(endpoint, body)
+    };
+  }
+  function contextFor(index, scopeId, language, host, compareArchetype) {
+    return { index, scopeId, compareArchetype, reads: readsAnsweredBy(host), language, warn: toldOfAWarning };
+  }
+  function writesAnsweredBy(writes) {
+    const notARead = () => {
+      throw new Error("Sending a press reads nothing.");
+    };
+    return {
+      thingsInState: notARead,
+      thingRanges: notARead,
+      aggregate: notARead,
+      reduce: notARead,
+      fromService: notARead,
+      press: async (path, body) => JSON.parse(await writes.press(path, JSON.stringify(body))),
+      recordAction: (description, succeeded) => writes.recordAction(description, succeeded),
+      relate: (subjectId, predicateId, targetId) => writes.relate(subjectId, predicateId, targetId),
+      stampTime: (thingId, property, at) => writes.stamp(thingId, property, at.toISOString())
+    };
+  }
+  var quoted = (value) => JSON.stringify(value);
+  function actionWidgetOf(page, title) {
+    const titled = page.specification.sections.flatMap((section) => section.widgets).filter((widget) => widget.title === title);
+    const actions = titled.filter((widget) => widget.type === "action");
+    if (actions.length === 1) return actions[0];
+    if (actions.length > 1) throw new Error(`More than one action widget on the page "${page.name}" has the title ${quoted(title)}`);
+    if (titled.length > 0) throw new Error(`Only an action widget offers choices, and this widget is not one: ${quoted(title)}`);
+    throw new Error(`No widget on the page "${page.name}" has the title ${quoted(title)}`);
+  }
+  function rowOf(widget, rows, asked) {
+    const byId = rows.filter((row) => String(row.id ?? "").toLowerCase() === asked.toLowerCase());
+    if (byId.length === 1) return byId[0];
+    const byName = rows.filter((row) => nameOf(widget, row) === asked);
+    if (byName.length === 1) return byName[0];
+    if (byName.length > 1) {
+      throw new Error(`More than one row of this widget is named so. Ask by identifier, one of ${byName.map((row) => quoted(String(row.id ?? ""))).join(", ")}: ${quoted(asked)}`);
+    }
+    throw new Error(`The widget lists no row with this identifier or name: ${quoted(asked)}`);
+  }
+  var SECRET_REFUSED = "It asks a secret, which is not sent through this program. Press it on the page.";
+  var asksASecret = (fields) => fields.some((field) => field.kind === "secret");
+  async function rowInHand(key, pageId, widgetTitle, scopeId, asked, language, host) {
+    const index = indexHeldAs(key);
+    const page = pageOf(index, pageId);
+    if (!page.specification) throw new Error(`The description of the page "${page.name}" could not be read.`);
+    const widget = actionWidgetOf(page, widgetTitle);
+    const context = contextFor(index, scopeId, language, host, page.specification.compare?.archetype);
+    const row = rowOf(widget, asRows(await resolveBinding(widget.rows, context)), asked);
+    const drawn = widget.writes.choicesFrom ? asRows(await resolveBinding(widget.writes.choicesFrom.from, context)) : [];
+    return { widget, row, drawn, context, offered: offeredChoices(widget, drawn, (thing) => choiceLabelOf(thing, language)) };
+  }
+  async function rostersOf(inHand, choice) {
+    const fields = asksOf(inHand.widget, choice.choice);
+    if (choice.choice.asks) return rostersForRow(fields, inHand.context, String(inHand.row.id ?? ""));
+    return Promise.all(fields.map(async (field) => chooses(field) && field.options ? asRows(await resolveBinding(field.options, inHand.context)) : []));
+  }
+  function rowNamed(inHand) {
+    return { id: String(inHand.row.id ?? ""), name: nameOf(inHand.widget, inHand.row) };
+  }
+  function choiceKeyed(inHand, choiceKey) {
+    const offered = inHand.offered.find((candidate) => candidate.key === choiceKey);
+    if (!offered) throw new Error(`The row is offered no choice with this key: ${quoted(choiceKey)}`);
+    return offered;
+  }
+  function standsFor(inHand, offered) {
+    const drawn = inHand.drawn.find((thing) => String(thing.id ?? "") === offered.drawnId);
+    return drawn ? { standsFor: { id: String(drawn.id), name: String(drawn.name ?? "") } } : {};
+  }
+  function enteredFrom(answersJson, fields, rosters) {
+    const answers = JSON.parse(answersJson);
+    const entered = {};
+    for (const [answeredKey, value] of Object.entries(answers)) {
+      const position = fields.findIndex((field) => field.key === answeredKey);
+      if (position < 0) throw new Error(`The choice does not ask for this: ${quoted(answeredKey)}`);
+      const values = Array.isArray(value) ? value.map(String) : value === null || value === void 0 ? [] : [String(value)];
+      if (chooses(fields[position])) {
+        const offeredNames = new Set(rosters[position].map((thing) => String(thing.name ?? "")));
+        const notOffered = values.find((name) => name.trim() !== "" && !offeredNames.has(name));
+        if (notOffered !== void 0) throw new Error(`The field ${quoted(answeredKey)} does not offer this: ${quoted(notOffered)}`);
+      }
+      entered[answeredKey] = Array.isArray(value) ? values : values[0] ?? "";
+    }
+    const missing = fields.filter((field) => !complete([field], entered)).map((field) => quoted(field.key));
+    if (missing.length > 0) throw new Error(`The choice needs an answer for each of these: ${missing.join(", ")}`);
+    return entered;
+  }
+  function everyRangeOf(ranges) {
+    if (!ranges) return [];
+    const inherited = (sets) => sets.flatMap((set) => [...set.Ranges, ...inherited(set.Inherited)]);
+    const byName = /* @__PURE__ */ new Map();
+    for (const range of [...ranges.OwnRanges, ...inherited(ranges.InheritedRanges)]) {
+      if (!byName.has(range.Name)) byName.set(range.Name, findRange(range.Name, ranges) ?? range);
+    }
+    return [...byName.values()];
+  }
+  function judgementsOf(thing, figure, ranges) {
+    const holds = new Set(thing.States ?? []);
+    return everyRangeOf(ranges).map((range) => ({ range, compared: range.Comparisons?.[0] })).filter(({ compared }) => compared?.PropertyName === figure).map(({ range, compared }) => ({
+      state: range.Name,
+      comparison: compared.Operator,
+      target: nullableNumber(compared.Value),
+      held: holds.has(range.Name)
+    }));
+  }
+  function directionToLeave(comparison, figureMoves) {
+    const figureMustRise = comparison === "<" || comparison === "<=" ? true : comparison === ">" || comparison === ">=" ? false : null;
+    if (figureMustRise === null) return null;
+    return figureMoves === "with" === figureMustRise ? "raise" : "lower";
+  }
+  function holdingOf(thing, property, index) {
+    const own = thing.Properties?.[property] != null;
+    const stated = statedProperties(thing)[property] != null;
+    const withoutItsOwn = { ...thing, Properties: {}, InheritedOverrides: void 0 };
+    const inherited = effectiveProperties(withoutItsOwn, index)[property];
+    const from = valueOrigin(withoutItsOwn, property, index).assumedFrom;
+    return {
+      held: own ? "own" : stated ? "statedOverInherited" : inherited != null ? "inheritedOnly" : "notHeld",
+      value: effectiveProperties(thing, index)[property] ?? null,
+      ...inherited != null ? { inheritedValue: inherited, inheritedFrom: from } : {},
+      origin: valueOrigin(thing, property, index).origin,
+      derived: effectiveDerivedDefinitions(thing, index)[property] !== void 0
+    };
+  }
+  async function inputsRead(index, thing, figure, language, ranges) {
+    const found = inputsOf(thing, index, figure ?? void 0);
+    return {
+      thing: { id: thing.Id, name: thing.Name },
+      inputs: found.inputs.map((input) => ({
+        figure: input.figure,
+        term: input.term,
+        ...input.words ? { name: input.words[language] ?? input.words[language.split("-")[0]] ?? input.words[BASE_LANGUAGE] ?? null } : {},
+        figureMoves: input.figureMoves,
+        ...input.memberKind !== void 0 ? { heldByEachMemberOfKind: input.memberKind } : { heldBy: input.heldBy, ...holdingOf(thing, input.term, index) },
+        toLeave: judgementsOf(thing, input.figure, ranges).filter((judged) => judged.held).map((judged) => ({ state: judged.state, direction: directionToLeave(judged.comparison, input.figureMoves) })).filter((leaving) => leaving.direction !== null)
+      })),
+      leftOut: found.leftOut
     };
   }
   var pageReader = {
@@ -3573,6 +4054,28 @@
       const scopeIds = JSON.parse(scopeIdsJson);
       return JSON.stringify({ ...selector, ids: [.../* @__PURE__ */ new Set([...selector.ids ?? [], ...scopeIds])], includeLaterMatches: false, includeObservations: false });
     },
+    /** What one Thing needs sent for its figures to be explained: the Thing, the kinds it is, and the
+     *  Things that word its inputs, with the kinds whose members hold an input where it totals over them. */
+    selectorForThing(thingId, memberKindsJson) {
+      const memberKinds = JSON.parse(memberKindsJson);
+      const selector = {
+        ids: [thingId, PROPERTY_NAME_ROLE],
+        boundTypes: [PROPERTY_NAME_ROLE],
+        names: [IS_PREDICATE, BINDS_PREDICATE_NAME, NAMES_PROPERTY_OF_PREDICATE, ...memberKinds],
+        traverse: [
+          { predicate: NAMES_PROPERTY_OF_PREDICATE, direction: "outgoing", depth: 1 },
+          { predicate: BINDS_PREDICATE_NAME, direction: "outgoing", depth: 1 }
+        ]
+      };
+      return JSON.stringify(selector);
+    },
+    /** The kinds whose members hold an input of the Thing's figures, which have to be loaded as well
+     *  before those inputs can be named in the reader's language. */
+    memberKindsOf(key, thingId) {
+      const index = indexHeldAs(key);
+      const kinds = inputsOf(thingOf(index, thingId), index).inputs.flatMap((input) => input.memberKind ? [input.memberKind] : []);
+      return JSON.stringify([...new Set(kinds)]);
+    },
     scopesOf(key, pageId, language) {
       const index = indexHeldAs(key);
       const page = pageOf(index, pageId);
@@ -3582,31 +4085,95 @@
       const index = indexHeldAs(key);
       const page = pageOf(index, pageId);
       if (!page.specification) throw new Error(`The description of the page "${page.name}" could not be read.`);
-      const context = {
-        index,
-        scopeId,
-        compareArchetype: page.specification.compare?.archetype,
-        reads: readsAnsweredBy(host),
-        language,
-        warn: toldOfAWarning
-      };
+      const context = contextFor(index, scopeId, language, host, page.specification.compare?.archetype);
       const sections = [];
       for (const section of page.specification.sections) {
         const widgets = [];
         for (const widget of section.widgets) {
-          const bindings = [];
-          for (const binding of slotsOf(widget)) {
-            try {
-              bindings.push({ kind: binding.kind, result: await resolveBinding(binding, context) });
-            } catch (refused) {
-              bindings.push({ kind: binding.kind, unreadable: refused instanceof Error ? refused.message : String(refused) });
-            }
+          try {
+            widgets.push(await readWidget(widget, context));
+          } catch (refused) {
+            widgets.push({ type: widget.type, ...widget.title !== void 0 ? { title: widget.title } : {}, unreadable: refused instanceof Error ? refused.message : String(refused) });
           }
-          widgets.push({ type: widget.type, title: widget.title ?? null, bindings });
         }
-        sections.push({ title: section.title ?? null, widgets });
+        sections.push({ ...section.title !== void 0 ? { title: section.title } : {}, widgets });
       }
       return JSON.stringify({ page: page.name, scopeId, language, sections });
+    },
+    async inputsOfThing(key, thingId, figure, language, host) {
+      const index = indexHeldAs(key);
+      const thing = thingOf(index, thingId);
+      const ranges = await readsAnsweredBy(host).thingRanges(thingId);
+      return JSON.stringify(await inputsRead(index, thing, figure, language, ranges));
+    },
+    originOf(key, thingId, property) {
+      const index = indexHeldAs(key);
+      const thing = thingOf(index, thingId);
+      return JSON.stringify({ thing: { id: thing.Id, name: thing.Name }, property, ...holdingOf(thing, property, index), assumedFrom: valueOrigin(thing, property, index).assumedFrom });
+    },
+    pageRole() {
+      return PAGE_ROLE_ID;
+    },
+    async offeredChoices(key, pageId, widgetTitle, scopeId, row, language, host) {
+      const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+      const choices = [];
+      let widgetRosters;
+      for (const offered of inHand.offered) {
+        const fields = asksOf(inHand.widget, offered.choice);
+        const secret = asksASecret(fields);
+        const rosters = secret ? fields.map(() => []) : await (offered.choice.asks ? rostersOf(inHand, offered) : widgetRosters ??= rostersOf(inHand, offered));
+        choices.push({
+          key: offered.key,
+          label: offered.choice.label,
+          ...standsFor(inHand, offered),
+          asks: fields.map((field, position) => ({
+            key: field.key,
+            label: field.label,
+            kind: field.kind ?? "text",
+            optional: field.optional === true,
+            ...chooses(field) ? { from: rosters[position] } : {}
+          })),
+          pressable: !secret,
+          ...secret ? { notPressable: SECRET_REFUSED } : {}
+        });
+      }
+      return JSON.stringify({ widget: widgetTitle, row: rowNamed(inHand), choices });
+    },
+    async composePress(key, pageId, widgetTitle, scopeId, row, choiceKey, answersJson, language, host) {
+      const inHand = await rowInHand(key, pageId, widgetTitle, scopeId, row, language, host);
+      const offered = choiceKeyed(inHand, choiceKey);
+      const fields = asksOf(inHand.widget, offered.choice);
+      if (asksASecret(fields)) throw new Error(`${SECRET_REFUSED} The choice: ${quoted(offered.choice.label)}`);
+      const entered = enteredFrom(answersJson, fields, await rostersOf(inHand, offered));
+      const composed = pressOf(inHand.widget, inHand.row, offered, entered, (predicate) => inHand.context.index.predicateNameToId.get(predicate));
+      if ("refusal" in composed) throw new Error(composed.refusal);
+      return JSON.stringify({
+        widget: widgetTitle,
+        row: rowNamed(inHand),
+        choice: { key: offered.key, label: offered.choice.label, ...standsFor(inHand, offered) },
+        writes: composed.writes
+      });
+    },
+    async sendPress(writesJson, writes) {
+      return JSON.stringify(await sendPress(JSON.parse(writesJson), writesAnsweredBy(writes)));
+    },
+    async explain(key, thingId, figure, language, host) {
+      const index = indexHeldAs(key);
+      const thing = thingOf(index, thingId);
+      const context = contextFor(index, thingId, language, host);
+      const ranges = await context.reads.thingRanges(thingId);
+      const worked = asRows(await resolveBinding({ kind: "working", thing: thingId, property: figure }, context));
+      const read = await inputsRead(index, thing, figure, language, ranges);
+      return JSON.stringify({
+        thing: read.thing,
+        figure,
+        ...holdingOf(thing, figure, index),
+        worded: formatNumberIn(nullableNumber(effectiveProperties(thing, index)[figure]), void 0, language),
+        judgedBy: judgementsOf(thing, figure, ranges),
+        workedOutFrom: workingRuns(worked, language),
+        inputs: read.inputs,
+        inputsLeftOut: read.leftOut
+      });
     }
   };
   globalThis.pageReader = pageReader;

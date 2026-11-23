@@ -6,17 +6,12 @@ import { asNumber } from '@tendril-ui/tendril';
 import { useBindings } from '@tendril-ui/tendril';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
-import { ChartTooltip, HistoryWindow, SeriesTable } from './chartChrome';
-import { linearScale, niceTicks } from './chartScale';
+import { ChartTooltip, HistoryWindow, MonthColumn, SeriesTable, ValueGridlines } from './chartChrome';
+import { frameOf, PLOT_HEIGHT } from './chartFrame';
+import { linearScale, monthSlots, niceTicks } from './chartScale';
 import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
-const PLOT_HEIGHT = 220;
-const TOP_GUTTER = 8;
-const AXIS_BAND = 22;
-const LEFT_GUTTER = 40;
-const RIGHT_GUTTER = 8;
-const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 24;
 const TICK_COUNT = 3;
 
@@ -49,15 +44,12 @@ export function DivergingBar({ widget, context }: { widget: DivergingBarWidget; 
 
   // One scale for both directions, so the taller figure is the taller bar whichever side it is on.
   const reach = Math.max(1, ...months.flatMap((month) => [month.up ?? 0, month.down ?? 0]));
-  const width = measuredWidth || FALLBACK_WIDTH;
-  const plotTop = TOP_GUTTER;
-  const plotBottom = TOP_GUTTER + PLOT_HEIGHT;
+  const { width, height, plotTop, plotBottom, plotLeft, plotRight } = frameOf(measuredWidth, [0, reach]);
   const baseline = (plotTop + plotBottom) / 2;
   const half = PLOT_HEIGHT / 2;
   const heightOf = (figure: number) => (figure / reach) * half;
-  const slotWidth = (width - LEFT_GUTTER - RIGHT_GUTTER) / 12;
+  const { slotWidth, centreOf } = monthSlots(plotLeft, plotRight, false);
   const barWidth = Math.min(WIDEST_BAR, slotWidth * 0.6);
-  const centreOf = (at: number) => LEFT_GUTTER + slotWidth * (at + 0.5);
   const yUp = linearScale([0, reach], [baseline, plotTop]);
   const yDown = linearScale([0, reach], [baseline, plotBottom]);
   const ticks = niceTicks(0, reach, TICK_COUNT).filter((tick) => tick > 0 && tick <= reach);
@@ -79,55 +71,36 @@ export function DivergingBar({ widget, context }: { widget: DivergingBarWidget; 
       <div ref={measure} className="relative mt-2">
         <svg
           width={width}
-          height={plotBottom + AXIS_BAND}
-          viewBox={`0 0 ${width} ${plotBottom + AXIS_BAND}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={widget.title ?? ''}
           className="block max-w-full"
         >
-          {ticks.flatMap((tick) => [
-            <g key={`up-${tick}`}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={yUp(tick)} y2={yUp(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={yUp(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'integer')}
-              </text>
-            </g>,
-            <g key={`down-${tick}`}>
-              <line x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={yDown(tick)} y2={yDown(tick)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={LEFT_GUTTER - 6} y={yDown(tick) + 3.5} fontSize={10} textAnchor="end" fill="var(--chart-ink-muted)" className="tabular-nums">
-                {formatNumber(tick, 'integer')}
-              </text>
-            </g>,
-          ])}
-          <line data-mark="baseline" x1={LEFT_GUTTER} x2={width - RIGHT_GUTTER} y1={baseline} y2={baseline} stroke="var(--chart-axis)" strokeWidth={1} />
+          <ValueGridlines ticks={ticks} y={yUp} left={plotLeft} right={plotRight} />
+          <ValueGridlines ticks={ticks} y={yDown} left={plotLeft} right={plotRight} />
+          <line data-mark="baseline" x1={plotLeft} x2={plotRight} y1={baseline} y2={baseline} stroke="var(--chart-axis)" strokeWidth={1} />
           {months.map((month) => {
             const centre = centreOf(month.at);
             const left = centre - barWidth / 2;
             const up = heightOf(month.up ?? 0);
             const down = heightOf(month.down ?? 0);
             return (
-              <g
+              <MonthColumn
                 key={month.at}
-                data-month={String(month.at + 1)}
-                role="img"
-                tabIndex={0}
-                aria-label={readOut(month)}
-                onFocus={() => setActive(month.at)}
-                onBlur={() => setActive(null)}
-                onMouseEnter={() => setActive(month.at)}
-                onMouseLeave={() => setActive(null)}
-                className="outline-none"
+                monthKey={String(month.at + 1)}
+                centre={centre}
+                markWidth={barWidth}
+                plotTop={plotTop}
+                plotBottom={plotBottom}
+                name={month.name}
+                readOut={readOut(month)}
+                active={active === month.at}
+                onActive={(on) => setActive(on ? month.at : null)}
               >
-                <rect x={left - 6} y={plotTop} width={barWidth + 12} height={PLOT_HEIGHT} fill="transparent" />
                 <rect data-direction="up" x={left} y={baseline - up} width={barWidth} height={up} fill={SIDES[0].fill} />
                 <rect data-direction="down" x={left} y={baseline} width={barWidth} height={down} fill={SIDES[1].fill} />
-                <text x={centre} y={plotBottom + 15} fontSize={10} textAnchor="middle" fill="var(--chart-ink-muted)">
-                  {month.name}
-                </text>
-                {active === month.at && (
-                  <rect x={left - 3} y={plotTop} width={barWidth + 6} height={PLOT_HEIGHT} fill="none" stroke="var(--chart-ink-muted)" strokeWidth={1} rx={3} />
-                )}
-              </g>
+              </MonthColumn>
             );
           })}
         </svg>

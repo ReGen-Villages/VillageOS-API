@@ -6,23 +6,17 @@ import type { Row } from '@tendril-ui/tendril';
  *  holds the rest. */
 const MAXIMUM_PROPERTY_COLUMNS = 6;
 
-export interface BreakdownTable {
+interface BreakdownTable {
   columns: TableColumn[];
   /** Properties the rows carry that no column shows, named so a reader knows the table is not the
    *  whole of what a row holds. */
   omitted: string[];
 }
 
-/** The columns for the rows behind a figure. The name leads, the measure the figure reduced comes
- *  next, and the properties the rows carry follow — the ones that tell rows apart first.
- *
- *  Telling rows apart is what earns a column its place: a property reading the same on every row
- *  says the same thing as the sentence above the table, while the measure is the reason a reader
- *  opened the figure. Ties go to the property more rows carry, then to its name, so the same rows
- *  always draw the same table.
- *
- *  Every label past the first is the model's own property key, untranslated, exactly as a state name
- *  or an archetype is. */
+/** The name, then the measure a reader opened the figure for, then the properties that tell rows apart, because
+ *  one reading the same on every row repeats the sentence above the table. Ties go to the property more rows
+ *  carry, then its name, so the same rows draw the same table. Labels after the first are the model's keys,
+ *  untranslated. */
 export function breakdownTable(rows: Row[], measure: string | null, nameLabel: string): BreakdownTable {
   const rowsHolding = new Map<string, number>();
   const distinct = new Map<string, Set<unknown>>();

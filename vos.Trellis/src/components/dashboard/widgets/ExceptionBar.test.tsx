@@ -3,19 +3,16 @@ import { render, screen } from '@testing-library/react';
 import type { Binding, ExceptionBucket, ExceptionWidget } from '@tendril-ui/tendril';
 import type { ResolveContext } from '@tendril-ui/tendril';
 
-const counts = new Map<string, number>();
+import { values } from '../../../testBindingValues';
 
-vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tendril-ui/tendril')>()),
-  useBindings: (bindings: Binding[]) =>
-    bindings.map((binding) => ({ loading: false, error: false, value: counts.get(JSON.stringify(binding)) ?? null })),
-}));
+vi.mock('@tendril-ui/tendril', async (importOriginal) =>
+  (await import('../../../testBindingValues')).withAnsweredBindings(importOriginal));
 
 const { ExceptionBar } = await import('./ExceptionBar');
 
 function bucket(label: string, count: number, severity: ExceptionBucket['severity']): ExceptionBucket {
   const value = { kind: 'count', archetype: 'Spring', state: label } as unknown as Binding;
-  counts.set(JSON.stringify(value), count);
+  values.set(JSON.stringify(value), count);
   return { label, value, severity };
 }
 

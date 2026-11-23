@@ -24,7 +24,7 @@ public record ObservationIngestResult(
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
 // become structural Things — created once, and related to the endpoint that wrote onto them once —
 // so the graph scales with the number of entities, not readings; the readings themselves are written
-// as observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
+// as observations on each entity's property series (from Canopy into Sapwood), bounded by PropertyMode.
 //
 // The `observed` relationship is what a value can be walked back along to the registration that produced it,
 // and from there to the source through `DataSource resolvedBy Endpoint`. It is written on every ingest
@@ -261,7 +261,7 @@ public class ObservationIngestService
 
             if (_predicateId == null)
             {
-                var isPredicate = await _myceliumClient.FindThingByNameAsync("is", cancellationToken);
+                var isPredicate = await _myceliumClient.FindThingByNameAsync(PlatformPredicates.Is, cancellationToken);
                 var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName, cancellationToken);
                 if (!await _myceliumClient.ApplyFragmentAsync(
                         ObservedEdges.CreationFragment(isPredicate?.Id, binds?.Id, _predicateRootId), cancellationToken))

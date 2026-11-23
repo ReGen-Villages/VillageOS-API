@@ -16,13 +16,13 @@ export const SAVED_DRAWING_FILE = resolve(
   '../../../Tests/vos.BrokerContract.Tests/AgainstTheEngine/Fixtures/the-pipelines-page-saves-a-wait-and-a-relate-box.json',
 );
 
-export interface SavedRequest {
+interface SavedRequest {
   method: 'POST' | 'PUT' | 'DELETE';
   path: string;
   body?: unknown;
 }
 
-export interface SavedDrawing {
+interface SavedDrawing {
   references: string[];
   requests: SavedRequest[];
 }
