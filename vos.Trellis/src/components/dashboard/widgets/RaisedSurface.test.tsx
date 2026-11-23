@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { Binding, RaisedSurfaceWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
@@ -36,6 +36,13 @@ function held(property: string, rows: number, columns: number, numbers: (number 
 
 const widget: RaisedSurfaceWidget = { type: 'raisedSurface', title: 'Surface', surface: held('levels', 2, 2, [100, 100.5, 101, 101.2]), unit: 'm', exaggeration: 3 };
 
+const browserGives = (context: unknown) =>
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never);
+
+beforeEach(() => { browserGives({ getExtension: () => null }); });
+
+afterEach(() => vi.restoreAllMocks());
+
 describe('the raised surface', () => {
   it('hands the scene the grid raised by the exaggeration, within its box', async () => {
     render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
@@ -72,5 +79,23 @@ describe('the raised surface', () => {
 
     expect(screen.queryByTestId('scene')).toBeNull();
     expect(screen.getByText('A raised surface needs a grid of at least two rows and two columns.')).toBeTruthy();
+  });
+
+  it('says a grid of two rows and two columns with no known value holds none', () => {
+    render(<RaisedSurface widget={{ ...widget, surface: held('unknown', 2, 2, [null, null, null, null]) }} context={{} as ResolveContext} />);
+
+    expect(screen.queryByTestId('scene')).toBeNull();
+    expect(screen.getByText('This grid holds no known value.')).toBeTruthy();
+  });
+
+  it('says so in place of the drawing where the browser draws no 3D, and leaves the figures and the table', async () => {
+    browserGives(null);
+    render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
+
+    expect(await screen.findByText('The 3D drawing could not be shown here.')).toBeTruthy();
+    expect(screen.queryByTestId('scene')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('100 m')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Table' })).toBeTruthy();
   });
 });
