@@ -34,6 +34,13 @@ function runsOf(points: ProfilePoint[]): ProfilePoint[][] {
   return runs;
 }
 
+function alongTheLine(span: { from: number; to: number } | null, end: number): { from: number; to: number } | null {
+  if (!span) return null;
+  const from = Math.max(0, span.from);
+  const to = Math.min(end, span.to);
+  return from < to ? { from, to } : null;
+}
+
 export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
@@ -49,7 +56,9 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
   const known = (points ?? []).flatMap((point) => (point.value === null ? [] : [point.value]));
   const range = extentOf(known);
   const [floor, ceiling] = range ? paddedDomain([range.lowest, range.highest]) : [0, 1];
-  const furthest = points && points.length > 1 ? points[points.length - 1].distanceMetres : 1;
+  const end = points ? points[points.length - 1].distanceMetres : 0;
+  const shaded = alongTheLine(span, end);
+  const furthest = end || 1;
   const x = linearScale([0, furthest], [LEFT_GUTTER, width - RIGHT_GUTTER]);
   const y = linearScale([floor, ceiling], [TOP_GUTTER + PLOT_HEIGHT, TOP_GUTTER]);
   const height = TOP_GUTTER + PLOT_HEIGHT + AXIS_BAND;
@@ -68,12 +77,12 @@ export function ProfileLine({ widget, context }: { widget: ProfileLineWidget; co
     <WidgetCard title={widget.title} hint={widget.hint}>
       <div ref={measure} className="relative mt-2">
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={[widget.title, worded && t('widgets.profileLine.figures', worded)].filter(Boolean).join('. ')} className="block max-w-full">
-          {span && (
+          {shaded && (
             <rect
               data-span
-              x={x(span.from)}
+              x={x(shaded.from)}
               y={TOP_GUTTER}
-              width={Math.max(0, x(span.to) - x(span.from))}
+              width={x(shaded.to) - x(shaded.from)}
               height={PLOT_HEIGHT}
               fill="var(--chart-grid)"
               opacity={0.6}
