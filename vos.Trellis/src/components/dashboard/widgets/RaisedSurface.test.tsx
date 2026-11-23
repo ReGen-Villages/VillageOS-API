@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { Binding, RaisedSurfaceWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 import type { RaisedSurface as Surface } from './surfaceGeometry';
@@ -19,7 +19,7 @@ vi.mock('@tendril-ui/tendril', async (importOriginal) => ({
 // The scene needs a graphics card; this stand-in shows what it was handed.
 vi.mock('./RaisedSurfaceScene', () => ({
   default: ({ surface, colours }: { surface: Surface; colours: string[] }) => (
-    <div data-testid="scene" data-triangles={surface.indices.length / 3} data-box={surface.boxHeight} data-first-colour={colours[0]} />
+    <div data-testid="scene" data-triangles={surface.indices.length / 3} data-box={surface.boxHeight} data-colours={new Set(colours).size} />
   ),
 }));
 
@@ -50,6 +50,29 @@ describe('the raised surface', () => {
     const scene = await screen.findByTestId('scene');
     expect(scene.getAttribute('data-triangles')).toBe('2');
     expect(Number(scene.getAttribute('data-box'))).toBeCloseTo(3.6, 5);
+    expect(scene.getAttribute('data-colours')).toBe('4');
+  });
+
+  it('raises the grid by its own values where no exaggeration is given', async () => {
+    render(<RaisedSurface widget={{ ...widget, exaggeration: undefined }} context={{} as ResolveContext} />);
+
+    expect(Number((await screen.findByTestId('scene')).getAttribute('data-box'))).toBeCloseTo(1.2, 5);
+  });
+
+  it('is named by its title and its lowest and highest values', async () => {
+    render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
+
+    await screen.findByTestId('scene');
+    expect(screen.getByRole('img', { name: 'Surface. From 100 m to 101.2 m' })).toBeTruthy();
+  });
+
+  it('lists its values in the table from the northernmost row, a dash for an unknown one', async () => {
+    render(<RaisedSurface widget={{ ...widget, surface: held('oneUnknown', 2, 2, [100, null, 101, 101.2]) }} context={{} as ResolveContext} />);
+
+    await screen.findByTestId('scene');
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+    const rows = screen.getAllByRole('row').slice(1).map((row) => [...row.children].map((cell) => cell.textContent));
+    expect(rows).toEqual([['2', '101 m', '101.2 m'], ['1', '100 m', '—']]);
   });
 
   it('names the lowest and highest values under the drawing', async () => {

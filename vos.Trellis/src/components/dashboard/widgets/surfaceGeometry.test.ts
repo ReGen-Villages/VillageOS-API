@@ -50,8 +50,16 @@ describe('a raised surface', () => {
     expect([surface.lowest, surface.highest]).toEqual([10, 30]);
   });
 
+  it('lays every point of a grid of one value at the bottom of the scale', () => {
+    const surface = raisedSurfaceOf(grid(2, 2, [7, 7, 7, 7]), 1)!;
+
+    expect(Array.from(surface.shares)).toEqual([0, 0, 0, 0]);
+    expect([0, 1, 2, 3].map((point) => riseAt(surface, point))).toEqual([0, 0, 0, 0]);
+  });
+
   it('makes no surface of a grid narrower than two rows and two columns, or with no known value', () => {
     expect(raisedSurfaceOf(grid(1, 3, [1, 2, 3]), 1)).toBeNull();
+    expect(raisedSurfaceOf(grid(3, 1, [1, 2, 3]), 1)).toBeNull();
     expect(raisedSurfaceOf(grid(2, 2, [null, null, null, null]), 1)).toBeNull();
   });
 });
