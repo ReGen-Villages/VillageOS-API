@@ -576,6 +576,22 @@ describe('subscriptionForSpec over a gridMap widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a profileLine widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'profileLine',
+              title: 'West to east',
+              profile: { kind: 'aggregate', archetype: 'Levels', reduction: 'count' },
+              span: { from: { kind: 'aggregate', archetype: 'SpanFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'SpanTo', reduction: 'count' } },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Levels', 'SpanFrom', 'SpanTo']));
+  });
+});
+
 describe('subscriptionForSpec over a stackedShares widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(

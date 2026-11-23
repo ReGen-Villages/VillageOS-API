@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { profileFigures, profilePoints, profileWords } from './profileReading';
+import { profileFigures, profilePoints, profileSpanOf, profileWords } from './profileReading';
 
 const along = (rows: number, columns: number, values: (number | null)[]) => ({
   originLatitude: 25, originLongitude: 55, cellSizeMetres: 30, latitudeStepDegrees: 0.0003, longitudeStepDegrees: 0.0003,
@@ -36,6 +36,12 @@ describe('the figures of a profile', () => {
 
   it('gives nothing where the span holds no known value', () => {
     expect(profileFigures(points, { from: 55, to: 65 })).toBeNull();
+  });
+
+  it('takes a span only where both its ends are numbers', () => {
+    expect(profileSpanOf(30, 90)).toEqual({ from: 30, to: 90 });
+    expect(profileSpanOf(30, null)).toBeNull();
+    expect(profileSpanOf(undefined, 90)).toBeNull();
   });
 
   it('writes them in the language asked, with the unit', () => {

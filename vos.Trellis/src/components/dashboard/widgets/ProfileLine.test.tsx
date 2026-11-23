@@ -94,4 +94,13 @@ describe('the profile line', () => {
     expect(screen.getByRole('tooltip').textContent).toContain('30 m along the line');
     expect(screen.getByRole('tooltip').textContent).toContain('112 m');
   });
+
+  it('shows no tooltip once the pointer leaves the point', () => {
+    const { container } = draw();
+    fireEvent.mouseEnter(container.querySelector('circle[data-distance="30"]')!);
+
+    fireEvent.mouseLeave(container.querySelector('circle[data-distance="30"]')!);
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
 });
