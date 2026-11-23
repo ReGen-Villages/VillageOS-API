@@ -4,24 +4,6 @@ import type { GridValue } from '@tendril-ui/tendril';
  *  stays well under half a second, while a grid at the platform's own limit freezes the page for seconds. */
 export const MOST_CELLS_A_MAP_DRAWS = 10_000;
 
-export function cellsIn(grid: GridValue): number {
-  return grid.rows * grid.columns;
-}
-
-const GRID_NUMBERS = ['originLatitude', 'originLongitude', 'cellSizeMetres', 'latitudeStepDegrees', 'longitudeStepDegrees'] as const;
-
-export function gridOf(value: unknown): GridValue | null {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  const held = value as Record<string, unknown>;
-  if (GRID_NUMBERS.some((name) => typeof held[name] !== 'number' || !Number.isFinite(held[name]))) return null;
-  if ((held.latitudeStepDegrees as number) <= 0 || (held.longitudeStepDegrees as number) <= 0) return null;
-  const { rows, columns, values } = held;
-  if (!Number.isInteger(rows) || !Number.isInteger(columns) || (rows as number) < 1 || (columns as number) < 1) return null;
-  if (!Array.isArray(values) || values.length !== (rows as number) * (columns as number)) return null;
-  if (!values.every((cell) => cell === null || (typeof cell === 'number' && Number.isFinite(cell)))) return null;
-  return held as unknown as GridValue;
-}
-
 export interface CellBounds {
   south: number;
   north: number;

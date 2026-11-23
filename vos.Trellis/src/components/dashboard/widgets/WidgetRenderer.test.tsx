@@ -35,6 +35,13 @@ describe('a widget kind this build has no drawing for', () => {
     expect(screen.getByText('Elevation')).toBeInTheDocument();
   });
 
+  it('draws a profile line without the notice', () => {
+    draw({ type: 'profileLine', title: 'West to east', profile: { kind: 'value', property: 'levels' } });
+
+    expect(screen.queryByText('Widget not drawn')).toBeNull();
+    expect(screen.getByText('West to east')).toBeInTheDocument();
+  });
+
   it('draws a kind it does know without the notice', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { kind: 'const', value: 1 } });
 

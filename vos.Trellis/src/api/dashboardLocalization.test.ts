@@ -7,6 +7,7 @@ import type {
   DepthProfileWidget,
   FunnelWidget,
   GridMapWidget,
+  ProfileLineWidget,
   PolarSharesWidget,
   KpiWidget,
   LeaderboardWidget,
@@ -535,6 +536,33 @@ describe('localizeSpecification over a gridMap widget', () => {
     expect(localized.hint).toBe('una celda por punto');
     expect(localized.unit).toBe('metros');
     expect(localized.classes?.[0].label).toBe('empinada');
+  });
+});
+
+describe('localizeSpecification over a profileLine widget', () => {
+  const specification: DashboardSpecification = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'profileLine',
+              title: 'West to east',
+              hint: 'one point per cell',
+              unit: 'metres',
+              profile: { kind: 'value', property: 'levels' },
+            } satisfies ProfileLineWidget] }],
+    translations: {
+      es: {
+          'West to east': 'De oeste a este',
+          'one point per cell': 'un punto por celda',
+          'metres': 'metros',
+      },
+    },
+  };
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as ProfileLineWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('De oeste a este');
+    expect(localized.hint).toBe('un punto por celda');
+    expect(localized.unit).toBe('metros');
   });
 });
 

@@ -735,6 +735,21 @@ export interface GridMapWidget {
   unit?: string;
 }
 
+/** Values along a line, from a one-row (west to east) or one-column (south to north) `vos.Grid` the
+ *  page's own Thing holds, read through a `value` binding, each point a cell's size further along. The
+ *  stretch from `span.from` to `span.to` metres along the line is shaded, and its lowest and highest
+ *  value and their difference are written under the chart; with no span, the whole line's. What the
+ *  values are is the page's to say, in its title and `unit`. */
+export interface ProfileLineWidget {
+  type: 'profileLine';
+  title?: string;
+  hint?: string;
+  profile: Binding;
+  span?: { from: Binding; to: Binding };
+  format?: NumberFormat;
+  unit?: string;
+}
+
 /** One part of a depth profile: what it is called, the row key holding its value, and its colour. */
 interface DepthProfilePart {
   label: string;
@@ -1058,6 +1073,7 @@ export type Widget = Placed & (
   | PolarSharesWidget
   | DensityGridWidget
   | GridMapWidget
+  | ProfileLineWidget
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget

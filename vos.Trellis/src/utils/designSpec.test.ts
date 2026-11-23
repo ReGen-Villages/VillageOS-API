@@ -69,6 +69,7 @@ describe('unboundSlots', () => {
     expect(unboundSlots(emptyWidget('kpi', 't'))).toEqual(['value']);
     expect(unboundSlots(emptyWidget('table', 't'))).toEqual(['rows']);
     expect(unboundSlots(emptyWidget('leaderboard', 't'))).toEqual(['entities']);
+    expect(unboundSlots(emptyWidget('profileLine', 't'))).toEqual(['profile']);
     expect(unboundSlots(figure('bound'))).toEqual([]);
   });
 });

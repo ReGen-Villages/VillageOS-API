@@ -1,6 +1,7 @@
 import type { Binding, DashboardSpecification, Widget } from '@tendril-ui/tendril';
 import { GEOJSON_DRAWN_IN, readsOnlyThePage } from './geoJsonDrawing';
-import { MOST_CELLS_A_MAP_DRAWS, cellsIn, gridOf } from '../components/dashboard/widgets/gridGeometry';
+import { cellsIn, gridOf } from '@tendril-ui/tendril';
+import { MOST_CELLS_A_MAP_DRAWS } from '../components/dashboard/widgets/gridGeometry';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
