@@ -31,6 +31,7 @@ public sealed class PipelineExecutor
     private readonly WaitDeadlines _deadlines = new();
     private readonly RunPlaces _places = new();
     private readonly Func<TimeSpan, Task> _pause;
+    private readonly TaskCompletionSource _shuttingDown = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public PipelineExecutor(
         IMyceliumGateway gateway,
@@ -46,6 +47,7 @@ public sealed class PipelineExecutor
         _clock = clock;
         _pause = pause ?? (length => Task.Delay(length));
         _reports = new CallReporter(gateway, logger, _pause);
+        lifetime?.ApplicationStopping.Register(() => _shuttingDown.TrySetResult());
     }
 
     // runId: Pre-generated run id for a run started in the background (the editor already holds it to
@@ -69,7 +71,7 @@ public sealed class PipelineExecutor
         using (await _turns.TakeAsync(rid, cancellationToken))
         {
             var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, new Start(runParams, rehearsal));
-            var queueNumber = dag is null ? null : TakePlaceOrQueue(dag, rid, handedOver);
+            var queueNumber = dag is null ? null : TakePlaceOrQueue(dag, rid, callRecordId, handedOver);
             try
             {
                 await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal,
@@ -91,18 +93,18 @@ public sealed class PipelineExecutor
         }
         return handedOver is null
             ? PipelineRunResult.Failed(rid, pipelineId, queued)
-            : await BeginOnceHandedOverAsync(rid, pipelineId, handedOver, cancellationToken);
+            : await BeginOnceHandedOverAsync(rid, pipelineId, callRecordId, handedOver, cancellationToken);
     }
 
     public int PipelinesHoldingPlaces => _places.PipelinesHeld;
 
     // Answers the queue number of a run no place was free for, which is begun once one is handed over to it.
-    private long? TakePlaceOrQueue(PipelineDag dag, Guid runId, TaskCompletionSource? handedOver = null)
+    private long? TakePlaceOrQueue(PipelineDag dag, Guid runId, Guid? callRecordId, TaskCompletionSource? handedOver)
     {
         var pipelineId = dag.PipelineId;
         var joining = _places.Join(pipelineId, runId, dag.RunsAtOnce, () =>
         {
-            if (handedOver is null || !handedOver.TrySetResult()) BeginInBackground(runId, pipelineId);
+            if (handedOver is null || !handedOver.TrySetResult()) BeginInBackground(runId, pipelineId, callRecordId);
         });
         foreach (var begin in joining.HandedOver) begin();
         return joining.QueueNumber;
@@ -110,12 +112,13 @@ public sealed class PipelineExecutor
 
     private void LeavePlace(Guid pipelineId, Guid runId)
     {
-        if (_places.Leave(pipelineId, runId)) _ = Task.Run(() => HandOverAsync(pipelineId));
+        if (_places.Leave(pipelineId, runId) && !_shuttingDown.Task.IsCompleted) _ = Task.Run(() => HandOverAsync(pipelineId));
     }
 
     private async Task HandOverAsync(Guid pipelineId)
     {
-        var graph = await UntilTheModelAnswersAsync(pipelineId, () => _gateway.LoadPipelineSubgraphAsync(pipelineId, CancellationToken.None));
+        var graph = await UntilTheModelAnswersAsync(pipelineId, () => _gateway.LoadPipelineSubgraphAsync(pipelineId, CancellationToken.None), _shuttingDown.Task);
+        if (graph is null) return;
         int? limit;
         try { limit = PipelineDagBuilder.Build(graph, pipelineId).RunsAtOnce; }
         // Every queued run is handed over, so that each is refused with the reason its drawing cannot be read.
@@ -124,8 +127,8 @@ public sealed class PipelineExecutor
     }
 
     // A queue whose next run cannot be read waits for the model, because going on to the next would leave every run
-    // behind it queued with nothing to begin it.
-    private async Task<T> UntilTheModelAnswersAsync<T>(Guid pipelineId, Func<Task<T>> read)
+    // behind it queued with nothing to begin it. Null once it is given up or the orchestrator stops.
+    private async Task<T?> UntilTheModelAnswersAsync<T>(Guid pipelineId, Func<Task<T>> read, Task givenUp) where T : class?
     {
         for (var failuresInARow = 0; ; failuresInARow++)
         {
@@ -134,18 +137,20 @@ public sealed class PipelineExecutor
             {
                 if (failuresInARow == 0)
                     _logger.LogWarning(unanswered, "The model could not be read to begin a queued run of pipeline {PipelineId}; it is read again, each pause longer, until it answers", pipelineId);
-                await _pause(CallReporter.PauseAfter(failuresInARow + 1));
+                await Task.WhenAny(_pause(CallReporter.PauseAfter(failuresInARow + 1)), givenUp, _shuttingDown.Task);
+                if (givenUp.IsCompleted || _shuttingDown.Task.IsCompleted) return null;
             }
         }
     }
 
-    private void BeginInBackground(Guid runId, Guid pipelineId) => _ = Task.Run(async () =>
+    private void BeginInBackground(Guid runId, Guid pipelineId, Guid? callRecordId) => _ = Task.Run(async () =>
     {
-        try { await BeginQueuedAsync(runId, pipelineId, CancellationToken.None); }
+        try { await BeginQueuedAsync(runId, pipelineId, callRecordId, CancellationToken.None); }
         catch (Exception ex) { _logger.LogError(ex, "Queued run {RunId} of pipeline {PipelineId} failed to run", runId, pipelineId); }
     });
 
-    private async Task<PipelineRunResult> BeginOnceHandedOverAsync(Guid runId, Guid pipelineId, TaskCompletionSource handedOver, CancellationToken cancellationToken)
+    private async Task<PipelineRunResult> BeginOnceHandedOverAsync(
+        Guid runId, Guid pipelineId, Guid? callRecordId, TaskCompletionSource handedOver, CancellationToken cancellationToken)
     {
         try
         {
@@ -160,7 +165,7 @@ public sealed class PipelineExecutor
             }
             throw;
         }
-        return await BeginQueuedAsync(runId, pipelineId, cancellationToken);
+        return await BeginQueuedAsync(runId, pipelineId, callRecordId, cancellationToken);
     }
 
     private async Task CancelQueuedAsync(Guid runId)
@@ -170,18 +175,25 @@ public sealed class PipelineExecutor
             await EndRunAsync(record, RunStatus.Cancelled, "The caller waiting for the run went away while it was queued.", CancellationToken.None);
     }
 
-    // Read back from its record, so a queued run holds nothing here but its identifier. A run that ended while it was
-    // queued is passed over.
-    private async Task<PipelineRunResult> BeginQueuedAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken)
+    // Read back from its record, so a queued run holds only identifiers here. A run that ended while it was queued is
+    // passed over.
+    private async Task<PipelineRunResult> BeginQueuedAsync(Guid runId, Guid pipelineId, Guid? callRecordId, CancellationToken cancellationToken)
     {
         try
         {
             using var turn = await _turns.TakeAsync(runId, CancellationToken.None);
-            var record = await UntilTheModelAnswersAsync(pipelineId, () => _gateway.ReadRunRecordAsync(runId, CancellationToken.None));
+            var record = await UntilTheModelAnswersAsync(pipelineId, () => _gateway.ReadRunRecordAsync(runId, CancellationToken.None),
+                _stops.GetOrAdd(runId, _ => NewStop()).Task);
+            if (record is null && StopOf(runId) is { } stop)
+            {
+                await RecordStoppedAsync(runId, callRecordId, stop, CancellationToken.None);
+                return PipelineRunResult.Failed(runId, pipelineId, RunStatus.StoppedBecause(stop.Reason));
+            }
             if (record is not { Status: RunStatus.Queued })
-                return PipelineRunResult.Failed(runId, pipelineId, record is null
-                    ? "The run never began: the model no longer holds it."
-                    : $"The run never began: it was {record.Status} while it was queued.");
+                return PipelineRunResult.Failed(runId, pipelineId, "The run never began: " + (
+                    record is not null ? $"it was {record.Status} while it was queued."
+                    : _shuttingDown.Task.IsCompleted ? "the orchestrator is stopping."
+                    : "the model no longer holds it."));
 
             var (dag, refusal) = await LoadAsync(pipelineId, CancellationToken.None, new Start(record.Parameters, record.Rehearsal));
             if (dag is not null)
@@ -202,6 +214,7 @@ public sealed class PipelineExecutor
         }
         finally
         {
+            _stops.TryRemove(runId, out _);
             LeavePlace(pipelineId, runId);
         }
     }
@@ -211,7 +224,7 @@ public sealed class PipelineExecutor
     {
         var queued = await _gateway.QueuedRunsAsync(cancellationToken);
         foreach (var run in queued)
-            _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber, () => BeginInBackground(run.RunId, run.PipelineId));
+            _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber, () => BeginInBackground(run.RunId, run.PipelineId, run.CallRecordId));
         foreach (var pipelineId in queued.Select(run => run.PipelineId).Distinct())
             await HandOverAsync(pipelineId);
         return queued.Count;
@@ -267,10 +280,15 @@ public sealed class PipelineExecutor
             await PersistStatusAsync(record.RunId, new NodeRunResult(nodeId, name, RunStatus.Cancelled, NoOutputs, request.Reason), cancellationToken,
                 recorded?.Watching);
         }
-        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Cancelled, cancellationToken, request.Reason,
-            heldUntilReported: record.CallRecordId is not null), "set run stopped");
-        await BestEffort(() => _gateway.RelateStoppedByAsync(record.RunId, request.RequestId, cancellationToken), "relate the stop");
-        Report(record.RunId, record.CallRecordId, RunStatus.Cancelled, request.Reason);
+        await RecordStoppedAsync(record.RunId, record.CallRecordId, request, cancellationToken);
+    }
+
+    private async Task RecordStoppedAsync(Guid runId, Guid? callRecordId, StopRequested request, CancellationToken cancellationToken)
+    {
+        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Cancelled, cancellationToken, request.Reason,
+            heldUntilReported: callRecordId is not null), "set run stopped");
+        await BestEffort(() => _gateway.RelateStoppedByAsync(runId, request.RequestId, cancellationToken), "relate the stop");
+        Report(runId, callRecordId, RunStatus.Cancelled, request.Reason);
     }
 
     private static TaskCompletionSource<StopRequested> NewStop() => new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -548,7 +566,7 @@ public sealed class PipelineExecutor
 
         var fresh = Guid.NewGuid();
         var freshTurn = await _turns.TakeAsync(fresh, cancellationToken);
-        var queueNumber = TakePlaceOrQueue(dag, fresh);
+        var queueNumber = TakePlaceOrQueue(dag, fresh, callRecordId: null, handedOver: null);
         var recorded = false;
         var sweeping = false;
         try

@@ -571,7 +571,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             .Where(run => run.PropertyString(ModelNames.Status) == RunStatus.Queued)
             .Select(run => PipelineNamedBy(run) is { } pipelineId
                 && long.TryParse(run.PropertyString(ModelNames.QueueNumber), NumberStyles.Integer, CultureInfo.InvariantCulture, out var queueNumber)
-                ? new QueuedRun(run.Id, pipelineId, queueNumber)
+                ? new QueuedRun(run.Id, pipelineId, queueNumber, CallRecordOf(run))
                 : null)
             .OfType<QueuedRun>()
             .ToList();
