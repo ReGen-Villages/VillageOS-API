@@ -5,11 +5,11 @@ import { profileFigures, profilePoints, profileSpanOf, profileWords, useBindings
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { ChartTooltip, SeriesTable } from './chartChrome';
+import { FALLBACK_WIDTH } from './chartFrame';
 import { linearScale, niceTicks, paddedDomain } from './chartScale';
 import { extentOf } from './gridGeometry';
 import { formatNumber } from './format';
 
-const FALLBACK_WIDTH = 480;
 const PLOT_HEIGHT = 200;
 const TOP_GUTTER = 8;
 const AXIS_BAND = 22;
