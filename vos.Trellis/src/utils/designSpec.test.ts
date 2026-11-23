@@ -71,6 +71,7 @@ describe('unboundSlots', () => {
     expect(unboundSlots(emptyWidget('leaderboard', 't'))).toEqual(['entities']);
     expect(unboundSlots(emptyWidget('profileLine', 't'))).toEqual(['profile']);
     expect(unboundSlots(emptyWidget('raisedSurface', 't'))).toEqual(['surface']);
+    expect(unboundSlots({ type: 'raisedSurface', title: 't', surface: { kind: 'value', property: 'levels' } })).toEqual([]);
     expect(unboundSlots(figure('bound'))).toEqual([]);
   });
 });

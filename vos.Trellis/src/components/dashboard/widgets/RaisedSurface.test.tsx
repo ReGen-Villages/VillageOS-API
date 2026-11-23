@@ -59,6 +59,13 @@ describe('the raised surface', () => {
     expect(Number((await screen.findByTestId('scene')).getAttribute('data-box'))).toBeCloseTo(1.2, 5);
   });
 
+  it('writes the lowest and highest values alone where no unit is given', async () => {
+    render(<RaisedSurface widget={{ ...widget, unit: undefined }} context={{} as ResolveContext} />);
+
+    await screen.findByTestId('scene');
+    expect(screen.getByRole('img', { name: 'Surface. From 100 to 101.2' })).toBeTruthy();
+  });
+
   it('is named by its title and its lowest and highest values', async () => {
     render(<RaisedSurface widget={widget} context={{} as ResolveContext} />);
 
