@@ -42,11 +42,10 @@ public sealed class EndpointBodyReader : MyceliumClientBase, IEndpointBodyReader
             if (response.IsSuccessStatusCode)
                 return await response.Content.ReadAsStringAsync(bounded.Token);
 
-            // The provider's own words, because a caller deciding whether to ask a coarser question needs
-            // to know it was refused rather than answered nothing.
-            Logger.LogWarning("Reading {Endpoint} through {Subdomain} was answered {Status}: {Body}",
-                endpointName, _fetcherSubdomain, (int)response.StatusCode,
-                Summarize(await response.Content.ReadAsStringAsync(bounded.Token)));
+            // The answer is left out, because a provider can repeat the address it was asked at, which holds a key and
+            // where the site is.
+            Logger.LogWarning("Reading {Endpoint} through {Subdomain} was answered {Status}",
+                endpointName, _fetcherSubdomain, (int)response.StatusCode);
             return null;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -61,14 +60,5 @@ public sealed class EndpointBodyReader : MyceliumClientBase, IEndpointBodyReader
                 endpointName, _fetcherSubdomain);
             return null;
         }
-    }
-
-    // A refusal is read by a person, so the log carries the provider's own words but not a whole error document.
-    private const int LongestReason = 300;
-
-    private static string Summarize(string body)
-    {
-        var trimmed = body.Trim();
-        return trimmed.Length <= LongestReason ? trimmed : trimmed[..LongestReason] + "…";
     }
 }
