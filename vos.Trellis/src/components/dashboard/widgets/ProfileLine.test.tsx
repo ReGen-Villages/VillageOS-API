@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import type { Binding, ProfileLineWidget } from '@tendril-ui/tendril';
 import type { BindingResult, ResolveContext } from '@tendril-ui/tendril';
 
@@ -56,6 +56,43 @@ describe('the profile line', () => {
     const end = container.querySelector('circle[data-distance="90"]')!;
     expect(Number(shade.getAttribute('x'))).toBeCloseTo(Number(start.getAttribute('cx')), 5);
     expect(Number(shade.getAttribute('x')) + Number(shade.getAttribute('width'))).toBeCloseTo(Number(end.getAttribute('cx')), 5);
+  });
+
+  const spanning = (from: number, to: number): ProfileLineWidget => ({
+    ...widget,
+    span: {
+      from: held({ kind: 'property', thing: '$scope', property: `from ${from}` }, from),
+      to: held({ kind: 'property', thing: '$scope', property: `to ${to}` }, to),
+    },
+  });
+
+  it.each([
+    [-30, 90, 0, 90],
+    [30, 500, 30, 120],
+    [-30, 500, 0, 120],
+  ])('shades a span from %i to %i metres only along the line, from %i to %i', (from, to, start, end) => {
+    const { container } = draw(spanning(from, to));
+
+    const shade = container.querySelector('rect[data-span]')!;
+    const alongAt = (metres: number) => Number(container.querySelector(`circle[data-distance="${metres}"]`)!.getAttribute('cx'));
+    expect(Number(shade.getAttribute('x'))).toBeCloseTo(alongAt(start), 5);
+    expect(Number(shade.getAttribute('x')) + Number(shade.getAttribute('width'))).toBeCloseTo(alongAt(end), 5);
+  });
+
+  it.each([[150, 300], [-90, -30], [90, 30]])('shades nothing for a span from %i to %i metres, which holds no stretch of the line', (from, to) => {
+    const { container } = draw(spanning(from, to));
+
+    expect(container.querySelector('rect[data-span]')).toBeNull();
+  });
+
+  it('writes the same figures for a span past the end as for one that stops there', () => {
+    draw(spanning(30, 500));
+    const past = screen.getByText(/^Lowest/).textContent;
+    cleanup();
+    draw(spanning(30, 120));
+
+    expect(past).toBe('Lowest 70 m, highest 112 m, difference 42 m');
+    expect(screen.getByText(/^Lowest/).textContent).toBe(past);
   });
 
   it('writes the span\'s lowest, highest and difference under the chart', () => {
