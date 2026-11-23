@@ -392,6 +392,8 @@ export const en = {
     },
     raisedSurface: {
       notASurface: 'A raised surface needs a grid of at least two rows and two columns.',
+      noKnownValue: 'This grid holds no known value.',
+      notShown: 'The 3D drawing could not be shown here.',
       range: 'From {{lowest}} to {{highest}}',
       tableTooLarge: 'This grid holds {{cells}} cells; its table is offered up to {{most}}.',
     },

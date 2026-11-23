@@ -393,6 +393,8 @@ export const de: PartialResources = {
     },
     raisedSurface: {
       notASurface: 'Eine erhöhte Fläche braucht ein Raster mit mindestens zwei Zeilen und zwei Spalten.',
+      noKnownValue: 'Dieses Raster enthält keinen bekannten Wert.',
+      notShown: 'Die 3D-Darstellung konnte hier nicht angezeigt werden.',
       range: 'Von {{lowest}} bis {{highest}}',
       tableTooLarge: 'Dieses Raster hat {{cells}} Zellen; seine Tabelle wird bis {{most}} angeboten.',
     },

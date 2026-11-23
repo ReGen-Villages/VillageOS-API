@@ -393,6 +393,8 @@ export const nl: PartialResources = {
     },
     raisedSurface: {
       notASurface: 'Een verhoogd vlak heeft een raster van minstens twee rijen en twee kolommen nodig.',
+      noKnownValue: 'Dit raster bevat geen bekende waarde.',
+      notShown: 'De 3D-tekening kon hier niet worden getoond.',
       range: 'Van {{lowest}} tot {{highest}}',
       tableTooLarge: 'Dit raster heeft {{cells}} cellen; de tabel wordt aangeboden tot {{most}}.',
     },

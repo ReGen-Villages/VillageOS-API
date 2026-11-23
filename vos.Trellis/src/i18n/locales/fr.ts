@@ -393,6 +393,8 @@ export const fr: PartialResources = {
     },
     raisedSurface: {
       notASurface: 'Une surface en relief demande une grille d’au moins deux lignes et deux colonnes.',
+      noKnownValue: 'Cette grille ne contient aucune valeur connue.',
+      notShown: 'Le dessin en 3D n’a pas pu être affiché ici.',
       range: 'De {{lowest}} à {{highest}}',
       tableTooLarge: 'Cette grille compte {{cells}} cellules ; son tableau est proposé jusqu’à {{most}}.',
     },

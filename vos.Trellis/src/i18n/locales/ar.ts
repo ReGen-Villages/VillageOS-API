@@ -435,6 +435,8 @@ export const ar: WithArabicPluralForms<Resources> = {
     },
     raisedSurface: {
       notASurface: "يحتاج السطح البارز إلى شبكة من صفين وعمودين على الأقل.",
+      noKnownValue: "لا تحتوي هذه الشبكة على أي قيمة معروفة.",
+      notShown: "تعذّر عرض الرسم ثلاثي الأبعاد هنا.",
       range: "من {{lowest}} إلى {{highest}}",
       tableTooLarge: "تحتوي هذه الشبكة على {{cells}} خلية؛ يُعرض جدولها حتى {{most}} خلية.",
     },

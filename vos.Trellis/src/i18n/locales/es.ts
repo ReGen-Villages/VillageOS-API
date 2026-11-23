@@ -393,6 +393,8 @@ export const es: PartialResources = {
     },
     raisedSurface: {
       notASurface: 'Una superficie elevada necesita una cuadrícula de al menos dos filas y dos columnas.',
+      noKnownValue: 'Esta cuadrícula no contiene ningún valor conocido.',
+      notShown: 'No se pudo mostrar aquí el dibujo en 3D.',
       range: 'De {{lowest}} a {{highest}}',
       tableTooLarge: 'Esta cuadrícula tiene {{cells}} celdas; su tabla se ofrece hasta {{most}}.',
     },

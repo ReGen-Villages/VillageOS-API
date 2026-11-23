@@ -393,6 +393,8 @@ export const it: PartialResources = {
     },
     raisedSurface: {
       notASurface: 'Una superficie in rilievo richiede una griglia di almeno due righe e due colonne.',
+      noKnownValue: 'Questa griglia non contiene alcun valore noto.',
+      notShown: 'Non è stato possibile mostrare qui il disegno in 3D.',
       range: 'Da {{lowest}} a {{highest}}',
       tableTooLarge: 'Questa griglia ha {{cells}} celle; la sua tabella è offerta fino a {{most}}.',
     },

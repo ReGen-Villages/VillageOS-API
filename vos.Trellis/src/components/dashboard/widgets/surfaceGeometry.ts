@@ -19,9 +19,13 @@ export interface RaisedSurface {
   highest: number;
 }
 
+export function hasTwoRowsAndColumns(grid: GridValue): boolean {
+  return grid.rows >= 2 && grid.columns >= 2;
+}
+
 export function raisedSurfaceOf(grid: GridValue, exaggeration: number): RaisedSurface | null {
   const { rows, columns, cellSizeMetres, values } = grid;
-  if (rows < 2 || columns < 2) return null;
+  if (!hasTwoRowsAndColumns(grid)) return null;
   const range = extentOf(values.filter((value): value is number => value !== null));
   if (!range) return null;
 
