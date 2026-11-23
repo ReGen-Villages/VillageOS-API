@@ -28,6 +28,13 @@ describe('a widget kind this build has no drawing for', () => {
     expect(screen.getByText('Widget not drawn')).toBeInTheDocument();
   });
 
+  it('draws a grid map without the notice', () => {
+    draw({ type: 'gridMap', title: 'Elevation', grid: { kind: 'value', property: 'heights' } });
+
+    expect(screen.queryByText('Widget not drawn')).toBeNull();
+    expect(screen.getByText('Elevation')).toBeInTheDocument();
+  });
+
   it('draws a kind it does know without the notice', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { kind: 'const', value: 1 } });
 

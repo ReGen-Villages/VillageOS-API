@@ -559,6 +559,23 @@ describe('subscriptionForSpec over a heatmap widget', () => {
   });
 });
 
+describe('subscriptionForSpec over a gridMap widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
+              type: 'gridMap',
+              title: 'Elevation',
+              grid: { kind: 'aggregate', archetype: 'Heights', reduction: 'count' },
+              outline: { kind: 'aggregate', archetype: 'Boundary', reduction: 'count' },
+              classes: [{ label: 'steep', colour: '#f00', from: { kind: 'aggregate', archetype: 'SteepFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'SteepTo', reduction: 'count' } }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Heights', 'Boundary', 'SteepFrom', 'SteepTo']));
+  });
+});
+
 describe('subscriptionForSpec over a stackedShares widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpecification(

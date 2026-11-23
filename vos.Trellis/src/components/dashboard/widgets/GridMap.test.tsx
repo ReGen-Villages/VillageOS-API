@@ -154,4 +154,13 @@ describe('the grid map', () => {
     expect(tooltip.textContent).toContain('Row 2, column 3');
     expect(tooltip.textContent!.split('112 m')).toHaveLength(2);
   });
+
+  it('shows no tooltip once the pointer leaves the cell', () => {
+    const { container } = draw();
+    fireEvent.mouseEnter(cellAt(container, 1, 2)!);
+
+    fireEvent.mouseLeave(cellAt(container, 1, 2)!);
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
 });
