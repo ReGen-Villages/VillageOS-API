@@ -17,6 +17,37 @@ public class EndpointCallChecksTests
     private static readonly ResolvedKind DiskCache = new("DiskCache", ["cacheTtl"]);
     private static readonly ResolvedKind ModelAsset = new("ModelAsset", ["assetProperty", "assetSubject"]);
 
+    [Theory]
+    [InlineData("true")]
+    [InlineData("null")]
+    public void NotEnabled_SwitchedOnOrLeftUnset_RefusesNothing(string json) =>
+        EndpointCallChecks.NotEnabled("tiles", EffectiveRaw(("Endpoint.enabled", json))).Should().BeNull();
+
+    [Fact]
+    public void NotEnabled_NoSwitchDeclared_RefusesNothing() =>
+        EndpointCallChecks.NotEnabled("tiles", Effective()).Should().BeNull();
+
+    [Fact]
+    public void NotEnabled_SwitchedOff_RefusesNamingTheEndpoint()
+    {
+        var refusal = EndpointCallChecks.NotEnabled("tiles", EffectiveRaw(("Endpoint.enabled", "false")));
+
+        refusal!.StatusCode.Should().Be(409);
+        refusal.Error.Should().Contain("'tiles'").And.Contain("disabled");
+    }
+
+    [Theory]
+    [InlineData("\"false\"")]
+    [InlineData("\"\"")]
+    [InlineData("0")]
+    public void NotEnabled_NeitherTrueNorFalse_RefusesRatherThanCalling(string json)
+    {
+        var refusal = EndpointCallChecks.NotEnabled("tiles", EffectiveRaw(("Endpoint.enabled", json)));
+
+        refusal!.StatusCode.Should().Be(400);
+        refusal.Error.Should().Contain("enabled");
+    }
+
     [Fact]
     public void UnmetRequirement_EverythingSupplied_RefusesNothing()
     {

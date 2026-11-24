@@ -909,6 +909,7 @@ public class HandleEndpointTests
     [Theory]
     [InlineData("queryParams")]
     [InlineData("requestContentType")]
+    [InlineData("enabled")]
     [InlineData("timeout")]
     public async Task Handle_AmbiguousBaseCapabilityProperty_Returns400(string property)
     {
