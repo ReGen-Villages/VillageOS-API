@@ -132,12 +132,19 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model) RunStatuses[runId] = RunStatus.Running;
     }
 
+    private readonly TaskCompletionSource _queuedRunsListed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task QueuedRunsListed => _queuedRunsListed.Task;
+
     public Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken ct)
     {
         lock (_model)
-            return Task.FromResult<IReadOnlyList<QueuedRun>>(RunStatuses.Where(run => run.Value == RunStatus.Queued)
+        {
+            IReadOnlyList<QueuedRun> queued = RunStatuses.Where(run => run.Value == RunStatus.Queued)
                 .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key],
-                    CallRecordsOfRuns.TryGetValue(run.Key, out var callRecord) ? callRecord : null)).ToList());
+                    CallRecordsOfRuns.TryGetValue(run.Key, out var callRecord) ? callRecord : null)).ToList();
+            _queuedRunsListed.TrySetResult();
+            return Task.FromResult(queued);
+        }
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
@@ -398,13 +405,16 @@ internal sealed class FakeGateway : IMyceliumGateway
         }
     }
 
-    public Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken ct)
+    public Task WaitsListingHeldUntil { get; set; } = Task.CompletedTask;
+
+    public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken ct)
     {
+        await WaitsListingHeldUntil;
         lock (_model)
-            return Task.FromResult<IReadOnlyList<HeldWait>>(Records.Where(record => record.Value.Status == RunStatus.Waiting)
+            return Records.Where(record => record.Value.Status == RunStatus.Waiting)
                 .Select(record => new HeldWait(record.Key.RunId, record.Key.NodeId,
                     Watches.GetValueOrDefault(record.Key) ?? new Watch(null, null), Answers.GetValueOrDefault(record.Key)))
-                .ToList());
+                .ToList();
     }
 
     public List<(Guid NodeId, int? Index, IReadOnlyList<Guid> Things)> Produced { get; } = new();
