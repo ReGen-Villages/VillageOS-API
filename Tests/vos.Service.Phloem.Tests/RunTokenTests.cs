@@ -363,10 +363,19 @@ public class RunTokenTests
 
         public async Task<HttpResponseMessage> MakeAsync(Call call)
         {
+            await UntilTheRecoveryAtStartHasMadeItsLastListingAsync();
             var body = await BodyOfAsync(call);
             lock (_gateway.StatusUpdates) _gateway.StatusUpdates.Clear();
             _writtenBefore = _gateway.WrittenUnder.Count;
             return await PostAsync(body);
+        }
+
+        // A run arranged earlier can be listed by the recovery, which then sweeps it again after the call.
+        private async Task UntilTheRecoveryAtStartHasMadeItsLastListingAsync()
+        {
+            StartServer();
+            _waitsForTheRecovery.TrySetResult();
+            await Settle.ForAsync(_gateway.QueuedRunsListed, "the recovery at start lists the queued runs");
         }
 
         public async Task<HttpResponseMessage> PostAsync(object body)
