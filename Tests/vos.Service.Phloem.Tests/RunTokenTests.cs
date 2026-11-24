@@ -234,7 +234,7 @@ public class RunTokenTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         await service.EndedAsync();
-        service.WrittenSinceTheCall().Should().NotBeEmpty().And.OnlyContain(token => token == swapped);
+        service.WrittenSinceTheCall().Should().NotBeEmpty().And.OnlyContain(write => write.Token == swapped);
         exchange.Presented.Should().Equal(service.CallToken);
     }
 
@@ -253,6 +253,33 @@ public class RunTokenTests
     }
 
     [Fact]
+    public async Task Bug8739_A_test_call_arranges_nothing_while_the_recovery_at_start_is_under_way()
+    {
+        await using var service = new AuthenticatedPhloem(new ExchangeAnswering(null));
+        var recoveryLetGo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.Gateway.WaitsListingHeldUntil = recoveryLetGo.Task;
+        var arranged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.Gateway.OnCallAsync = (subdomain, envelope) =>
+        {
+            arranged.TrySetResult();
+            return Task.FromResult(service.Gateway.OnCall(subdomain, envelope));
+        };
+
+        var making = Task.Run(() => service.MakeAsync(Call.Stop));
+        await Settle.ForAsync(Task.WhenAny(service.WaitsForTheRecovery, arranged.Task), "the call waits for the recovery, or arranges its run");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+
+        arranged.Task.IsCompleted.Should().BeFalse("no run is arranged while the recovery is held");
+        service.Gateway.RunCreationStarted.Should().BeFalse();
+        recoveryLetGo.SetResult();
+        await Settle.ForAsync(making, "the refused call answers");
+        using var response = await making;
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+        service.WrittenSinceTheCall().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_call_that_carries_no_token_asks_for_no_swap_and_its_run_presents_the_services_own_credential()
     {
         var exchange = new ExchangeAnswering("never asked for");
@@ -262,7 +289,7 @@ public class RunTokenTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         exchange.Presented.Should().BeEmpty();
-        service.WrittenSinceTheCall().Should().NotBeEmpty().And.OnlyContain(token => token == null);
+        service.WrittenSinceTheCall().Should().NotBeEmpty().And.OnlyContain(write => write.Token == null);
     }
 
     [Fact]
@@ -320,7 +347,12 @@ public class RunTokenTests
 
         public int PlacesHeld => Services.GetRequiredService<PipelineExecutor>().PipelinesHoldingPlaces;
 
-        public IEnumerable<string?> WrittenSinceTheCall() => _gateway.WrittenUnder.Skip(_writtenBefore).Select(write => write.Token);
+        public FakeGateway Gateway => _gateway;
+
+        private readonly TaskCompletionSource _waitsForTheRecovery = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task WaitsForTheRecovery => _waitsForTheRecovery.Task;
+
+        public IEnumerable<(Guid RunId, string? Token)> WrittenSinceTheCall() => _gateway.WrittenUnder.Skip(_writtenBefore);
 
         public Task EndedAsync() => Settle.UntilAsync(() =>
         {
@@ -331,10 +363,19 @@ public class RunTokenTests
 
         public async Task<HttpResponseMessage> MakeAsync(Call call)
         {
+            await UntilTheRecoveryAtStartHasMadeItsLastListingAsync();
             var body = await BodyOfAsync(call);
             lock (_gateway.StatusUpdates) _gateway.StatusUpdates.Clear();
             _writtenBefore = _gateway.WrittenUnder.Count;
             return await PostAsync(body);
+        }
+
+        // A run arranged earlier can be listed by the recovery, which then sweeps it again after the call.
+        private async Task UntilTheRecoveryAtStartHasMadeItsLastListingAsync()
+        {
+            StartServer();
+            _waitsForTheRecovery.TrySetResult();
+            await Settle.ForAsync(_gateway.QueuedRunsListed, "the recovery at start lists the queued runs");
         }
 
         public async Task<HttpResponseMessage> PostAsync(object body)
