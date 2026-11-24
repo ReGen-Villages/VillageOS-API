@@ -173,6 +173,9 @@ public sealed class EndpointCallService
     {
         plan = null;
 
+        refusal = EndpointCallChecks.NotEnabled(request.EndpointName!, effective);
+        if (refusal is not null)
+            return false;
         refusal = EndpointCallChecks.UnmetRequirement(kinds, effective);
         if (refusal is not null)
             return false;

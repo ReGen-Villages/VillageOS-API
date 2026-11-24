@@ -52,8 +52,23 @@ public static class EndpointCallChecks
     public const string DiskCacheMechanism = "DiskCache";
     public const string ModelAssetMechanism = "ModelAsset";
 
+    private const string EnabledProperty = "enabled";
+
     private const string BinaryTransformClash =
         "A binary body cannot be combined with a response transform: there is no text to transform.";
+
+    public static Refusal? NotEnabled(string endpointName, IReadOnlyDictionary<string, JsonElement> effective)
+    {
+        if (!EffectivePropertyResolver.TryGetEffectiveProperty(effective, EnabledProperty, out var enabled, out var conflicts))
+            return conflicts is null ? null : AmbiguousProperty(EnabledProperty, conflicts);
+
+        return enabled.ValueKind switch
+        {
+            JsonValueKind.True or JsonValueKind.Null => null,
+            JsonValueKind.False => new Refusal(409, $"Endpoint '{endpointName}' is disabled."),
+            _ => Refusal.BadRequest($"Endpoint '{endpointName}' states {EnabledProperty} as neither true nor false."),
+        };
+    }
 
     // Refused before any outbound call, which is the whole reason a kind declares its requirements
     // instead of the code knowing them. The roles are asked in a fixed order so the first unmet one
