@@ -91,6 +91,19 @@ public class FormOptionsReaderTests
         aerial.MaximumZoom.Should().BeNull();
     }
 
+    [Fact]
+    public void A_source_carries_the_order_the_model_states_and_none_it_does_not()
+    {
+        var model = DeclaredModel.Seeded()
+            .Stating("Aerial", ("attribution", "Orthophoto"), ("tileUrl", "https://tiles.example.test/{z}/{x}/{y}.png"), ("order", 2L))
+            .Relate("Aerial", "is", DeclaredModel.BasemapSourceArchetype);
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.BasemapSources.Single(source => source.Name == "Aerial").Order.Should().Be(2);
+        options.BasemapSources.Single(source => source.Name == WillowBend.VectorBasemapName).Order.Should().BeNull();
+    }
+
     // A deployment whose model declares no imagery draws no map, which is a form with one step less rather
     // than a service that cannot answer.
     [Fact]

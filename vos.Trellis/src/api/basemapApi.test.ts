@@ -53,6 +53,16 @@ describe('discoverBasemapSources', () => {
     expect(found).toEqual([]);
   });
 
+  it('offers the sources in the order the model states', () => {
+    const found = discoverBasemapSources(
+      indexOf([
+        thing('src-1', 'Aerial', { attribution: 'Example', styleUrl: 'https://tiles.example/aerial.json', order: 2 }),
+        thing('src-2', 'Streets', { attribution: 'Example', styleUrl: 'https://tiles.example/streets.json', order: 1 }),
+      ]),
+    );
+    expect(found.map((source) => source.name)).toEqual(['Streets', 'Aerial']);
+  });
+
   it('reads a vector style source', () => {
     const found = discoverBasemapSources(
       indexOf([

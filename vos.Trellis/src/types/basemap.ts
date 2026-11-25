@@ -20,6 +20,8 @@ export const BASEMAP_TERRAIN_EXAGGERATION_PROPERTY = 'terrainExaggeration';
 /** The layer inside the source's own tiles that holds building footprints, which is what the map
  *  raises buildings from. */
 export const BASEMAP_BUILDING_LAYER_PROPERTY = 'buildingSourceLayer';
+/** Where a source stands among the others; a map opens on the first. */
+export const BASEMAP_ORDER_PROPERTY = 'order';
 
 /** A source as the model states it, before anything has judged whether it can be drawn. This is what the
  *  intake service hands a public form, which cannot read the model for itself. */
@@ -34,6 +36,7 @@ export interface DeclaredBasemapSource {
   terrainEncoding?: string | null;
   terrainExaggeration?: number | null;
   buildingSourceLayer?: string | null;
+  order?: number | null;
 }
 
 /** The map style specification's own words, not the model's, so they belong here, as building-model type

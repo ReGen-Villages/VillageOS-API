@@ -218,6 +218,7 @@ public static class FormOptionsReader
         thing.StatedText(StyleUrlProperty),
         thing.StatedText(TileUrlProperty),
         thing.StatedNumber(MaximumZoomProperty),
+        thing.StatedWholeNumber(OrderProperty),
         thing.StatedText(TerrainTileUrlProperty),
         thing.StatedText(TerrainEncodingProperty),
         thing.StatedNumber(TerrainExaggerationProperty),

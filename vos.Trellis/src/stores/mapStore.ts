@@ -12,10 +12,15 @@ interface MapState {
   reportTilesUnreachable: () => void;
 }
 
+const SELECTED_SOURCE_STORAGE_KEY = 'vos-map-source';
+
 export const useMapStore = create<MapState>((set) => ({
-  selectedSourceName: null,
+  selectedSourceName: localStorage.getItem(SELECTED_SOURCE_STORAGE_KEY),
   tilesUnreachable: false,
-  selectSource: (name) => set({ selectedSourceName: name, tilesUnreachable: false }),
+  selectSource: (name) => {
+    localStorage.setItem(SELECTED_SOURCE_STORAGE_KEY, name);
+    set({ selectedSourceName: name, tilesUnreachable: false });
+  },
   reportTilesUnreachable: () => set({ tilesUnreachable: true }),
 }));
 
