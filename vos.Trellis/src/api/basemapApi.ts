@@ -9,6 +9,7 @@ import {
   BASEMAP_ATTRIBUTION_PROPERTY,
   BASEMAP_BUILDING_LAYER_PROPERTY,
   BASEMAP_MAXIMUM_ZOOM_PROPERTY,
+  BASEMAP_ORDER_PROPERTY,
   BASEMAP_STYLE_URL_PROPERTY,
   BASEMAP_TERRAIN_ENCODING_PROPERTY,
   BASEMAP_TERRAIN_EXAGGERATION_PROPERTY,
@@ -32,6 +33,7 @@ export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
         terrainEncoding: statedText(properties[BASEMAP_TERRAIN_ENCODING_PROPERTY]),
         terrainExaggeration: statedNumber(properties[BASEMAP_TERRAIN_EXAGGERATION_PROPERTY]),
         buildingSourceLayer: statedText(properties[BASEMAP_BUILDING_LAYER_PROPERTY]),
+        order: statedNumber(properties[BASEMAP_ORDER_PROPERTY]),
       };
     }),
   );
