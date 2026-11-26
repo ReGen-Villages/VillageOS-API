@@ -20,7 +20,8 @@ slope the class's bounds hold, and each aspect share the cells facing within the
 term with no centre takes flat ground.
 
 **The two profiles** run west to east and south to north through the middle of the box, 50 points each over the site
-plus its margin (the larger of 1.3 × the site's half-width and 250 m on each side), asked in one more call. A
+plus its margin (on each side of the box's centre, the larger of 1.3 × the site's half-length along that line and
+250 m), asked in one more call. A
 profile's `cellSizeMetres` is its real spacing, so distance along the line is the index times that spacing. The
 site's span on each line is written in metres from the line's start.
 
