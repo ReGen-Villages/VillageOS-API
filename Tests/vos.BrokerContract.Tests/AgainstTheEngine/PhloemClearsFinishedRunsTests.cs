@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
@@ -17,19 +19,60 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
 
     private static readonly DateTimeOffset Noon = new(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
 
+    private static readonly Role OwnDeletionGrant = new("ownDeletionGrant", RoleIdentity.Of("ownDeletionGrant"));
+
+    private HttpClient _pipelineEngine = null!;
+    private Guid _isPredicate;
+    private Guid _stopRequestKind;
+
+    // Signed in as a pipeline engine granted to delete what it made of each kind a clear removes, as a launched Phloem is.
     private async Task<MyceliumGateway> AGatewayAsync()
     {
+        var isPredicate = Guid.Empty;
         foreach (var predicate in new[] { PlatformPredicates.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
-            await _engine.DeclareOnceAsync(predicate);
+        {
+            var declared = await _engine.DeclareOnceAsync(predicate);
+            if (predicate == PlatformPredicates.Is) isPredicate = declared;
+        }
         var kindPeriods = new Dictionary<string, object?>
         {
             [ModelNames.KeepRunsForDays] = 30, [ModelNames.KeepFailedRunsForDays] = 90, [ModelNames.ClearsAtMostRunsPerLook] = 200,
         };
-        await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true, kindPeriods);
-        await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true);
-        await _engine.PlayingAsync(PipelineRoles.Attempt, "Attempt", isArchetype: true);
+        var kinds = new List<Guid>
+        {
+            await _engine.PlayingAsync(PipelineRoles.PipelineRun, "PipelineRun", isArchetype: true, kindPeriods),
+            await _engine.PlayingAsync(PipelineRoles.NodeRun, "NodeRun", isArchetype: true),
+            await _engine.PlayingAsync(PipelineRoles.Attempt, "Attempt", isArchetype: true),
+        };
+        _stopRequestKind = await _engine.PlayingAsync(PipelineRoles.StopRequest, "StopRequest", isArchetype: true);
+        kinds.Add(_stopRequestKind);
         await _engine.PlayingAsync(PipelineRoles.Orchestrator, "Phloem prototype", isArchetype: true);
-        return new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
+
+        var mayDeleteItsOwn = await _engine.DeclareOnceAsync("mayDeleteItsOwn");
+        await _engine.BindOnceAsync(OwnDeletionGrant, mayDeleteItsOwn);
+        var (token, service) = await _engine.ServiceAsync("pipeline engine");
+        foreach (var kind in kinds) await _engine.RelateAsync(service, mayDeleteItsOwn, kind);
+        _pipelineEngine = _engine.Holding(token);
+        _isPredicate = isPredicate;
+        return new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(token));
+    }
+
+    private static async Task<Guid> WriteAsync(HttpClient writer, string name)
+    {
+        var written = await writer.PostAsJsonAsync("/api/things", new { Name = name });
+        written.EnsureSuccessStatusCode();
+        return (await written.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("Id").GetGuid();
+    }
+
+    private static async Task RelateAsync(HttpClient writer, Guid subject, Guid predicate, Guid target) =>
+        (await writer.PostAsJsonAsync("/api/relationships", new { subjectId = subject, predicateId = predicate, targetId = target }))
+            .EnsureSuccessStatusCode();
+
+    private async Task<Guid> AStopRequestAsync(HttpClient writer, string name)
+    {
+        var request = await WriteAsync(writer, name);
+        await RelateAsync(writer, request, _isPredicate, _stopRequestKind);
+        return request;
     }
 
     private async Task<Guid> ARunOfAsync(MyceliumGateway gateway, Guid pipelineId, string? endsAs)
@@ -98,10 +141,10 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         var first = await ARunOfAsync(gateway, pipelineId, RunStatus.Cancelled);
         var last = await ARunOfAsync(gateway, pipelineId, RunStatus.Cancelled);
         var requestName = $"StopRequest {Guid.NewGuid():N}";
-        var request = await _engine.DeclareAsync(requestName);
-        await _engine.RelateAsync(request, requestedBy, requester);
-        await _engine.RelateAsync(first, stoppedBy, request);
-        await _engine.RelateAsync(last, stoppedBy, request);
+        var request = await AStopRequestAsync(_pipelineEngine, requestName);
+        await RelateAsync(_pipelineEngine, request, requestedBy, requester);
+        await RelateAsync(_pipelineEngine, first, stoppedBy, request);
+        await RelateAsync(_pipelineEngine, last, stoppedBy, request);
 
         var clearedFirst = await gateway.ClearRunAsync(first, CancellationToken.None);
         var clearedRequester = await gateway.ClearRunAsync(requester, CancellationToken.None);
@@ -112,6 +155,23 @@ public class PhloemClearsFinishedRunsTests : IClassFixture<TheEngine>
         keptAfterTwo.Should().Be(request, "the last run it stopped is still kept");
         clearedLast.Should().Be(2, "the last run and the stop request with it");
         (await _engine.FindAsync(requestName)).Should().BeNull();
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_run_a_person_stopped_is_cleared_and_the_person_s_stop_request_stays_with_its_reason()
+    {
+        var gateway = await AGatewayAsync();
+        var stoppedBy = await _engine.PlayingAsync(PipelineRoles.StoppedBy, "stoppedBy");
+        var stopped = await ARunOfAsync(gateway, await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}"), RunStatus.Cancelled);
+        var requestName = $"StopRequest {Guid.NewGuid():N}";
+        var request = await AStopRequestAsync(_engine.Admin, requestName);
+        await _engine.RelateAsync(stopped, stoppedBy, request);
+
+        var cleared = await gateway.ClearRunAsync(stopped, CancellationToken.None);
+
+        cleared.Should().Be(1, "only the run; the stop request is the person's");
+        (await gateway.ReadRunRecordAsync(stopped, CancellationToken.None)).Should().BeNull();
+        (await _engine.FindAsync(requestName)).Should().Be(request);
     }
 
 }

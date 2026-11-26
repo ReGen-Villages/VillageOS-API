@@ -955,7 +955,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         var requests = graph.RelationshipsIntoAlong(run, PipelineRoles.RequestedBy).Select(along => along.SubjectId)
             .Concat(graph.RelationshipsAlong(run, PipelineRoles.StoppedBy).Select(along => along.TargetId))
             .Distinct()
-            .Select(graph.Thing).OfType<GraphThing>();
+            .Select(graph.Thing).OfType<GraphThing>()
+            .Where(request => RunRetention.GoesWithItsRuns(request.MadeBy, run.MadeBy));
         return requests.ToDictionary(request => request.Id, request => (IReadOnlySet<Guid>)graph.RelationshipsAlong(request, PipelineRoles.RequestedBy)
             .Select(along => along.TargetId)
             .Concat(graph.RelationshipsIntoAlong(request, PipelineRoles.StoppedBy).Select(along => along.SubjectId))
