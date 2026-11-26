@@ -62,12 +62,15 @@ public sealed record GroundReading(
             if (Along(share, Only(LandIntakeRoles.Assesses)).Select(id => things.GetValueOrDefault(id)).FirstOrDefault(term => term is not null) is not { } term)
                 continue;
             if (IsA(share, Only(LandIntakeRoles.SlopeClassShare)))
+            {
                 slopeClasses.Add(new SlopeClassBand(term.Id, term.StatedNumber("atLeastPercent"), term.StatedNumber("belowPercent")));
+                shareAssessing[term.Id] = share;
+            }
             else if (IsA(share, Only(LandIntakeRoles.AspectShare)))
+            {
                 aspects.Add(new AspectSector(term.Id, term.StatedNumber("centreDegrees")));
-            else
-                continue;
-            shareAssessing[term.Id] = share;
+                shareAssessing[term.Id] = share;
+            }
         }
 
         return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing);
