@@ -85,7 +85,8 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
     // Follow the subscription's live change stream, resuming after fromSequence
     // (typically the snapshot watermark). Yields each change in commit order exactly once,
-    // reconnecting transparently on drops until ct is cancelled or the broker no longer holds the subscription.
+    // reconnecting transparently on drops until ct is cancelled, the broker no longer holds the subscription,
+    // or the broker no longer keeps the changes after its position, when the subscription is closed first.
     public async IAsyncEnumerable<ModelChangeEvent> StreamAsync(
         Guid subscriptionId, long fromSequence, [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -109,10 +110,16 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
             if (_streamWasLost) Reconnected?.Invoke();
 
+            var positionNoLongerKept = false;
             using (connection.Response)
             {
                 await foreach (var frame in SseEventReader.ReadAsync(connection.Stream, ct))
                 {
+                    if (frame.EventType == SnapshotRequired)
+                    {
+                        positionNoLongerKept = true;
+                        break;
+                    }
                     var change = ParseChange(frame);
                     if (change is null) continue;
                     if (change.Sequence > 0)
@@ -125,8 +132,28 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
             }
 
             _streamWasLost = true;
+            if (positionNoLongerKept)
+            {
+                Logger.LogWarning(
+                    "The platform no longer keeps the changes after position {Position} for subscription {SubscriptionId}, so it is closed and its stream ends",
+                    lastSequence, subscriptionId);
+                await CloseAsync(subscriptionId, ct);
+                await DelayReconnectAsync(ct);
+                yield break;
+            }
             // Stream ended (server closed or network drop). Reconnect with Last-Event-ID.
             if (!await DelayReconnectAsync(ct)) yield break;
+        }
+    }
+
+    private const string SnapshotRequired = "SnapshotRequired";
+
+    private async Task CloseAsync(Guid subscriptionId, CancellationToken ct)
+    {
+        try { await UnsubscribeAsync(subscriptionId, ct); }
+        catch (Exception exception) when (!ct.IsCancellationRequested)
+        {
+            Logger.LogWarning(exception, "Closing subscription {SubscriptionId} at the platform failed", subscriptionId);
         }
     }
 
