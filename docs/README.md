@@ -15,6 +15,8 @@ map below.
 | Doc | For | What it covers |
 |-----|-----|----------------|
 | [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Anyone exploring the Pipelines page | How to load and use the ready-made example pipelines and services that exercise the Trellis Pipelines page. |
+| [../vos.Hypha/README.md](../vos.Hypha/README.md) | Anyone giving an assistant in a chat application a model to work with | How to run the MCP server, the tools it offers a key, and how to add one. |
+| [../vos.MyceliumClient/README.md](../vos.MyceliumClient/README.md) | Engineers writing a program that calls the Mycelium | The shared client library Taproot and Hypha reach the Mycelium through. |
 
 ## Platform concepts
 

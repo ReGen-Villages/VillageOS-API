@@ -6,8 +6,9 @@ in Mycelium, it resolves that endpoint's effective properties, performs the HTTP
 expression, and writes the readings onto each entity's time series.
 
 It also answers the orchestrator's step request, so a fetch, or a request to have a Thing's history
-judged, can be a box on a pipeline canvas. The box's `step` setting chooses which: `fetch` or
-`historyChanged`, and `GET /manifest/{step}` declares each one's ports. `GET /manifest` still answers
+judged, can be a box on a pipeline canvas. The service's `callParameters` choose which: the
+`fetchesSource service` holds `{"step":"fetch"}` and the `historyChanged service` holds
+`{"step":"historyChanged"}`, and `GET /manifest/{step}` declares each one's ports. `GET /manifest` still answers
 the fetch step's ports. A box naming no step is fetched.
 
 The fetch step's `call` input is a collection, so a list runs once per item, and holds `endpointName`,
@@ -31,7 +32,7 @@ It is deliberately **source-agnostic** — there is no per-API code. A specific 
 (ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint, a map-tile server) is expressed
 entirely as an endpoint *template* plus a registration, never as a branch in Tributary.
 This page is the canonical reference for the token-exchange, offset-paging, and
-non-text-payload *mechanics* and the `EsriEndpoint` / `EsriTileEndpoint` templates,
+non-text-payload *mechanics* and the `EsriEndpoint` and tile templates,
 alongside the model the service sits on and the boundary it respects. `SERVICES.md`
 section 14 summarizes how Mycelium hosts Tributary as an endpoint service and points
 back here.
@@ -48,7 +49,7 @@ resolves to the closest ancestor that declares it:
 flowchart TB
     Endpoint["<b>Endpoint</b> (root)<br/>reaches no kind"]
     Esri["<b>EsriEndpoint</b> (source type)<br/>ArcGIS field names fixed as canonical-defaults"]
-    Tile["<b>EsriTileEndpoint</b> (source type)"]
+    Tile["<b>TileEndpoint</b> (source type)"]
     Reg["<b>a registration</b><br/>supplies the required-structural blanks:<br/>url, tokenUrl, tokenRequest"]
     Auth["<b>TokenExchangeAuthentication</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
     Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParameter, hasMorePath, itemsPath"]
@@ -102,7 +103,7 @@ value and whether it is expected to be overridden.
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible because the template declares it; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParameter`, `pageSizeParameter`, `hasMorePath`, `itemsPath` |
-| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s; an endpoint whose `timeout` is not shorter than `--passedOnRequestLimitSeconds` is warned about once, the first time it is used, naming both numbers and the property to change), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `enabled` (true; a Boolean on the root `Endpoint` template that a registration inherits, read on every call), `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s; an endpoint whose `timeout` is not shorter than `--passedOnRequestLimitSeconds` is warned about once, the first time it is used, naming both numbers and the property to change), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
 | **optional** | May be absent entirely; the feature is then off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
@@ -115,6 +116,13 @@ The `EsriEndpoint` template is the worked example: it restates only the keys it 
 (`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
 `itemsPath=features`, …). A registration then supplies only the required-structural
 blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
+
+## An endpoint switched off
+
+`enabled` false refuses a call with `409` naming the endpoint, before the provider is called, a token
+is asked for or a body kept on disk is served. A drawn run does not try it again. No `enabled` means
+the endpoint is called, and a value neither true nor false is refused with `400`. `EsriEndpoint` and
+`EsriTileEndpoint` set it false, so every registration beneath them ships switched off.
 
 ## Per-call address parameters
 
@@ -255,11 +263,11 @@ template that extends `Endpoint` and restates only the keys it narrows. In outli
 {
   "things": [
     { "name": "Endpoint", "properties": {
-        "url": "", "httpMethod": "GET", "responseTransform": "",
+        "enabled": true, "url": "", "httpMethod": "GET", "responseTransform": "",
         "headers": "", "queryParams": "", "requestContentType": "",
         "timeout": "" } },
     { "name": "EsriEndpoint", "properties": {
-        "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
+        "enabled": false, "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
         "token": "", "tokenUrl": "", "tokenRequest": "",
         "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
         "offsetParameter": "resultOffset",
@@ -319,19 +327,29 @@ key wins over any `Accept` in the generic `headers` map — exactly one value go
 wire — and q-value lists (`image/tiff, image/png;q=0.8`) are carried intact. It composes
 with `BinaryResponse`: negotiate the format, carry the bytes home.
 
-**The `EsriTileEndpoint` template.** A map tile is a plain unauthenticated GET whose body
-is bytes, so the template descends from the root directly — none of `EsriEndpoint`'s
-token exchange or paging — and adds only the kind relationship and the optional negotiation blank:
+**The tile templates.** A map tile is a plain unauthenticated GET whose body is bytes, so
+`TileEndpoint` descends from the root directly — none of `EsriEndpoint`'s token exchange or
+paging — and adds only the kind relationship and the optional negotiation blank.
+`CachedTileEndpoint` is a `TileEndpoint` that caches by `DiskCache`, and `EsriTileEndpoint` is a
+`CachedTileEndpoint` that only sets `enabled` false:
 
 ```json
 {
   "things": [
-    { "name": "EsriTileEndpoint", "properties": { "acceptHeader": "" } }
+    { "name": "TileEndpoint", "properties": { "acceptHeader": "" } },
+    { "name": "CachedTileEndpoint", "properties": { "cacheTtl": "" } },
+    { "name": "EsriTileEndpoint", "properties": { "enabled": false } }
   ],
-  "kinds": [ { "name": "BinaryResponse", "requires": [] } ],
+  "kinds": [
+    { "name": "BinaryResponse", "requires": [] },
+    { "name": "DiskCache", "requires": ["cacheTtl"] }
+  ],
   "relationships": [
-    { "subject": "EsriTileEndpoint", "predicate": "is", "target": "Endpoint" },
-    { "subject": "EsriTileEndpoint", "predicate": "readsBodyAs", "target": "BinaryResponse" }
+    { "subject": "TileEndpoint", "predicate": "is", "target": "Endpoint" },
+    { "subject": "TileEndpoint", "predicate": "readsBodyAs", "target": "BinaryResponse" },
+    { "subject": "CachedTileEndpoint", "predicate": "is", "target": "TileEndpoint" },
+    { "subject": "CachedTileEndpoint", "predicate": "cachesBy", "target": "DiskCache" },
+    { "subject": "EsriTileEndpoint", "predicate": "is", "target": "CachedTileEndpoint" }
   ]
 }
 ```

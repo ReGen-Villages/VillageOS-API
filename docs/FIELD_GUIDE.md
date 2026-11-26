@@ -587,8 +587,22 @@ answer is no", and the reason every verdict has an unassessed companion.
 so a threshold stored in days can be judged against a clock counting seconds:
 `elapsed(lastInspected) > daysBetweenInspections * 86400`.
 
-**Two figures, and a first answer.** `min(a, b)` is the smaller of two figures, and unknown when
-either is. `firstKnown(a, b, …)` is the first figure, in the order written, that has a number to give:
+**Functions of figures.** `min(a, b)` is the smaller of two figures and `max(a, b)` the
+larger, each unknown when either one is. Together they hold a figure between a lowest and a highest
+value: `min(max(x, lowest), highest)`. `min` or `max` followed by a path is still the total over
+related Things. `exp(x)` is e raised to a figure, unknown when the figure is unknown or when the
+answer is too large for the platform's numbers. `onlyIf(condition, figure)` is the figure where its
+condition holds and unknown where it fails. The condition is comparisons joined by `AND`, `OR` and
+`NOT`. Unlike a range's criteria, an unknown figure anywhere in the condition makes the answer
+unknown: a range reads `NOT (a >= 1)` as holding while `a` is unknown, and `onlyIf` reads it as
+unknown. `DISTANCE(latitude, longitude, latitude, longitude)` is the distance in kilometres between
+two points, measured by the model's area method: on the Mean sphere by the great-circle formula at
+6,371.0088 km, and on the WGS84 ellipsoid by Vincenty's formula, which agrees with Karney's to a
+tenth of a millimetre and reads unknown for two points almost opposite each other. It is unknown
+when a coordinate is, or when the method cannot be read, and a change of the Parcel archetype's
+`measuresAreaWith` measures every such figure again. The seed validator refuses it in a range's
+criteria and in a reduction's condition, since neither is judged again when the method changes.
+`firstKnown(a, b, …)` is the first figure, in the order written, that has a number to give:
 one that is unknown, a text, or a path reaching several Things is passed over, and zero is an answer.
 It is how a figure with more than one source is written —
 `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` reads the measured area once the model holds
@@ -912,7 +926,9 @@ Name the predicate itself only when the service means that one predicate whateve
 idea.
 
 Every change on the stream carries the sequence number it was committed at, so a client that
-drops its connection resumes from the last sequence it applied and misses nothing. A derived
+drops its connection resumes from the last sequence it applied and misses nothing. When the platform
+no longer keeps the changes after that position, the shared client closes the subscription and ends
+the stream, and a follower opens a new subscription and recomputes once. A derived
 value's change is announced on the stream but never replayed after a reconnect, so a reconnecting
 client re-reads the derived values it depends on. The membership of a live subscription can be
 widened or narrowed without reconnecting.
@@ -1044,9 +1060,10 @@ later is offered to every site under the places it covers by a second drawing, w
 box is Forage's `offerSource` step. Every write is safe to repeat, so a run caught by a restart, or two
 runs for one site, leave one result.
 
-Forage answers nothing but these steps, each box choosing one by its `step` setting: `resolveRegion`,
-`planCalls`, `recordResults`, `resolveWords`, `markDiscovered` and `offerSource`. A relationship call is
-refused with `400`. A failed read of the model is a failure the orchestrator may try again.
+Forage answers nothing but these steps, each box running the step its service holds as `step` in the
+service's `callParameters`, a JSON object such as `{"step":"planCalls"}`: `resolveRegion`,
+`planCalls`, `recordResults`, `resolveWords`, `markDiscovered` and `offerSource`. A box that sets
+`step` itself is refused when the drawing is built. A relationship call is refused with `400`. A failed read of the model is a failure the orchestrator may try again.
 
 ---
 
@@ -1218,7 +1235,7 @@ Thing must enter it, and the run records a service node's answer, or a wait node
 reaches it, as *waiting* — shown on the page with a ring and
 colour of its own — and resumes from its record when the platform answers the waiting node run.
 **Cancel** writes a stop request for the run, with an optional reason, and is offered on a run that
-is running, waiting or trying: a run under way stops at its next node, a waiting run stops at once,
+is queued, running, waiting or trying: a queued run never begins, a run under way stops at its next node, a waiting run stops at once,
 and the reason is recorded on the run and on each node not finished. A pipeline can also stop the
 runs about a Thing itself, with a stop node.
 
@@ -1642,7 +1659,9 @@ page is opened as a copy and never written over; a page the console kept is edit
 binding is chosen from the model's own words — its kinds, properties, links and states — with what each
 costs to read said beside it, and the page's words can be given in every language. What the seed's
 validation would refuse the Design page refuses first, and warns about the rest, so a kept page never
-draws *absent* for a name nothing holds.
+draws *absent* for a name nothing holds. A map reading a shape or a grid across a relationship, or
+from a Thing it names, is refused, and a grid map bound to a grid larger than a map draws is warned
+about where a Thing of the page's kind already holds one.
 
 ### 54. The Accounts and API keys pages
 **Accounts** and **API keys** are neither pages the console ships nor pages a model publishes: the
@@ -2597,8 +2616,8 @@ whose centre is more than 300 m from the site moves the site there), or a plot p
 register's plots in view from zoom 15. A drawn border is measured with the area method the form
 names, an imported one reads the intake's own measure, and a plot reads the register's area. The
 elevation is looked up for each finished border. **Confirm site** posts the submission, with the
-email as the contact's name until a later step asks for one and the site named after the parcel,
-else the address, else the project, and keeps an imported file as a document of the submission.
+email as the contact's name, since the sign-in asks for none, and the site named after the parcel,
+else the plot pressed, else the address, else the project, and keeps an imported file as a document of the submission.
 Every request after sign-in carries the ticket, renewed from each answer, so the page is counted
 against the signed-in budget. A test reads the build's pages from `vite.public.config.ts` and walks every
 import of every script they load, and fails if one leads to the server client, the signed-in state,
@@ -2635,6 +2654,9 @@ Every write names a type from the platform's own set, checked when the code comp
 property *reports* arrives over the network and is narrowed against that set before a write, and a
 property outside it is refused naming the type rather than sent for an opaque rejection. An edit
 sends the type the platform reports for the property; nothing infers a type from the typed text.
+A `vos.Grid` is read as Tendril's `GridValue`, which mirrors it: the origin, the steps, the cell
+size, the rows and columns, and the values row by row from the south-west point, west to east, with
+`null` for a value not known; `gridOf` reads one and refuses anything else.
 
 ### 86a. The call settings of a connection
 A connection carries the settings of the calls it makes: whether a call waits for the service, when
@@ -2975,6 +2997,9 @@ every value it draws, opened from its **Table** button, so nothing a chart shows
 | `depthProfile` | A `rows` binding drawn one row a layer, top down by `orderKey`, each named by `labelKey`; several `parts` stack across a row, and one part draws a bar from the floor |
 | `divergingBar` | Twelve months, `up` rising and `down` falling from one line on one scale — cooling and heating degree days — each side's `threshold` bound to the model's value for the legend |
 | `smallMultiples` | Twelve monthly panels, each `bars` by hour on one scale and a `line` through the hours on another, with a `band` behind the line; each scale shared across the panels |
+| `gridMap` | A `vos.Grid` as cells on a Web Mercator map with no imagery, the page Thing's own outline dashed over them. `grid` and `outline` are `value` bindings on the page's own Thing, never across a relationship. `classes` colour each cell by the first class holding its value; otherwise one hue runs from `floor` to `ceiling`, `linear` or `logarithmic`. An unknown cell is blank. A grid of more than 10,000 cells is not drawn: the widget says how many cells it holds and the most it draws, and its table follows the same rule |
+| `profileLine` | A grid's values along a line, from a one-row (west to east) or one-column (south to north) `vos.Grid` the page's own Thing holds, read through a `value` binding, each point a cell's size further along. The stretch from `span.from` to `span.to` metres is shaded, and its lowest, highest and difference are written under the chart; with no span, the whole line's. A value not known leaves a gap. A grid of more than one row and more than one column is not drawn, and the widget says it reads one row or one column. What the values are is the page's to say, in its title and `unit` |
+| `raisedSurface` | A `vos.Grid` the page's own Thing holds, read through a `value` binding, as a raised surface in 3D, shaded on one hue from the lowest value to the highest. Each point rises by its value above the lowest, times `exaggeration` (one when left out); the box stays between eight hundredths and four tenths of the grid's larger side. A value not known leaves a hole. A grid of one row or one column is not drawn, and the widget says it needs two of each; a grid with no known value is not drawn, and the widget says so. Where the browser gives no WebGL 2 context, or the 3D drawing cannot be loaded, the widget says it could not be shown, and its lowest and highest values and its table stay. The 3D drawing loads only when shown, and its table follows the grid map's limit of cells |
 
 ### 92. Verdicts, levers, origins and working
 **A judged value as a sentence.** The `verdict` widget lists rows, each with a `verdicts` binding
@@ -3152,16 +3177,22 @@ role binding and the property names are the whole contract, and the archetype ma
 | `terrainTileUrl`, `terrainEncoding` | together | An elevation tile pyramid, and how it packs a height into a pixel (`terrarium` or `mapbox`); the encoding is stated, never guessed |
 | `terrainExaggeration` | no | How far to raise what the tiles describe |
 | `buildingSourceLayer` | no | The layer inside the source's own tiles holding building footprints |
+| `order` | no | Where the source stands in the layer switch |
 
-The Thing's name is what the layer switch shows, in name order. A source declaring the terrain
+The Thing's name is what the layer switch shows. Sources are offered by the order each states, then
+by name, those stating none last, and a map opens on the first, unless the reader picked one before,
+which the browser keeps. A source declaring the terrain
 properties draws land in three dimensions — the ground raised, the basemap's buildings raised out
 of it, a tilt control offered, the camera lifted far enough to see the horizon — and one declaring
 none draws flat. The globe and the sky need no declaration. A source is dropped rather than drawn
 when it carries no attribution, no address, or both a style and a tile address. Discovery reads
 effective properties, because a normalised seed keeps a source's address one level down as an
 override. The platform repository ships a basemap template declaring a keyless street-map source and a
-**Satellite** source whose tiles come through the platform's own tile route rather than the provider's
-address. A relative `tileUrl` — a path such as `/basemaps/satellite-tiles/{z}/{x}/{y}` — is asked of
+**Satellite** source, offered first, whose tiles come from the `eox-satellite-tiles` registration
+through the platform's own tile route rather than the provider's address. The map shows each
+source's credit in full at every width and never folds it, because a source's terms can require it
+whenever its imagery is shown. A relative `tileUrl` — a path such as
+`/basemaps/eox-satellite-tiles/{z}/{x}/{y}` — is asked of
 the server that served the page: the intake service for the public pages, the server itself for the
 signed-in console. A signed-in map sends its sign-in with tile requests to its own server and to no
 other, so no map provider is ever handed a pass. Anything put onto the
@@ -3251,6 +3282,10 @@ runs it during a play and keeps the file with its readings.
 | A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all`; a parameter is arithmetic, so `TO comfortHighCelsius * 1.1` ends a band at that product. A parameter ends at the next `BY`, `FROM` or `TO`, a comparison or a closing bracket, so scaling the whole term takes brackets: `(HISTORY … TO comfortHighCelsius) * 100` | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
 | The clock | `elapsed(x)` in seconds, `Now()` | `elapsed(lastInspected) > 86400` |
 | The smaller of two figures | `min(a, b)`; unknown when either is | `min(harvestM3PerYear, demandM3PerYear)` |
+| The larger of two figures | `max(a, b)`; unknown when either is | `max(countryKwhPerPersonPerDay, buildingKwhPerPersonPerDay)` |
+| e raised to a figure | `exp(x)`; unknown when the figure is, or when the answer is too large for the platform's numbers; good to about fifteen significant figures | `(1 - exp(-1.5 * aerosolOpticalThicknessMean)) * 100` |
+| A figure only if a condition holds | `onlyIf(condition, figure)`; unknown when the condition fails or any figure in it is unknown; the condition is comparisons joined by `AND`, `OR` and `NOT` | `onlyIf(energyCover >= 1 AND foodCover >= 1, monthsToSelfSufficiency)` |
+| The distance between two points | `DISTANCE(latitude, longitude, latitude, longitude)` in kilometres, by the model's area method; unknown when a coordinate is, or when the method cannot be read; in a formula, not in a range's criteria or a reduction's condition | `DISTANCE(latitude, longitude, climateDataLatitude, climateDataLongitude)` |
 | The first figure with a number | `firstKnown(a, b, …)`, in the order written; an unknown, a text or a path reaching several Things is passed over, and zero is an answer | `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` |
 
 A criterion over a property nothing can supply answers false; the validator refuses it before it
@@ -3307,11 +3342,20 @@ on its own study. Where no source for the value is recorded, the table says so.
 | `runoffCoefficient` | 0.8 | The share of the rain falling on hard surfaces that can be captured | No source recorded |
 | `peopleFedPerHectareBaseline` | 2.5 | The people a hectare of growing land feeds in the baseline climate | Regenerative mixed farming that produces a full diet supports roughly two to three people a hectare. It is a proposal, not a sourced figure |
 | `householdSize` (on the site) | 2.4 | The people who share one home | A planning norm every site starts from. A submission states its own. No source recorded for the value |
-| Comfort band: `comfortLowCelsius`, `comfortHighCelsius` | 20 °C to 26.5 °C | The temperatures counted as comfortable | No source recorded |
 | `frostCelsius` | 0 °C | A day at or below this is a frost day | Water freezes at 0 °C |
 | `hotDayCelsius` | 30 °C | A day above this is a hot day | No source recorded |
-| `heatingSetpointCelsius`, `coolingSetpointCelsius` | 10 °C, 18 °C | The temperatures the climate charts count heating and cooling need from | No source recorded |
-| Wet-bulb limits: `wetBulbCautionCelsius`, `wetBulbDangerCelsius`, `wetBulbUnsafeCelsius`, `wetBulbFatalCelsius` | 26, 29, 32 and 35 °C | The four levels of heat stress the climate charts mark. Wet-bulb temperature combines heat and humidity | No source recorded |
+| `degreeDayBaseCelsius` | 18 °C | The daily mean temperature heating and cooling degree days count from | No source recorded |
+| `wetBulbFatalCelsius` | 35 °C | The last line the wet-bulb chart marks. Wet-bulb temperature combines heat and humidity; the heat-stress bands themselves are the `WetBulbClass` Things, from 22, 25, 28 and 31 °C, one kind every site shares | No source recorded |
+| `whoDailyLimitParticulateMatterTenMicrogramsPerCubicMetre` | 45 µg/m³ | A day whose mean passes it counts as a day over the limit for the coarser particles | No source recorded |
+| `whoDailyLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre` | 15 µg/m³ | A day whose mean passes it counts as a day over the limit for the finer particles | No source recorded |
+| `dustEventLevelMicrogramsPerCubicMetre` | 100 µg/m³ | A day whose mean reaches it is a dust-event day | No source recorded |
+| `heavyHazeOpticalThickness` | 0.5 | An hour at or above it is a heavy-haze hour | No source recorded |
+| `hazeAirMass` | 1.5 | The air mass the direct sunlight lost at the mean haze is worked out at: (1 − e^(−air mass × mean optical thickness)) × 100 % | No source recorded |
+
+The class sets the climate charts colour by (`TemperatureClass`, `RelativeHumidityClass`,
+`CloudCoverClass`, `RadiationClass`, `DaylightClass`, `WetBulbClass` and `WindSpeedClass`) are
+shared Things, each class with its lower and upper bounds, so a deployment changes a band in the
+model.
 
 ### Land
 
@@ -3418,9 +3462,8 @@ the site.
 
 | Figure | How it is worked out | Why |
 | --- | --- | --- |
-| `comfortHoursShare` | The share of the hours whose temperature lies inside the comfort band | |
-| `coldHoursShare` | The share of the hours below the comfort band | |
-| `warmHoursShare` | The share of the hours above the comfort band | |
+| `comfortableWithoutASystemPercent`, `airMovementPercent`, `evaporativeCoolingPercent`, `directEvaporativeCoolingPercent`, `dehumidificationPercent`, `heatingPercent`, `coolingSystemPercent` | The share of the hours whose design strategy is of each kind: each hourly `designStrategyGroup` reading counts 1 when it names a Thing of that kind and 0 when not, averaged for each year and then across the years. No service that ships writes these readings, so each figure reads unknown | A strategy group weighs humidity and air movement as well as temperature |
+| `windowsOpenPercent` | The share of the hours the hourly `windowsOpenHours` readings mark, averaged for each year and then across the years; unknown for the same reason | As above |
 | `frostDaysPerYear` | Each day's lowest temperature; the days at or below `frostCelsius`, counted for each year; the yearly counts averaged | The figure describes a typical year, not any single one |
 | `hotDaysPerYear` | Each day's highest temperature; the days above `hotDayCelsius`, counted for each year; the yearly counts averaged | As above |
 

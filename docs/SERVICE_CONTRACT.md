@@ -645,8 +645,15 @@ never told it created a Thing the model no longer holds live.
   nothing. The judging of each write's ranges is held until the batch closes, so a range is judged on
   what the whole batch leaves. Send big graphs as one fragment rather than many single writes.
 - **What a service may not write.** A service's fragment may declare neither ranges nor derived
-  properties, and only an administrator writes or removes a protected-category grant relationship;
-  either is refused whole with `403`.
+  properties. Only an administrator writes or removes a relationship along the protected-category
+  grant, secret, run-mode, only-caller, trigger or own-deletion grant predicates, or a predicate
+  beneath one; writes a service's or a connection's launch settings or its `callParameters`; deletes
+  a predicate a role binds or gives it another kind; or writes a `binds` from a role that already
+  binds something or to a predicate the model already holds. A role's first binding to a predicate
+  created in the same write is allowed, so a service may add the predicate it needs. Each refusal
+  answers `403`, and a fragment is refused whole. Writes along a role-bound predicate are never
+  refused, and a write restating a relationship or kind the model already holds changes nothing and
+  is not refused.
 
 Contrast `POST /api/model`, which **replaces** the whole model (administrators only, bulk load); the fragment
 endpoint merges incrementally into the live model.

@@ -310,7 +310,7 @@ The Metabolism service follows Mycelium's change stream
 `MetabolismSubscriptionService`, built on the shared `Subscriptions.SubscriptionClient`. A change to a
 simulation's settings therefore takes effect **without restarting the handler**:
 
-1. **Connection**: the client opens a subscription with an `Authorization: Bearer` header and reconnects on its own, resuming via `Last-Event-ID` so no change is missed across drops
+1. **Connection**: the client opens a subscription with an `Authorization: Bearer` header and reconnects on its own, resuming from `Last-Event-ID` so no change is missed across a dropped connection. Where the broker no longer holds the subscription, as after a broker restart, Metabolism opens another and takes the edited values from its snapshot; a value a simulation already holds does not restart it
 2. **Event subscription**: listens for `RelationshipPropertyChanged(relId, propertyName, newValue)` and raises a C# event
 3. **Metabolism integration**: the engine subscribes to the event and updates running simulation loops when `quantity`, `frequencySeconds`, `startDelaySeconds`, `unit`, or `propertyPath` changes
 4. **User workflow**: change a relationship property in the console (such as raising `frequencySeconds` from 30 to 60) → the handler picks up the change as it happens and adjusts the tick interval
