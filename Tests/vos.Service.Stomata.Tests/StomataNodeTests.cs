@@ -124,7 +124,8 @@ public class StomataNodeTests
         };
 
         public double? ElevationMetres { get; set; } = 0.0;
-        public double LimitTen { get; set; } = 45.0;
+        public double HourlyLimitTen { get; set; } = 45.0;
+        public double DailyLimitTen { get; set; } = 45.0;
         public HttpStatusCode DepositStatus { get; set; } = HttpStatusCode.Accepted;
 
         public List<string> Asked { get; } = [];
@@ -140,8 +141,11 @@ public class StomataNodeTests
             if (path == $"/api/things/{Model.Study}/properties")
                 return Json(JsonSerializer.Serialize(new Dictionary<string, object>
                 {
-                    [$"SiteStudy.{StomataNode.ParticulateMatterTenLimit}"] = new { Value = LimitTen },
-                    [$"SiteStudy.{StomataNode.ParticulateMatterTwoAndAHalfLimit}"] = new { Value = 15.0 },
+                    [$"SiteStudy.{StomataNode.HourlyAirLimitParticulateMatterTen}"] = new { Value = HourlyLimitTen },
+                    [$"SiteStudy.{StomataNode.HourlyAirLimitParticulateMatterTwoAndAHalf}"] = new { Value = 15.0 },
+                    [$"SiteStudy.{StomataNode.DailyAirLimitParticulateMatterTen}"] = new { Value = DailyLimitTen },
+                    [$"SiteStudy.{StomataNode.DailyAirLimitParticulateMatterTwoAndAHalf}"] = new { Value = 15.0 },
+                    [$"SiteStudy.{StomataNode.LeastHourlyReadingsForADailyMean}"] = new { Value = 18.0 },
                 }));
             if (path == $"/api/things/{Model.Site}/properties")
                 return Json(ElevationMetres is { } metres
@@ -210,7 +214,37 @@ public class StomataNodeTests
         broker.DepositedAs(StomataNode.WindRoseCellReading).Single().GetProperty("value").GetGuid()
             .Should().Be(model.Cells["east 3-to-5-metres-per-second"]);
         broker.DepositedAs(StomataNode.HumidityRatioReading).Single().GetProperty("value").GetDouble().Should().BeApproximately(13.31, 0.01);
-        broker.DepositedAs(StomataNode.WindowsOpenReading).Single().GetProperty("value").GetDouble().Should().Be(1.0);
+        broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Single().GetProperty("value").GetDouble().Should().Be(1.0);
+        broker.DepositedAs(StomataNode.WindowsOpenOnDailyAirReading).Should().BeEmpty("one hour is not a day of readings");
+    }
+
+    [Fact]
+    public async Task A_day_of_climate_writes_windows_open_on_daily_air_from_the_eighteenth_hour_on()
+    {
+        var broker = new Broker(new Model());
+        var day = Enumerable.Range(0, 24).Select(hour => FirstHour.AddHours(hour)).ToList();
+        broker.Series[StomataNode.ParticulateMatterTenSeries] = [.. day.Select(at => (at, 40.0))];
+        broker.Series[StomataNode.ParticulateMatterTwoAndAHalfSeries] = [.. day.Select(at => (at, 10.0))];
+
+        await WorkOutAsync(broker);
+
+        broker.DepositedAs(StomataNode.WindowsOpenOnDailyAirReading).Select(item => item.GetProperty("observedAt").GetDateTime())
+            .Should().Equal(day.Skip(17));
+        broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Should().HaveCount(24);
+    }
+
+    [Fact]
+    public async Task Each_figure_reads_its_own_pair_of_limits_from_the_study()
+    {
+        var broker = new Broker(new Model()) { HourlyLimitTen = 15.0 };
+        var day = Enumerable.Range(0, 24).Select(hour => FirstHour.AddHours(hour)).ToList();
+        broker.Series[StomataNode.ParticulateMatterTenSeries] = [.. day.Select(at => (at, 20.0))];
+        broker.Series[StomataNode.ParticulateMatterTwoAndAHalfSeries] = [.. day.Select(at => (at, 8.0))];
+
+        await WorkOutAsync(broker);
+
+        broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Should().OnlyContain(item => item.GetProperty("value").GetDouble() == 0.0);
+        broker.DepositedAs(StomataNode.WindowsOpenOnDailyAirReading).Should().OnlyContain(item => item.GetProperty("value").GetDouble() == 1.0);
     }
 
     [Fact]
@@ -236,7 +270,7 @@ public class StomataNodeTests
 
         broker.DepositedAs(StomataNode.WindRoseCellReading).Should().BeEmpty();
         broker.DepositedAs(StomataNode.HumidityRatioReading).Should().ContainSingle();
-        broker.DepositedAs(StomataNode.WindowsOpenReading).Should().ContainSingle();
+        broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Should().ContainSingle();
     }
 
     [Theory]
@@ -244,8 +278,8 @@ public class StomataNodeTests
     [InlineData(StomataNode.RelativeHumiditySeries, StomataNode.HumidityRatioReading)]
     [InlineData(StomataNode.WindSpeedSeries, StomataNode.WindRoseCellReading)]
     [InlineData(StomataNode.WindDirectionSeries, StomataNode.WindRoseCellReading)]
-    [InlineData(StomataNode.ParticulateMatterTenSeries, StomataNode.WindowsOpenReading)]
-    [InlineData(StomataNode.ParticulateMatterTwoAndAHalfSeries, StomataNode.WindowsOpenReading)]
+    [InlineData(StomataNode.ParticulateMatterTenSeries, StomataNode.WindowsOpenOnHourlyAirReading)]
+    [InlineData(StomataNode.ParticulateMatterTwoAndAHalfSeries, StomataNode.WindowsOpenOnHourlyAirReading)]
     public async Task An_hour_missing_one_series_writes_no_reading_that_needs_it_and_every_reading_that_does_not(string missing, string unwritten)
     {
         var broker = new Broker(new Model());
@@ -279,16 +313,6 @@ public class StomataNodeTests
 
         broker.DepositedAs(StomataNode.HumidityRatioReading).Should().BeEmpty();
         broker.DepositedAs(StomataNode.WindRoseCellReading).Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task The_particulate_limits_are_the_studys_own()
-    {
-        var broker = new Broker(new Model()) { LimitTen = 15.0 };
-
-        await WorkOutAsync(broker);
-
-        broker.DepositedAs(StomataNode.WindowsOpenReading).Single().GetProperty("value").GetDouble().Should().Be(0.0);
     }
 
     [Fact]

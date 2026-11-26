@@ -53,7 +53,7 @@ public class HistoryDepositTests
     {
         var broker = new Broker(refusal);
 
-        var answer = await ClientOver(broker).DepositReadingsAsync(Guid.NewGuid(), Hourly("windowsOpenHours", MyceliumClientBase.ReadingsPerDeposit + 1));
+        var answer = await ClientOver(broker).DepositReadingsAsync(Guid.NewGuid(), Hourly("windowsOpenOnHourlyAirHours", MyceliumClientBase.ReadingsPerDeposit + 1));
 
         answer.Accepted.Should().BeFalse();
         answer.CanBeTriedAgain.Should().Be(triedAgain);

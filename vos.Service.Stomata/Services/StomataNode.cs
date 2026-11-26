@@ -15,10 +15,14 @@ public sealed class StomataNode : DagNodeService
     public const string StampProperty = "climateWorkedOutAt";
     public const string WindRoseCellReading = "windRoseCell";
     public const string HumidityRatioReading = "humidityRatioGramsPerKilogram";
-    public const string WindowsOpenReading = "windowsOpenHours";
+    public const string WindowsOpenOnHourlyAirReading = "windowsOpenOnHourlyAirHours";
+    public const string WindowsOpenOnDailyAirReading = "windowsOpenOnDailyAirHours";
     public const string ElevationProperty = "climateDataElevationMetres";
-    public const string ParticulateMatterTenLimit = "whoDailyLimitParticulateMatterTenMicrogramsPerCubicMetre";
-    public const string ParticulateMatterTwoAndAHalfLimit = "whoDailyLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre";
+    public const string HourlyAirLimitParticulateMatterTen = "hourlyAirLimitParticulateMatterTenMicrogramsPerCubicMetre";
+    public const string HourlyAirLimitParticulateMatterTwoAndAHalf = "hourlyAirLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre";
+    public const string DailyAirLimitParticulateMatterTen = "whoDailyLimitParticulateMatterTenMicrogramsPerCubicMetre";
+    public const string DailyAirLimitParticulateMatterTwoAndAHalf = "whoDailyLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre";
+    public const string LeastHourlyReadingsForADailyMean = "leastHourlyReadingsForADailyMean";
     public const string TemperatureSeries = "temperatureCelsius";
     public const string RelativeHumiditySeries = "relativeHumidityPercent";
     public const string WindSpeedSeries = "windSpeedMetresPerSecond";
@@ -86,23 +90,34 @@ public sealed class StomataNode : DagNodeService
             await SeriesAsync(siteId, ParticulateMatterTwoAndAHalfSeries, cancellationToken));
 
         double? elevation = siteInputs.WaitingFor([ElevationProperty]).Count == 0 ? siteInputs.Number(ElevationProperty) : null;
-        var windowsOpen = studyInputs.WaitingFor([ParticulateMatterTenLimit, ParticulateMatterTwoAndAHalfLimit]).Count == 0
-            ? WindowsOpen.Of(hours, new ParticulateLimits(
-                studyInputs.Number(ParticulateMatterTenLimit), studyInputs.Number(ParticulateMatterTwoAndAHalfLimit)))
-            : [.. hours.Select(_ => (double?)null)];
+        var onHourlyAir = LimitsOf(studyInputs, HourlyAirLimitParticulateMatterTen, HourlyAirLimitParticulateMatterTwoAndAHalf) is { } hourlyLimits
+            ? WindowsOpen.OnHourlyAir(hours, hourlyLimits)
+            : Unknown(hours);
+        var onDailyAir = LimitsOf(studyInputs, DailyAirLimitParticulateMatterTen, DailyAirLimitParticulateMatterTwoAndAHalf) is { } dailyLimits
+                         && studyInputs.WaitingFor([LeastHourlyReadingsForADailyMean]).Count == 0
+            ? WindowsOpen.OnDailyAir(hours, dailyLimits, (int)Math.Ceiling(studyInputs.Number(LeastHourlyReadingsForADailyMean)))
+            : Unknown(hours);
 
         var readings = new List<ObservationSample>();
-        foreach (var (hour, open) in hours.Zip(windowsOpen))
+        for (var at = 0; at < hours.Count; at++)
         {
+            var hour = hours[at];
             if (rose.CellOf(hour.WindDirectionDegrees, hour.WindSpeedMetresPerSecond) is { } cell)
                 readings.Add(new ObservationSample(WindRoseCellReading, cell, hour.At));
             if (hour is { TemperatureCelsius: { } celsius, RelativeHumidityPercent: { } humidity } && elevation is { } metres)
                 readings.Add(new ObservationSample(HumidityRatioReading, Psychrometrics.HumidityRatioGramsPerKilogram(celsius, humidity, metres), hour.At));
-            if (open is { } windows)
-                readings.Add(new ObservationSample(WindowsOpenReading, windows, hour.At));
+            if (onHourlyAir[at] is { } hourly)
+                readings.Add(new ObservationSample(WindowsOpenOnHourlyAirReading, hourly, hour.At));
+            if (onDailyAir[at] is { } daily)
+                readings.Add(new ObservationSample(WindowsOpenOnDailyAirReading, daily, hour.At));
         }
         return readings;
     }
+
+    private static ParticulateLimits? LimitsOf(StudyInputs inputs, string ten, string twoAndAHalf) =>
+        inputs.WaitingFor([ten, twoAndAHalf]).Count == 0 ? new ParticulateLimits(inputs.Number(ten), inputs.Number(twoAndAHalf)) : null;
+
+    private static IReadOnlyList<double?> Unknown(IReadOnlyList<ClimateHour> hours) => [.. hours.Select(_ => (double?)null)];
 
     private static readonly JsonElement Empty = JsonDocument.Parse("{}").RootElement.Clone();
 
