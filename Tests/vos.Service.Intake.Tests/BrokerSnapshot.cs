@@ -81,6 +81,12 @@ public sealed class BrokerSnapshot
     }
 
     // A Thing the model no longer holds — a submission cleared once its retention period ran.
+    public BrokerSnapshot HoldingOwn(Guid id, string property, object value)
+    {
+        _things.Single(thing => thing.Id == id).Properties[property] = value;
+        return this;
+    }
+
     public BrokerSnapshot Without(Guid id)
     {
         _things.RemoveAll(thing => thing.Id == id);

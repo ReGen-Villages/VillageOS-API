@@ -44,6 +44,7 @@
     { "doc": "vos.Service.Rust.Echo/README.md", "why": "How to build and run the Rust example beside its source." },
     { "doc": "vos.Service.Transect/README.md", "why": "What the step service reads, writes and refuses, kept beside its source. The service is published in the Services page." },
     { "doc": "vos.Service.Stomata/README.md", "why": "What the step service reads, writes and refuses, kept beside its source. The service is published in the Services page." },
+    { "doc": "vos.Service.Watershed/README.md", "why": "What the step service reads, writes and refuses, kept beside its source. The service is published in the Services page." },
     { "doc": "vos.Service.Shared/Contracts/README.md", "why": "Describes the schema files it sits among, and is read with them open." },
     { "doc": "Tests/vos.Tests.Shared/README.md", "why": "Test helpers for people already in the test projects. Nothing outside the repository uses them." },
     { "doc": "vos.Pages/README.md", "why": "A library only this repository's programs reference, read beside its source. What it reads is described in the Tendril page and the field guide." },

@@ -107,12 +107,19 @@ public sealed class SharedDocumentEndpointTests : IDisposable
     {
         public List<string> Fragments { get; } = [];
         public List<Guid> Removed { get; } = [];
+        public List<(Guid Thing, string Property)> Retracted { get; } = [];
         public Guid? RefusesToRemove { get; init; }
         public Guid? AlreadyGone { get; init; }
 
         public HttpResponseMessage Answer(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Delete && path.Contains("/properties/", StringComparison.Ordinal))
+            {
+                var segments = path.Split('/');
+                Retracted.Add((Guid.Parse(segments[3]), segments[5]));
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
             if (request.Method == HttpMethod.Delete && path.StartsWith("/api/things/", StringComparison.Ordinal))
             {
                 var removing = Guid.Parse(path["/api/things/".Length..]);
@@ -448,6 +455,37 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         JsonDocument.Parse(broker.Fragments.Single()).RootElement.GetProperty("Things").GetArrayLength().Should().Be(3);
     }
 
+    private static readonly Guid ThisStudy = StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.StudyRole);
+
+    private static BrokerSnapshot WithTheGroundWorkedOut(BrokerSnapshot model) =>
+        model.HoldingOwn(ThisStudy, SiteElevationReader.GroundWorkedOutStamp, new { typeInfo = "vos.DateTime", value = "2031-06-01T09:30:00Z" });
+
+    [Fact]
+    public async Task A_layer_file_adding_features_takes_the_ground_stamp_off_the_study_so_its_ground_is_worked_out_again()
+    {
+        var (response, broker) = await ShareLayerAsync(BothChosen, WithTheGroundWorkedOut(WithLayers(ModelWithDocuments())));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        broker.Retracted.Should().Equal((ThisStudy, SiteElevationReader.GroundWorkedOutStamp));
+    }
+
+    [Fact]
+    public async Task A_file_adding_no_feature_keeps_the_ground_stamp()
+    {
+        var (_, broker) = await ShareLayerAsync("{}", WithTheGroundWorkedOut(WithLayers(ModelWithDocuments())));
+
+        broker.Retracted.Should().BeEmpty();
+    }
+
+    // Asking to remove a stamp the study never held would still write a removal into the model's history.
+    [Fact]
+    public async Task A_layer_file_for_a_study_holding_no_stamp_removes_none()
+    {
+        var (_, broker) = await ShareLayerAsync(BothChosen);
+
+        broker.Retracted.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task A_layer_file_with_no_kind_chosen_is_stored_as_a_plain_file()
     {
@@ -569,6 +607,23 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         var (_, broker) = await RemoveAsync(ALayerDocument);
 
         broker.Removed.Should().NotContain(NotAFeature);
+    }
+
+    [Fact]
+    public async Task Removing_a_file_with_features_takes_the_ground_stamp_off_the_study_before_the_features_go()
+    {
+        var (_, broker) = await RemoveAsync(ALayerDocument, WithTheGroundWorkedOut(WithALayerShared(WithLayers(ModelWithDocuments()))));
+
+        broker.Retracted.Should().Equal((ThisStudy, SiteElevationReader.GroundWorkedOutStamp));
+        broker.Removed.Should().Equal(FirstFeature, SecondFeature, ALayerDocument);
+    }
+
+    [Fact]
+    public async Task Removing_a_file_with_no_features_keeps_the_ground_stamp()
+    {
+        var (_, broker) = await RemoveAsync(AnEarlierDocument, model: WithTheGroundWorkedOut(ModelWithDocuments()));
+
+        broker.Retracted.Should().BeEmpty();
     }
 
     [Fact]
