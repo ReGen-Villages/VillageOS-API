@@ -48,8 +48,8 @@ public static class HazardDivision
     // is a division inside the ones naming fewer.
     private static readonly string[] SearchLevelFields = ["admin0", "admin1", "admin2"];
 
-    // Null where the reply names no country or no area at all: a search needs both, and one without the
-    // other would either ask about nowhere or keep every country's answer.
+    // Null where the reply names no country, since a search without one would keep every country's answer.
+    // A reply naming no county or state still carries the codes a coded Place is found by.
     public static GeocodedPosition? PositionIn(string reply)
     {
         if (ObjectIn(reply) is not { } root) return null;
@@ -64,7 +64,7 @@ public static class HazardDivision
             .OfType<string>()
             .ToList();
 
-        return areaNames.Count == 0 ? null : new GeocodedPosition(country, areaNames, StandardCodesIn(address));
+        return new GeocodedPosition(country, areaNames, StandardCodesIn(address));
     }
 
     private static List<string> StandardCodesIn(JsonElement address)

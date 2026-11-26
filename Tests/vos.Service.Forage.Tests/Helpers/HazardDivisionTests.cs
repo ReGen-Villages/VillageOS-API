@@ -113,16 +113,32 @@ public class HazardDivisionTests
         HazardDivision.PositionIn(InTheNetherlands)!.AreaNames.Should().Equal("Flevoland");
     }
 
-    // A search needs both halves: without a country every country's divisions are kept, and without a name
-    // there is nothing to search for.
+    // Without a country every country's divisions would be kept.
     [Theory]
     [InlineData("""{"address": {"county": "Santarem"}}""")]
-    [InlineData("""{"address": {"country": "Portugal"}}""")]
     [InlineData("""{"error": "Unable to geocode"}""")]
     [InlineData("not json at all")]
-    public void APositionMissingEitherHalfIsNoPosition(string reply)
+    public void APositionNamingNoCountryIsNoPosition(string reply)
     {
         HazardDivision.PositionIn(reply).Should().BeNull();
+    }
+
+    // As the area-name lookup answered for a site in Hong Kong on 2026-11-23: a region code, no county or state.
+    private const string InHongKong = """
+        {"address": {"house_number": "56", "locality": "三棟屋村 Sam Tung Uk Resite Village",
+                     "suburb": "Tsuen Wan District", "region": "New Territories", "city": "Hong Kong",
+                     "ISO3166-2-lvl3": "CN-HK", "country": "China", "country_code": "cn"}}
+        """;
+
+    [Fact]
+    public void AReplyNamingACountryButNoCountyOrStateIsAPositionWithItsCodesAndNoAreaNames()
+    {
+        var position = HazardDivision.PositionIn(InHongKong);
+
+        position.Should().NotBeNull();
+        position!.Country.Should().Be("China");
+        position.AreaNames.Should().BeEmpty();
+        position.StandardCodes.Should().Equal("CN-HK", "CN");
     }
 
     [Fact]

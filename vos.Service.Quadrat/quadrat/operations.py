@@ -1,4 +1,5 @@
 from .classes import classify, histogram
+from .geojson import geometry_of
 from .profile import profile as sample_line
 from .limits import Limits
 from .metadata import describe
@@ -38,7 +39,7 @@ def zone(inputs):
     if inputs.get("bbox") is not None:
         return bbox_zone(*inputs["bbox"])
     if inputs.get("geometry") is not None:
-        return inputs["geometry"]
+        return geometry_of(inputs["geometry"])
     raise Refusal("missing_input", "a zone is required: give a 'bbox' or a 'geometry'")
 
 
@@ -57,7 +58,7 @@ def classification(params, inputs, limits):
 
 def profile(params, inputs, limits):
     return sample_line(
-        required(inputs, "raster"), required(inputs, "line"), setting(params, "resampling", "nearest"),
+        required(inputs, "raster"), geometry_of(required(inputs, "line")), setting(params, "resampling", "nearest"),
         spacing=inputs.get("spacing"), samples=inputs.get("samples"), max_cells=limits.max_cells, max_samples=limits.max_samples)
 
 

@@ -360,6 +360,10 @@ A zone is a WGS84 Polygon or MultiPolygon, given one of two ways:
 A zone that does not overlap the raster is refused as `outside_raster`; one that overlaps partly is clipped to the
 raster, and `covered_cells` says how much of it was read.
 
+A `geometry` (and a `line`) is read from the GeoJSON object, from its text, or from a GeoJson value `{"Json": text}`,
+which is how the platform holds a property of that type: a graph reference to a Parcel's `boundary` works as it is.
+Anything else is refused as `invalid_geometry`, naming what was given.
+
 ## What a reading means: limits of raster data
 
 - **Peaks are read low and pits high.** A cell holds one value for a whole patch of ground, an average or a
