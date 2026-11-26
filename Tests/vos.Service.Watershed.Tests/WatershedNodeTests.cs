@@ -239,6 +239,124 @@ public class WatershedNodeTests
     }
 
     [Theory]
+    [InlineData("""{"originLatitude":0,"originLongitude":0,"cellSizeMetres":10,"rows":1,"columns":1,"values":[1]}""")]
+    [InlineData("""{"originLatitude":0,"originLongitude":0,"cellSizeMetres":10,"latitudeStepDegrees":0.0001,"longitudeStepDegrees":0.0001,"rows":"ten","columns":1,"values":[1]}""")]
+    [InlineData("""{"originLatitude":0,"originLongitude":0,"cellSizeMetres":10,"latitudeStepDegrees":0.0001,"longitudeStepDegrees":0.0001,"rows":1.5,"columns":1,"values":[1]}""")]
+    public async Task A_stored_grid_that_cannot_be_read_is_asked_again(string stored)
+    {
+        var model = new WatershedModel(Border);
+        model.Holds(WatershedModel.Site, "terrainHeightGrid", JsonDocument.Parse(stored).RootElement);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.HeightCalls.Should().BeGreaterThan(0);
+    }
+
+    [Theory]
+    [InlineData("LineString")]
+    [InlineData("MultiPolygon")]
+    [InlineData(null)]
+    public async Task A_border_stated_as_a_shape_other_than_a_polygon_is_no_border_and_the_study_is_stamped(string? type)
+    {
+        var shape = new Dictionary<string, object>
+        {
+            ["coordinates"] = new[] { Border.Append(Border[0]).Select(corner => new[] { corner.Longitude, corner.Latitude }).ToArray() },
+        };
+        if (type is not null) shape["type"] = type;
+        var model = new WatershedModel(Border);
+        model.StatesBoundary(JsonSerializer.Serialize(shape));
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.HeightCalls.Should().Be(0);
+        model.Observed.Should().BeEmpty();
+        StampOf(model.Fragments.Single());
+    }
+
+    [Theory]
+    [InlineData("""{"type":"Polygon","coordinates":[]}""")]
+    [InlineData("\"not a polygon\"")]
+    [InlineData("""{"type":"Polygon","coordinates":[[[0],[1],[2]]]}""")]
+    [InlineData("""{"type":"Polygon","coordinates":[[["a","b"],["c","d"],["e","f"]]]}""")]
+    public async Task A_border_that_cannot_be_read_as_a_polygon_is_no_border_and_the_study_is_stamped(string stated)
+    {
+        var model = new WatershedModel(Border);
+        model.StatesBoundary(stated);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.HeightCalls.Should().Be(0);
+        model.Observed.Should().BeEmpty();
+        StampOf(model.Fragments.Single());
+    }
+
+    [Fact]
+    public async Task A_share_of_a_kind_no_role_binds_is_left_unwritten()
+    {
+        var model = new WatershedModel(Border);
+        var other = model.HoldsAShareOfAnotherKind();
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.Observed.Should().NotContain(batch => batch.Thing == other);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task A_batch_the_model_cannot_take_now_can_be_tried_again_and_writes_no_stamp(HttpStatusCode status)
+    {
+        var model = new WatershedModel(Border) { ObservationsStatus = status };
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task A_batch_the_model_refuses_fails_the_run_and_writes_no_stamp(HttpStatusCode status)
+    {
+        var model = new WatershedModel(Border) { ObservationsStatus = status };
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task A_model_that_refuses_the_read_fails_the_run(HttpStatusCode status)
+    {
+        var response = await RunAsync(new WatershedModel(Border) { SnapshotStatus = status });
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_subject_naming_a_study_the_model_does_not_hold_fails_the_run()
+    {
+        var model = new WatershedModel(Border);
+
+        var response = await RunAsync(model, $"\"{Guid.NewGuid()}\"");
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
     [InlineData(HttpStatusCode.InternalServerError)]
     public async Task A_model_that_cannot_be_read_can_be_tried_again(HttpStatusCode status)

@@ -75,6 +75,8 @@ public sealed class WatershedModel
 
     public HttpStatusCode HeightsStatus { get; set; } = HttpStatusCode.OK;
 
+    public HttpStatusCode ObservationsStatus { get; set; } = HttpStatusCode.OK;
+
     public HttpStatusCode FragmentStatus { get; set; } = HttpStatusCode.OK;
 
     public static readonly DateTimeOffset ModelNow = new(2027, 3, 1, 8, 0, 0, TimeSpan.Zero);
@@ -95,6 +97,16 @@ public sealed class WatershedModel
 
     public void Holds(Guid thing, string property, object value) =>
         _things[thing].Properties[property] = new SnapshotProperty(JsonSerializer.SerializeToElement(value), null, "Observation");
+
+    public void StatesBoundary(string stated) =>
+        _things[Parcel].Properties["boundary"] = new SnapshotProperty(JsonDocument.Parse(stated).RootElement.Clone(), "vos.GeoJson", "Fact");
+
+    public Guid HoldsAShareOfAnotherKind()
+    {
+        var archetype = Guid.NewGuid();
+        Thing(archetype, "AnotherShare", isArchetype: true);
+        return Share(archetype, Term("another term", new() { ["atLeastPercent"] = 0 }));
+    }
 
     public HttpResponseMessage Answer(HttpRequestMessage request)
     {
@@ -120,6 +132,7 @@ public sealed class WatershedModel
         {
             var thing = Guid.Parse(path.Split('/')[3]);
             Asked.Add($"observations {thing}");
+            if (ObservationsStatus != HttpStatusCode.OK) return new HttpResponseMessage(ObservationsStatus) { Content = new StringContent("refused") };
             var values = JsonDocument.Parse(body!).RootElement.EnumerateArray()
                 .ToDictionary(item => item.GetProperty("property").GetString()!, item => item.GetProperty("value").Clone());
             Observed.Add((thing, values));

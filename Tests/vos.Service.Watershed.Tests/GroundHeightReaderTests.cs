@@ -124,6 +124,34 @@ public class GroundHeightReaderTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_source_that_cannot_be_reached_or_answers_too_late_can_be_tried_again(bool answersTooLate)
+    {
+        var (reader, _) = ReaderAnsweredBy(new Fetcher(_ =>
+            throw (answersTooLate ? new TaskCanceledException("the call timed out") : (Exception)new HttpRequestException("connection refused"))));
+
+        var asking = () => reader.HeightsAtAsync(Endpoint, Points(3), CancellationToken.None);
+
+        await asking.Should().ThrowAsync<FailureCanBeTriedAgainException>();
+    }
+
+    [Fact]
+    public async Task A_run_cancelled_by_its_caller_is_not_tried_again()
+    {
+        using var cancelling = new CancellationTokenSource();
+        var (reader, _) = ReaderAnsweredBy(new Fetcher(_ =>
+        {
+            cancelling.Cancel();
+            throw new TaskCanceledException("the caller cancelled");
+        }));
+
+        var asking = () => reader.HeightsAtAsync(Endpoint, Points(3), cancelling.Token);
+
+        await asking.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Theory]
     [InlineData(HttpStatusCode.BadRequest)]
     [InlineData(HttpStatusCode.NotFound)]
     public async Task Any_other_refusal_fails_the_run(HttpStatusCode status)
