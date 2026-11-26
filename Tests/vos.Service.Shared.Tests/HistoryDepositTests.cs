@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Shared.Contracts.Validation;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -44,6 +45,19 @@ public class HistoryDepositTests
         var first = JsonDocument.Parse(broker.Asked[0].Body).RootElement;
         first.GetArrayLength().Should().Be(MyceliumClientBase.ReadingsPerDeposit);
         first[0].GetProperty("objectId").GetGuid().Should().Be(site);
+    }
+
+    [Fact]
+    public async Task A_deposit_the_sediment_schema_refuses_is_never_sent()
+    {
+        var broker = new Broker(HttpStatusCode.Accepted);
+        var client = ClientOver(broker);
+        client.ViolationModeForTests = SchemaViolationMode.Throw;
+
+        var deposit = () => client.DepositReadingsAsync(Guid.NewGuid(), [new ObservationSample(null!, 1.5, FirstHour)]);
+
+        (await deposit.Should().ThrowAsync<ContractValidationException>()).Which.Message.Should().Contain("sediment-deposit-request");
+        broker.Asked.Should().BeEmpty();
     }
 
     [Theory]
