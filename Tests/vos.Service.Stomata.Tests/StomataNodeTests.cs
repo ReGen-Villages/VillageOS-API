@@ -318,6 +318,22 @@ public class StomataNodeTests
     }
 
     [Fact]
+    public async Task A_study_whose_inputs_the_model_does_not_hold_writes_no_windows_open_figure_and_still_writes_the_rest()
+    {
+        var broker = new Broker(new Model());
+        broker.Instead[PathOf("the study's inputs")] = () =>
+            new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("{\"error\":\"Thing not found\"}") };
+
+        var response = await WorkOutAsync(broker);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Should().BeEmpty();
+        broker.DepositedAs(StomataNode.WindowsOpenOnDailyAirReading).Should().BeEmpty();
+        broker.DepositedAs(StomataNode.WindRoseCellReading).Should().ContainSingle();
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+    }
+
+    [Fact]
     public async Task A_study_that_studies_no_site_writes_only_the_stamp()
     {
         var broker = new Broker(new Model(studiesASite: false));
