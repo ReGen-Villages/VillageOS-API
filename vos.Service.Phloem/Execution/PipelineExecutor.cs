@@ -138,7 +138,7 @@ public sealed class PipelineExecutor
             {
                 if (failuresInARow == 0)
                     _logger.LogWarning(unanswered, "The model could not be read to begin a queued run of pipeline {PipelineId}; it is read again, each pause longer, until it answers", pipelineId);
-                await Task.WhenAny(_pause(CallReporter.PauseAfter(failuresInARow + 1)), givenUp, _shuttingDown.Task);
+                await Task.WhenAny(_pause(AskingAgain.PauseAfter(failuresInARow + 1)), givenUp, _shuttingDown.Task);
                 if (givenUp.IsCompleted || _shuttingDown.Task.IsCompleted) return null;
             }
         }

@@ -17,14 +17,14 @@ public class MyceliumClientBaseValidationTests
     private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
 
     [Fact]
-    public async Task RegisterAsync_ValidPayload_ThrowMode_PostsAndReturnsTrue()
+    public async Task RegisterAsync_ValidPayload_ThrowMode_PostsAndIsAccepted()
     {
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK),
             serviceToken: TestToken, mode: SchemaViolationMode.Throw);
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeTrue();
+        result.Should().Be(RegistrationAnswer.Accepted);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class MyceliumClientBaseValidationTests
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK),
             serviceToken: TestToken, mode: SchemaViolationMode.Throw);
 
-        (await client.RegisterAsync(7100, "Echo", "endpoint-service", "metabolism-outgoing-")).Should().BeTrue();
+        (await client.RegisterAsync(7100, "Echo", "endpoint-service", "metabolism-outgoing-")).Should().Be(RegistrationAnswer.Accepted);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class MyceliumClientBaseValidationTests
 
         var result = await client.RegisterAsync(7100, "", "endpoint-service");
 
-        result.Should().BeTrue("Log mode never blocks the call; mycelium decides on the body");
+        result.Should().Be(RegistrationAnswer.Accepted, "Log mode never blocks the call; mycelium decides on the body");
         myceliumCalls.Should().Be(1, "Log mode lets the malformed request through to Mycelium");
         logger.Warnings.Should().ContainSingle()
             .Which.Should().Contain(MyceliumRegisterRequestSchemaId);

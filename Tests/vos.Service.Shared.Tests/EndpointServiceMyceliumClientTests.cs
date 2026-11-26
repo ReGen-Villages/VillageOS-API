@@ -39,7 +39,7 @@ public class EndpointServiceMyceliumClientTests
     [InlineData("EnergyBalance")]
     [InlineData("WaterReserve")]
     [InlineData("ModelBridge")]
-    public async Task RegisterAsync_DeclaresTheServiceUnderItsOwnName(string serviceName)
+    public async Task RegisterUntilSettledAsync_DeclaresTheServiceUnderItsOwnName(string serviceName)
     {
         JsonElement? capturedBody = null;
         var (client, _) = NewClient(request =>
@@ -50,7 +50,7 @@ public class EndpointServiceMyceliumClientTests
             return Ok();
         }, serviceName: serviceName);
 
-        var result = await client.RegisterAsync(port: 7100);
+        var result = await RegisterAsync(client);
 
         result.Should().BeTrue();
         capturedBody.Should().NotBeNull();
@@ -60,7 +60,7 @@ public class EndpointServiceMyceliumClientTests
     }
 
     [Fact]
-    public async Task RegisterAsync_SendsTheEndpointsMyceliumNeedsToReachTheService()
+    public async Task RegisterUntilSettledAsync_SendsTheEndpointsMyceliumNeedsToReachTheService()
     {
         JsonElement? capturedBody = null;
         var (client, _) = NewClient(request =>
@@ -69,7 +69,7 @@ public class EndpointServiceMyceliumClientTests
             return Ok();
         });
 
-        await client.RegisterAsync(port: 7100);
+        await RegisterAsync(client);
 
         var body = capturedBody!.Value;
         body.GetProperty("handlerId").GetString().Should().Be(client.HandlerId.ToString());
@@ -79,7 +79,7 @@ public class EndpointServiceMyceliumClientTests
     }
 
     [Fact]
-    public async Task RegisterAsync_PassesTheLogFilePrefixOn()
+    public async Task RegisterUntilSettledAsync_PassesTheLogFilePrefixOn()
     {
         JsonElement? capturedBody = null;
         var (client, _) = NewClient(request =>
@@ -88,28 +88,32 @@ public class EndpointServiceMyceliumClientTests
             return Ok();
         });
 
-        await client.RegisterAsync(port: 7100, logFilePrefix: "echo-");
+        await RegisterAsync(client, logFilePrefix: "echo-");
 
         capturedBody!.Value.GetProperty("logFilePrefix").GetString().Should().Be("echo-");
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenMyceliumRefuses_ReturnsFalse()
+    public async Task RegisterUntilSettledAsync_WhenMyceliumRefuses_ReturnsFalse()
     {
         var (client, _) = NewClient(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
 
-        (await client.RegisterAsync(port: 7100)).Should().BeFalse();
+        (await RegisterAsync(client)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenNoTokenCanBeObtained_ReturnsFalse()
+    public async Task RegisterUntilSettledAsync_HoldingNoCredential_ReturnsFalseWithoutAsking()
     {
-        var (client, _) = NewClient(
+        var (client, handler) = NewClient(
             _ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
             serviceToken: null);
 
-        (await client.RegisterAsync(port: 7100)).Should().BeFalse();
+        (await RegisterAsync(client)).Should().BeFalse();
+        handler.Requests.Should().BeEmpty();
     }
+
+    private static Task<bool> RegisterAsync(EndpointServiceMyceliumClient client, string? logFilePrefix = null) =>
+        client.RegisterUntilSettledAsync(7100, logFilePrefix, null, TimeProvider.System, CancellationToken.None);
 
     [Fact]
     public async Task GetTokenAsync_WithAnIssuedToken_DoesNotContactMycelium()

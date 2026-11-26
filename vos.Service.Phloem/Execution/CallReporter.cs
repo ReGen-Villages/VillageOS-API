@@ -1,4 +1,5 @@
 using System.Net;
+using vos.Service.Shared;
 using vos.Service.Shared.ServiceCalls;
 
 namespace vos.Service.Phloem.Execution;
@@ -7,9 +8,6 @@ namespace vos.Service.Phloem.Execution;
 // before its start.
 public sealed class CallReporter
 {
-    private static readonly TimeSpan FirstPause = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan LongestPause = TimeSpan.FromMinutes(5);
-
     private readonly IMyceliumGateway _gateway;
     private readonly ILogger _logger;
     private readonly Func<TimeSpan, Task> _pause;
@@ -30,9 +28,6 @@ public sealed class CallReporter
         RunStatus.Cancelled => CallReport.Failed(RunStatus.StoppedBecause(error)),
         _ => CallReport.Failed(string.IsNullOrWhiteSpace(error) ? $"The run ended {status}, and its record gives no reason." : error),
     };
-
-    public static TimeSpan PauseAfter(int failuresInARow) =>
-        TimeSpan.FromTicks(Math.Min(LongestPause.Ticks, FirstPause.Ticks * (1L << Math.Clamp(failuresInARow - 1, 0, 30))));
 
     public Task SendAsync(Guid runId, Guid callRecordId, CallReport report)
     {
@@ -93,7 +88,7 @@ public sealed class CallReporter
                 if (failuresInARow == 0)
                     _logger.LogWarning(unsent, "The {Report} report of run {RunId} did not reach the broker; it is sent again, each pause longer, until it does",
                         report.Word, runId);
-                await _pause(PauseAfter(failuresInARow + 1));
+                await _pause(AskingAgain.PauseAfter(failuresInARow + 1));
             }
         }
 

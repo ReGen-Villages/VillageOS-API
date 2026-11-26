@@ -1,6 +1,9 @@
+import asyncio
 import os
+import time
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
@@ -96,17 +99,88 @@ def test_a_service_can_add_its_own_protected_route(host, config):
             assert c.post("/own").status_code == 401
 
 
+def until(condition, expectation: str, seconds: float = 5.0):
+    deadline = time.monotonic() + seconds
+    while not condition():
+        assert time.monotonic() < deadline, expectation
+        time.sleep(0.01)
+
+
+def broker_answering(handle):
+    return patch("vos_service.mycelium.platform_client", lambda timeout: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+
+
 def test_startup_registers_under_the_services_name_and_id(host):
     register = AsyncMock(return_value=True)
     with patch.object(host.mycelium, "register", new=register):
         with TestClient(host.app):
-            pass
-    register.assert_awaited_once_with("Example", host.handler_id)
+            until(lambda: register.await_count == 1, "startup registers the service")
+    register.assert_awaited_once_with("Example", host.handler_id, client=None)
+
+
+def test_bug8746_a_registration_the_starting_broker_refuses_is_asked_again_until_it_is_taken(host):
+    asks = []
+
+    def handle(request):
+        asks.append(request)
+        return httpx.Response(200) if len(asks) == 3 else httpx.Response(503, headers={"Retry-After": "0"})
+
+    with broker_answering(handle), TestClient(host.app) as c:
+        until(lambda: len(asks) == 3, "the service asks again until the broker takes it")
+        assert c.get("/health").status_code == 200
+
+
+def test_shutdown_stops_the_asking(host):
+    asks = []
+
+    def handle(request):
+        asks.append(request)
+        return httpx.Response(503, headers={"Retry-After": "0"})
+
+    async def asks_after_shutdown():
+        async with host.app.router.lifespan_context(host.app):
+            while not asks:
+                await asyncio.sleep(0.01)
+        at_shutdown = len(asks)
+        await asyncio.sleep(0.05)
+        return len(asks) - at_shutdown
+
+    with broker_answering(handle):
+        assert asyncio.run(asyncio.wait_for(asks_after_shutdown(), 5)) == 0
+
+
+def test_a_shutdown_cancelled_from_outside_while_the_service_still_asks_is_cancelled(host):
+    async def cancel_the_shutdown():
+        cancel_seen, release = asyncio.Event(), asyncio.Event()
+
+        async def register(*args, **kwargs):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancel_seen.set()
+                await release.wait()
+                raise
+
+        with patch.object(host.mycelium, "register", new=register):
+            lifespan = host.app.router.lifespan_context(host.app)
+            await lifespan.__aenter__()
+            shutdown = asyncio.create_task(lifespan.__aexit__(None, None, None))
+            await cancel_seen.wait()
+            shutdown.cancel()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await shutdown
+        await asyncio.sleep(0)
+        return [task for task in asyncio.all_tasks() if task is not asyncio.current_task() and not task.done()]
+
+    assert asyncio.run(asyncio.wait_for(cancel_the_shutdown(), 5)) == []
 
 
 def test_a_failed_registration_does_not_stop_the_service(host, capsys):
-    with patch.object(host.mycelium, "register", new=AsyncMock(side_effect=RuntimeError("no broker"))):
+    register = AsyncMock(side_effect=RuntimeError("no broker"))
+    with patch.object(host.mycelium, "register", new=register):
         with TestClient(host.app) as c:
+            until(lambda: register.await_count == 1, "startup tries to register")
             assert c.get("/health").status_code == 200
     assert "registration failed: no broker" in capsys.readouterr().err
 

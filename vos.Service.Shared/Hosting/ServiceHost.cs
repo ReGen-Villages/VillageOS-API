@@ -70,7 +70,8 @@ public static class ServiceHost
     public static IServiceCollection AddMyceliumRegistration(
         this IServiceCollection services, string serviceName, int port) =>
         services.AddHostedService(provider => new MyceliumRegistration(
-            provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port));
+            provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port,
+            provider.GetService<TimeProvider>() ?? TimeProvider.System));
 
     // The clock this service stamps model values with, kept on the broker's. Registered as ModelClock
     // rather than as the injected TimeProvider, because a service also measures real durations of its
