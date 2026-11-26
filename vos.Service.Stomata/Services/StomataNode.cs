@@ -36,16 +36,12 @@ public sealed class StomataNode : DagNodeService
         "Stomata works out the SiteStudy on its 'subject' input: its identifier, or an object naming it by \"id\".";
 
     private readonly SubscriptionClient _snapshots;
-    private readonly TimeProvider _clock;
 
     public StomataNode(
         IHttpClientFactory httpClientFactory, ILogger<StomataNode> logger, string myceliumUrl,
-        LaunchToken? launchToken = null, string? apiKey = null, TimeProvider? clock = null)
-        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey)
-    {
+        LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey) =>
         _snapshots = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey);
-        _clock = clock ?? TimeProvider.System;
-    }
 
     public override IReadOnlyList<PortDescriptor> Ports { get; } =
     [
@@ -195,6 +191,8 @@ public sealed class StomataNode : DagNodeService
 
     private async Task StampAsync(SnapshotThing study, CancellationToken cancellationToken)
     {
+        var modelNow = await ReadModelTimeAsync(cancellationToken)
+            ?? throw new FailureCanBeTriedAgainException("The model's clock could not be read, so the study cannot be stamped worked out.");
         var fragment = new
         {
             Name = $"{study.Name} climate worked out",
@@ -206,7 +204,7 @@ public sealed class StomataNode : DagNodeService
                     Name = study.Name ?? study.Id.ToString(),
                     Properties = new Dictionary<string, object>
                     {
-                        [StampProperty] = new { typeInfo = "vos.DateTime", value = _clock.GetUtcNow().UtcDateTime },
+                        [StampProperty] = new { typeInfo = "vos.DateTime", value = modelNow.Now.UtcDateTime },
                     },
                 },
             },

@@ -19,7 +19,7 @@ public class StomataNodeTests
     private static readonly Guid Run = Guid.Parse("81960000-0000-0000-0000-0000000000aa");
     private static readonly Guid Node = Guid.Parse("81960000-0000-0000-0000-0000000000bb");
     private static readonly DateTime FirstHour = new(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-    private static readonly DateTimeOffset WorkedOutAt = new(2031, 6, 1, 9, 30, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ModelNow = new(2027, 9, 20, 8, 0, 0, TimeSpan.Zero);
 
     private static readonly string[] SectorNames =
     [
@@ -127,6 +127,7 @@ public class StomataNodeTests
         public double HourlyLimitTen { get; set; } = 45.0;
         public double DailyLimitTen { get; set; } = 45.0;
         public HttpStatusCode DepositStatus { get; set; } = HttpStatusCode.Accepted;
+        public bool AnswersTheModelClock { get; set; } = true;
 
         public List<string> Asked { get; } = [];
         public List<JsonElement> Deposited { get; } = [];
@@ -138,6 +139,10 @@ public class StomataNodeTests
             Asked.Add($"{request.Method} {path}");
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
             if (path == "/api/snapshots") return Json(model.Answer());
+            if (path == "/api/time")
+                return AnswersTheModelClock
+                    ? Json(JsonSerializer.Serialize(new { now = ModelNow, rate = 1.0 }))
+                    : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             if (path == $"/api/things/{Model.Study}/properties")
                 return Json(JsonSerializer.Serialize(new Dictionary<string, object>
                 {
@@ -182,15 +187,10 @@ public class StomataNodeTests
             new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
-    private sealed class StoppedClock(DateTimeOffset at) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => at;
-    }
-
     private static async Task<NodeResponse> WorkOutAsync(Broker broker, string? subject = null) =>
         await new StomataNode(
                 new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), NullLogger<StomataNode>.Instance, MyceliumUrl,
-                new LaunchToken("svc-jwt"), clock: new StoppedClock(WorkedOutAt))
+                new LaunchToken("svc-jwt"))
             .HandleNodeAsync(JsonDocument.Parse(
                 $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement);
 
@@ -256,7 +256,7 @@ public class StomataNodeTests
 
         var writes = broker.Asked.Where(asked => asked.StartsWith("POST") && !asked.EndsWith("/api/snapshots")).ToList();
         writes.Should().Equal("POST /api/sediment", $"POST /api/things/{Model.Site}/history/changed", "POST /api/model/fragment");
-        Stamp(broker).Should().Be(WorkedOutAt.UtcDateTime);
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
     }
 
     // The rose's shares are taken over the hours that have a cell, so a calm hour is left out of every share.
@@ -301,7 +301,7 @@ public class StomataNodeTests
         (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
 
         broker.Asked.Should().NotContain(asked => asked.EndsWith("/api/sediment") || asked.EndsWith("/history/changed"));
-        Stamp(broker).Should().Be(WorkedOutAt.UtcDateTime);
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
     }
 
     [Fact]
@@ -323,7 +323,31 @@ public class StomataNodeTests
         (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
 
         broker.Deposited.Should().BeEmpty();
-        Stamp(broker).Should().Be(WorkedOutAt.UtcDateTime);
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+    }
+
+    // The model's clock here stands in 2027, so a stamp taken off this machine's clock could not match it.
+    [Fact]
+    public async Task The_stamp_is_the_models_time_and_not_this_machines()
+    {
+        var broker = new Broker(new Model());
+
+        await WorkOutAsync(broker);
+
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+        broker.Asked.Should().Contain("GET /api/time");
+    }
+
+    [Fact]
+    public async Task A_model_clock_that_cannot_be_read_fails_as_one_to_try_again_and_writes_no_stamp()
+    {
+        var broker = new Broker(new Model()) { AnswersTheModelClock = false };
+
+        var response = await WorkOutAsync(broker);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        broker.Fragments.Should().BeEmpty();
     }
 
     [Fact]
