@@ -19,7 +19,7 @@ public sealed class WindRose(
     // The provider gives still air a direction, which is no measurement, so a calm hour has no cell.
     public Guid? CellOf(double? directionDegrees, double? speedMetresPerSecond)
     {
-        if (directionDegrees is not { } direction || speedMetresPerSecond is not { } speed || speed <= 0 || sectors.Count == 0)
+        if (directionDegrees is not { } direction || speedMetresPerSecond is not { } speed || speed <= 0)
             return null;
 
         var width = 360.0 / sectors.Count;
