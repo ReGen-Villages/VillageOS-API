@@ -11,13 +11,14 @@ export type DeclaredWriteKind = (typeof DECLARED_WRITE_KINDS)[number];
 
 /**
  * Where a value came from: stated by whoever the Thing is about, measured or fetched from outside,
- * assumed by the platform because the archetype supplies it, or unrecorded.
+ * assumed by the platform because the archetype supplies it, or unrecorded. `ambiguous` is a name the
+ * Thing inherits from two or more sources, which the platform gives no value, so nothing is shown for it.
  *
  * Structural, not domain vocabulary — how a value entered the model, in words that hold for any
  * model. What each one *reads as* on a page is the model's to write. Resolved by
  * `valueOrigin` in src/utils/propertyOrigin.ts.
  */
-export const ORIGIN_KINDS = ['stated', 'measured', 'assumed', 'unknown'] as const;
+export const ORIGIN_KINDS = ['stated', 'measured', 'assumed', 'unknown', 'ambiguous'] as const;
 export type OriginKind = (typeof ORIGIN_KINDS)[number];
 
 export interface ValueOrigin {

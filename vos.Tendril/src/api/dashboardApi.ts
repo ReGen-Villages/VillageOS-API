@@ -1011,10 +1011,13 @@ async function resolveOrigin(binding: Extract<Binding, { kind: 'origin' }>, cont
   const carrying = await thingsReached(binding.thing, binding.via, context);
   return Promise.all(carrying.map(async (thing) => {
     const { origin, assumedFrom } = valueOrigin(thing, binding.property, context.index);
-    // An assumed value already names the archetype it was inherited from, so only other origins ask the model for a source.
+    // An assumed value already names the archetype it was inherited from, and an ambiguous name has no value for anything to
+    // say is so, so only other origins ask the model for a source.
     const recorded = assumedFrom !== null
       ? { source: assumedFrom, resolvedAt: null }
-      : await recordedSourceOf(thing, binding.source, context);
+      : origin === 'ambiguous'
+        ? { source: null, resolvedAt: null }
+        : await recordedSourceOf(thing, binding.source, context);
     return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
   }));
 }

@@ -164,8 +164,9 @@ export type Binding =
    *  `origin` is read from what the model declares about the property, never from what the property
    *  is called: a value the Thing holds is `stated` or `measured` according to the kind of write its
    *  declaration accepts, a value only its archetype carries is `assumed`, and a value the model
-   *  declares nothing about is `unknown`. A renamed property answers the same way, and silence is
-   *  never reported as a measurement.
+   *  declares nothing about is `unknown`. A name the Thing does not hold itself and inherits from two
+   *  or more sources is `ambiguous`: the platform gives it no value, so neither source is named. A
+   *  renamed property answers the same way, and silence is never reported as a measurement.
    *
    *  `reads` is the wording the specification gives that origin, and is the only wording there is — an origin
    *  the specification leaves unworded says nothing rather than something Trellis made up. `source` names
@@ -360,7 +361,7 @@ export interface VerdictCandidate {
 
 /**
  * How each origin reads, in the model's own words — the same contract {@link VerdictCandidate}
- * keeps. Trellis knows that a value was stated, measured, assumed or unrecorded; it has no wording
+ * keeps. Trellis knows that a value was stated, measured, assumed, unrecorded or ambiguous; it has no wording
  * for any of them, because the words belong to a domain it must stay out of and would be written in
  * one language for every model.
  *

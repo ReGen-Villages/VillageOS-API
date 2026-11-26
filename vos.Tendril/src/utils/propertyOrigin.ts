@@ -8,10 +8,11 @@
  * unrecorded, never as a measurement.
  */
 import type { DeclaredWriteKind, InheritedPropertySet, ValueOrigin, VosThing } from '../types/vos';
-import type { IsChainLookup } from './propertyMapper';
+import { readsAsAmbiguous, type IsChainLookup } from './propertyMapper';
 import { inPrecedenceOrder } from './precedenceOrder';
 
 export function valueOrigin(thing: VosThing, property: string, lookup: IsChainLookup): ValueOrigin {
+  if (readsAsAmbiguous(thing, property, lookup)) return { origin: 'ambiguous', assumedFrom: null };
   const source = statedBy(thing, property, lookup, new Set());
   if (!source) return { origin: 'unknown', assumedFrom: null };
   if (source !== thing) return { origin: 'assumed', assumedFrom: source.Name };
@@ -95,7 +96,8 @@ function declaredWriteKind(
 /**
  * The archetypes a Thing is, in the order {@link effectiveProperties} lets them win: it merges
  * siblings in precedence order and lets each overwrite the last, so the last one in that order
- * holds the value and is asked here first.
+ * holds the value and is asked here first. Siblings that hold the name from two sources never get
+ * here, as the name then reads as ambiguous; the order decides only between routes to one source.
  */
 function ancestorsInPrecedenceOrder(thing: VosThing, lookup: IsChainLookup): VosThing[] {
   return (lookup.isParents.get(thing.Id) ?? [])

@@ -213,7 +213,7 @@ describe('a figure two kinds of its Thing each declare, read out for a reader wi
     expect(await readWidget(widget, twoKinds)).toEqual({
       type: 'kpi',
       title: 'Household size',
-      value: null,
+      value: NaN,
       worded: '—',
       origin: [{ origin: 'ambiguous', sentence: 'two of its kinds each give a value' }],
     });

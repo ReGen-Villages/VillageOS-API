@@ -131,11 +131,13 @@ export function statedProperties(thing: ResolvableThing): Record<string, unknown
  * A Thing's effective properties: inherited defaults + stored overrides + own, own winning, flattened
  * and unwrapped. Resolution walks the `is`-chain via `lookup`: each ancestor archetype contributes its
  * OWN effective properties (its defaults and overrides already resolved), so inherited values the
- * instance never overrode are included — mirroring the server's resolve-on-read. Call unwrapThing first.
+ * instance never overrode are included. Call unwrapThing first.
  *
- * Precedence is deterministic: own > override > nearer archetype > farther archetype; among same-distance
- * siblings the one whose `Name`/`SourceName` is last in precedence order wins, so a value defined by two sibling archetypes
- * always resolves the same way regardless of key order. The result is frozen (a shared cache entry);
+ * Precedence is own > override > nearer archetype > farther archetype. A name the Thing does not hold
+ * itself and that two or more sources declare is left out, as the platform reads it as ambiguous and
+ * computes nothing from it (see {@link readsAsAmbiguous}). Where one source reaches the Thing by two
+ * routes that each state a value, the one whose `Name`/`SourceName` is last in precedence order wins,
+ * so it resolves the same way regardless of key order. The result is frozen (a shared cache entry);
  * callers read or spread it but must not mutate it.
  */
 export function effectiveProperties(
@@ -166,9 +168,79 @@ function resolveEffective(
   collectOverrides(thing.InheritedOverrides, merged);
   Object.assign(merged, thing.Properties);
 
+  const sources = inheritedSources(thing, lookup, visiting);
+  for (const name of Object.keys(merged)) {
+    if (!holdsOwn(thing, name) && (sources.get(name)?.size ?? 0) > 1) delete merged[name];
+  }
+
   const frozen = Object.freeze(merged);
   perModel.set(thing, frozen);
   return frozen;
+}
+
+/**
+ * Whether the platform reads `name` on this Thing as ambiguous: the Thing holds no property of that
+ * name itself, and two or more sources declare it. A source is the Thing that first declared the name;
+ * a kind stating its own value over the kind above it, or a Thing storing a value for a name it
+ * inherits, is held against that source and adds none. Two routes to one source are one source.
+ */
+export function readsAsAmbiguous(thing: ResolvableThing, name: string, lookup: IsChainLookup): boolean {
+  return !holdsOwn(thing, name) && (inheritedSources(thing, lookup, new Set()).get(name)?.size ?? 0) > 1;
+}
+
+function holdsOwn(thing: ResolvableThing, name: string): boolean {
+  return !!thing.Properties && Object.hasOwn(thing.Properties, name);
+}
+
+type SourcesByName = Map<string, Set<string>>;
+
+const passedOnCache = new WeakMap<object, WeakMap<object, SourcesByName>>();
+
+/** The sources of each name a Thing inherits: those its archetypes pass on, and those of the values it stored. */
+function inheritedSources(thing: ResolvableThing, lookup: IsChainLookup, visiting: Set<string>): SourcesByName {
+  const sources: SourcesByName = new Map();
+  foldInAncestors(thing, lookup, visiting, (parent) => addSources(sources, passedOn(parent, lookup, visiting)));
+  addStoredSources(thing.InheritedOverrides, sources);
+  return sources;
+}
+
+/** The sources of each name a member inherits through this Thing. A name the Thing declares that none of its
+ *  own sources does makes the Thing that name's source; any other value it holds stands over a source above it. */
+function passedOn(thing: VosThing, lookup: IsChainLookup, visiting: Set<string>): SourcesByName {
+  let perModel = passedOnCache.get(lookup);
+  if (!perModel) { perModel = new WeakMap(); passedOnCache.set(lookup, perModel); }
+  const cached = perModel.get(thing);
+  if (cached) return cached;
+
+  const sources = inheritedSources(thing, lookup, visiting);
+  for (const name of Object.keys(thing.Properties ?? {})) {
+    if (!sources.has(name)) sources.set(name, new Set([thing.Id]));
+  }
+  perModel.set(thing, sources);
+  return sources;
+}
+
+/** As {@link passedOn}, for the sets a Thing stored values in: a set nested inside another is a source
+ *  farther up the same route, so a name both hold stands over the farther one and adds no source. */
+function addStoredSources(sets: Record<string, InheritedPropertySet> | undefined, sources: SourcesByName): void {
+  for (const set of Object.values(sets ?? {})) {
+    const farther: SourcesByName = new Map();
+    addStoredSources(set.Inherited, farther);
+    for (const name of Object.keys(set.Properties ?? {})) {
+      if (!farther.has(name)) addSource(farther, name, set.SourceId);
+    }
+    addSources(sources, farther);
+  }
+}
+
+function addSources(into: SourcesByName, from: SourcesByName): void {
+  for (const [name, ids] of from) for (const id of ids) addSource(into, name, id);
+}
+
+function addSource(into: SourcesByName, name: string, id: string): void {
+  const held = into.get(name);
+  if (held) held.add(id);
+  else into.set(name, new Set([id]));
 }
 
 /**
