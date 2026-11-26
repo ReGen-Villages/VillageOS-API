@@ -211,8 +211,8 @@ assessed*, never as *failed*. [Appendix D](#appendix-d--how-every-site-figure-is
 every figure, how it is worked out and why.
 
 **The dashboard.** A page the model itself publishes shows every figure with where it came from,
-how it was worked out, and what would move it. A shortfall names the levers: raise this input, or
-lower that one.
+how it was worked out, and what would move it. A shortfall names the inputs that would close it:
+raise this one, or lower that one.
 
 Everything — the answers, the fetched values, the results and the origin of each — lives in the
 model and keeps its history. Adjusting an assumption changes one value, and every balance that
@@ -252,7 +252,7 @@ efficiency is measured at the panel under test conditions; the second factor is 
 between panel and meter. Keeping them separate makes leaving the losses out a visible omission
 rather than a plausible number. **The shortfall is a real result about the site as modelled, not a
 defect.** Closing it is a design decision: more array area, less assumed consumption, or more firm
-generation. The dashboard names those levers beside the figure, and a planner who changes one sees
+generation. The dashboard names those inputs beside the figure, and a planner who changes one sees
 every dependent figure move.
 
 ### 11. What a project configures without writing code
@@ -472,7 +472,7 @@ widgets are the console's. A page can show:
 | A sentence such as "Energy generation covers 65% of consumption, short of the 100% target" | A **verdict**: the states a balance can hold, read as a sentence, with the target taken from the range itself rather than typed into the page |
 | A footnote saying *stated by the submitter*, *fetched from a source on a date*, *the platform's assumption*, or *unrecorded* | The **origin** of a figure, read from how the property is declared, never guessed from its name |
 | A figure that opens to show a formula and each input's value | The **working**: how the figure was reached, read from the declaration the model holds |
-| "Raise the array area" or "lower the assumed consumption" beside a shortfall | The **levers**: which inputs would move the figure, and in which direction, worked out from the same formula |
+| "Raise the array area" or "lower the assumed consumption" beside a shortfall | **The inputs that would move the figure**, and in which direction, worked out from the same formula |
 | A table, a leaderboard, bars against a band, a funnel, a timeline, a chart over a calendar | The other widget kinds; each row can open the Thing behind it |
 
 A page authored wrong is never blank: a binding that names something the model does not hold draws
@@ -699,7 +699,7 @@ The rules a modeller relies on:
 | **A count can stand in for a quantifier** | With `keepWalksUpToDate` on the model's settings Thing, a `Count` over one step whose condition reads only the member's own properties is kept up to date as members change, so `lowSprings > 0` can replace `ANY [<-feeds.Spring].level < 1` and `lowSprings = springsReporting` can replace `ALL …`, where `lowSprings` counts the springs with `level < 1` and `springsReporting` those whose level is known |
 
 Every derived definition also declares what it **reads**, and which way its result **rises and
-falls** with each input. That is what lets a page show a figure's working and its levers without
+falls** with each input. That is what lets a page show a figure's working and the inputs that would move it without
 a second calculator in the page.
 
 ### 26. Inheritance and evaluation
@@ -2744,7 +2744,7 @@ offers, compares-with, trigger and judged-kind, and keeps following all of it. W
 the wider list, the page adds the kinds the node's in ports offer to its subscription by identifier and
 takes them out again when the search ends. A
 published page asks for what its description implies: the compare entities, the kinds its lists
-draw, the Things it names, the selected entity, the name Things a page offering levers reads and
+draw, the Things it names, the selected entity, the name Things a page naming the inputs that would move a figure reads and
 `namesPropertyOf` one step on from them, and one traversal rule per relationship its bindings
 walk — asked for in the order the walk takes them, because the platform applies each rule to what
 was selected before it — and it asks for readings too, so a figure bound to a reading moves without a
@@ -3001,7 +3001,7 @@ every value it draws, opened from its **Table** button, so nothing a chart shows
 | `profileLine` | A grid's values along a line, from a one-row (west to east) or one-column (south to north) `vos.Grid` the page's own Thing holds, read through a `value` binding, each point a cell's size further along. The stretch from `span.from` to `span.to` metres is shaded, and its lowest, highest and difference are written under the chart; with no span, the whole line's. A value not known leaves a gap. A grid of more than one row and more than one column is not drawn, and the widget says it reads one row or one column. What the values are is the page's to say, in its title and `unit` |
 | `raisedSurface` | A `vos.Grid` the page's own Thing holds, read through a `value` binding, as a raised surface in 3D, shaded on one hue from the lowest value to the highest. Each point rises by its value above the lowest, times `exaggeration` (one when left out); the box stays between eight hundredths and four tenths of the grid's larger side. A value not known leaves a hole. A grid of one row or one column is not drawn, and the widget says it needs two of each; a grid with no known value is not drawn, and the widget says so. Where the browser gives no WebGL 2 context, or the 3D drawing cannot be loaded, the widget says it could not be shown, and its lowest and highest values and its table stay. The 3D drawing loads only when shown, and its table follows the grid map's limit of cells |
 
-### 92. Verdicts, levers, origins and working
+### 92. Verdicts, the inputs that would move them, origins and working
 **A judged value as a sentence.** The `verdict` widget lists rows, each with a `verdicts` binding
 naming the states a balance can hold and a wording for each. The target comes from the range that
 judges the value — a range written as criteria reports the comparison it makes, and the binding
@@ -3028,7 +3028,7 @@ no line.
           "reads": "not assessed — no rainfall figure was resolved for this site" } ] } } ] }
 ```
 
-**Levers.** A state entry with `levers` wording offers, under its sentence, the inputs at the bottom
+**The inputs that would move it.** A state entry with `levers` wording offers, under its sentence, the inputs at the bottom
 of the figure's derivation and which way each would have to move. The direction the result must
 move comes from the held state's own comparison; the direction each input moves the result comes
 from the derived definition, which declares what it rises and falls with. The console composes the
@@ -3133,11 +3133,11 @@ map from language code to base string to translated string, keyed by language ra
 (a regional block overlays its language's). Resolution is the regional entry, else the language's,
 else the base text — never blank, never a raw key. Every human-facing label is looked up: titles,
 subtitles, hints, the compare label, units, target labels, footnotes, column and row labels, stage
-labels, a verdict's `reads` wording and its lever wordings, an origin's wordings, a form's fields and
+labels, a verdict's `reads` and `levers` wordings, an origin's wordings, a form's fields and
 submit label, and the detail block's labels. Model vocabulary is never looked up — binding values,
 state names, archetypes, property names, predicate names, row keys, colours, formats, the page
 Thing's own name — so a translation can never corrupt what a binding resolves; and resolved row data
-is model content, shown in the model's own language. A lever's input name is the one exception, read
+is model content, shown in the model's own language. The name of an input that would move a figure is the one exception, read
 from the model's own words by language rather than from the page. A term a form offers — a programme category, a
 hazard — states its words in a `wording` property the model carries, read in the reader's language, and
 is still submitted by its name.
