@@ -40,6 +40,7 @@ public static class SubmissionFragmentComposer
     public const string SubmissionRole = "submission";
     public const string SiteRole = "site";
     public const string ParcelRole = "parcel";
+    public const string StudyRole = "study";
 
     // arrivedAt: When this submission reached the service, or null when the model already
     // holds its record and its arrival is already recorded.
@@ -57,7 +58,7 @@ public static class SubmissionFragmentComposer
         var siteName = Required(site.Name, "site.name", "a Thing is created under a name");
 
         var siteThing = new NamedThing(StableIdentity.Derive(submissionId, SiteRole), siteName);
-        var studyThing = new NamedThing(StableIdentity.Derive(submissionId, "study"), $"{siteName} Site Study");
+        var studyThing = new NamedThing(StableIdentity.Derive(submissionId, StudyRole), $"{siteName} Site Study");
 
         var things = new List<FragmentThing>
         {
