@@ -225,20 +225,23 @@ public abstract class MyceliumClientBase
 
         foreach (var request in DepositRequests.Of(readings, ReadingsPerDeposit))
         {
-            var answer = await PostAsync("/api/sediment", request.Select(reading => new
+            var json = JsonSerializer.Serialize(request.Select(reading => new
             {
                 objectId = subjectId,
                 property = reading.Property,
                 value = ResolveObservationValue(reading.Value),
                 observedAt = reading.ObservedAt,
-            }), cancellationToken);
+            }));
+            ValidateOutbound(json, SedimentDepositRequestSchemaId);
+
+            var answer = await PostAsync("/api/sediment", new StringContent(json, Encoding.UTF8, "application/json"), cancellationToken);
             if (!answer.Accepted) return answer;
         }
         return BrokerAnswer.Done;
     }
 
     public Task<BrokerAnswer> ReportHistoryChangedAsync(Guid thingId, CancellationToken cancellationToken = default) =>
-        PostAsync($"/api/things/{thingId}/history/changed", body: null, cancellationToken);
+        PostAsync($"/api/things/{thingId}/history/changed", content: null, cancellationToken);
 
     // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
     // the observation route stores; a shape it has no scalar for keeps its own JSON text.
@@ -247,14 +250,12 @@ public abstract class MyceliumClientBase
         : JsonScalar.TryRead(element, out var scalar) ? scalar
         : element.GetRawText();
 
-    private async Task<BrokerAnswer> PostAsync(string path, object? body, CancellationToken cancellationToken)
+    private async Task<BrokerAnswer> PostAsync(string path, HttpContent? content, CancellationToken cancellationToken)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            using var response = body is null
-                ? await client.PostAsync($"{MyceliumUrl}{path}", content: null, cancellationToken)
-                : await client.PostAsJsonAsync($"{MyceliumUrl}{path}", body, cancellationToken);
+            using var response = await client.PostAsync($"{MyceliumUrl}{path}", content, cancellationToken);
             if (response.IsSuccessStatusCode) return BrokerAnswer.Done;
 
             var answerBody = await response.Content.ReadAsStringAsync(cancellationToken);
