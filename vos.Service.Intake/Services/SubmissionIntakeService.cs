@@ -43,8 +43,9 @@ public sealed class SubmissionIntakeService(
             return null;
 
         var (siteId, parcelId) = SiteAndParcel(submission.SubmissionId);
-        var snapshot = await mycelium.ReadSnapshotAsync(SiteElevationReader.Selector(siteId, parcelId), cancellation);
-        return SiteElevationReader.Read(snapshot, siteId, parcelId);
+        var studyId = StudyOf(submission.SubmissionId);
+        var snapshot = await mycelium.ReadSnapshotAsync(SiteElevationReader.Selector(siteId, parcelId, studyId), cancellation);
+        return SiteElevationReader.Read(snapshot, siteId, parcelId, studyId);
     }
 
     // A figure the new answer lacks goes before the submission is written: should that write fail, the site is
@@ -63,9 +64,13 @@ public sealed class SubmissionIntakeService(
             var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
             foreach (var figure in held.FiguresStated.Except(SiteElevationReader.FiguresIn(answered)))
                 await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
+            if (held.GroundWorkedOut)
+                await mycelium.RetractPropertyAsync(StudyOf(submission.SubmissionId!), SiteElevationReader.GroundWorkedOutStamp, cancellation);
         }
         return answered;
     }
+
+    private static Guid StudyOf(string submissionId) => StableIdentity.Derive(submissionId, SubmissionFragmentComposer.StudyRole);
 
     private static (Guid Site, Guid Parcel) SiteAndParcel(string submissionId) =>
         (StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SiteRole),
