@@ -64,6 +64,8 @@ public sealed class SubmissionIntakeService(
             var (siteId, _) = SiteAndParcel(submission.SubmissionId!);
             foreach (var figure in held.FiguresStated.Except(SiteElevationReader.FiguresIn(answered)))
                 await mycelium.RetractPropertyAsync(siteId, figure, cancellation);
+            if (held.GroundWorkedOut)
+                await mycelium.RetractPropertyAsync(StudyOf(submission.SubmissionId!), SiteElevationReader.GroundWorkedOutStamp, cancellation);
         }
         return answered;
     }
