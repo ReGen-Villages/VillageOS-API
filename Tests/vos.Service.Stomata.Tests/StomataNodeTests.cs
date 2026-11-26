@@ -128,6 +128,7 @@ public class StomataNodeTests
         public double DailyLimitTen { get; set; } = 45.0;
         public HttpStatusCode DepositStatus { get; set; } = HttpStatusCode.Accepted;
         public bool AnswersTheModelClock { get; set; } = true;
+        public Dictionary<string, Func<HttpResponseMessage>> Instead { get; } = [];
 
         public List<string> Asked { get; } = [];
         public List<JsonElement> Deposited { get; } = [];
@@ -138,6 +139,7 @@ public class StomataNodeTests
             var path = request.RequestUri!.AbsolutePath;
             Asked.Add($"{request.Method} {path}");
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (Instead.TryGetValue(path, out var instead)) return instead();
             if (path == "/api/snapshots") return Json(model.Answer());
             if (path == "/api/time")
                 return AnswersTheModelClock
@@ -384,4 +386,61 @@ public class StomataNodeTests
         response.Result.Should().Be(NodeResponse.Failed);
         response.Retry.Should().BeNull();
     }
+
+    [Fact]
+    public async Task A_study_the_model_does_not_hold_fails_the_node_and_writes_no_stamp()
+    {
+        var broker = new Broker(new Model());
+
+        var response = await WorkOutAsync(broker, $"\"{Guid.NewGuid()}\"");
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        response.Error.Should().Contain("holds no study");
+        broker.Fragments.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("the snapshot", HttpStatusCode.ServiceUnavailable, true, "The model could not be read")]
+    [InlineData("the snapshot", HttpStatusCode.Forbidden, false, "The model refused the read")]
+    [InlineData("the study's inputs", HttpStatusCode.ServiceUnavailable, true, "could not answer")]
+    [InlineData("the study's inputs", HttpStatusCode.Forbidden, false, "The model refused /api/things/")]
+    [InlineData("the stamp", HttpStatusCode.InternalServerError, true, "could not take the stamp")]
+    [InlineData("the stamp", HttpStatusCode.BadRequest, false, "refused the stamp")]
+    public async Task A_model_that_cannot_answer_now_fails_as_one_to_try_again_and_one_that_refuses_fails_the_node(
+        string asked, HttpStatusCode answer, bool triedAgain, string words)
+    {
+        var broker = new Broker(new Model());
+        broker.Instead[PathOf(asked)] = () => new HttpResponseMessage(answer) { Content = new StringContent("{\"error\":\"no\"}") };
+
+        var response = await WorkOutAsync(broker);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        (response.Retry is not null).Should().Be(triedAgain);
+        response.Error.Should().Contain(words);
+    }
+
+    [Theory]
+    [InlineData("the snapshot", "The model could not be read")]
+    [InlineData("the study's inputs", "could not be reached for")]
+    public async Task A_model_that_cannot_be_reached_fails_as_one_to_try_again_and_writes_no_stamp(string asked, string words)
+    {
+        var broker = new Broker(new Model());
+        broker.Instead[PathOf(asked)] = () => throw new HttpRequestException("connection refused");
+
+        var response = await WorkOutAsync(broker);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        response.Error.Should().Contain(words);
+        broker.Fragments.Should().BeEmpty();
+    }
+
+    private static string PathOf(string asked) => asked switch
+    {
+        "the snapshot" => "/api/snapshots",
+        "the study's inputs" => $"/api/things/{Model.Study}/properties",
+        "the stamp" => "/api/model/fragment",
+        _ => throw new ArgumentOutOfRangeException(nameof(asked), asked, null),
+    };
 }
