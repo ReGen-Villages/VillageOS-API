@@ -278,6 +278,44 @@ public class DivisionResolverTests
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
     }
 
+    private const string InHongKong = """
+        {"address": {"suburb": "Tsuen Wan District", "region": "New Territories", "city": "Hong Kong",
+                     "ISO3166-2-lvl3": "CN-HK", "country": "China", "country_code": "cn"}}
+        """;
+
+    private static readonly Guid HongKongId = Guid.NewGuid();
+
+    [Fact]
+    public async Task ASiteWhoseReplyNamesNoAreaIsRelatedToItsCodedPlaceAndThePortalIsNotSearched()
+    {
+        var reader = new ScriptedReader(InHongKong, DivisionsNamedSantarem);
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(reader, writer).RegionAsync(
+            SiteId,
+            AtWillowBendAmong(new CodedPlace(HongKongId, "Hong Kong", "CN-HK", false, ValuesOf(null))),
+            CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, HongKongId));
+        reader.Asked.Should().ContainSingle().Which.Endpoint.Should().Be(AreaNameEndpoint);
+        addressed.Should().BeNull();
+        writer.Facts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ASiteWhoseReplyNamesNoAreaIsGradedAtTheDivisionItsCodedPlaceCarries()
+    {
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(new ScriptedReader(InHongKong), writer).RegionAsync(
+            SiteId,
+            AtWillowBendAmong(new CodedPlace(HongKongId, "Hong Kong", "CN-HK", false, ValuesOf("1137"))),
+            CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, HongKongId));
+        DivisionAddressing(addressed).Should().Be("1137");
+    }
+
     [Fact]
     public async Task ASiteAlreadyStandingInTheCodedPlaceIsNotRelatedAgain()
     {
