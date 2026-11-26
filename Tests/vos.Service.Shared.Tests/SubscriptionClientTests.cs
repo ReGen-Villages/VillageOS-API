@@ -545,6 +545,54 @@ public class SubscriptionClientTests
         connects.Should().Be(2);
     }
 
+    private const string PositionNoLongerKept =
+        "event: SnapshotRequired\ndata: {\"resumeAfter\":7,\"reason\":\"resume position precedes the retained commit-log floor\"}\n\n";
+
+    [Fact]
+    public async Task StreamAsync_closes_the_subscription_and_ends_when_the_platform_no_longer_keeps_its_position()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var (client, handler) = Build(request => request.Method == HttpMethod.Delete
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            : Sse(AChange(1) + PositionNoLongerKept));
+
+        (await ReadToTheEndAsync(client, subscriptionId)).Should().ContainSingle().Which.Sequence.Should().Be(1);
+
+        handler.Requests.Select(request => (request.Method, request.RequestUri!.AbsolutePath)).Should().Equal(
+            (HttpMethod.Get, $"/api/subscriptions/{subscriptionId}/stream"),
+            (HttpMethod.Delete, $"/api/subscriptions/{subscriptionId}"));
+    }
+
+    [Fact]
+    public async Task StreamAsync_ends_when_the_platform_no_longer_keeps_its_position_even_if_the_close_fails()
+    {
+        var (client, handler) = Build(request => request.Method == HttpMethod.Delete
+            ? throw new HttpRequestException("the platform went away")
+            : Sse(PositionNoLongerKept));
+
+        (await ReadToTheEndAsync(client, Guid.NewGuid())).Should().BeEmpty();
+
+        handler.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Reconnected_is_raised_when_the_stream_after_a_position_no_longer_kept_opens()
+    {
+        var behind = Guid.NewGuid();
+        var (client, _) = Build(request => request.Method == HttpMethod.Delete
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            : request.RequestUri!.AbsolutePath.Contains(behind.ToString()) ? Sse(PositionNoLongerKept) : Sse(AChange(1)));
+        var raised = 0;
+        client.Reconnected += () => raised++;
+
+        await ReadToTheEndAsync(client, behind);
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        await foreach (var _ in client.StreamAsync(Guid.NewGuid(), fromSequence: 0, cts.Token))
+            break;
+
+        raised.Should().Be(1);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
     [InlineData(HttpStatusCode.Unauthorized)]

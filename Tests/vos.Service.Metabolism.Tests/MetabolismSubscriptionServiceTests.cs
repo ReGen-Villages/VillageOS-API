@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.IO.Pipelines;
+using System.Net;
+using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentAssertions;
@@ -299,6 +302,66 @@ public class MetabolismSubscriptionServiceTests
         await Settle.UntilAsync(() => fake.NewestSubscriptionHolds(followed), "the other simulation's subject joins the new subscription");
         await engine.StopAllAsync();
         await svc.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task A_position_the_platform_no_longer_keeps_closes_the_subscription_and_opens_one_new_one()
+    {
+        var opened = new List<Guid>();
+        var closed = new List<Guid>();
+        var neverEnds = new Pipe();
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            lock (opened)
+            {
+                if (path.Length == 2)
+                {
+                    var subscriptionId = Guid.NewGuid();
+                    opened.Add(subscriptionId);
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = JsonContent.Create(new
+                        {
+                            subscriptionId, watermark = 0,
+                            snapshot = new { watermark = 0, things = Array.Empty<object>(), relationships = Array.Empty<object>() },
+                        }),
+                    };
+                }
+                var id = Guid.Parse(path[2]);
+                if (request.Method == HttpMethod.Delete)
+                {
+                    closed.Add(id);
+                    return new HttpResponseMessage(HttpStatusCode.OK);
+                }
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = id == opened[0]
+                        ? new StringContent("event: SnapshotRequired\ndata: {\"resumeAfter\":0,\"reason\":\"resume position precedes the retained commit-log floor\"}\n\n")
+                        : new StreamContent(neverEnds.Reader.AsStream()),
+                };
+            }
+        });
+        var factory = new Mock<IHttpClientFactory>();
+        factory.Setup(made => made.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler, disposeHandler: false));
+        var client = new SubscriptionClient(factory.Object, NullLogger.Instance, "http://platform", new LaunchToken("service-token"))
+        {
+            ReconnectDelay = TimeSpan.FromMilliseconds(5),
+        };
+        var svc = Service(client, new RecordingMetabolism());
+
+        await svc.StartAsync(default);
+
+        await Settle.UntilAsync(() => { lock (opened) return opened.Count == 2 && closed.Count == 1; },
+            "the subscription the platform is behind is closed and a new one is opened");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+        lock (opened)
+        {
+            opened.Should().HaveCount(2);
+            closed.Should().Equal(opened[0]);
+        }
+        await svc.StopAsync(default);
+        neverEnds.Writer.Complete();
     }
 
     [Fact]

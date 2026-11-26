@@ -196,6 +196,21 @@ public sealed class FollowingAfterTheBrokerRestartsTests : IAsyncLifetime
         _broker.Unsubscribed.Should().Contain(_broker.Opened[^1]);
     }
 
+    [Fact]
+    public async Task A_position_the_broker_no_longer_keeps_opens_one_new_subscription_and_recomputes_once()
+    {
+        await WatchAsync(Study, Allocation);
+
+        _broker.ForgetEveryHeldPosition();
+
+        await FollowsOnANewSubscriptionAsync(Study, Allocation);
+        await RecomputedAsync(Study, times: 1);
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+        Recomputes.Should().ContainSingle();
+        _broker.Opened.Should().HaveCount(2);
+        _broker.Unsubscribed.Should().Equal(_broker.Opened[0]);
+    }
+
     private IReadOnlyList<(Guid Subject, Guid? ActingIn)> Recomputes
     {
         get { lock (_recomputes) return _recomputes.ToList(); }
@@ -278,6 +293,27 @@ public sealed class FollowingAfterTheBrokerRestartsTests : IAsyncLifetime
                 _held.Clear();
             }
             foreach (var stream in streams) stream.Writer.Complete();
+        }
+
+        private const string SnapshotRequired =
+            "event: SnapshotRequired\ndata: {\"resumeAfter\":0,\"reason\":\"resume position precedes the retained commit-log floor\"}\n\n";
+
+        private readonly HashSet<Guid> _behind = new();
+
+        // As the broker answers a subscription once compaction has removed records it was not yet sent.
+        public void ForgetEveryHeldPosition()
+        {
+            List<Pipe> streams;
+            lock (_lock)
+            {
+                _behind.UnionWith(_held.Keys);
+                streams = _held.Values.Where(held => held.Stream is not null).Select(held => held.Stream!).ToList();
+            }
+            foreach (var stream in streams)
+            {
+                stream.Writer.WriteAsync(Encoding.UTF8.GetBytes(SnapshotRequired)).AsTask().GetAwaiter().GetResult();
+                stream.Writer.Complete();
+            }
         }
 
         public void GoAway()
@@ -384,6 +420,8 @@ public sealed class FollowingAfterTheBrokerRestartsTests : IAsyncLifetime
             lock (_lock)
             {
                 if (!_held.TryGetValue(id, out var subscription)) return new HttpResponseMessage(HttpStatusCode.NotFound);
+                if (_behind.Contains(id))
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SnapshotRequired) };
                 subscription.Stream = pipe;
                 held = _streamsAreHeld;
             }
