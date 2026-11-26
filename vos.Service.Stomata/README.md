@@ -18,7 +18,9 @@ For each hour it writes four readings onto the site:
 | `windowsOpenOnDailyAirHours` | 1 when the means of PM10 and of PM2.5 over the 24 hours of time up to and including the hour are within the study's `whoDailyLimitParticulateMatterTenMicrogramsPerCubicMetre` and `whoDailyLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre`, else 0. Readings at uneven instants count by when they fell | while either pollutant has fewer readings in the day than the study's `leastHourlyReadingsForADailyMean`, which starts at 18, the 75 % the European Union's air quality directive (2008/50/EC) asks of a daily mean. So the first 17 hours of a history have none |
 
 The readings go through the bulk route, which sets off no recompute for each reading. Stomata then asks the
-platform once to judge the site's history again, and last writes `climateWorkedOutAt` onto the study. It writes
+platform once to judge the site's history again, and last writes `climateWorkedOutAt` onto the study, at the
+model's time as the platform tells it, never this machine's: a clock it cannot read fails the call as one the
+orchestrator may try again. It writes
 that stamp on every run that reaches the end, a study with no site or no history included, so the study leaves the
 range that started it.
 
