@@ -123,6 +123,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`. It answers `{ Service, ModelTime }`: the registration, and the model clock as `GET /api/time` would answer it
+- While the broker starts it answers the registration `503` with `Retry-After`. A service asks again after that, and after a `408`, a `429`, any other `5xx` or no answer at all, waiting as long as `Retry-After` says, at most five minutes, otherwise one second doubling up to five minutes. It stops on any other `4xx`, which the broker would give again.
 - `DELETE /api/mycelium/services/{handlerId}` (Bearer) removes a registration: a service may remove the one it made itself, and another service's is refused with `403`. The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming

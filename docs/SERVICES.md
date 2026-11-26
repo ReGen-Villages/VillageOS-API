@@ -195,7 +195,17 @@ service-agnostic plumbing:
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` that
   presents the bearer token
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
-  envelope
+  envelope once and answers a `RegistrationAnswer`: `Accepted`; `AskAgain`,
+  with the `Retry-After` the broker named, after a `408`, a `429`, a `5xx`, no
+  answer or no token; or `Refused`, for any other `4xx`, which the broker would
+  give again, and for a service holding no credential
+- `RegisterUntilSettledAsync(port, serviceName, startCommand, logFilePrefix,
+  logDirectory, time, cancellationToken)` — asks again until the broker
+  accepts or refuses for good, and answers whether it accepted. It waits as
+  long as `Retry-After` says, at most five minutes, otherwise one second
+  doubling up to five minutes (`AskingAgain.PauseAfter`, the schedule Phloem's
+  call reports use too). It waits on the `time` it is given: real time, never
+  the model clock, which a simulation runs faster
 - `TryGetPropertyCaseInsensitive(element, name, out value)` — reads a field out
   of an answer. The broker serializes a Thing PascalCase (`Id`, `Name`) even
   though the body you send it is camelCase, so a client that asks for one casing
@@ -260,8 +270,9 @@ await sub.RemoveObjectsAsync(all.SubscriptionId, new[] { relationshipId, subject
 ```
 
 A subclass adds the service's own calls (`ApplyQuantityAsync`, …). A subclass
-that registers also gives a `RegisterAsync(port)` overload that calls the base
-with its `(serviceName, startCommand)`. Phloem's gateway is the example:
+that registers also gives a `RegisterUntilSettledAsync(port, cancellationToken)`
+overload that calls the base with its `(serviceName, startCommand)`. Phloem's
+gateway is the example:
 
 ```csharp
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
@@ -270,7 +281,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) => _clock = clock;
 
-    public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
+    public Task<bool> RegisterUntilSettledAsync(int port, CancellationToken cancellationToken) =>
+        RegisterUntilSettledAsync(port, "Phloem", "endpoint-service", null, null, TimeProvider.System, cancellationToken);
 
     // … the gateway's own calls
 }
@@ -290,6 +302,9 @@ sequenceDiagram
 
     Note over MS,B: The service has started
     MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, logFilePrefix?, logDirectory?, ... }
+    B-->>MS: 503 Service Unavailable, Retry-After: 5<br/>(the broker is still replaying its commit log)
+    Note over MS: Serves meanwhile, and waits as long as Retry-After says
+    MS->>B: POST /api/mycelium/register (asked again)
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
@@ -300,6 +315,10 @@ sequenceDiagram
     B->>MS: GET /health
     Note over B: After repeated failures the monitor removes the registration,<br/>unless the broker supervises the service
 ```
+
+The service serves while it asks. Phloem runs its start-up recovery once its registration is
+accepted or refused for good. The Python host (`vos_service/hosting.py`) asks the same way, in a task
+of its own that stops when the service shuts down.
 
 The registration may carry `logFilePrefix` — lowercase letters, digits and hyphens, the prefix of the
 file the service writes its own log under — so the broker's log routes can find that log by the
@@ -456,7 +475,8 @@ is enabled), and `.RequireContract<TRequest>()` on the route. The middleware rea
 
 Registration is not a step in the request path: `AddMyceliumRegistration` runs
 it off the startup path, so a broker that is slow or absent cannot stop the
-service coming up. Nothing is withdrawn on shutdown (§8).
+service coming up; it is asked again until it takes the registration, and the
+asking stops when the service does. Nothing is withdrawn on shutdown (§8).
 
 **What `/handle` receives.** A service is sent either a pipeline node
 envelope or a graph relationship naming the Thing to act on.
@@ -779,9 +799,9 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 | Shared test file | What it pins |
 |---|---|
 | `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
-| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, a supplied token short-circuiting the token call |
+| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, a refusal returning false, holding no credential returning false without asking, a supplied token short-circuiting the token call |
 | `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
-| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, no withdrawal asked of the broker on shutdown, a failing broker not stopping the service serving |
+| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, a starting broker asked again until it takes the registration, asking stopping when the service stops, no withdrawal asked of the broker on shutdown, a failing broker not stopping the service serving |
 | `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, what an unusable one is answered with, and that text which is not JSON is answered rather than raising |
 
 Copying a test is the same problem as copying the code. If a behaviour is the
@@ -1023,9 +1043,10 @@ or the API keys page) or another name. A revoked or expired key frees its name.
 
 ## 13. Common issues
 
-### "Registration error: Connection refused"
+### "Mycelium has not taken the registration (Connection refused …)"
 
-Mycelium is not running or not accessible. Start it
+Mycelium is not running or not accessible. The service keeps asking, so starting
+Mycelium is enough; the service need not be restarted. Start it
 (`cd ../VillageOS/vos.Mycelium && dotnet run`), verify with
 `curl https://localhost:7243/api/mycelium/startup-status` (the one route that
 needs no credential), and check `--myceliumUrl` matches Mycelium's actual URL.
