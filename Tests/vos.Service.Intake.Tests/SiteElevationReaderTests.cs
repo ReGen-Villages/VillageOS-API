@@ -12,6 +12,7 @@ public class SiteElevationReaderTests
 {
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid ParcelId = Guid.NewGuid();
+    private static readonly Guid StudyId = Guid.NewGuid();
     private static readonly Guid SiteArchetypeId = Guid.NewGuid();
     private static readonly Guid ParcelArchetypeId = Guid.NewGuid();
 
@@ -47,7 +48,7 @@ public class SiteElevationReaderTests
     {
         var held = SiteElevationReader.Read(
             Holding(ParcelWith(Border), SiteWith("elevationMetres", "elevationMinimumMetres", "elevationMaximumMetres")),
-            SiteId, ParcelId);
+            SiteId, ParcelId, StudyId);
 
         held.NeedsLookupFor(Border).Should().BeFalse();
         held.BorderMovedFrom(Border).Should().BeFalse();
@@ -58,7 +59,7 @@ public class SiteElevationReaderTests
     {
         var held = SiteElevationReader.Read(
             Holding(ParcelWith(Border), SiteWith("elevationMetres", "elevationMinimumMetres", "elevationMaximumMetres")),
-            SiteId, ParcelId);
+            SiteId, ParcelId, StudyId);
 
         held.NeedsLookupFor(MovedBorder).Should().BeTrue();
         held.BorderMovedFrom(MovedBorder).Should().BeTrue();
@@ -69,7 +70,7 @@ public class SiteElevationReaderTests
     [InlineData("elevationMetres", "elevationMaximumMetres")]
     public void A_site_missing_any_figure_is_looked_up_again(params string[] stated)
     {
-        var held = SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith(stated)), SiteId, ParcelId);
+        var held = SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith(stated)), SiteId, ParcelId, StudyId);
 
         held.NeedsLookupFor(Border).Should().BeTrue();
         held.FiguresStated.Should().Equal(stated);
@@ -89,11 +90,21 @@ public class SiteElevationReaderTests
     [Fact]
     public void A_first_submission_is_looked_up()
     {
-        var held = SiteElevationReader.Read(Holding(), SiteId, ParcelId);
+        var held = SiteElevationReader.Read(Holding(), SiteId, ParcelId, StudyId);
 
         held.Boundary.Should().BeNull();
         held.FiguresStated.Should().BeEmpty();
         held.NeedsLookupFor(Border).Should().BeTrue();
+        held.GroundWorkedOut.Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_study_stating_when_its_ground_was_worked_out_is_read_as_stamped()
+    {
+        var study = Stating(StudyId, Guid.NewGuid(), new() { [SiteElevationReader.GroundWorkedOutStamp] = Value("2031-06-01T09:30:00Z") });
+
+        SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith(), study), SiteId, ParcelId, StudyId).GroundWorkedOut.Should().BeTrue();
+        SiteElevationReader.Read(Holding(ParcelWith(Border), SiteWith()), SiteId, ParcelId, StudyId).GroundWorkedOut.Should().BeFalse();
     }
 
     // The archetype declares the figures too, and a reader resolving up the `is` chain would find a declaration
@@ -104,7 +115,7 @@ public class SiteElevationReaderTests
         var archetype = new SnapshotThing(SiteArchetypeId, "Site", true,
             new() { ["elevationMinimumMetres"] = Value(1.0), ["elevationMaximumMetres"] = Value(2.0) }, null, [], null);
 
-        var held = SiteElevationReader.Read(Holding(archetype, ParcelWith(Border), SiteWith()), SiteId, ParcelId);
+        var held = SiteElevationReader.Read(Holding(archetype, ParcelWith(Border), SiteWith()), SiteId, ParcelId, StudyId);
 
         held.FiguresStated.Should().BeEmpty();
     }
@@ -118,11 +129,11 @@ public class SiteElevationReaderTests
     }
 
     [Fact]
-    public void The_read_asks_for_the_site_and_parcel_alone()
+    public void The_read_asks_for_the_site_parcel_and_study_alone()
     {
-        var selector = SiteElevationReader.Selector(SiteId, ParcelId);
+        var selector = SiteElevationReader.Selector(SiteId, ParcelId, StudyId);
 
-        selector.Ids.Should().Equal(SiteId, ParcelId);
+        selector.Ids.Should().Equal(SiteId, ParcelId, StudyId);
         selector.IncludeIsAncestors.Should().BeFalse();
         selector.IncludeRelationships.Should().BeFalse();
     }

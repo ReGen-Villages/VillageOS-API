@@ -82,6 +82,9 @@ public class SubmissionIntakeServiceTests
     private static readonly Guid ParcelId =
         StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.ParcelRole);
 
+    private static readonly Guid StudyId =
+        StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.StudyRole);
+
     // A broker answering every declaration read with the model a test built, recording what it was asked
     // for, and the read of this submission's site and parcel with what the test says the model holds of them;
     // every other call falls through to the responder the test gave.
@@ -471,6 +474,20 @@ public class SubmissionIntakeServiceTests
             }, [], null),
         ], []);
 
+    private static SnapshotDocument WithTheGroundWorkedOut(SnapshotDocument held) =>
+        held with
+        {
+            Things =
+            [
+                .. held.Things,
+                new SnapshotThing(StudyId, null, false, [], new Dictionary<string, InheritedPropertySet>
+                {
+                    [Guid.NewGuid().ToString()] = new(null,
+                        new() { [SiteElevationReader.GroundWorkedOutStamp] = Value("2031-06-01T09:30:00Z") }, null),
+                }, [], null),
+            ],
+        };
+
     // The lookups, removals and fragment the service made, in the order it made them.
     private static (SubmissionIntakeService Service, List<string> Calls, Func<string?> PostedFragment) ServiceLookingUp(
         SnapshotDocument? heldSite, string lookupAnswer, HttpStatusCode removalAnswer = HttpStatusCode.OK)
@@ -488,7 +505,7 @@ public class SubmissionIntakeServiceTests
             }
             if (request.Method == HttpMethod.Delete)
             {
-                calls.Add($"remove {request.RequestUri.Segments[^1]}");
+                calls.Add($"remove {request.RequestUri.Segments[^1]} from {request.RequestUri.Segments[^3].TrimEnd('/')}");
                 return new HttpResponseMessage(removalAnswer);
             }
             if (IsFragment(request))
@@ -543,10 +560,42 @@ public class SubmissionIntakeServiceTests
         await service.SubmitAsync(Document, CancellationToken.None);
 
         calls.Should().Equal(
-            "lookup", "remove elevationMinimumMetres", "remove elevationMaximumMetres", "fragment");
+            "lookup", $"remove elevationMinimumMetres from {SiteId}", $"remove elevationMaximumMetres from {SiteId}", "fragment");
         var site = PostedSite(fragment()!);
         site.TryGetProperty("elevationMinimumMetres", out _).Should().BeFalse();
         site.GetProperty("elevationMetres").GetProperty("value").GetDouble().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task A_moved_border_takes_the_ground_stamp_off_the_study_so_its_ground_is_worked_out_again()
+    {
+        var (service, calls, _) = ServiceLookingUp(
+            WithTheGroundWorkedOut(SiteHolding(AnotherBorder, [.. SiteElevationReader.Figures])), BorderHeights);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("lookup", $"remove {SiteElevationReader.GroundWorkedOutStamp} from {StudyId}", "fragment");
+    }
+
+    [Fact]
+    public async Task An_unmoved_border_keeps_the_ground_stamp()
+    {
+        var (service, calls, _) = ServiceLookingUp(
+            WithTheGroundWorkedOut(SiteHolding(PostedBorder, [.. SiteElevationReader.Figures])), BorderHeights);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("fragment");
+    }
+
+    [Fact]
+    public async Task A_moved_border_of_a_study_holding_no_stamp_removes_none()
+    {
+        var (service, calls, _) = ServiceLookingUp(SiteHolding(AnotherBorder, [.. SiteElevationReader.Figures]), BorderHeights);
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        calls.Should().Equal("lookup", "fragment");
     }
 
     [Fact]

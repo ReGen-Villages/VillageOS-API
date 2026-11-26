@@ -5,7 +5,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-public sealed record HeldElevation(string? Boundary, IReadOnlyList<string> FiguresStated)
+public sealed record HeldElevation(string? Boundary, IReadOnlyList<string> FiguresStated, bool GroundWorkedOut)
 {
     // The explore page posts the whole submission again whenever a dial settles, and the elevation service's
     // free tier allows few calls a day across the platform, so a border is looked up once rather than on every save.
@@ -31,15 +31,16 @@ public static class SiteElevationReader
     ];
 
     public const string BoundaryProperty = "boundary";
+    public const string GroundWorkedOutStamp = "groundWorkedOutAt";
 
-    public static SubscriptionSelector Selector(Guid siteId, Guid parcelId) => new()
+    public static SubscriptionSelector Selector(Guid siteId, Guid parcelId, Guid studyId) => new()
     {
-        Ids = [siteId, parcelId],
+        Ids = [siteId, parcelId, studyId],
         IncludeIsAncestors = false,
         IncludeRelationships = false,
     };
 
-    public static HeldElevation Read(SnapshotDocument snapshot, Guid siteId, Guid parcelId)
+    public static HeldElevation Read(SnapshotDocument snapshot, Guid siteId, Guid parcelId, Guid studyId)
     {
         var site = snapshot.Things.FirstOrDefault(thing => thing.Id == siteId);
         var parcel = snapshot.Things.FirstOrDefault(thing => thing.Id == parcelId);
@@ -50,6 +51,16 @@ public static class SiteElevationReader
         IReadOnlyList<string> figures = site is null
             ? []
             : [.. Figures.Where(name => site.StatedValue(name) is { Value.ValueKind: not JsonValueKind.Null })];
-        return new HeldElevation(boundary, figures);
+        return new HeldElevation(boundary, figures, StatesTheGroundWorkedOut(snapshot.Things.FirstOrDefault(thing => thing.Id == studyId)));
     }
+
+    public static bool StatesTheGroundWorkedOut(SnapshotThing? study) =>
+        study?.StatedValue(GroundWorkedOutStamp) is { Value.ValueKind: not JsonValueKind.Null };
+
+    public static SubscriptionSelector StudySelector(Guid studyId) => new()
+    {
+        Ids = [studyId],
+        IncludeIsAncestors = false,
+        IncludeRelationships = false,
+    };
 }

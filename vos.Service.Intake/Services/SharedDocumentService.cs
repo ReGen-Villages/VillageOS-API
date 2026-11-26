@@ -93,6 +93,7 @@ public sealed class SharedDocumentService(
             relationships.Add(new($"{chosen.Name} {layer.SourcedFrom.Name} {fileName}", featureId, layer.SourcedFrom.Id, documentId));
         }
 
+        if (features.Count > 0) await TakeTheGroundStampOffAsync(submissionId, cancellation);
         await mycelium.ApplyFragmentAsync(new ModelFragment("shared document", things, relationships), cancellation);
 
         logger.LogInformation("Submission {Reference} shared a file of {Bytes} bytes with {Features} layer features",
@@ -109,6 +110,15 @@ public sealed class SharedDocumentService(
         var chosen = LayerFeatureChoice.Choose(LayerFileReader.Read(fileName, bytes, chosenKinds.ContainsKey), chosenKinds);
         return [.. chosen.Select(feature =>
             (feature, SubmissionFragmentComposer.Resolve(layer.Kinds, feature.Name, feature.Kind)))];
+    }
+
+    // Before the features change, so a write that then fails leaves the ground worked out again rather than out of date.
+    private async Task TakeTheGroundStampOffAsync(string submissionId, CancellationToken cancellation)
+    {
+        var study = StableIdentity.Derive(submissionId, SubmissionFragmentComposer.StudyRole);
+        var held = await mycelium.ReadSnapshotAsync(SiteElevationReader.StudySelector(study), cancellation);
+        if (SiteElevationReader.StatesTheGroundWorkedOut(held.Things.FirstOrDefault(thing => thing.Id == study)))
+            await mycelium.RetractPropertyAsync(study, SiteElevationReader.GroundWorkedOutStamp, cancellation);
     }
 
     private async Task<SiteLayerDeclarations> LayerDeclarationsAsync(CancellationToken cancellation) =>
@@ -141,6 +151,7 @@ public sealed class SharedDocumentService(
             : SiteLayerReader.FeaturesFrom(
                 await mycelium.ReadSnapshotAsync(SiteLayerReader.FeaturesSelector(documentId), cancellation),
                 documentId, layer, declared.Is);
+        if (features.Count > 0) await TakeTheGroundStampOffAsync(submissionId, cancellation);
         foreach (var feature in features)
             await mycelium.DeleteThingAsync(feature, cancellation);
         await mycelium.DeleteThingAsync(documentId, cancellation);
