@@ -23,7 +23,7 @@ public static class TerrainAnalysis
     public static TerrainAnalysisResult Of(TerrainSurface surface)
     {
         var (slope, aspect) = SlopeAndAspectByHornsKernel(surface);
-        var (drainageCells, hollowDepth) = DrainageByPriorityFloodAndSteepestDescent(surface);
+        var (drainageCells, hollowDepth, filled, drainsTo) = DrainageByPriorityFloodAndSteepestDescent(surface);
         var cellHectares = surface.CellSizeMetres * surface.CellSizeMetres / 10_000;
 
         var inside = Enumerable.Range(0, surface.Heights.Count).Where(cell => surface.Inside[cell]).ToArray();
@@ -44,7 +44,7 @@ public static class TerrainAnalysis
             LowestCell: lowestCell);
 
         return new TerrainAnalysisResult(
-            slope, aspect, [.. drainageCells.Select(cells => cells * cellHectares)], hollowDepth, counted, cellHectares, figures, [], []);
+            slope, aspect, [.. drainageCells.Select(cells => cells * cellHectares)], hollowDepth, counted, cellHectares, figures, filled, drainsTo);
     }
 
     private static (double[] Slope, double[] Aspect) SlopeAndAspectByHornsKernel(TerrainSurface surface)
@@ -71,7 +71,8 @@ public static class TerrainAnalysis
         return (slope, aspect);
     }
 
-    private static (double[] DrainageCells, double[] HollowDepth) DrainageByPriorityFloodAndSteepestDescent(TerrainSurface surface)
+    private static (double[] DrainageCells, double[] HollowDepth, double[] Filled, int[] DrainsTo) DrainageByPriorityFloodAndSteepestDescent(
+        TerrainSurface surface)
     {
         var (columns, rows, cell) = (surface.Columns, surface.Rows, surface.CellSizeMetres);
         var count = columns * rows;
@@ -126,7 +127,7 @@ public static class TerrainAnalysis
 
         var hollowDepth = Enumerable.Range(0, count)
             .Select(index => Math.Max(0, filled[index] - surface.Heights[index] - RiseAcrossAFilledFlatMetres)).ToArray();
-        return (drainageCells, hollowDepth);
+        return (drainageCells, hollowDepth, filled, drainsTo);
     }
 
     // A binary heap that settles ties exactly as the site-study pages' own does, so a filled flat fills in the same order.

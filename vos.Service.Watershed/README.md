@@ -1,6 +1,6 @@
 # Watershed
 
-**Works out a site's ground, as a pipeline step: heights over its border, slope, aspect, drainage and hollows.**
+**Works out a site's ground, as a pipeline step: heights over its border, slope, aspect, drainage, hollows and where the rain of a design storm runs.**
 
 A pipeline hands Watershed a SiteStudy on its `subject` input. Watershed follows the study to the site it studies and
 the site to its Parcel's `boundary`, the share Things the site has and the terms they assess. Each predicate and kind is
@@ -23,6 +23,18 @@ term with no centre takes flat ground.
 plus its margin (the larger of 1.3 × the site's half-width and 250 m on each side), asked in one more call. A
 profile's `cellSizeMetres` is its real spacing, so distance along the line is the index times that spacing. The
 site's span on each line is written in metres from the line's start.
+
+**Runoff.** Three grids of runoff classes are worked out on the same cells: the 1-in-5 and 1-in-100 year storms
+on bare ground, and the 1-in-100 year storm with every cell inside the border built over. The method is the rational
+method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4), as the site-study
+pages work it out. The runoff coefficients, the roughness of the ground, the shortest time of concentration, the
+length of sheet flow and the smallest slopes are the study's own correctable inputs. The rain comes from a table
+reached through the site's Places, nearest first: of the tables that apply in that Place, the one used east of the
+greatest longitude west of the site, else the one with no such longitude. Each RunoffClass holds the conditions a cell
+meets to take it, and a class that can be met more than one way has alternatives, each holding its own. A cell takes
+the class of highest order whose conditions hold, with all of one alternative's where it has any, and the cell holds
+that class's `gridCode`. A site in no Place with a table, or a model with no runoff class, gets no runoff grid. A
+table's intensities are reached along `has` by its name until the holding role replaces it (VillageOS 8417 and 8771).
 
 **Writes.** The site's grids, profiles and figures go as one batch of observations, and each share's values as one
 batch on that share. Because a batch is accepted before it is stored, Watershed reads one value of each batch back,
