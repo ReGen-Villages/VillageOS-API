@@ -12,14 +12,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     public const int MostAttemptsAtOneBatch = 5;
     public static readonly TimeSpan LongestWaitForARefusedBatch = TimeSpan.FromSeconds(5);
 
-    // The whole of that thirty seconds, for every call to the broker: on a loaded build agent one relationship
-    // write took fifteen, and a shorter wait reported the source as failed while the write went on to land.
-    public static readonly TimeSpan BrokerPatience = TimeSpan.FromSeconds(30);
-
-    // The broker refuses a request above its body limit, and one slice of every climate property comes close to it, so a
-    // slice goes in several requests.
-    public const int ReadingsPerDeposit = 50_000;
-
     private readonly TimeProvider _clock;
 
     public MyceliumClient(
@@ -108,58 +100,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         ApplyFragmentAsync(
             new { Name = "Relationship", Relationships = new[] { new { Subject = subjectId, Predicate = predicateId, Target = targetId } } },
             cancellationToken);
-
-    // The broker validates a request whole before storing any of it and drops a reading it already holds with the same
-    // value, so a deposit that stopped at a refused request can be sent again from the start.
-    public async Task<BrokerAnswer> DepositReadingsAsync(
-        Guid subjectId, IReadOnlyList<ObservationSample> readings, CancellationToken cancellationToken = default)
-    {
-        var untimed = readings.Where(reading => reading.ObservedAt is null).Select(reading => reading.Property).Distinct().ToList();
-        if (untimed.Count > 0)
-            return new BrokerAnswer(false, $"The bulk route takes only readings with their time, and {string.Join(", ", untimed)} carries none.");
-
-        foreach (var request in DepositRequests.Of(readings, ReadingsPerDeposit))
-        {
-            var answer = await PostAsync("/api/sediment", request.Select(reading => new
-            {
-                objectId = subjectId,
-                property = reading.Property,
-                value = ResolveObservationValue(reading.Value),
-                observedAt = reading.ObservedAt,
-            }), cancellationToken);
-            if (!answer.Accepted) return answer;
-        }
-        return BrokerAnswer.Done;
-    }
-
-    public Task<BrokerAnswer> ReportHistoryChangedAsync(Guid thingId, CancellationToken cancellationToken = default) =>
-        PostAsync($"/api/things/{thingId}/history/changed", body: null, cancellationToken);
-
-    private async Task<BrokerAnswer> PostAsync(string path, object? body, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
-            using var response = body is null
-                ? await client.PostAsync($"{MyceliumUrl}{path}", content: null, cancellationToken)
-                : await client.PostAsJsonAsync($"{MyceliumUrl}{path}", body, cancellationToken);
-            if (response.IsSuccessStatusCode) return BrokerAnswer.Done;
-
-            var answerBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var refusal = $"{(int)response.StatusCode}: {PlatformAnswer.ErrorWordsIn(answerBody) ?? answerBody}";
-            Logger.LogWarning("The broker refused {Path}: {Refusal}", path, refusal);
-            return new BrokerAnswer(false, refusal, CanBeTriedAgain: (int)response.StatusCode >= 500, response.Headers.RetryAfter?.Delta);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            Logger.LogWarning(exception, "The broker could not be reached for {Path}", path);
-            return new BrokerAnswer(false, $"The broker could not be reached: {exception.Message}", CanBeTriedAgain: true);
-        }
-    }
 
     public async Task<bool> SubmitObservationsAsync(
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)
@@ -339,11 +279,4 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
     private static MyceliumThing? ThingIn(PlatformAnswer answer) =>
         TryReadThing(answer.Json(), out var id, out var name) ? new MyceliumThing(id, name) : null;
-
-    // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
-    // the observation route stores; a shape it has no scalar for keeps its own JSON text.
-    private static object? ResolveObservationValue(object? value) =>
-        value is not JsonElement element ? value
-        : JsonScalar.TryRead(element, out var scalar) ? scalar
-        : element.GetRawText();
 }
