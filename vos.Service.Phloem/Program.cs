@@ -63,36 +63,11 @@ try
         app.UseMyceliumModelToken();
     }
 
-    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
-    {
-        try
-        {
-            var registered = await app.Services.GetRequiredService<MyceliumGateway>()
-                .RegisterUntilSettledAsync(servicePort, app.Lifetime.ApplicationStopping);
-            if (registered)
-                Log.Information("Phloem orchestrator registered with mycelium");
-            else
-                Log.Error("Mycelium refused to register the Phloem orchestrator; start-up recovery runs regardless");
-            var executor = app.Services.GetRequiredService<PipelineExecutor>();
-            // Sent first, so a run that the recovery below ends reports its start before its end.
-            var owed = await executor.SendOwedReportsAsync(CancellationToken.None);
-            if (owed > 0) Log.Information("Sending again the reports {Count} run(s) started by a state entry still owe", owed);
-            var waits = await executor.RecoverWaitsAsync(CancellationToken.None);
-            if (waits.Resumed > 0) Log.Information("Resumed {Count} run(s) whose wait was answered while the orchestrator was away", waits.Resumed);
-            if (waits.WatchedAgain > 0) Log.Information("Watched again for {Count} waiting node run(s) whose watch was missing a relationship", waits.WatchedAgain);
-            var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
-            if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
-            var queued = await executor.RecoverQueuedAsync(CancellationToken.None);
-            if (queued > 0) Log.Information("Queued {Count} run(s) again that had not begun", queued);
-        }
-        catch (OperationCanceledException) when (app.Lifetime.ApplicationStopping.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error during Phloem startup registration");
-        }
-    }));
+    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(() => new StartUpSequence(
+        app.Services.GetRequiredService<MyceliumGateway>(),
+        app.Services.GetRequiredService<PipelineExecutor>(),
+        app.Services.GetRequiredService<ILogger<StartUpSequence>>(),
+        servicePort).RunAsync(app.Lifetime.ApplicationStopping)));
 
     // Takes { pipelineId, params? }, runs the pipeline to its end, and answers with the result.
     var handleEndpoint = app.MapPost("/handle", async (

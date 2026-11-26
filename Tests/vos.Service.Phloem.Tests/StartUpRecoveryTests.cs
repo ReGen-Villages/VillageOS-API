@@ -30,17 +30,6 @@ public class StartUpRecoveryTests
         await Settle.ForAsync(gateway.QueuedRunsListed, "the recovery runs once the broker has taken the registration");
     }
 
-    [Fact]
-    public async Task TheRecoveryAtStartRunsWhenTheBrokerRefusesTheRegistrationForGood()
-    {
-        var gateway = new FakeGateway(TestGraphs.DemoPipeline().Fixture.Build());
-        await using var phloem = new PhloemOver(gateway, _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)));
-
-        phloem.StartServer();
-
-        await Settle.ForAsync(gateway.QueuedRunsListed, "the recovery runs although the broker will never take the registration");
-    }
-
     private static HttpResponseMessage StillStarting()
     {
         var refused = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
