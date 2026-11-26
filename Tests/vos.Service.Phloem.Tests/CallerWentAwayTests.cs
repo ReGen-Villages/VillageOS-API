@@ -69,6 +69,26 @@ public class CallerWentAwayTests
     }
 
     [Fact]
+    public async Task Closing_writes_that_run_past_their_limit_are_one_error_and_the_run_still_returns()
+    {
+        var time = new FakeTimeProvider();
+        var logged = new CapturingLogger<PipelineExecutor>();
+        var (drawing, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(drawing.Build()) { HonoursCancellation = true, RunEndHeldUntil = new TaskCompletionSource().Task };
+        var executor = new PipelineExecutor(gateway, logged, new ModelClock(), real: time);
+
+        var running = executor.RunAsync(pipelineId, Seed, CancellationToken.None, runId: Guid.NewGuid());
+        await Settle.UntilAsync(() =>
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            return running.IsCompleted;
+        }, "the closing writes give up at their limit");
+
+        await running;
+        logged.ErrorLines.Should().ContainSingle().Which.Should().Contain("ending writes ran past 30 s");
+    }
+
+    [Fact]
     public async Task A_run_whose_caller_goes_away_while_it_writes_how_it_ended_still_records_how_it_ended()
     {
         using var caller = new CancellationTokenSource();
