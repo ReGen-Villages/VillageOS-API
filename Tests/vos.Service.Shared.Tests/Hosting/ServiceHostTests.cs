@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -30,11 +31,14 @@ public class ServiceHostTests
     private static WebApplication BuildApp(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null,
         bool withMyceliumRegistration = false,
-        bool withModelClock = false)
+        bool withModelClock = false,
+        TimeProvider? time = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
+        if (time is not null)
+            builder.Services.AddSingleton(time);
 
         var handler = new MockHttpMessageHandler(respond ?? (_ => new HttpResponseMessage(HttpStatusCode.OK)));
         builder.Services.AddSingleton(new EndpointServiceMyceliumClient(
@@ -285,6 +289,73 @@ public class ServiceHostTests
         await app.StopAsync();
 
         deleted.Task.IsCompleted.Should().BeFalse("a service cannot deregister itself, so shutdown must not try");
+    }
+
+    [Fact]
+    public async Task Bug8746_AddMyceliumRegistration_WhenTheStartingBrokerAnswers503_AsksAgainUntilItIsTaken()
+    {
+        var time = new FakeTimeProvider();
+        var askedAt = new ConcurrentQueue<DateTimeOffset>();
+        await using var app = BuildApp(request =>
+        {
+            if (request.RequestUri!.AbsolutePath != "/api/mycelium/register")
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            askedAt.Enqueue(time.GetUtcNow());
+            return askedAt.Count < 3 ? StillStarting() : new HttpResponseMessage(HttpStatusCode.OK);
+        }, withMyceliumRegistration: true, time: time);
+
+        await app.StartAsync();
+
+        await Settle.UntilAsync(() =>
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            return askedAt.Count == 3;
+        }, "the service asks again each time the broker's Retry-After runs out, until the broker takes it");
+        var asks = askedAt.ToArray();
+        asks.Zip(asks.Skip(1), (earlier, later) => later - earlier).Should().AllSatisfy(
+            gap => gap.Should().BeGreaterThanOrEqualTo(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task AddMyceliumRegistration_StopsAskingWhenTheServiceStops()
+    {
+        var time = new PauseWatchingClock();
+        var asks = 0;
+        await using var app = BuildApp(request =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                Interlocked.Increment(ref asks);
+            return StillStarting();
+        }, withMyceliumRegistration: true, time: time);
+        await app.StartAsync();
+        await Settle.ForAsync(time.PauseBegun, "the service pauses after the broker's 503");
+
+        await app.StopAsync();
+        time.Advance(TimeSpan.FromSeconds(5));
+
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+        Volatile.Read(ref asks).Should().Be(1);
+    }
+
+    private sealed class PauseWatchingClock : FakeTimeProvider
+    {
+        private readonly TaskCompletionSource _pauseBegun = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task PauseBegun => _pauseBegun.Task;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            _pauseBegun.TrySetResult();
+            return timer;
+        }
+    }
+
+    private static HttpResponseMessage StillStarting()
+    {
+        var refused = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        refused.Headers.Add("Retry-After", "5");
+        return refused;
     }
 
     // A broker that is slow, absent or refusing must not stop the service coming up.

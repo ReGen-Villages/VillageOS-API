@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import uuid
@@ -40,15 +41,23 @@ class ServiceHost:
 
     @asynccontextmanager
     async def _lifespan(self, _: FastAPI):
+        registering = None
         if not (self.config.api_key or self.config.token):
             print("neither ApiKey nor Token is set, so this service has not registered with mycelium")
         else:
-            try:
-                registered = await self.mycelium.register(self.service_name, self.handler_id)
-                print(f"{'registered' if registered else 'failed to register'} with mycelium as {self.handler_id}")
-            except Exception as exc:
-                print(f"registration failed: {exc}", file=sys.stderr)
+            # A task of its own, so the service serves while a broker that is still starting is asked again.
+            registering = asyncio.create_task(self._register())
         yield
+        if registering is not None:
+            registering.cancel()
+            await asyncio.gather(registering, return_exceptions=True)
+
+    async def _register(self) -> None:
+        try:
+            registered = await self.mycelium.register_until_settled(self.service_name, self.handler_id)
+            print(f"{'registered' if registered else 'failed to register'} with mycelium as {self.handler_id}")
+        except Exception as exc:
+            print(f"registration failed: {exc}", file=sys.stderr)
 
     def _add_routes(self) -> None:
         @self.app.get("/health")

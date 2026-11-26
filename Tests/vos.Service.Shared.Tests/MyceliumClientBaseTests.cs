@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -199,7 +200,7 @@ public class MyceliumClientBaseTests
 
         var result = await client.RegisterAsync(port: 7100, serviceName: "Echo", startCommand: "endpoint-service");
 
-        result.Should().BeTrue();
+        result.Should().Be(RegistrationAnswer.Accepted);
         capturedBody.Should().NotBeNull();
         var body = capturedBody!.Value;
         body.GetProperty("handlerId").GetString().Should().Be(client.HandlerId.ToString());
@@ -243,7 +244,7 @@ public class MyceliumClientBaseTests
     }
 
     [Fact]
-    public async Task RegisterAsync_MyceliumReturnsNonSuccess_ReturnsFalse()
+    public async Task RegisterAsync_AnAnswerTheBrokerWouldGiveAgain_IsARefusal()
     {
         var (client, _) = BuildClient(req =>
         {
@@ -254,7 +255,7 @@ public class MyceliumClientBaseTests
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeFalse();
+        result.Should().Be(RegistrationAnswer.Refused);
     }
 
     [Fact]
@@ -265,7 +266,7 @@ public class MyceliumClientBaseTests
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeFalse();
+        result.Should().Be(RegistrationAnswer.Refused);
         handler.Requests.Should().BeEmpty();
         logged.Lines.Should().ContainSingle().Which.Should().Contain("neither ApiKey nor Token is set");
     }
@@ -279,7 +280,7 @@ public class MyceliumClientBaseTests
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeTrue();
+        result.Should().Be(RegistrationAnswer.Accepted);
         handler.Requests.Should().ContainSingle().Which.Headers.Authorization!.Parameter.Should().Be("from-the-provider");
     }
 
@@ -294,19 +295,20 @@ public class MyceliumClientBaseTests
         (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().NotContain("neither");
     }
 
+    // The key exchange answers no token whatever the broker said, so a refused key cannot be told apart from a broker still starting.
     [Fact]
-    public async Task RegisterAsync_WhenTheKeyExchangeFails_ReturnsFalse()
+    public async Task RegisterAsync_WhenTheKeyExchangeFails_IsAskedAgain()
     {
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized), serviceToken: null,
             apiKey: "vos_ak_refused");
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeFalse();
+        result.Outcome.Should().Be(RegistrationOutcome.AskAgain);
     }
 
     [Fact]
-    public async Task RegisterAsync_HttpThrows_ReturnsFalse()
+    public async Task RegisterAsync_WhenTheBrokerCannotBeReached_IsAskedAgain()
     {
         var (client, _) = BuildClient(req =>
         {
@@ -317,7 +319,39 @@ public class MyceliumClientBaseTests
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
-        result.Should().BeFalse();
+        result.Should().Be(RegistrationAnswer.AskAgainBecause("network blew up"));
+    }
+
+    [Fact]
+    public async Task RegisterUntilSettledAsync_StopsAtTheFirstAnswerTheBrokerWouldGiveAgain()
+    {
+        var (client, handler) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Forbidden), serviceToken: TestToken);
+
+        var registered = await client.RegisterUntilSettledAsync(7100, "Echo", "endpoint-service", null, null,
+            new FakeTimeProvider(), CancellationToken.None);
+
+        registered.Should().BeFalse();
+        handler.Requests.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task RegisterUntilSettledAsync_AsksAgainAfterABrokerOutOfReach_UntilItIsTaken()
+    {
+        var asks = 0;
+        var (client, _) = BuildClient(_ => ++asks == 1
+            ? throw new HttpRequestException("connection refused")
+            : new HttpResponseMessage(HttpStatusCode.OK), serviceToken: TestToken);
+        var time = new FakeTimeProvider();
+
+        var registering = client.RegisterUntilSettledAsync(7100, "Echo", "endpoint-service", null, null, time, CancellationToken.None);
+        await Settle.UntilAsync(() =>
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            return registering.IsCompleted;
+        }, "the second ask, a second after the first, is taken");
+
+        (await registering).Should().BeTrue();
+        asks.Should().Be(2);
     }
 
     private static readonly DateTimeOffset Now = new(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
@@ -440,8 +474,7 @@ public class MyceliumClientBaseTests
         ILogger? logger = null)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var httpClient = new HttpClient(handler);
-        var factory = new TestHttpClientFactory(httpClient);
+        var factory = new PerCallHttpClientFactory(handler);
         var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl,
             serviceToken is null ? null : new LaunchToken(serviceToken), tokenProvider, apiKey);
         return (client, handler);

@@ -45,6 +45,7 @@ builder.Services.AddSingleton(sp =>
         "Echo",
         myceliumUrl,
         launchToken, apiKey: apiKey));
+builder.Services.AddMyceliumRegistration("Echo", servicePort);
 
 builder.Services.AddSingleton(sp =>
     new EchoNode(
@@ -61,21 +62,6 @@ if (authEnabled)
     app.UseAuthorization();
     app.UseMyceliumModelToken();
 }
-
-app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
-{
-    try
-    {
-        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
-        var registered = await myceliumClient.RegisterAsync(servicePort);
-        Log.Information("Echo endpoint service {Status} with mycelium",
-            registered ? "registered" : "failed to register");
-    }
-    catch (Exception ex)
-    {
-        Log.Error(ex, "Error during Echo startup registration");
-    }
-}));
 
 app.Lifetime.ApplicationStopping.Register(() =>
     Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount));

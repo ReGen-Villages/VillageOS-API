@@ -47,14 +47,6 @@ public class CallReporterTests
     }
 
     [Fact]
-    public void The_pause_doubles_until_it_reaches_five_minutes_and_grows_no_further()
-    {
-        Enumerable.Range(1, 12).Select(CallReporter.PauseAfter).Should().Equal(
-            new[] { 1, 2, 4, 8, 16, 32, 64, 128, 256, 300, 300, 300 }.Select(seconds => TimeSpan.FromSeconds(seconds)));
-        CallReporter.PauseAfter(10_000).Should().Be(TimeSpan.FromMinutes(5));
-    }
-
-    [Fact]
     public async Task A_broker_answer_that_the_record_no_longer_waits_stops_the_sending_and_releases_the_run()
     {
         var (gateway, reporter, pauses) = Arrange();

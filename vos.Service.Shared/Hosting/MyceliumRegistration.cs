@@ -11,25 +11,33 @@ internal sealed class MyceliumRegistration : IHostedService
     private readonly EndpointServiceMyceliumClient _client;
     private readonly string _serviceName;
     private readonly int _port;
+    private readonly TimeProvider _time;
+    private readonly CancellationTokenSource _stopping = new();
 
-    public MyceliumRegistration(EndpointServiceMyceliumClient client, string serviceName, int port)
+    public MyceliumRegistration(EndpointServiceMyceliumClient client, string serviceName, int port, TimeProvider time)
     {
         _client = client;
         _serviceName = serviceName;
         _port = port;
+        _time = time;
     }
 
     // Registration runs off the startup path: a broker that is slow, absent or refusing must not
-    // stop the service coming up, so a failure is logged and the service serves regardless.
+    // stop the service coming up, so the service serves while it is asked again.
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        var stopping = _stopping.Token;
         _ = Task.Run(async () =>
         {
             try
             {
-                var registered = await _client.RegisterAsync(_port, ServiceHost.LogFilePrefix, ServiceHost.LogDirectory);
+                var registered = await _client.RegisterUntilSettledAsync(
+                    _port, ServiceHost.LogFilePrefix, ServiceHost.LogDirectory, _time, stopping);
                 Log.Information("{Service} service {Status} with mycelium",
                     _serviceName, registered ? "registered" : "failed to register");
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
             }
             // RegisterAsync handles its own network failures but validates the payload outside that
             // guard, so a schema violation still reaches here. Unhandled, it would abort startup.
@@ -42,5 +50,9 @@ internal sealed class MyceliumRegistration : IHostedService
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _stopping.Cancel();
+        return Task.CompletedTask;
+    }
 }

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import os
 import ssl
+import sys
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
@@ -29,6 +31,34 @@ def platform_client(timeout: float) -> httpx.AsyncClient:
     anything else presenting a certificate nothing vouches for is never sent the credential.
     """
     return httpx.AsyncClient(timeout=timeout, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+
+
+LONGEST_PAUSE = 300.0
+
+
+class NotAcceptedYet(RuntimeError):
+    """Mycelium did not take the request this time and may take it later: a 503 while it starts, a 408 or a 429."""
+
+    def __init__(self, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def pause_after(failures_in_a_row: int, retry_after: float | None = None) -> float:
+    """Capped, so a broker that names an hour is asked again within minutes of being ready."""
+    if retry_after is not None:
+        return min(retry_after, LONGEST_PAUSE)
+    return min(LONGEST_PAUSE, 2.0 ** min(max(failures_in_a_row - 1, 0), 30))
+
+
+def would_be_given_again(status: int) -> bool:
+    """408 and 429 say the same request may succeed later; every other 4xx says it will not."""
+    return 400 <= status < 500 and status not in (408, 429)
+
+
+def _retry_after(res: httpx.Response) -> float | None:
+    value = res.headers.get("Retry-After", "")
+    return float(value) if value.isdigit() else None
 
 
 def sediment_reading(thing_id: str, prop: str, value, observed_at: str) -> dict:
@@ -99,7 +129,10 @@ class MyceliumClient:
             async with platform_client(timeout=5) as c:
                 res = await c.post(url, headers=headers)
         if not res.is_success:
-            raise RuntimeError(f"Mycelium refused to exchange the API key ({res.status_code})")
+            refusal = f"Mycelium refused to exchange the API key ({res.status_code})"
+            if would_be_given_again(res.status_code):
+                raise RuntimeError(refusal)
+            raise NotAcceptedYet(refusal, _retry_after(res))
         token = res.json()["token"]
         # Read, not checked: only Mycelium can check its own signature, and it does on every call.
         expires = jwt.decode(token, options={"verify_signature": False}).get("exp")
@@ -108,7 +141,22 @@ class MyceliumClient:
             raise RuntimeError("Mycelium exchanged the API key for a token that states no expiry")
         return token, datetime.fromtimestamp(expires, timezone.utc)
 
+    async def register_until_settled(
+        self, service_name: str, handler_id: str, *, client: httpx.AsyncClient | None = None, sleep=asyncio.sleep
+    ) -> bool:
+        asks = 1
+        while True:
+            try:
+                return await self.register(service_name, handler_id, client=client)
+            except (NotAcceptedYet, httpx.TransportError) as exc:
+                if asks == 1:
+                    print(f"mycelium has not taken the registration ({exc}); it is asked again, each pause longer, until it does",
+                          file=sys.stderr)
+                await sleep(pause_after(asks, getattr(exc, "retry_after", None)))
+                asks += 1
+
     async def register(self, service_name: str, handler_id: str, *, client: httpx.AsyncClient | None = None) -> bool:
+        """True once Mycelium takes it, False for an answer it would give again, NotAcceptedYet for one it may not."""
         base = f"http://localhost:{self._config.port}"
         payload = {
             "handlerId": handler_id,
@@ -119,7 +167,11 @@ class MyceliumClient:
             "healthEndpoint": f"{base}/health",
         }
         res = await self._post("/api/mycelium/register", payload, client=client, timeout=5)
-        return res.is_success
+        if res.is_success:
+            return True
+        if would_be_given_again(res.status_code):
+            return False
+        raise NotAcceptedYet(f"{res.status_code}", _retry_after(res))
 
     async def set_fact(self, thing_id: str, prop: str, value, *, client: httpx.AsyncClient | None = None) -> int:
         """Assert a structural Fact; return the commit sequence number (405 if ObservationOnly)."""
