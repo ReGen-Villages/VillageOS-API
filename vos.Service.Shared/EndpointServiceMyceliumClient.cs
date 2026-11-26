@@ -22,6 +22,7 @@ public sealed class EndpointServiceMyceliumClient : MyceliumClientBase
         _serviceName = serviceName;
     }
 
-    public Task<bool> RegisterAsync(int port, string? logFilePrefix = null, string? logDirectory = null) =>
-        RegisterAsync(port, _serviceName, StartCommand, logFilePrefix, logDirectory);
+    public Task<bool> RegisterUntilSettledAsync(int port, string? logFilePrefix, string? logDirectory, TimeProvider time,
+        CancellationToken cancellationToken) =>
+        RegisterUntilSettledAsync(port, _serviceName, StartCommand, logFilePrefix, logDirectory, time, cancellationToken);
 }

@@ -40,7 +40,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     private string Now() => _clock.GetUtcNow().ToString("o");
 
-    public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
+    public Task<bool> RegisterUntilSettledAsync(int port, CancellationToken cancellationToken) =>
+        RegisterUntilSettledAsync(port, "Phloem", "endpoint-service", null, null, TimeProvider.System, cancellationToken);
 
     // A role is read off the drawing only when its role Thing is in it.
     private static readonly IReadOnlyList<Role> DrawingRoles =

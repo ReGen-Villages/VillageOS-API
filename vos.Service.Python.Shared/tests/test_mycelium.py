@@ -7,6 +7,7 @@ import jwt
 import pytest
 
 from vos_service import AssetTooLarge, AssetUnavailable, Config, MyceliumClient, PlatformRefusal, sediment_reading
+from vos_service.mycelium import NotAcceptedYet, pause_after
 
 
 @pytest.fixture
@@ -197,6 +198,91 @@ def test_register_posts_the_envelope_with_the_bearer_token(mycelium):
 
 def test_register_reports_a_refusal(mycelium):
     assert run_against(lambda r: httpx.Response(403), lambda c: mycelium.register("Python", "h-1", client=c)) is False
+
+
+@pytest.mark.parametrize("status, retry_after, expected", [(503, "5", 5.0), (429, "30", 30.0), (408, None, None)])
+def test_register_says_an_answer_the_broker_may_change_is_not_accepted_yet(mycelium, status, retry_after, expected):
+    headers = {"Retry-After": retry_after} if retry_after else {}
+    with pytest.raises(NotAcceptedYet) as raised:
+        run_against(lambda r: httpx.Response(status, headers=headers), lambda c: mycelium.register("Python", "h-1", client=c))
+    assert raised.value.retry_after == expected
+
+
+def asks_until_settled(mycelium, handler):
+    pauses = []
+
+    async def sleep(seconds):
+        pauses.append(seconds)
+
+    registered = run_against(handler, lambda c: mycelium.register_until_settled("Python", "h-1", client=c, sleep=sleep))
+    return registered, pauses
+
+
+def test_bug8746_a_registration_the_starting_broker_refuses_is_asked_again_after_its_retry_after(mycelium):
+    answers = iter([httpx.Response(503, headers={"Retry-After": "5"}), httpx.Response(503, headers={"Retry-After": "5"}), httpx.Response(200)])
+
+    registered, pauses = asks_until_settled(mycelium, lambda r: next(answers))
+
+    assert registered is True
+    assert pauses == [5.0, 5.0]
+
+
+def test_register_until_settled_stops_at_an_answer_the_broker_would_give_again(mycelium):
+    asked = []
+
+    registered, pauses = asks_until_settled(mycelium, lambda r: asked.append(r) or httpx.Response(400))
+
+    assert registered is False
+    assert len(asked) == 1
+    assert pauses == []
+
+
+def test_register_until_settled_asks_again_after_a_broker_out_of_reach(mycelium):
+    answers = iter([httpx.ConnectError("connection refused"), httpx.Response(200)])
+
+    def handle(request):
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    registered, pauses = asks_until_settled(mycelium, handle)
+
+    assert registered is True
+    assert pauses == [1.0]
+
+
+def test_a_key_exchange_the_starting_broker_refuses_is_asked_again(holding_a_key):
+    _, mycelium, _ = holding_a_key
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+    exchanges = iter([httpx.Response(503, headers={"Retry-After": "5"}), httpx.Response(200, json={"token": minted})])
+
+    def handle(request):
+        return next(exchanges) if request.url.path == "/api/auth/token" else httpx.Response(200)
+
+    registered, pauses = asks_until_settled(mycelium, handle)
+
+    assert registered is True
+    assert pauses == [5.0]
+
+
+def test_a_key_the_broker_refuses_stops_the_registration(holding_a_key):
+    _, mycelium, _ = holding_a_key
+
+    with pytest.raises(RuntimeError) as raised:
+        asks_until_settled(mycelium, lambda r: httpx.Response(401))
+
+    assert not isinstance(raised.value, NotAcceptedYet)
+
+
+def test_the_pause_doubles_until_it_reaches_five_minutes():
+    assert [pause_after(failures) for failures in range(1, 12)] == [1, 2, 4, 8, 16, 32, 64, 128, 256, 300, 300]
+    assert pause_after(10_000) == 300
+
+
+def test_a_retry_after_past_five_minutes_is_cut_to_five_minutes():
+    assert pause_after(1, 3600.0) == 300
+    assert pause_after(7, 5.0) == 5.0
 
 
 def test_set_fact_posts_value_and_returns_sequence(mycelium):

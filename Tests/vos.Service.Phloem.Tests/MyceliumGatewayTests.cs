@@ -313,11 +313,11 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task RegisterAsync_DeclaresPhloemToTheBroker()
+    public async Task RegisterUntilSettledAsync_DeclaresPhloemToTheBroker()
     {
         var (gateway, handler) = NewGateway();
 
-        var registered = await gateway.RegisterAsync(port: 7300);
+        var registered = await gateway.RegisterUntilSettledAsync(port: 7300, CancellationToken.None);
 
         registered.Should().BeTrue();
         var body = await ReadJson(RequestsTo(handler, "/api/mycelium/register").Single());

@@ -89,7 +89,28 @@ public abstract class MyceliumClientBase
         return client;
     }
 
-    public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand, string? logFilePrefix = null, string? logDirectory = null)
+    // Pauses on real time, never the model's clock, which a simulation runs faster.
+    public async Task<bool> RegisterUntilSettledAsync(int port, string serviceName, string startCommand, string? logFilePrefix,
+        string? logDirectory, TimeProvider time, CancellationToken cancellationToken)
+    {
+        for (var asks = 1; ; asks++)
+        {
+            var answer = await RegisterAsync(port, serviceName, startCommand, logFilePrefix, logDirectory);
+            if (answer.Outcome != RegistrationOutcome.AskAgain)
+            {
+                if (asks > 1 && answer.Outcome == RegistrationOutcome.Accepted)
+                    Logger.LogInformation("Mycelium took the registration at ask {Asks}", asks);
+                return answer.Outcome == RegistrationOutcome.Accepted;
+            }
+
+            if (asks == 1)
+                Logger.LogWarning("Mycelium has not taken the registration ({Why}); it is asked again, each pause longer, until it does",
+                    answer.Why);
+            await Task.Delay(AskingAgain.PauseAfter(asks, answer.RetryAfter), time, cancellationToken);
+        }
+    }
+
+    public async Task<RegistrationAnswer> RegisterAsync(int port, string serviceName, string startCommand, string? logFilePrefix = null, string? logDirectory = null)
     {
         var registration = new Dictionary<string, object>
         {
@@ -111,34 +132,30 @@ public abstract class MyceliumClientBase
         if (!HoldsACredential)
         {
             Logger.LogWarning("{Reason}, so this service has not registered with mycelium", NoCredential);
-            return false;
+            return RegistrationAnswer.Refused;
         }
 
         try
         {
             var client = await CreateAuthenticatedClientAsync();
-            var response = await client.PostAsync(
+            using var response = await client.PostAsync(
                 $"{MyceliumUrl}/api/mycelium/register",
                 new StringContent(json, Encoding.UTF8, "application/json"));
 
-            if (response.IsSuccessStatusCode)
-            {
+            var answer = RegistrationAnswer.To(response);
+            if (answer.Outcome == RegistrationOutcome.Accepted)
                 Logger.LogInformation("Registered with mycelium as {HandlerId}", HandlerId);
-                return true;
-            }
-
-            Logger.LogError("Registration failed: {StatusCode}", response.StatusCode);
-            return false;
+            else if (answer.Outcome == RegistrationOutcome.Refused)
+                Logger.LogError("Mycelium refused the registration and would refuse it again: {StatusCode}", response.StatusCode);
+            return answer;
         }
         catch (InvalidOperationException)
         {
-            Logger.LogError("Cannot register: failed to get token");
-            return false;
+            return RegistrationAnswer.AskAgainBecause("no token could be had");
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            Logger.LogError(ex, "Error registering with mycelium");
-            return false;
+            return RegistrationAnswer.AskAgainBecause(exception.Message);
         }
     }
 

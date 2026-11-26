@@ -67,8 +67,12 @@ try
     {
         try
         {
-            var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
-            Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
+            var registered = await app.Services.GetRequiredService<MyceliumGateway>()
+                .RegisterUntilSettledAsync(servicePort, app.Lifetime.ApplicationStopping);
+            if (registered)
+                Log.Information("Phloem orchestrator registered with mycelium");
+            else
+                Log.Error("Mycelium refused to register the Phloem orchestrator; start-up recovery runs regardless");
             var executor = app.Services.GetRequiredService<PipelineExecutor>();
             // Sent first, so a run that the recovery below ends reports its start before its end.
             var owed = await executor.SendOwedReportsAsync(CancellationToken.None);
@@ -80,6 +84,9 @@ try
             if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
             var queued = await executor.RecoverQueuedAsync(CancellationToken.None);
             if (queued > 0) Log.Information("Queued {Count} run(s) again that had not begun", queued);
+        }
+        catch (OperationCanceledException) when (app.Lifetime.ApplicationStopping.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
