@@ -85,9 +85,7 @@ public sealed class TheEngine : IAsyncLifetime
     public async Task<HttpClient> EditorAsync()
     {
         var token = await TokenOfANewKeyAsync(new { Name = $"editor {Guid.NewGuid():N}", Role = EditorRole, ModelId = await TheModelIdAsync() });
-        var editor = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
-        editor.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return editor;
+        return Holding(token);
     }
 
     private const string EditorRole = "editor";
@@ -182,7 +180,9 @@ public sealed class TheEngine : IAsyncLifetime
 
     // A launched service's own token is minted by the broker and no route issues one, so a case that must not hold the
     // administrator's bearer takes a service key's token, which carries the same role and names its service the same way.
-    public async Task<string> ServiceTokenAsync(string serviceName)
+    public async Task<string> ServiceTokenAsync(string serviceName) => (await ServiceAsync(serviceName)).Token;
+
+    public async Task<(string Token, Guid Thing)> ServiceAsync(string serviceName)
     {
         var modelId = await TheModelIdAsync();
         var isPredicate = await DeclareOnceAsync("is");
@@ -191,7 +191,15 @@ public sealed class TheEngine : IAsyncLifetime
         var service = await DeclareAsync($"{serviceName} service {Guid.NewGuid():N}");
         await RelateAsync(service, isPredicate, serviceKind);
 
-        return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
+        var token = await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
+        return (token, service);
+    }
+
+    public HttpClient Holding(string token)
+    {
+        var client = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
     private async Task<Guid> TheModelIdAsync() => (await TheModelAsync()).Id;

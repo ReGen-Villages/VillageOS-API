@@ -295,6 +295,13 @@ describe('MapView', () => {
     expect(transform('/basemaps/satellite-tiles/3/4/5')).toBeUndefined();
   });
 
+  // A provider's terms can require its credit on the map whenever its imagery is shown, and in a screenshot of it.
+  it('shows the credit in full at every width, and never folds it away when the map is dragged', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+
+    expect(maps[0].options.attributionControl).toEqual({ compact: false });
+  });
+
   // Lose this and the map still mounts, still draws its controls and still reports no error, but never parses a
   // tile. The reason is in MapView.
   it('points maplibre at the worker the bundler emitted', () => {

@@ -12,10 +12,10 @@ import {
 
 /** A source with no credit is dropped, because its licence requires the page to show the credit, and so is
  *  one stating both a style and a tile address, because nothing here may decide which the model meant.
- *  Ordered by name, so a model always opens on the same layer. */
+ *  In the order the model states, then by name, so a model always opens on the same layer. */
 export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): BasemapSource[] {
   const found: BasemapSource[] = [];
-  for (const source of declared) {
+  for (const source of inTheModelsOrder(declared)) {
     const attribution = statedText(source.attribution);
     const styleUrl = statedText(source.styleUrl);
     const tileUrl = statedText(source.tileUrl);
@@ -37,8 +37,15 @@ export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): 
       });
     }
   }
-  found.sort((a, b) => a.name.localeCompare(b.name));
   return found;
+}
+
+function inTheModelsOrder(declared: readonly DeclaredBasemapSource[]): DeclaredBasemapSource[] {
+  return [...declared].sort((a, b) => placeOf(a) - placeOf(b) || a.name.localeCompare(b.name));
+}
+
+function placeOf(source: DeclaredBasemapSource): number {
+  return source.order ?? Number.MAX_SAFE_INTEGER;
 }
 
 /**

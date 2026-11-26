@@ -193,6 +193,8 @@ export function MapView({
       center: centre,
       zoom: openingZoom.current,
       transformRequest: carryingOwnServerHeaders(window.location.origin, ownServerHeaders),
+      // A provider's terms can require its credit visible whenever its imagery is, so it is never folded behind a button.
+      attributionControl: { compact: false },
     });
     created.on('error', reportTilesUnreachable);
     marker.current = new Marker().setLngLat(centre).addTo(created);

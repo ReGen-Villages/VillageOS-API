@@ -34,6 +34,6 @@ public sealed record DeclaredShare(string Category, double SharePercent);
 // source's own tiles that holds building footprints. Absent where the model declares none, which draws
 // flat — and passed through unjudged, like the rest.
 public sealed record DeclaredBasemapSource(
-    Guid Id, string Name, string? Attribution, string? StyleUrl, string? TileUrl, double? MaximumZoom,
+    Guid Id, string Name, string? Attribution, string? StyleUrl, string? TileUrl, double? MaximumZoom, long? Order,
     string? TerrainTileUrl, string? TerrainEncoding, double? TerrainExaggeration,
     string? BuildingSourceLayer);

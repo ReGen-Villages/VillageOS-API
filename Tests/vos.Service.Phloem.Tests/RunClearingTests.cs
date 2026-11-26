@@ -117,6 +117,35 @@ public class RunClearingTests
         gateway.Cleared.Should().Equal(forty.RunId, thirtyFive.RunId);
     }
 
+    [Fact]
+    public async Task A_refused_run_takes_its_place_in_the_cap_so_a_look_asks_no_more_than_the_cap()
+    {
+        var forty = Run(RunStatus.Succeeded, 40);
+        var thirtyFive = Run(RunStatus.Succeeded, 35);
+        var thirtyOne = Run(RunStatus.Succeeded, 31);
+        var gateway = new FakeGateway(new GraphFixture().Build())
+        {
+            RunsJudged = new RunsToJudge([thirtyOne, forty, thirtyFive], Template, new Dictionary<Guid, KeepPeriods>(), RunsPerLook: 2),
+        };
+        gateway.RefusesToClear.Add(forty.RunId);
+
+        var cleared = await Keeper(gateway).ClearOnceAsync(CancellationToken.None);
+
+        gateway.AskedToClear.Should().Equal(forty.RunId, thirtyFive.RunId);
+        cleared.Runs.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_stop_request_the_run_s_maker_wrote_goes_with_its_runs_and_one_a_person_wrote_stays()
+    {
+        var pipelineEngine = Guid.NewGuid();
+        var person = Guid.NewGuid();
+
+        RunRetention.GoesWithItsRuns(requestMaker: pipelineEngine, runMaker: pipelineEngine).Should().BeTrue();
+        RunRetention.GoesWithItsRuns(requestMaker: person, runMaker: pipelineEngine).Should().BeFalse();
+        RunRetention.GoesWithItsRuns(requestMaker: null, runMaker: pipelineEngine).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(null, 500)]
     [InlineData(200.0, 200)]

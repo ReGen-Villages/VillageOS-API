@@ -82,7 +82,31 @@ describe('basemapSourcesFrom', () => {
     ).toMatchObject({ kind: 'style' });
   });
 
-  it('offers sources in name order, so the same model always opens on the same layer', () => {
+  it('offers sources in the order the model states, so the model says which layer a map opens on', () => {
+    const ordered = basemapSourcesFrom([
+      { id: 'src-1', name: 'Aerial', attribution: 'Example', tileUrl: 'https://example.test/{z}/{x}/{y}.png', order: 2 },
+      { id: 'src-2', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json', order: 1 },
+    ]);
+    expect(ordered.map((source) => source.name)).toEqual(['Streets', 'Aerial']);
+  });
+
+  it('offers a source stating no order after those that state one', () => {
+    const ordered = basemapSourcesFrom([
+      { id: 'src-1', name: 'Aerial', attribution: 'Example', tileUrl: 'https://example.test/{z}/{x}/{y}.png', order: null },
+      { id: 'src-2', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json', order: 7 },
+    ]);
+    expect(ordered.map((source) => source.name)).toEqual(['Streets', 'Aerial']);
+  });
+
+  it('offers sources sharing an order in name order', () => {
+    const ordered = basemapSourcesFrom([
+      { id: 'src-2', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json', order: 1 },
+      { id: 'src-1', name: 'Aerial', attribution: 'Example', tileUrl: 'https://example.test/{z}/{x}/{y}.png', order: 1 },
+    ]);
+    expect(ordered.map((source) => source.name)).toEqual(['Aerial', 'Streets']);
+  });
+
+  it('offers sources stating no order in name order, so the same model always opens on the same layer', () => {
     const ordered = basemapSourcesFrom([
       { id: 'src-2', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json' },
       { id: 'src-1', name: 'Aerial', attribution: 'Example', tileUrl: 'https://example.test/{z}/{x}/{y}.png' },
