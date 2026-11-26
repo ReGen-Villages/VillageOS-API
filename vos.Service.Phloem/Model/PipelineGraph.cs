@@ -8,6 +8,7 @@ public sealed class GraphThing
 {
     public Guid Id { get; init; }
     public string Name { get; init; } = string.Empty;
+    public Guid? MadeBy { get; init; }
     public IReadOnlyDictionary<string, JsonElement> Properties { get; init; } =
         new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
