@@ -175,3 +175,47 @@ describe('a widget holding a value binding, read out for a reader with no screen
     expect(await readWidget(widget, holdingAShape)).toMatchObject({ type: 'kpi', worded: '—', value: shoreline, origin: [] });
   });
 });
+
+// The platform reads a name two kinds each declare as ambiguous and gives it no value, so a card that
+// showed one kind's value, and said it came from that kind, would state what the platform will not.
+describe('a figure two kinds of its Thing each declare, read out for a reader with no screen', () => {
+  const twoKinds: ResolveContext = {
+    index: buildModelIndex(
+      [
+        thing('is', 'is'),
+        thing('has', 'has'),
+        thing('zone', 'Zone', { IsArchetype: true, Properties: { householdSize: 2 } }),
+        thing('field', 'Åker', { IsArchetype: true, Properties: { householdSize: 3 } }),
+        thing('census', 'Census 2021'),
+        thing('lot', 'Lot 4'),
+      ],
+      [edge('lot', 'is', 'zone'), edge('lot', 'is', 'field'), edge('lot', 'has', 'census')],
+    ),
+    scopeId: 'lot',
+    reads: {} as ModelReads,
+    language: 'en',
+  };
+
+  it('shows no value, and says so in the model\'s words without naming either kind or a source', async () => {
+    const widget: Widget = {
+      type: 'kpi',
+      title: 'Household size',
+      value: { kind: 'property', thing: '$scope', property: 'householdSize' },
+      origin: {
+        kind: 'origin',
+        thing: '$scope',
+        property: 'householdSize',
+        reads: { assumed: 'assumed from {source}', stated: 'stated by {source}', ambiguous: 'two of its kinds each give a value {source}' },
+        source: { via: [{ predicate: 'has' }] },
+      },
+    };
+
+    expect(await readWidget(widget, twoKinds)).toEqual({
+      type: 'kpi',
+      title: 'Household size',
+      value: null,
+      worded: '—',
+      origin: [{ origin: 'ambiguous', sentence: 'two of its kinds each give a value' }],
+    });
+  });
+});

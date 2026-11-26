@@ -169,9 +169,9 @@ describe('effectiveProperties', () => {
   });
 
   it('lets an instance override win over the archetype default', () => {
-    const home = archetype('h', 'Home', { energy_rating: 'A+' });
+    const home = archetype('home', 'Home', { energy_rating: 'A+' });
     const instance = { Id: 'i', Properties: {}, InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'B' }) } };
-    expect(effectiveProperties(instance, chain([home], { i: ['h'] })).energy_rating).toBe('B');
+    expect(effectiveProperties(instance, chain([home], { i: ['home'] })).energy_rating).toBe('B');
   });
 
   it('lets an own value win over the archetype default', () => {
@@ -188,32 +188,83 @@ describe('effectiveProperties', () => {
     expect(merged).toEqual({ x: 'home', y: 'shared' });
   });
 
-  it('resolves sibling archetype conflicts deterministically by Name', () => {
-    const alpha = archetype('a', 'Alpha', { x: 'alpha' });
-    const beta = archetype('b', 'Beta', { x: 'beta' });
+  // The platform reads a name two sources declare as ambiguous and computes nothing from it, so a
+  // page that picked one would state a value the platform will not use.
+  it('gives no value for a name two unrelated archetypes each declare, and keeps the names only one declares', () => {
+    const zone = archetype('z', 'Zone', { x: 'zone', y: 'only zone' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
     const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
-    // Alphabetically-last Name (Beta) wins, whatever order the parent ids arrive in.
-    expect(effectiveProperties(instance, chain([alpha, beta], { i: ['a', 'b'] })).x).toBe('beta');
-    expect(effectiveProperties(instance, chain([alpha, beta], { i: ['b', 'a'] })).x).toBe('beta');
+    const merged = effectiveProperties(instance, chain([zone, field], { i: ['z', 'f'] }));
+    expect('x' in merged).toBe(false);
+    expect(merged.y).toBe('only zone');
   });
 
-  it('picks between sibling archetypes in an order no language changes', () => {
-    // English orders "array" before "Zone" and Swedish orders "Åker" after it; neither decides here.
-    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+  it('gives no value for the ambiguous name whatever order the archetypes arrive in', () => {
     const zone = archetype('z', 'Zone', { x: 'zone' });
     const array = archetype('a', 'array', { x: 'array' });
-    const field = archetype('f', 'Åker', { x: 'åker' });
-    expect(effectiveProperties(instance, chain([zone, array], { i: ['z', 'a'] })).x).toBe('array');
-    expect(effectiveProperties(instance, chain([zone, field], { i: ['f', 'z'] })).x).toBe('åker');
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    expect('x' in effectiveProperties(instance, chain([zone, array], { i: ['z', 'a'] }))).toBe(false);
+    expect('x' in effectiveProperties(instance, chain([zone, array], { i: ['a', 'z'] }))).toBe(false);
   });
 
-  it('picks between stored override sources in the same order', () => {
+  it('counts a name two archetypes declare as ambiguous even where one of them holds no value for it', () => {
+    const zone = archetype('z', 'Zone', { x: null });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    expect('x' in effectiveProperties(instance, chain([zone, field], { i: ['z', 'f'] }))).toBe(false);
+  });
+
+  it('lets a Thing\'s own value win over two archetypes that each declare the name', () => {
+    const zone = archetype('z', 'Zone', { x: 'zone' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    const instance = { Id: 'i', Properties: { x: 'own' }, InheritedOverrides: undefined };
+    expect(effectiveProperties(instance, chain([zone, field], { i: ['z', 'f'] })).x).toBe('own');
+  });
+
+  // The platform holds a value written for an inherited name against the source that declared it, so
+  // the Thing's value does not settle which of two sources the name means.
+  it('gives no value for a name the Thing stored against one of two archetypes that each declare it', () => {
+    const zone = archetype('z', 'Zone', { x: 'zone' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: { z: { ...inheritedSet('Zone', { x: 'stored' }), SourceId: 'z' } } };
+    expect('x' in effectiveProperties(instance, chain([zone, field], { i: ['z', 'f'] }))).toBe(false);
+  });
+
+  it('gives no value for a name the Thing stored against two sources', () => {
     const instance = {
       Id: 'i',
       Properties: {},
       InheritedOverrides: { z: inheritedSet('Zone', { x: 'zone' }), a: inheritedSet('array', { x: 'array' }) },
     };
-    expect(effectiveProperties(instance, noAncestors).x).toBe('array');
+    expect('x' in effectiveProperties(instance, noAncestors)).toBe(false);
+  });
+
+  it('gives a member of an archetype that is two such kinds no value for the name either', () => {
+    const zone = archetype('z', 'Zone', { x: 'zone' });
+    const field = archetype('f', 'Åker', { x: 'åker' });
+    const plot = archetype('p', 'Plot', {});
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    expect('x' in effectiveProperties(instance, chain([zone, field, plot], { i: ['p'], p: ['z', 'f'] }))).toBe(false);
+  });
+
+  // The platform holds a kind's value for a name the kind above it declares against that kind, so
+  // there is one source and the nearer value is read.
+  it('reads a kind that states its own value over the kind above it as one source', () => {
+    const dwelling = archetype('d', 'Dwelling', { factor: 1.25 });
+    const cottage = {
+      ...archetype('c', 'Cottage', {}),
+      InheritedOverrides: { d: { ...inheritedSet('Dwelling', { factor: 2.75 }), SourceId: 'd' } },
+    };
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    expect(effectiveProperties(instance, chain([dwelling, cottage], { i: ['c'], c: ['d'] })).factor).toBe(2.75);
+  });
+
+  it('reads a name two archetypes both inherit from one kind as one source', () => {
+    const base = archetype('b', 'Building', { x: 'building' });
+    const home = archetype('h', 'Home', {});
+    const office = archetype('o', 'Office', {});
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    expect(effectiveProperties(instance, chain([base, home, office], { i: ['h', 'o'], h: ['b'], o: ['b'] })).x).toBe('building');
   });
 
   it('survives a malformed is-cycle without infinite recursion', () => {

@@ -63,14 +63,14 @@ describe('valueOrigin', () => {
   // The platform relocates a value written under an inherited name into the override store, so
   // reading own Properties alone would call every submitted figure an assumption.
   it('reads a value stored under an inherited name as the Thing\'s own claim', () => {
-    const archetype = thing('a', 'Site', {
+    const archetype = thing('Site', 'Site', {
       Properties: { statedAreaHectares: null },
       PropertyWriteKinds: { statedAreaHectares: 'FactOnly' },
     });
     const site = thing('s', 'Willow Bend', {
       InheritedOverrides: stored('Site', { statedAreaHectares: 24 }, { statedAreaHectares: 'FactOnly' }),
     });
-    expect(valueOrigin(site, 'statedAreaHectares', chain([archetype], { s: ['a'] })))
+    expect(valueOrigin(site, 'statedAreaHectares', chain([archetype], { s: ['Site'] })))
       .toEqual({ origin: 'stated', assumedFrom: null });
   });
 
@@ -92,22 +92,55 @@ describe('valueOrigin', () => {
       .toBe('Place');
   });
 
-  it('names the sibling archetype whose value the Thing resolves to, in an order no language changes', () => {
+  // The platform reads a name two kinds each declare as ambiguous, so naming either kind as where the
+  // value came from would name a value nothing computes with.
+  it('reads a name two unrelated archetypes each declare as ambiguous, and names neither', () => {
     const zone = thing('z', 'Zone', { Properties: { householdSize: 2 } });
-    const array = thing('a', 'array', { Properties: { householdSize: 3 } });
+    const field = thing('f', 'Åker', { Properties: { householdSize: 3 } });
     const site = thing('s', 'Lot 4');
-    expect(valueOrigin(site, 'householdSize', chain([zone, array], { s: ['z', 'a'] })).assumedFrom).toBe('array');
+    expect(valueOrigin(site, 'householdSize', chain([zone, field], { s: ['z', 'f'] })))
+      .toEqual({ origin: 'ambiguous', assumedFrom: null });
+    expect(valueOrigin(site, 'householdSize', chain([zone, field], { s: ['f', 'z'] })))
+      .toEqual({ origin: 'ambiguous', assumedFrom: null });
+  });
+
+  it('reads a value the Thing stored against one of two archetypes that each declare the name as ambiguous', () => {
+    const zone = thing('z', 'Zone', { Properties: { householdSize: 2 }, PropertyWriteKinds: { householdSize: 'FactOnly' } });
+    const field = thing('f', 'Åker', { Properties: { householdSize: 3 } });
+    const site = thing('s', 'Lot 4', {
+      InheritedOverrides: { z: { SourceId: 'z', SourceName: 'Zone', Properties: { householdSize: 4 } } },
+    });
+    expect(valueOrigin(site, 'householdSize', chain([zone, field], { s: ['z', 'f'] })))
+      .toEqual({ origin: 'ambiguous', assumedFrom: null });
+  });
+
+  it('reads the Thing\'s own value over two archetypes that each declare the name as its own', () => {
+    const zone = thing('z', 'Zone', { Properties: { householdSize: 2 } });
+    const field = thing('f', 'Åker', { Properties: { householdSize: 3 } });
+    const site = thing('s', 'Lot 4', { Properties: { householdSize: 5 }, PropertyWriteKinds: { householdSize: 'FactOnly' } });
+    expect(valueOrigin(site, 'householdSize', chain([zone, field], { s: ['z', 'f'] })))
+      .toEqual({ origin: 'stated', assumedFrom: null });
+  });
+
+  it('names the kind that stated its own value over the kind above it, which is one source', () => {
+    const dwelling = thing('d', 'Dwelling', { Properties: { factor: 1.25 } });
+    const cottage = thing('c', 'Cottage', {
+      InheritedOverrides: { d: { SourceId: 'd', SourceName: 'Dwelling', Properties: { factor: 2.75 } } },
+    });
+    const home = thing('s', 'Rose Cottage');
+    expect(valueOrigin(home, 'factor', chain([dwelling, cottage], { s: ['c'], c: ['d'] })))
+      .toEqual({ origin: 'assumed', assumedFrom: 'Cottage' });
   });
 
   it('lets an assumption the Thing overrode become the Thing\'s own claim', () => {
-    const archetype = thing('a', 'Site', {
+    const archetype = thing('Site', 'Site', {
       Properties: { householdSize: 2.4 },
       PropertyWriteKinds: { householdSize: 'FactOnly' },
     });
     const site = thing('s', 'Willow Bend', {
       InheritedOverrides: stored('Site', { householdSize: 3.1 }, { householdSize: 'FactOnly' }),
     });
-    expect(valueOrigin(site, 'householdSize', chain([archetype], { s: ['a'] })))
+    expect(valueOrigin(site, 'householdSize', chain([archetype], { s: ['Site'] })))
       .toEqual({ origin: 'stated', assumedFrom: null });
   });
 
@@ -167,14 +200,13 @@ describe('valueOrigin', () => {
       .toBe('measured');
   });
 
-  // Same rule effectiveProperties resolves the value by, so the origin names the Thing whose
-  // value is the one on screen.
-  it('names the sibling archetype whose value effectiveProperties lets win', () => {
-    const alpha = thing('x', 'Alpha', { Properties: { householdSize: 2 } });
-    const zulu = thing('z', 'Zulu', { Properties: { householdSize: 3 } });
+  it('names the one kind two archetypes both inherit a value from', () => {
+    const building = thing('b', 'Building', { Properties: { householdSize: 2 } });
+    const home = thing('h', 'Home');
+    const office = thing('o', 'Office');
     const site = thing('s', 'Willow Bend');
-    expect(valueOrigin(site, 'householdSize', chain([alpha, zulu], { s: ['x', 'z'] })).assumedFrom)
-      .toBe('Zulu');
+    expect(valueOrigin(site, 'householdSize', chain([building, home, office], { s: ['h', 'o'], h: ['b'], o: ['b'] })))
+      .toEqual({ origin: 'assumed', assumedFrom: 'Building' });
   });
 
   // A value inherited through two archetypes is stored under the nearer one, with the farther one's
