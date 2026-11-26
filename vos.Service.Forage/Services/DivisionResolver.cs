@@ -59,6 +59,14 @@ public sealed class DivisionResolver
         if (await RelateToCodedPlaceAsync(siteId, coverage, lookup, position, cancellationToken) is { } supplied)
             return supplied;
 
+        if (position.AreaNames.Count == 0)
+        {
+            _logger.LogInformation(
+                "The area-name lookup answered no county or state for site {SiteId}, so the hazard portal is not "
+                + "searched and the site keeps no division code", siteId);
+            return null;
+        }
+
         var terms = HazardDivision.SearchTermsFor(
             position.AreaNames, await LocalAreaNamesAsync(siteId, coverage, lookup, cancellationToken));
 
