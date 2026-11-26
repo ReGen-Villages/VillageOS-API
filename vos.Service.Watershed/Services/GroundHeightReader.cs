@@ -8,7 +8,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Services;
 
-// Asks the platform's fetcher, which holds the provider's address, so no address or limit is written here.
 public sealed class GroundHeightReader : MyceliumClientBase
 {
     public const int MostPointsInACall = 100;

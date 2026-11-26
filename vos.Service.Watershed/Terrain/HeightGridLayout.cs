@@ -1,6 +1,5 @@
 namespace vos.Service.Watershed.Terrain;
 
-// Points run row by row from the south-west, west to east, as a stored grid's values do.
 public sealed class HeightGridLayout
 {
     public const double MarginOverTheBox = 1.3;
@@ -31,7 +30,7 @@ public sealed class HeightGridLayout
     public double LongitudeStepDegrees { get; }
     public IReadOnlyList<bool> Inside { get; }
 
-    public IReadOnlyList<Position> Points =>
+    public IReadOnlyList<Position> PointsRowByRowFromTheSouthWest =>
     [
         .. Enumerable.Range(0, Rows * Columns).Select(cell => new Position(
             OriginLatitude + cell / Columns * LatitudeStepDegrees, OriginLongitude + cell % Columns * LongitudeStepDegrees)),
@@ -57,13 +56,12 @@ public sealed class HeightGridLayout
 
         var outline = border.Select(corner => (
             Column: (corner.Longitude - originLongitude) / longitudeStep, Row: (corner.Latitude - originLatitude) / latitudeStep)).ToArray();
-        var inside = Enumerable.Range(0, rows * columns).Select(cell => Encloses(outline, cell % columns, cell / columns)).ToArray();
+        var inside = Enumerable.Range(0, rows * columns).Select(cell => EnclosesByCountingCrossings(outline, cell % columns, cell / columns)).ToArray();
 
         return new HeightGridLayout(columns, rows, cell, originLatitude, originLongitude, latitudeStep, longitudeStep, inside);
     }
 
-    // Counted in grid units, crossing by crossing, as the site-study pages decide which cells a border holds.
-    private static bool Encloses((double Column, double Row)[] outline, int column, int row)
+    private static bool EnclosesByCountingCrossings((double Column, double Row)[] outline, int column, int row)
     {
         var enclosed = false;
         for (int corner = 0, previous = outline.Length - 1; corner < outline.Length; previous = corner++)

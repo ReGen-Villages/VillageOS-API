@@ -3,8 +3,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Tests;
 
-// The reference parcel's heights recorded once from Open Topo Data, and what the site-study demo's own code made of them
-// at its whole-metre cell and at the true cell. The file holds no position, so the public repository does not place the site.
 public sealed record ReferenceParcel(
     int Columns, int Rows, double CellSizeMetres, double[] Heights, bool[] Inside,
     DemoAnswer DemoAtWholeMetreCell, DemoAnswerWithGrids DemoAtTrueCell, ReferenceProfiles Profiles)

@@ -588,7 +588,6 @@ public class SubmissionIntakeServiceTests
         calls.Should().Equal("fragment");
     }
 
-    // Asking to remove a stamp the study never held would still write a removal into the model's history.
     [Fact]
     public async Task A_moved_border_of_a_study_holding_no_stamp_removes_none()
     {

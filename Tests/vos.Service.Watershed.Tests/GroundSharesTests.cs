@@ -58,7 +58,6 @@ public class GroundSharesTests
         aspects.Select(share => AsTheDemoRounds(share.SharePercent)).Should().Equal([.. shown.Rose.Pct, shown.Rose.FlatPct]);
     }
 
-    // The demo works areas out on a cell rounded to whole metres, 108 m against the true 108.27 m.
     [Fact]
     public void Of_the_reference_parcels_shares_the_demos_whole_metre_cell_moves_only_the_gentle_class_hectares()
     {

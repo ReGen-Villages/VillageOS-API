@@ -3,8 +3,8 @@
 **Works out a site's ground, as a pipeline step: heights over its border, slope, aspect, drainage and hollows.**
 
 A pipeline hands Watershed a SiteStudy on its `subject` input. Watershed follows the study to the site it studies and
-the site to its Parcel's `boundary`, the share Things the site has and the terms they assess, all found through the
-roles that bind them.
+the site to its Parcel's `boundary`, the share Things the site has and the terms they assess. Each predicate and kind is
+found through the role that binds it, except `has`, which no role binds yet and is read by its name.
 
 **The height grid** covers the border's box plus 30 % on each side, at least 400 m a side, with cells of at least 30 m
 and at most 28 points along a side. Its points run row by row from the south-west. The heights come from the source

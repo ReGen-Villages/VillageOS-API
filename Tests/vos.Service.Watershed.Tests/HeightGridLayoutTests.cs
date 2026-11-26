@@ -66,7 +66,7 @@ public class HeightGridLayoutTests
     public void The_points_run_row_by_row_from_the_south_west_one_cell_apart_and_centred_on_the_box()
     {
         var layout = HeightGridLayout.Over(MadeUpBorders.Rectangle(1700, 700));
-        var points = layout.Points;
+        var points = layout.PointsRowByRowFromTheSouthWest;
 
         points.Should().HaveCount(layout.Columns * layout.Rows);
         points[0].Should().Be(new Position(layout.OriginLatitude, layout.OriginLongitude));
@@ -86,7 +86,7 @@ public class HeightGridLayoutTests
         var (south, north) = (border.Min(corner => corner.Latitude), border.Max(corner => corner.Latitude));
         var (west, east) = (border.Min(corner => corner.Longitude), border.Max(corner => corner.Longitude));
 
-        var expected = layout.Points.Select(point =>
+        var expected = layout.PointsRowByRowFromTheSouthWest.Select(point =>
             point.Latitude > south && point.Latitude < north && point.Longitude > west && point.Longitude < east);
 
         layout.Inside.Should().Equal(expected);

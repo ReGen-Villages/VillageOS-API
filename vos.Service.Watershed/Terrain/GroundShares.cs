@@ -6,7 +6,6 @@ public sealed record SlopeClassBand(Guid Term, double? AtLeastPercent, double? B
         slopePercent >= (AtLeastPercent ?? double.NegativeInfinity) && slopePercent < (BelowPercent ?? double.PositiveInfinity);
 }
 
-// A sector with no centre is flat ground.
 public sealed record AspectSector(Guid Term, double? CentreDegrees);
 
 public sealed record ShareOfTheSite(Guid Term, double SharePercent, double AreaHectares);

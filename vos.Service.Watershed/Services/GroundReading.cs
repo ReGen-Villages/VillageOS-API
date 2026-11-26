@@ -7,8 +7,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Services;
 
-// What one snapshot says of a study's ground. Every predicate and kind is found through the role that binds it, except
-// `has` and `is`, the platform's own words.
 public sealed record GroundReading(
     SnapshotThing Study, SnapshotThing? Site, IReadOnlyList<Position>? Border, string? HeightsSource,
     IReadOnlyList<SlopeClassBand> SlopeClasses, IReadOnlyList<AspectSector> Aspects, IReadOnlyDictionary<Guid, Guid> ShareAssessing)
@@ -75,7 +73,6 @@ public sealed record GroundReading(
         return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing);
     }
 
-    // A border Watershed cannot read is a missing input: the run is stamped with nothing worked out.
     private static IReadOnlyList<Position>? BorderOf(SnapshotThing parcel)
     {
         if (parcel.StatedValue(BoundaryProperty) is not { } stated) return null;

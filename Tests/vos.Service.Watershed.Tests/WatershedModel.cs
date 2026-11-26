@@ -8,8 +8,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Tests;
 
-// A study, its site and parcel, the site's shares and their terms, and the source bound for heights, as the templates declare
-// them; and a broker answering snapshots, heights, observation batches and fragments over it.
 public sealed class WatershedModel
 {
     public static readonly Guid Binds = Guid.NewGuid();

@@ -4,7 +4,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Services;
 
-// A grid as the model holds one: values row by row from the south-west, an unknown value written as null.
 public sealed record StoredGrid(
     double OriginLatitude, double OriginLongitude, double CellSizeMetres, double LatitudeStepDegrees, double LongitudeStepDegrees,
     int Rows, int Columns, IReadOnlyList<double> Values)

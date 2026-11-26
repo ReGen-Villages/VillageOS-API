@@ -2,7 +2,6 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Tests;
 
-// Rectangles on open ocean at 40° north, so no test names a real place.
 public static class MadeUpBorders
 {
     public const double Latitude = 40.0;

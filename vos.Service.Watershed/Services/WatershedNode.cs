@@ -71,7 +71,7 @@ public sealed class WatershedNode : DagNodeService
 
         var heights = StoredGrid.Read(ground.Site!, HeightGrid) is { } stored && stored.LaidOutAs(layout)
             ? stored.Values
-            : await _heights.HeightsAtAsync(source, layout.Points, cancellationToken);
+            : await _heights.HeightsAtAsync(source, layout.PointsRowByRowFromTheSouthWest, cancellationToken);
         IReadOnlyList<double> profileHeights = StoredGrid.Read(ground.Site!, WestToEastProfile) is { } storedWestToEast && storedWestToEast.LaidOutAs(westToEast, 1)
                              && StoredGrid.Read(ground.Site!, SouthToNorthProfile) is { } storedSouthToNorth && storedSouthToNorth.LaidOutAs(southToNorth, ProfileLines.PointsAlongALine)
             ? [.. storedWestToEast.Values, .. storedSouthToNorth.Values]
@@ -79,7 +79,7 @@ public sealed class WatershedNode : DagNodeService
 
         var analysed = TerrainAnalysis.Of(new TerrainSurface(layout.Columns, layout.Rows, layout.CellSizeMetres, heights, layout.Inside));
         var figures = analysed.Figures;
-        var lowest = layout.Points[figures.LowestCell];
+        var lowest = layout.PointsRowByRowFromTheSouthWest[figures.LowestCell];
 
         object Grid(IReadOnlyList<double> values) => StoredGrid.Written(layout, values);
         await RecordAsync(ground.Site!.Id, new Dictionary<string, object>

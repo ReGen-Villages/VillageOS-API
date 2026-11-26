@@ -38,7 +38,6 @@ public class ReferenceParcelTerrainTests
         figures.LowestCell.Should().Be(shown.Lowest.K);
     }
 
-    // The demo works areas out on a cell rounded to whole metres, 108 m against the true 108.27 m, which moves the area alone.
     [Fact]
     public void Of_its_figures_the_demos_whole_metre_cell_moves_only_the_area()
     {

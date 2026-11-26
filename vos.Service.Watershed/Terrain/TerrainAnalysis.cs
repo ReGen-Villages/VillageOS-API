@@ -7,7 +7,6 @@ public sealed record TerrainFigures(
     double SlopeMeanPercent, double SlopeMedianPercent, double SlopeNinetiethPercentilePercent,
     double HollowHectares, int LowestCell);
 
-// An aspect of NaN is flat ground, which faces no direction.
 public sealed record TerrainAnalysisResult(
     IReadOnlyList<double> SlopePercent, IReadOnlyList<double> AspectDegrees, IReadOnlyList<double> DrainageAreaHectares,
     IReadOnlyList<double> HollowDepthMetres, IReadOnlyList<int> CellsCounted, double CellHectares, TerrainFigures Figures);
@@ -22,8 +21,8 @@ public static class TerrainAnalysis
 
     public static TerrainAnalysisResult Of(TerrainSurface surface)
     {
-        var (slope, aspect) = SlopeAndAspect(surface);
-        var (drainageCells, hollowDepth) = Drainage(surface);
+        var (slope, aspect) = SlopeAndAspectByHornsKernel(surface);
+        var (drainageCells, hollowDepth) = DrainageByPriorityFloodAndSteepestDescent(surface);
         var cellHectares = surface.CellSizeMetres * surface.CellSizeMetres / 10_000;
 
         var inside = Enumerable.Range(0, surface.Heights.Count).Where(cell => surface.Inside[cell]).ToArray();
@@ -47,8 +46,7 @@ public static class TerrainAnalysis
             slope, aspect, [.. drainageCells.Select(cells => cells * cellHectares)], hollowDepth, counted, cellHectares, figures);
     }
 
-    // Horn's kernel, with a cell beyond the edge read as the edge cell beside it.
-    private static (double[] Slope, double[] Aspect) SlopeAndAspect(TerrainSurface surface)
+    private static (double[] Slope, double[] Aspect) SlopeAndAspectByHornsKernel(TerrainSurface surface)
     {
         var (columns, rows, cell) = (surface.Columns, surface.Rows, surface.CellSizeMetres);
         double At(int column, int row) =>
@@ -72,9 +70,7 @@ public static class TerrainAnalysis
         return (slope, aspect);
     }
 
-    // Depressions are filled by priority flood from the edge, rising a millimetre a cell across a filled flat so water
-    // keeps moving, and each cell drains to its steepest neighbour on the filled surface.
-    private static (double[] DrainageCells, double[] HollowDepth) Drainage(TerrainSurface surface)
+    private static (double[] DrainageCells, double[] HollowDepth) DrainageByPriorityFloodAndSteepestDescent(TerrainSurface surface)
     {
         var (columns, rows, cell) = (surface.Columns, surface.Rows, surface.CellSizeMetres);
         var count = columns * rows;
