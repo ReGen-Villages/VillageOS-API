@@ -2259,7 +2259,7 @@
 
   // vos.Tendril/src/types/vos.ts
   var DECLARED_WRITE_KINDS = ["FactOnly", "ObservationOnly"];
-  var ORIGIN_KINDS = ["stated", "measured", "assumed", "unknown"];
+  var ORIGIN_KINDS = ["stated", "measured", "assumed", "unknown", "ambiguous"];
 
   // vos.Tendril/src/utils/precedenceOrder.ts
   function inPrecedenceOrder(a, b) {
@@ -2350,9 +2350,59 @@
     );
     collectOverrides(thing.InheritedOverrides, merged);
     Object.assign(merged, thing.Properties);
+    const sources = inheritedSources(thing, lookup, visiting);
+    for (const name of Object.keys(merged)) {
+      if (!holdsOwn(thing, name) && (sources.get(name)?.size ?? 0) > 1) delete merged[name];
+    }
     const frozen = Object.freeze(merged);
     perModel.set(thing, frozen);
     return frozen;
+  }
+  function readsAsAmbiguous(thing, name, lookup) {
+    return !holdsOwn(thing, name) && (inheritedSources(thing, lookup, /* @__PURE__ */ new Set()).get(name)?.size ?? 0) > 1;
+  }
+  function holdsOwn(thing, name) {
+    return !!thing.Properties && Object.hasOwn(thing.Properties, name);
+  }
+  var passedOnCache = /* @__PURE__ */ new WeakMap();
+  function inheritedSources(thing, lookup, visiting) {
+    const sources = /* @__PURE__ */ new Map();
+    foldInAncestors(thing, lookup, visiting, (parent) => addSources(sources, passedOn(parent, lookup, visiting)));
+    addStoredSources(thing.InheritedOverrides, sources);
+    return sources;
+  }
+  function passedOn(thing, lookup, visiting) {
+    let perModel = passedOnCache.get(lookup);
+    if (!perModel) {
+      perModel = /* @__PURE__ */ new WeakMap();
+      passedOnCache.set(lookup, perModel);
+    }
+    const cached = perModel.get(thing);
+    if (cached) return cached;
+    const sources = inheritedSources(thing, lookup, visiting);
+    for (const name of Object.keys(thing.Properties ?? {})) {
+      if (!sources.has(name)) sources.set(name, /* @__PURE__ */ new Set([thing.Id]));
+    }
+    perModel.set(thing, sources);
+    return sources;
+  }
+  function addStoredSources(sets, sources) {
+    for (const set of Object.values(sets ?? {})) {
+      const farther = /* @__PURE__ */ new Map();
+      addStoredSources(set.Inherited, farther);
+      for (const name of Object.keys(set.Properties ?? {})) {
+        if (!farther.has(name)) addSource(farther, name, set.SourceId);
+      }
+      addSources(sources, farther);
+    }
+  }
+  function addSources(into, from) {
+    for (const [name, ids] of from) for (const id of ids) addSource(into, name, id);
+  }
+  function addSource(into, name, id) {
+    const held2 = into.get(name);
+    if (held2) held2.add(id);
+    else into.set(name, /* @__PURE__ */ new Set([id]));
   }
   function foldInAncestors(thing, lookup, visiting, fold) {
     const parents = (thing.Id ? lookup.isParents.get(thing.Id) ?? [] : []).map((id) => lookup.byId.get(id)).filter((p) => !!p && !visiting.has(p.Id)).sort((a, b) => inPrecedenceOrder(a.Name, b.Name));
@@ -2385,6 +2435,7 @@
 
   // vos.Tendril/src/utils/propertyOrigin.ts
   function valueOrigin(thing, property, lookup) {
+    if (readsAsAmbiguous(thing, property, lookup)) return { origin: "ambiguous", assumedFrom: null };
     const source = statedBy(thing, property, lookup, /* @__PURE__ */ new Set());
     if (!source) return { origin: "unknown", assumedFrom: null };
     if (source !== thing) return { origin: "assumed", assumedFrom: source.Name };
@@ -3108,7 +3159,7 @@
     const carrying = await thingsReached(binding.thing, binding.via, context);
     return Promise.all(carrying.map(async (thing) => {
       const { origin, assumedFrom } = valueOrigin(thing, binding.property, context.index);
-      const recorded = assumedFrom !== null ? { source: assumedFrom, resolvedAt: null } : await recordedSourceOf(thing, binding.source, context);
+      const recorded = assumedFrom !== null ? { source: assumedFrom, resolvedAt: null } : origin === "ambiguous" ? { source: null, resolvedAt: null } : await recordedSourceOf(thing, binding.source, context);
       return { origin, reads: binding.reads[origin] ?? null, ...recorded };
     }));
   }
