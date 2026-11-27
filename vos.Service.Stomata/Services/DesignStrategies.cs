@@ -92,7 +92,7 @@ public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions
         || Math.Abs(Vote(airCelsius, relativeHumidityPercent, Assumptions.WinterClothingClo, airSpeedMetresPerSecond)) <= ComfortableVote;
 
     private double Vote(double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond) =>
-        comfort.PredictedMeanVote(airCelsius, relativeHumidityPercent, clothingClo, airSpeedMetresPerSecond, 1.1);
+        comfort.PredictedMeanVote(airCelsius, relativeHumidityPercent, clothingClo, airSpeedMetresPerSecond, Assumptions.MetabolicRateMet);
 
     private double TemperatureWhereTheVoteReaches(double humidityRatioGramsPerKilogram, double clothingClo, double airSpeedMetresPerSecond, double vote)
     {

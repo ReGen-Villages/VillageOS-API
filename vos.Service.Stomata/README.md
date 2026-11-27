@@ -8,7 +8,7 @@ A pipeline hands Stomata a SiteStudy on its `subject` input. Stomata finds the s
 `particulateMatterTenMicrogramsPerCubicMetre` and `particulateMatterTwoAndAHalfMicrogramsPerCubicMetre`. Where one
 instant holds more than one reading, the last one received is used.
 
-For each hour it writes four readings onto the site:
+For each hour it writes these readings onto the site:
 
 | Reading | What it holds | Left out for an hour |
 | --- | --- | --- |
@@ -16,6 +16,13 @@ For each hour it writes four readings onto the site:
 | `humidityRatioGramsPerKilogram` | grams of water a kilogram of dry air, by ASHRAE Handbook, Fundamentals (2017), chapter 1: the Hyland-Wexler saturation pressure, and the standard atmosphere's pressure at the site's `climateDataElevationMetres` | with no temperature or no humidity, and for every hour while the elevation is unknown |
 | `windowsOpenOnHourlyAirHours` | 1 when the hour's PM10 and PM2.5 are within the study's `hourlyAirLimitParticulateMatterTenMicrogramsPerCubicMetre` and `hourlyAirLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre`, else 0 | with either particulate reading missing |
 | `windowsOpenOnDailyAirHours` | 1 when the means of PM10 and of PM2.5 over the 24 hours of time up to and including the hour are within the study's `whoDailyLimitParticulateMatterTenMicrogramsPerCubicMetre` and `whoDailyLimitParticulateMatterTwoAndAHalfMicrogramsPerCubicMetre`, else 0. Readings at uneven instants count by when they fell | while either pollutant has fewer readings in the day than the study's `leastHourlyReadingsForADailyMean`, which starts at 18, the 75 % the European Union's air quality directive (2008/50/EC) asks of a daily mean. So the first 17 hours of a history have none |
+| `designStrategyGroup` | the first design-strategy group the hour fits, as the API Field Guide's Climate table sets out. The groups are read from the model through the `designStrategyGroup` role and matched by name, `comfortable-as-it-is` to `cooling-system-needed`. The comfort zones use the study's `metabolicRateMet`, `summerClothingClo`, `winterClothingClo`, `stillAirMetresPerSecond` and `airMovementMetresPerSecond`; the humidity limit is `comfortHumidityRatioLimitGramsPerKilogram`, and the indirect stage's share `indirectEvaporativeStageShare` | with no temperature or no humidity; for every hour while the elevation or any of those inputs is unknown; and where the model holds no Thing of that name, or two |
+
+With the stamp it writes the study's outlines, `comfortZoneInStillAirOutline`,
+`comfortZoneWithAirMovementOutline`, `directEvaporativeCoolingOutline` and `twoStageEvaporativeCoolingOutline`,
+as the Field Guide describes them. An evaporative outline no recorded air reaches is written as the empty
+Polygon, never left out, so a study never keeps an outline from inputs it no longer holds. While the elevation or
+a comfort input is unknown, no outline is written.
 
 The readings go through the bulk route, which sets off no recompute for each reading. Stomata then asks the
 platform once to judge the site's history again, and last writes `climateWorkedOutAt` onto the study, at the

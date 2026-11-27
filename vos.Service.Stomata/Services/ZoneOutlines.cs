@@ -13,9 +13,6 @@ public sealed class ZoneOutlines(
     private const double HumidityStep = 0.5;
     private const double TemperatureStep = 0.25;
 
-    private readonly double _hottestCelsius = observed.Max(hour => hour.Celsius);
-    private readonly double _mostHumidGramsPerKilogram = observed.Max(hour => hour.HumidityRatioGramsPerKilogram);
-
     public string ComfortInStillAir() => Comfort(strategies.Assumptions.StillAirMetresPerSecond);
 
     public string ComfortWithAirMovement() => Comfort(strategies.Assumptions.AirMovementMetresPerSecond);
@@ -36,24 +33,28 @@ public sealed class ZoneOutlines(
         return Polygon(rows);
     }
 
+    // An empty outline means this cooling brings no air within the range the site recorded into the summer zone.
     private string Evaporative(Func<double, double, bool> works)
     {
+        if (observed.Count == 0) return EmptyPolygon;
+
+        var hottestCelsius = observed.Max(hour => hour.Celsius);
         var rows = new List<(double HumidityRatio, double Cool, double Warm)>();
-        foreach (var humidityRatio in HumidityRows(HumidityStep, _mostHumidGramsPerKilogram))
+        foreach (var humidityRatio in HumidityRows(HumidityStep, observed.Max(hour => hour.HumidityRatioGramsPerKilogram)))
         {
-            var reached = Temperatures()
+            var reached = Temperatures(hottestCelsius)
                 .Where(celsius => Psychrometrics.RelativeHumidityPercent(celsius, humidityRatio, strategies.Assumptions.PressureKilopascals) < 100
                                   && strategies.IsWarmerThanTheSummerZone(celsius, humidityRatio)
                                   && works(celsius, humidityRatio))
                 .ToList();
             if (reached.Count > 0) rows.Add((humidityRatio, reached[0], reached[^1]));
         }
-        return rows.Count > 1 ? Polygon(rows) : "";
+        return rows.Count > 1 ? Polygon(rows) : EmptyPolygon;
     }
 
-    private IEnumerable<double> Temperatures()
+    private static IEnumerable<double> Temperatures(double hottestCelsius)
     {
-        for (var step = 0; step * TemperatureStep <= _hottestCelsius; step++) yield return step * TemperatureStep;
+        for (var step = 0; step * TemperatureStep <= hottestCelsius; step++) yield return step * TemperatureStep;
     }
 
     private static IEnumerable<double> HumidityRows(double from, double to)

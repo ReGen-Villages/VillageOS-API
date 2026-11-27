@@ -3457,15 +3457,23 @@ rather than at a level of self-sufficiency no site reaches.
 
 ### Climate
 
-Each figure is folded from the last ten years of hourly temperature readings that discovery fetched for
-the site.
+Each figure is folded from the last ten years of hourly readings: those discovery fetched for the site,
+and those Stomata works out from them.
 
 | Figure | How it is worked out | Why |
 | --- | --- | --- |
-| `comfortableWithoutASystemPercent`, `airMovementPercent`, `evaporativeCoolingPercent`, `directEvaporativeCoolingPercent`, `dehumidificationPercent`, `heatingPercent`, `coolingSystemPercent` | The share of the hours whose design strategy is of each kind: each hourly `designStrategyGroup` reading counts 1 when it names a Thing of that kind and 0 when not, averaged for each year and then across the years. No service that ships writes these readings, so each figure reads unknown | A strategy group weighs humidity and air movement as well as temperature |
-| `windowsOpenPercent` | The share of the hours the hourly `windowsOpenHours` readings mark, averaged for each year and then across the years; unknown for the same reason | As above |
+| `comfortableWithoutASystemPercent`, `airMovementPercent`, `evaporativeCoolingPercent`, `directEvaporativeCoolingPercent`, `dehumidificationPercent`, `heatingPercent`, `coolingSystemPercent` | The share of the hours whose design strategy is of each kind: each hourly `designStrategyGroup` reading counts 1 when it names a Thing of that kind and 0 when not, averaged for each year and then across the years. Stomata writes one reading for each hour with a temperature and a humidity, naming the first group the hour fits, in this order: comfortable as it is (inside the summer or the winter zone in still air, at or under `comfortHumidityRatioLimitGramsPerKilogram`); with air movement (the same at `airMovementMetresPerSecond`); dehumidification needed (inside a zone, above the humidity limit); heating needed (colder than the winter zone); direct evaporative cooling (warmer than the summer zone, at or under the humidity limit, with a wet-bulb at or below that of the summer zone's hot, humid corner, the Climate Consultant rule); two-stage evaporative cooling (the same once an indirect stage has taken `indirectEvaporativeStageShare` of the wet-bulb depression at constant humidity); cooling system needed (every other hour). A zone is the air temperatures where the predicted mean vote is −0.5 to +0.5, for `summerClothingClo` or `winterClothingClo` at `metabolicRateMet` | A strategy group weighs humidity and air movement as well as temperature. The site's history holds no radiant temperature, so mean radiant temperature is taken to equal the air's |
+| `windowsOpenOnHourlyAirPercent`, `windowsOpenOnDailyAirPercent` | The share of the hours the hourly `windowsOpenOnHourlyAirHours` and `windowsOpenOnDailyAirHours` readings mark, averaged for each year and then across the years. Stomata writes both; its README names the limits each reads | An hour's air and a day's air are judged against different limits, so each has its own share |
 | `frostDaysPerYear` | Each day's lowest temperature; the days at or below `frostCelsius`, counted for each year; the yearly counts averaged | The figure describes a typical year, not any single one |
 | `hotDaysPerYear` | Each day's highest temperature; the days above `hotDayCelsius`, counted for each year; the yearly counts averaged | As above |
+
+Stomata also draws the study's outlines each time it stamps it, so they always come from the inputs
+it was stamped with: `comfortZoneInStillAirOutline`, `comfortZoneWithAirMovementOutline`,
+`directEvaporativeCoolingOutline` and `twoStageEvaporativeCoolingOutline`. Each is a GeoJSON Polygon in the
+psychrometric chart's own units, air temperature in °C across and humidity ratio in g/kg up, its corners
+rounded to a hundredth. An evaporative outline is drawn over the temperatures and humidity ratios the site
+recorded. An empty outline, `{"type":"Polygon","coordinates":[]}`, means no hour qualified: that cooling
+brings no air in the site's recorded range into the summer zone.
 
 Every threshold these read is an assumption on the study, so nothing that reads one holds a number of
 its own. A study that moves its frost threshold recomputes its frost days.
