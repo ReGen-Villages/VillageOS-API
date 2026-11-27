@@ -148,13 +148,12 @@ public sealed class PhloemRelatesAThingAlongAPredicateTests : IClassFixture<TheE
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var firstCase = await _engine.FindAsync("PipelineRelate") is null;
 
-        var connectionKind = await _engine.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
-            Marked("__IsConnectionArchetype"));
-        var serviceKind = await _engine.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true, Marked("__IsServiceArchetype"));
-        var range = await _engine.PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
-        var judges = await _engine.PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
-        await _engine.PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
-        var notifies = await _engine.PlayingAsync(PipelineRoles.NotifiedConnection, "notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
+        var connectionKind = await _engine.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true);
+        var serviceKind = await _engine.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true);
+        var range = await _engine.PlayingAsync(RangeRole, "Range", isArchetype: true);
+        var judges = await _engine.PlayingAsync(JudgedThingRole, "judges");
+        await _engine.PlayingAsync(PipelineRoles.StateWatch, "watches");
+        var notifies = await _engine.PlayingAsync(PipelineRoles.NotifiedConnection, "notifies");
         await _engine.PlayingAsync(PipelineRoles.CallRecord, "handledBy");
         await _engine.PlayingAsync(PipelineRoles.AwaitedThing, "awaits");
         await _engine.PlayingAsync(PipelineRoles.RunSubject, "about");

@@ -247,6 +247,6 @@ public class SourceReachTests
             CoveringSourceResolver.SourcedFromPredicate,
         ]);
         selector.Relationships.Should().OnlyContain(rule => rule.Direction == "outgoing");
-        selector.Relationships.Should().OnlyContain(rule => rule.PredicateFlag == null && rule.PredicateRole == null);
+        selector.Relationships.Should().OnlyContain(rule => rule.PredicateRole == null);
     }
 }

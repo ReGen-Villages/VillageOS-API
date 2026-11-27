@@ -193,27 +193,6 @@ public class SubscriptionClientTests
         await reading.Should().ThrowAsync<InvalidOperationException>();
     }
 
-    [Fact]
-    public async Task SubscribeAsync_sends_a_traversal_predicate_flag_under_the_name_the_broker_binds()
-    {
-        // A field the broker does not bind is dropped silently, and the traversal then follows nothing
-        // while the read looks ordinary.
-        HttpRequestMessage? captured = null;
-        var body = $$"""
-        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
-          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
-        """;
-        var (client, _) = Build(req => { captured = req; return Json(body); });
-
-        await client.SubscribeAsync(new SubscriptionSelector
-        {
-            Traverse = [new TraverseRule { PredicateFlag = "__IsExamplePredicate" }],
-        });
-
-        (await captured!.Content!.ReadAsStringAsync())
-            .Should().Contain("\"predicateFlag\":\"__IsExamplePredicate\"");
-    }
-
     // A field the broker does not bind is dropped silently, so a reader asking by role would read the whole
     // model minus the Things it asked for, with nothing to say so.
     [Fact]
@@ -280,7 +259,7 @@ public class SubscriptionClientTests
             Relationships =
             [
                 new RelationshipRule { Predicate = "holds" },
-                new RelationshipRule { PredicateFlag = "__IsStandsAtPredicate", Direction = "incoming" },
+                new RelationshipRule { PredicateRole = MeterRole, Direction = "incoming" },
             ],
         });
 
@@ -288,7 +267,7 @@ public class SubscriptionClientTests
         sent.Should().Contain("\"relationships\":[");
         sent.Should().Contain("\"predicate\":\"holds\"");
         sent.Should().Contain("\"direction\":\"outgoing\"");
-        sent.Should().Contain("\"predicateFlag\":\"__IsStandsAtPredicate\"");
+        sent.Should().Contain($"\"predicateRole\":\"{MeterRole}\"");
         sent.Should().Contain("\"direction\":\"incoming\"");
     }
 
@@ -333,7 +312,7 @@ public class SubscriptionClientTests
         });
 
         JsonDocument.Parse(sent).RootElement.GetProperty("relationships")[0].GetRawText()
-            .Should().Be("{\"predicate\":\"holds\",\"predicateFlag\":null,\"predicateRole\":null,\"direction\":\"outgoing\"}");
+            .Should().Be("{\"predicate\":\"holds\",\"predicateRole\":null,\"direction\":\"outgoing\"}");
     }
 
     // A test stub reads a service's selector back from the request it was sent.
