@@ -83,7 +83,7 @@ public class StandardComfortTests
     [Fact]
     public void Air_movement_that_warms_the_body_has_no_cooling_effect()
     {
-        StandardComfort.CoolingEffectCelsius(40.0, 40.0, 90.0, 1.0, 1.1, 0.5, SeaLevelKilopascals).Should().Be(0.0);
+        StandardComfort.CoolingEffectCelsius(44.0, 44.0, 90.0, 1.0, 1.1, 0.5, SeaLevelKilopascals).Should().Be(0.0);
     }
 
     private static TheoryData<double, double, double, double, double, double, double> Rows(string table, string airSpeed)
