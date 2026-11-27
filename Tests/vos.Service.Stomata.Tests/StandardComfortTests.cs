@@ -68,15 +68,16 @@ public class StandardComfortTests
             28.0 - cooling, 28.0 - cooling, 50.0, StandardComfort.StillAirMetresPerSecond, 1.1, 0.5));
     }
 
+    // At 0.8 met the body's own activity adds no convection, so this standard effective temperature is the one the cooling effect works with.
     [Fact]
     public void The_cooling_effect_lowers_air_and_radiant_temperature_until_still_air_gives_the_same_standard_effective_temperature()
     {
-        var cooling = StandardComfort.CoolingEffectCelsius(28.0, 30.0, 50.0, 1.0, 1.1, 0.5, SeaLevelKilopascals);
+        var cooling = StandardComfort.CoolingEffectCelsius(28.0, 30.0, 50.0, 1.0, 0.8, 0.5, SeaLevelKilopascals);
 
         cooling.Should().BePositive();
         StandardComfort.StandardEffectiveTemperatureCelsius(
-                28.0 - cooling, 30.0 - cooling, 50.0, StandardComfort.StillAirMetresPerSecond, 1.1, 0.5, SeaLevelKilopascals)
-            .Should().BeApproximately(StandardComfort.StandardEffectiveTemperatureCelsius(28.0, 30.0, 50.0, 1.0, 1.1, 0.5, SeaLevelKilopascals), 0.05);
+                28.0 - cooling, 30.0 - cooling, 50.0, StandardComfort.StillAirMetresPerSecond, 0.8, 0.5, SeaLevelKilopascals)
+            .Should().BeApproximately(StandardComfort.StandardEffectiveTemperatureCelsius(28.0, 30.0, 50.0, 1.0, 0.8, 0.5, SeaLevelKilopascals), 0.05);
     }
 
     // Air hotter and more humid than skin gives heat to the body faster as it moves, so moving it cools no one.
