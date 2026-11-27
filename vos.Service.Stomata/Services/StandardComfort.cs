@@ -13,11 +13,13 @@ public sealed class StandardComfort : IThermalComfort
     private const double LargestCoolingEffectCelsius = 40;
 
     public double PredictedMeanVote(
-        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet)
+        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet,
+        double pressureKilopascals)
     {
         if (airSpeedMetresPerSecond <= ElevatedAirSpeedAboveMetresPerSecond)
             return FangerPredictedMeanVote(airCelsius, airCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo);
-        var cooling = CoolingEffectCelsius(airCelsius, airCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo);
+        var cooling = CoolingEffectCelsius(
+            airCelsius, airCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo, pressureKilopascals);
         return FangerPredictedMeanVote(
             airCelsius - cooling, airCelsius - cooling, relativeHumidityPercent, StillAirMetresPerSecond, metabolicRateMet, clothingClo);
     }
@@ -61,7 +63,7 @@ public sealed class StandardComfort : IThermalComfort
 
     public static double StandardEffectiveTemperatureCelsius(
         double airCelsius, double meanRadiantCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond,
-        double metabolicRateMet, double clothingClo)
+        double metabolicRateMet, double clothingClo, double pressureKilopascals)
     {
         const double bodyKilograms = 69.9;
         const double bodySquareMetres = 1.8258;
@@ -188,12 +190,13 @@ public sealed class StandardComfort : IThermalComfort
 
     public static double CoolingEffectCelsius(
         double airCelsius, double meanRadiantCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond,
-        double metabolicRateMet, double clothingClo)
+        double metabolicRateMet, double clothingClo, double pressureKilopascals)
     {
         var moving = StandardEffectiveTemperatureCelsius(
-            airCelsius, meanRadiantCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo);
+            airCelsius, meanRadiantCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo, pressureKilopascals);
         double StillAirAbove(double cooling) => StandardEffectiveTemperatureCelsius(
-            airCelsius - cooling, meanRadiantCelsius - cooling, relativeHumidityPercent, StillAirMetresPerSecond, metabolicRateMet, clothingClo) - moving;
+            airCelsius - cooling, meanRadiantCelsius - cooling, relativeHumidityPercent, StillAirMetresPerSecond, metabolicRateMet, clothingClo,
+            pressureKilopascals) - moving;
 
         if (StillAirAbove(0) <= 0) return 0;
         double cooler = 0, warmer = LargestCoolingEffectCelsius;

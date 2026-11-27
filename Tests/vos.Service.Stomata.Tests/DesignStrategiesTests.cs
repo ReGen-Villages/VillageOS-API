@@ -23,6 +23,30 @@ public class DesignStrategiesTests
         GroupOf(_strategies, airCelsius, relativeHumidityPercent).Should().Be(group);
     }
 
+    [Fact]
+    public void Each_vote_is_worked_at_the_sites_air_pressure()
+    {
+        var comfort = new PressureRecordingComfort();
+        var highSite = new DesignStrategies(comfort, StatedComfort.Assumptions with { PressureKilopascals = 79.5 });
+
+        highSite.IsInAZone(25.0, 40.0, StatedComfort.Assumptions.AirMovementMetresPerSecond);
+
+        comfort.Pressures.Should().NotBeEmpty().And.OnlyContain(pressure => pressure == 79.5);
+    }
+
+    private sealed class PressureRecordingComfort : IThermalComfort
+    {
+        public List<double> Pressures { get; } = [];
+
+        public double PredictedMeanVote(
+            double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet,
+            double pressureKilopascals)
+        {
+            Pressures.Add(pressureKilopascals);
+            return 0;
+        }
+    }
+
     // At 1.6 met the summer zones are five degrees cooler: 19–23 °C in still air and 22–26 °C at 1 m/s.
     [Fact]
     public void A_higher_metabolic_rate_moves_an_hour_from_comfortable_as_it_is_to_needing_air_movement()

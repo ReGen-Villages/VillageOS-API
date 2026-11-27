@@ -8,7 +8,8 @@ namespace vos.Service.Stomata.Tests;
 public sealed class StatedComfort : IThermalComfort
 {
     public double PredictedMeanVote(
-        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet) =>
+        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet,
+        double pressureKilopascals) =>
         (airCelsius - (30 - 8 * clothingClo + 3 * (airSpeedMetresPerSecond - 0.1) / 0.9 - 10 * (metabolicRateMet - 1.1))) / 4;
 
     public static readonly ComfortAssumptions Assumptions = new(

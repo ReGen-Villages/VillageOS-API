@@ -3,7 +3,8 @@ namespace vos.Service.Stomata.Services;
 public interface IThermalComfort
 {
     double PredictedMeanVote(
-        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet);
+        double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond, double metabolicRateMet,
+        double pressureKilopascals);
 }
 
 public sealed record ComfortAssumptions(
@@ -71,7 +72,7 @@ public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions
         || Math.Abs(Vote(airCelsius, relativeHumidityPercent, Assumptions.WinterClothingClo, airSpeedMetresPerSecond)) <= ComfortableVote;
 
     private double Vote(double airCelsius, double relativeHumidityPercent, double clothingClo, double airSpeedMetresPerSecond) =>
-        comfort.PredictedMeanVote(airCelsius, relativeHumidityPercent, clothingClo, airSpeedMetresPerSecond, Assumptions.MetabolicRateMet);
+        comfort.PredictedMeanVote(airCelsius, relativeHumidityPercent, clothingClo, airSpeedMetresPerSecond, Assumptions.MetabolicRateMet, 101.325);
 
     private double TemperatureWhereTheVoteReaches(double humidityRatioGramsPerKilogram, double clothingClo, double airSpeedMetresPerSecond, double vote)
     {
