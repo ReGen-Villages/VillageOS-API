@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using vos.Mycelium.Services;
 using vos.Mycelium.Testing;
 #endif
 using vos.Service.Shared;
@@ -42,7 +43,7 @@ public sealed class TheEngine : IAsyncLifetime
     // Read once at start, while the engine holds only the model it starts with, because a case may make more.
     private (Guid Id, string Name) _firstModel;
 
-    internal IReadOnlyDictionary<string, string> Settings { get; init; } = new Dictionary<string, string>();
+    internal bool RetiresEachSecond { get; init; }
 
 #if !VOS_ENGINE_IS_STAGED
     public Task InitializeAsync() => throw new InvalidOperationException(
@@ -54,18 +55,20 @@ public sealed class TheEngine : IAsyncLifetime
 #else
     private MyceliumTestHost _host = null!;
 
-    private sealed class HostWithSettings(IReadOnlyDictionary<string, string> settings) : MyceliumTestHost
+    // The test host removes every hosted service, the broker's retirement pass among them.
+    private sealed class HostRetiringEachSecond : MyceliumTestHost
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            foreach (var (key, value) in settings) builder.UseSetting(key, value);
+            builder.UseSetting("Retirement:PassInterval", "00:00:01");
+            builder.ConfigureServices(services => services.AddHostedService<RetirementService>());
         }
     }
 
     public async Task InitializeAsync()
     {
-        _host = new HostWithSettings(Settings);
+        _host = RetiresEachSecond ? new HostRetiringEachSecond() : new MyceliumTestHost();
         await _host.InitializeAsync();
 
         var signingIn = _host.CreateClient();
