@@ -41,9 +41,7 @@ public sealed class RelationshipRule
 {
     public string Predicate { get; set; } = "";
 
-    // By a flag the predicate carries, or by the role Thing that binds it, rather than by the name a model
-    // chose. Set one of the three; the broker refuses a rule that gives more than one.
-    public string? PredicateFlag { get; set; }
+    // A role keeps finding the predicate when a model renames it; the broker refuses a rule that gives both.
     public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
 
@@ -59,10 +57,8 @@ public sealed class TraverseRule
 {
     public string Predicate { get; set; } = "";
 
-    // The predicate to follow, by a flag it carries or by the role Thing that binds it, rather than by the
-    // name a model chose. Set one of the three: the broker refuses a rule that gives more than one, because
-    // preferring one silently would make a typo in another read as an ordinary empty result.
-    public string? PredicateFlag { get; set; }
+    // The broker refuses a rule that gives both, because preferring one would make a typo in the other read as an
+    // ordinary empty result.
     public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
     public int Depth { get; set; } = 1;

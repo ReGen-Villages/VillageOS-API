@@ -59,7 +59,6 @@ public class ObservedEdgesTests
             .ContainSingle(rule => rule.PredicateRole == LandIntakeRoles.Observed.Id).Subject;
         provenance.Direction.Should().Be("outgoing");
         provenance.Predicate.Should().BeEmpty("the broker refuses a rule naming a predicate both ways");
-        provenance.PredicateFlag.Should().BeNull();
     }
 
     // Copied from open-data-sources.template.json in the platform repository; the two agree by this literal and by
