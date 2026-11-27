@@ -40,10 +40,11 @@ public class StormRunoffTests
     private static DesignStormRain Rain(double millimetresPerHour, double multiplier = 1.25) =>
         new(multiplier, new RainfallIntensities([new RainfallIntensity(5, millimetresPerHour), new RainfallIntensity(1440, millimetresPerHour)]));
 
-    private static IReadOnlyList<double> GridCodes(TerrainSurface surface, DesignStormRain storm, bool builtOver = false, RunoffInputs? inputs = null)
+    private static IReadOnlyList<double> GridCodes(
+        TerrainSurface surface, DesignStormRain storm, bool builtOver = false, RunoffInputs? inputs = null, IReadOnlyList<RunoffClassRule>? classes = null)
     {
         var analysed = TerrainAnalysis.Of(surface);
-        return StormRunoff.GridCodesOf(surface, analysed, Hollows.Of(surface, analysed), inputs ?? Inputs, storm, builtOver, Classes);
+        return StormRunoff.GridCodesOf(surface, analysed, Hollows.Of(surface, analysed), inputs ?? Inputs, storm, builtOver, classes ?? Classes);
     }
 
     private static TerrainSurface Bowl() => Surface((column, row) => 0.1 * Cell * Math.Sqrt(Math.Pow(column - Middle, 2) + Math.Pow(row - Middle, 2)));
@@ -144,5 +145,24 @@ public class StormRunoffTests
     {
         GridCodes(Valley(), Rain(50), inputs: Inputs with { OpenGroundCoefficient = 0.2 })[At(Middle, 1)].Should().NotBe(2);
         GridCodes(Valley(), Rain(50), inputs: Inputs with { OpenGroundCoefficient = 0.6 })[At(Middle, 1)].Should().Be(2);
+    }
+
+    [Fact]
+    public void Ground_with_no_cell_inside_the_border_has_no_class_on_any_cell()
+    {
+        var valley = Valley();
+        var outside = new TerrainSurface(Side, Side, Cell, valley.Heights, [.. Enumerable.Range(0, Side * Side).Select(_ => false)]);
+
+        GridCodes(outside, Rain(50)).Should().OnlyContain(code => double.IsNaN(code));
+    }
+
+    [Fact]
+    public void Ground_from_which_no_rain_runs_off_gives_every_cell_inside_a_share_of_the_largest_flow_of_zero()
+    {
+        RunoffClassRule anyShare = new(1, 7, new Dictionary<string, double> { ["shareOfLargestFlowAtLeast"] = 0 }, []);
+
+        var codes = GridCodes(Valley(), Rain(50), inputs: Inputs with { OpenGroundCoefficient = 0 }, classes: [anyShare]);
+
+        Enumerable.Range(0, Side * Side).Where(Interior).Select(cell => codes[cell]).Should().OnlyContain(code => code == 7);
     }
 }

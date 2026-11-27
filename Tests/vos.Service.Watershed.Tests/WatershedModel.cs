@@ -57,6 +57,7 @@ public sealed class WatershedModel
         ["smallestChannelSlope"] = 0.003,
     };
 
+    public Guid StandingWaterClass { get; private set; }
     public IReadOnlyList<Guid> SlopeClassShares { get; }
     public IReadOnlyList<Guid> AspectShares { get; }
     public IReadOnlyList<Guid> SlopeClassTerms { get; }
@@ -208,14 +209,16 @@ public sealed class WatershedModel
                 Relate(alternative, Is, RunoffClassAlternativeArchetype);
                 Relate(alternative, AlternativeOf, flowPath);
             }
-            RunoffClass("standing water", 4, StandingWaterGridCode, new() { ["hollowAtLeastMetres"] = 0.5, ["standingWaterAtLeastMetres"] = 0.05 });
+            StandingWaterClass = RunoffClass(
+                "standing water", 4, StandingWaterGridCode, new() { ["hollowAtLeastMetres"] = 0.5, ["standingWaterAtLeastMetres"] = 0.05 });
         }
 
         foreach (var (property, value) in RunoffInputs) States(Study, property, value);
     }
 
-    public void HoldsRainTable(double millimetresPerHour, double? appliesEastOfLongitude = null, Guid? appliesIn = null)
+    public IReadOnlyList<(Guid Intensity, Guid Storm)> HoldsRainTable(double millimetresPerHour, double? appliesEastOfLongitude = null, Guid? appliesIn = null)
     {
+        List<(Guid Intensity, Guid Storm)> held = [];
         var table = Guid.NewGuid();
         Thing(table, $"a rain table of {millimetresPerHour} mm/h");
         if (appliesEastOfLongitude is { } longitude) States(table, "appliesEastOfLongitude", longitude);
@@ -231,7 +234,9 @@ public sealed class WatershedModel
             Relate(intensity, Is, RainfallIntensityArchetype);
             Relate(table, Has, intensity);
             Relate(intensity, ForStorm, storm);
+            held.Add((intensity, storm));
         }
+        return held;
     }
 
     private Guid RunoffClass(string name, long order, long gridCode, Dictionary<string, double> conditions)
