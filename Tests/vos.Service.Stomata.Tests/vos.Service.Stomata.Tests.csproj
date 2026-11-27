@@ -28,5 +28,7 @@
   <ItemGroup>
     <None Include="Recorded\ashrae-55-validation.json" CopyToOutputDirectory="PreserveNewest"/>
     <None Include="Recorded\ashrae-55-validation.LICENSE" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\climate-point-hourly.csv.gz" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\climate-point-hourly.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>
