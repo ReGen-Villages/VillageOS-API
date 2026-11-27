@@ -801,7 +801,6 @@ public class CoveringSourceResolverTests
         var rule = selector.Relationships.Should().ContainSingle().Subject;
         rule.Direction.Should().Be("outgoing");
         rule.Predicate.Should().BeEmpty();
-        rule.PredicateFlag.Should().BeNull();
         rule.PredicateRole.Should().BeNull();
         selector.IncludeRelationships.Should().BeTrue("the broker refuses rules beside no relationships");
     }

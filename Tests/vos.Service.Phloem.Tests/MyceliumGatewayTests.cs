@@ -347,8 +347,6 @@ public class MyceliumGatewayTests
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
             .Should().BeEquivalentTo(["is", "has", "binds"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
-        selector.TryGetProperty("markedTypes", out _).Should().BeFalse();
-        selector.TryGetProperty("markedArchetypes", out _).Should().BeFalse();
 
         selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every port and wire in the model is not this pipeline's");
 
@@ -1012,7 +1010,6 @@ public class MyceliumGatewayTests
         selector.GetProperty("ids")[0].GetString().Should().Be(targetId.ToString());
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         selector.TryGetProperty("types", out _).Should().BeFalse();
-        selector.TryGetProperty("markedArchetypes", out _).Should().BeFalse();
 
         // The role Things are asked for by identifier, so what each binds can be read off the snapshot.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())

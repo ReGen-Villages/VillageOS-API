@@ -252,7 +252,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
 | An archetype and its members by identifier, including ones made later | `{ "typeIds": ["<archetype guid>"], "includeLaterMatches": true }` |
 | Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
-| The members of a type whose property holds a given value, compared exactly and case included | `{ "typeIds": ["<archetype guid>"], "propertyValues": { "status": "open" } }`; refused without `typeIds`, `markedTypes` or `boundTypes`, or for a property no named type declares |
+| The members of a type whose property holds a given value, compared exactly and case included | `{ "typeIds": ["<archetype guid>"], "propertyValues": { "status": "open" } }`; refused without `typeIds` or `boundTypes`, or for a property no named type declares |
 | A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
@@ -265,8 +265,7 @@ touching a selected Thing, in both directions and over every predicate. A long-l
 inbound relationship for every unit of work drawn against it and keeps them, so a handler that needs
 only the Thing's own outgoing relationships would otherwise read the whole history on every call, and
 pay more for it the longer the run. `relationships` is a list of rules — each a `direction` and a
-predicate by `predicate`, by `predicateFlag` or by `predicateRole`, or none of the three for every
-predicate — and with it the
+predicate by `predicate` or by `predicateRole`, or neither for every predicate — and with it the
 snapshot carries the relationships a selected Thing holds in a rule's direction over its predicate,
 and no others. A rule may also name the far end's kind, by `farEndType` (one kind name or a list) or
 by `farEndRole` (one role Thing identifier or a list); then only the relationships whose far end is of
@@ -290,9 +289,7 @@ relationship, so a reader that has to tell which bound Thing plays which role as
 by id and follows `binds`. A traversal or relationship rule names its predicate the same way, as
 `predicateRole` — the role Thing's identifier, following the predicate it binds. This is how the
 pipeline orchestrator and the console ask, and what a service reading role-bound vocabulary should
-use. The broker also answers the older mark forms — `markedTypes`, `markedArchetypes` and a rule's
-`predicateFlag` — for a model that still writes a mark; the shared C# client's selector offers no
-mark form for a type.
+use.
 
 **A role is followed as it is bound now.** A following subscription that names a role — in
 `boundTypes`, `boundArchetypes`, a rule's `predicateRole` or `farEndRole`, or a traversal by
