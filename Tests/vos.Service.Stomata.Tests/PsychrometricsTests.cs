@@ -43,4 +43,38 @@ public class PsychrometricsTests
     {
         Psychrometrics.HumidityRatioGramsPerKilogram(25.0, 0.0, 0.0).Should().Be(0.0);
     }
+
+    [Fact]
+    public void The_relative_humidity_of_a_humidity_ratio_is_the_one_it_was_worked_out_from()
+    {
+        var humidityRatio = Psychrometrics.HumidityRatioGramsPerKilogram(30.0, 50.0, 0.0);
+
+        Psychrometrics.RelativeHumidityPercent(30.0, humidityRatio, SeaLevel).Should().BeApproximately(50.0, 1e-9);
+    }
+
+    [Fact]
+    public void More_water_than_the_air_can_hold_reads_as_saturated()
+    {
+        Psychrometrics.RelativeHumidityPercent(20.0, 30.0, SeaLevel).Should().Be(100.0);
+    }
+
+    // Equation 33 at 22 °C: Ws* = 0.621945 × 2.6448 / (101.325 − 2.6448) = 0.016669, and
+    // W = ((2501 − 2.326 × 22) × 0.016669 − 1.006 × 8) / (2501 + 1.86 × 30 − 4.186 × 22) = 13.30 g/kg.
+    [Fact]
+    public void Air_at_thirty_degrees_holding_thirteen_grams_a_kilogram_has_a_wet_bulb_of_twenty_two_degrees()
+    {
+        Psychrometrics.WetBulbCelsius(30.0, 13.31, SeaLevel).Should().BeApproximately(22.0, 0.05);
+    }
+
+    [Theory]
+    [InlineData(25.0)]
+    [InlineData(-5.0)]
+    public void Saturated_air_has_a_wet_bulb_equal_to_its_air_temperature_over_water_and_over_ice(double celsius)
+    {
+        var saturated = Psychrometrics.HumidityRatioAtPressureGramsPerKilogram(celsius, 100.0, SeaLevel);
+
+        Psychrometrics.WetBulbCelsius(celsius, saturated, SeaLevel).Should().BeApproximately(celsius, 0.001);
+    }
+
+    private const double SeaLevel = 101.325;
 }
