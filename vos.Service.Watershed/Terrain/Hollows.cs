@@ -36,8 +36,22 @@ public static class Hollows
     }
 
     public static IReadOnlyList<IReadOnlyList<double>> AreaEnteringEachBasin(
-        IReadOnlyList<Hollow> hollows, IReadOnlyList<int> drainsTo, IReadOnlyList<double> gatheredArea, double cellArea) =>
-        [.. hollows.Select(hollow => new double[hollow.Basins])];
+        IReadOnlyList<Hollow> hollows, IReadOnlyList<int> drainsTo, IReadOnlyList<double> gatheredArea, double cellArea)
+    {
+        var placeOf = new Dictionary<int, (int Hollow, int Basin)>();
+        var entering = hollows.Select(hollow => new double[hollow.Basins]).ToArray();
+        for (var number = 0; number < hollows.Count; number++)
+            for (var index = 0; index < hollows[number].Cells.Count; index++)
+            {
+                placeOf[hollows[number].Cells[index]] = (number, hollows[number].BasinOfCell[index]);
+                entering[number][hollows[number].BasinOfCell[index]] += cellArea;
+            }
+        for (var cell = 0; cell < drainsTo.Count; cell++)
+            if (drainsTo[cell] is var next and >= 0 && placeOf.TryGetValue(next, out var into)
+                && !(placeOf.TryGetValue(cell, out var from) && from.Hollow == into.Hollow))
+                entering[into.Hollow][into.Basin] += gatheredArea[cell];
+        return entering;
+    }
 
     private static Hollow HollowOf(TerrainSurface surface, TerrainAnalysisResult analysed, List<int> cells)
     {
@@ -174,19 +188,18 @@ public static class HollowWater
         return new HollowFill(depths, overflow);
     }
 
-    public static IReadOnlyList<double> InflowOfEachBasin(IReadOnlyList<double> areaEnteringEachBasin, double gathered) =>
-        [.. areaEnteringEachBasin.Select(_ => 0.0)];
+    public static IReadOnlyList<double> InflowOfEachBasin(IReadOnlyList<double> areaEnteringEachBasin, double gathered)
+    {
+        var total = areaEnteringEachBasin.Sum();
+        return [.. areaEnteringEachBasin.Select(area => gathered * area / total)];
+    }
 
     private static double LevelHolding(IEnumerable<double> heights, double depthSum)
     {
         var sorted = heights.Order().ToArray();
-        var below = 0.0;
-        for (var count = 1; count <= sorted.Length; count++)
-        {
-            below += sorted[count - 1];
-            var level = (depthSum + below) / count;
-            if (count == sorted.Length || level <= sorted[count]) return Math.Max(level, sorted[0]);
-        }
-        return sorted.Length == 0 ? 0 : sorted[0];
+        var below = sorted[0];
+        var count = 1;
+        while (count < sorted.Length && (depthSum + below) / count > sorted[count]) below += sorted[count++];
+        return (depthSum + below) / count;
     }
 }

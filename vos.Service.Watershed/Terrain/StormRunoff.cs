@@ -23,8 +23,8 @@ public static class StormRunoff
     private const double SecondsAnHourByMillimetresAMetre = 3.6e6;
 
     public static IReadOnlyList<double> GridCodesOf(
-        TerrainSurface surface, TerrainAnalysisResult analysed, RunoffInputs inputs, DesignStormRain storm, bool builtOver,
-        IReadOnlyList<RunoffClassRule> classes)
+        TerrainSurface surface, TerrainAnalysisResult analysed, IReadOnlyList<Hollow> hollows, RunoffInputs inputs, DesignStormRain storm,
+        bool builtOver, IReadOnlyList<RunoffClassRule> classes)
     {
         var (columns, cell) = (surface.Columns, surface.CellSizeMetres);
         var count = surface.Heights.Count;
@@ -89,7 +89,7 @@ public static class StormRunoff
             var minutes = TimeOfConcentrationMinutes(index);
             return Coefficient(index) * storm.Rain.MillimetresPerHourOver(minutes) * (minutes / 60) / 1000 * area[index];
         }
-        var standing = StandingDepths(surface, analysed, area, RunoffVolume);
+        var standing = StandingDepths(surface, analysed, hollows, area, RunoffVolume);
 
         var codes = Enumerable.Repeat(double.NaN, count).ToArray();
         foreach (var index in inside)
@@ -111,40 +111,32 @@ public static class StormRunoff
     }
 
     // Water gathers at the bottom of a hollow, on purpose unlike a method that counts only the runoff along each cell's own route.
-    private static double[] StandingDepths(TerrainSurface surface, TerrainAnalysisResult analysed, double[] area, Func<int, double> runoffVolume)
+    private static double[] StandingDepths(
+        TerrainSurface surface, TerrainAnalysisResult analysed, IReadOnlyList<Hollow> hollowsOfTheTerrain, double[] area, Func<int, double> runoffVolume)
     {
         var cellArea = surface.CellSizeMetres * surface.CellSizeMetres;
         var standing = new double[surface.Heights.Count];
-        var hollows = Hollows.Of(surface, analysed).OrderByDescending(hollow => hollow.SpillLevel).ToList();
-        var placeOf = new Dictionary<int, (int Hollow, int Basin)>();
-        var entering = hollows.Select(hollow => new double[hollow.Basins]).ToArray();
+        var hollows = hollowsOfTheTerrain.OrderByDescending(hollow => hollow.SpillLevel).ToList();
+        var hollowOf = new Dictionary<int, int>();
         for (var number = 0; number < hollows.Count; number++)
-            for (var index = 0; index < hollows[number].Cells.Count; index++)
-            {
-                placeOf[hollows[number].Cells[index]] = (number, hollows[number].BasinOfCell[index]);
-                entering[number][hollows[number].BasinOfCell[index]] += cellArea;
-            }
-        for (var cell = 0; cell < surface.Heights.Count; cell++)
-            if (analysed.DrainsTo[cell] is var next and >= 0 && placeOf.TryGetValue(next, out var into)
-                && !(placeOf.TryGetValue(cell, out var from) && from.Hollow == into.Hollow))
-                entering[into.Hollow][into.Basin] += area[cell];
+            foreach (var cell in hollows[number].Cells) hollowOf[cell] = number;
+        var entering = Hollows.AreaEnteringEachBasin(hollows, analysed.DrainsTo, area, cellArea);
         var keptAbove = new double[hollows.Count];
 
         for (var number = 0; number < hollows.Count; number++)
         {
             var hollow = hollows[number];
-            var shares = entering[number];
             var gathered = Math.Max(0, hollow.Exits.Sum(runoffVolume) - keptAbove[number]);
             var fill = HollowWater.Fill(
                 [.. hollow.Cells.Select(cell => surface.Heights[cell])], hollow.BasinOfCell, hollow.Ridges,
-                [.. shares.Select(share => gathered * share / shares.Sum())], hollow.SpillLevel, cellArea);
+                HollowWater.InflowOfEachBasin(entering[number], gathered), hollow.SpillLevel, cellArea);
             for (var index = 0; index < hollow.Cells.Count; index++) standing[hollow.Cells[index]] = fill.StandingDepths[index];
 
             var kept = gathered - fill.Overflow + keptAbove[number];
             for (var cell = hollow.PourPoint; cell >= 0; cell = analysed.DrainsTo[cell])
-                if (placeOf.TryGetValue(cell, out var below) && below.Hollow != number)
+                if (hollowOf.TryGetValue(cell, out var below) && below != number)
                 {
-                    keptAbove[below.Hollow] += kept;
+                    keptAbove[below] += kept;
                     break;
                 }
         }

@@ -57,11 +57,12 @@ public class ReferenceParcelRunoffTests
         }
 
         var analysed = TerrainAnalysis.Of(Recorded.Surface);
-        var codes = StormRunoff.GridCodesOf(Recorded.Surface, analysed, Inputs, storm, builtOver, Classes);
+        var hollows = Hollows.Of(Recorded.Surface, analysed);
+        var codes = StormRunoff.GridCodesOf(Recorded.Surface, analysed, hollows, Inputs, storm, builtOver, Classes);
 
         codes.Select(code => double.IsNaN(code) ? (double?)null : code).Should().Equal(expected);
         foreach (var shelf in ShelvesTheWaterNoLongerReaches[grid])
-            Hollows.Of(Recorded.Surface, analysed).Should().ContainSingle(hollow => hollow.Cells.Contains(shelf.Cell)).Which.Ridges
+            hollows.Should().ContainSingle(hollow => hollow.Cells.Contains(shelf.Cell)).Which.Ridges
                 .Min(ridge => ridge.Height).Should().BeLessThan(Recorded.Surface.Heights[shelf.Cell]);
     }
 }

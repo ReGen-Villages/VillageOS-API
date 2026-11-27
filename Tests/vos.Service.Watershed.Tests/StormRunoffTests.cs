@@ -40,8 +40,11 @@ public class StormRunoffTests
     private static DesignStormRain Rain(double millimetresPerHour, double multiplier = 1.25) =>
         new(multiplier, new RainfallIntensities([new RainfallIntensity(5, millimetresPerHour), new RainfallIntensity(1440, millimetresPerHour)]));
 
-    private static IReadOnlyList<double> GridCodes(TerrainSurface surface, DesignStormRain storm, bool builtOver = false, RunoffInputs? inputs = null) =>
-        StormRunoff.GridCodesOf(surface, TerrainAnalysis.Of(surface), inputs ?? Inputs, storm, builtOver, Classes);
+    private static IReadOnlyList<double> GridCodes(TerrainSurface surface, DesignStormRain storm, bool builtOver = false, RunoffInputs? inputs = null)
+    {
+        var analysed = TerrainAnalysis.Of(surface);
+        return StormRunoff.GridCodesOf(surface, analysed, Hollows.Of(surface, analysed), inputs ?? Inputs, storm, builtOver, Classes);
+    }
 
     private static TerrainSurface Bowl() => Surface((column, row) => 0.1 * Cell * Math.Sqrt(Math.Pow(column - Middle, 2) + Math.Pow(row - Middle, 2)));
 

@@ -129,9 +129,12 @@ public sealed class WatershedNode : DagNodeService
             ["lowestPointLongitude"] = lowest.Longitude,
         };
         if (runoff is not null && RunoffInputsOf(ground.Study) is { } inputs)
+        {
+            var hollows = Hollows.Of(surface, analysed);
             foreach (var (grid, returnPeriodYears, builtOver) in RunoffGrids)
                 if (runoff.StormsByReturnPeriodYears.TryGetValue(returnPeriodYears, out var storm))
-                    siteValues[grid] = Grid(StormRunoff.GridCodesOf(surface, analysed, inputs, storm, builtOver, runoff.Classes));
+                    siteValues[grid] = Grid(StormRunoff.GridCodesOf(surface, analysed, hollows, inputs, storm, builtOver, runoff.Classes));
+        }
         await RecordAsync(ground.Site!.Id, siteValues, cancellationToken);
         List<(Guid Thing, string Property, double Value)> written = [(ground.Site!.Id, MeanHeight, figures.MeanMetres)];
 
