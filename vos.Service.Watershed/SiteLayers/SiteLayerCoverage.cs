@@ -6,7 +6,18 @@ public sealed record LineCoverage(double MetresInside, bool CrossesBorder, doubl
 
 public static class SiteLayerCoverage
 {
-    public static ShapeCoverage OfShape(PlaneShape site, PlaneShape shape) => new(0, 0, 0);
+    private const double SquareMetresInAHectare = 10000;
 
-    public static LineCoverage OfLines(PlaneShape site, IReadOnlyList<PlaneLine> lines) => new(0, false, 0);
+    public static ShapeCoverage OfShape(PlaneShape site, PlaneShape shape)
+    {
+        var inside = shape.OverlapSquareMetres(site);
+        return new ShapeCoverage(
+            inside / SquareMetresInAHectare, 100 * inside / site.AreaSquareMetres, inside > 0 ? 0 : shape.OutlineDistanceMetres(site));
+    }
+
+    public static LineCoverage OfLines(PlaneShape site, IReadOnlyList<PlaneLine> lines)
+    {
+        var inside = lines.Sum(site.LengthInsideMetres);
+        return new LineCoverage(inside, lines.Any(site.IsCrossedBy), inside > 0 ? 0 : lines.Min(site.DistanceMetres));
+    }
 }

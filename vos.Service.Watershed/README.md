@@ -25,11 +25,25 @@ plus its margin (on each side of the box's centre, the larger of 1.3 × the site
 profile's `cellSizeMetres` is its real spacing, so distance along the line is the index times that spacing. The
 site's span on each line is written in metres from the line's start.
 
-**Writes.** The site's grids, profiles and figures go as one batch of observations, and each share's values as one
-batch on that share. Because a batch is accepted before it is stored, Watershed reads one value of each batch back,
-every 250 ms for at most 15 s, before it writes `groundWorkedOutAt` on the study as a fact. The stamp is the last
-write of every run, including a run with no border or no heights source, where nothing else is written. It is what
-takes the study out of the range that started the run.
+**Site layer features.** Each feature the site has, of the kind the `siteLayerFeature` role binds, is measured against the
+border in metres east and north of the border's middle. Measuring needs only the border, not the heights. The site
+reaches its features along `has`.
+- A shape (Polygon or MultiPolygon, holes included) gets its `hectaresInside`, its `shareOfSitePercent` of the border's
+  own area, and its `distanceFromSiteMetres`, which is 0 when the shape overlaps or touches the border.
+- A line (LineString or MultiLineString) gets its `metresInside`, `crossesBorder` and `distanceFromSiteMetres`. A line
+  lying along the border is not inside it, and a line crosses the border only where one of its segments passes through
+  a border edge. Its distance is 0 when any part is inside.
+- The area is exact: each outline is cut where it meets the other, and the pieces lying inside the other are summed.
+  The parts of a MultiPolygon are taken not to overlap.
+- Every figure that applies is written on every run, so a changed border leaves none behind. A feature whose geometry
+  cannot be read is left as it is and named in the log, and a border enclosing no area measures none.
+
+**Writes.** The site's grids, profiles and figures go as one batch of observations, each share's values as one batch
+on that share, and each site layer feature's figures as one batch on that feature. Because a batch is accepted before
+it is stored, Watershed reads one value of each batch back, every 250 ms for at most 15 s, before it writes
+`groundWorkedOutAt` on the study as a fact. The stamp is the last write of every run, including a run with no border,
+or with no heights source and no site layer feature, where nothing else is written. It is what takes the study out of
+the range that started the run.
 
 **Failures.** A model it cannot read or write, a provider at its limit or away, or a batch that never reads back is a
 failure the orchestrator may try again, and the stamp is not written. Any other refusal by the provider, or an

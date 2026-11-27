@@ -9,7 +9,8 @@ namespace vos.Service.Watershed.Services;
 
 public sealed record GroundReading(
     SnapshotThing Study, SnapshotThing? Site, IReadOnlyList<Position>? Border, string? HeightsSource,
-    IReadOnlyList<SlopeClassBand> SlopeClasses, IReadOnlyList<AspectSector> Aspects, IReadOnlyDictionary<Guid, Guid> ShareAssessing)
+    IReadOnlyList<SlopeClassBand> SlopeClasses, IReadOnlyList<AspectSector> Aspects, IReadOnlyDictionary<Guid, Guid> ShareAssessing,
+    IReadOnlyList<SnapshotThing> LayerFeatures)
 {
     public const string BoundaryProperty = "boundary";
     private const string Has = "has";
@@ -17,7 +18,7 @@ public sealed record GroundReading(
     private static readonly Role[] Roles =
     [
         LandIntakeRoles.StudiedSite, LandIntakeRoles.Assesses, LandIntakeRoles.Parcel, LandIntakeRoles.SlopeClassShare,
-        LandIntakeRoles.AspectShare, LandIntakeRoles.BorderElevation,
+        LandIntakeRoles.AspectShare, LandIntakeRoles.BorderElevation, LandIntakeRoles.SiteLayerFeature,
     ];
 
     // The bindings are followed last, so the walk along `has` does not spread from the kinds the roles bind.
@@ -47,7 +48,7 @@ public sealed record GroundReading(
         bool IsA(Guid thing, Guid? kind) => kind is not null && Along(thing, Named(PlatformPredicates.Is)).Contains(kind.Value);
 
         var site = Along(studyId, Only(LandIntakeRoles.StudiedSite)).Select(id => things.GetValueOrDefault(id)).FirstOrDefault(thing => thing is not null);
-        if (site is null) return new GroundReading(study, null, null, null, [], [], new Dictionary<Guid, Guid>());
+        if (site is null) return new GroundReading(study, null, null, null, [], [], new Dictionary<Guid, Guid>(), []);
 
         var held = Along(site.Id, Named(Has)).ToArray();
         var parcel = held.FirstOrDefault(thing => IsA(thing, Only(LandIntakeRoles.Parcel)));
@@ -73,7 +74,10 @@ public sealed record GroundReading(
             }
         }
 
-        return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing);
+        var layerFeatures = held.Where(thing => IsA(thing, Only(LandIntakeRoles.SiteLayerFeature)))
+            .Select(id => things.GetValueOrDefault(id)).OfType<SnapshotThing>().ToList();
+
+        return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing, layerFeatures);
     }
 
     private static IReadOnlyList<Position>? BorderOf(SnapshotThing parcel)
