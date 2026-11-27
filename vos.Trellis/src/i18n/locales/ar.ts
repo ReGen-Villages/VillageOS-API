@@ -1295,6 +1295,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       saveFailed: "فشل الحفظ",
       typeLabel: "نوع الخاصية",
       writtenByIngest: "كُتب بواسطة الاستيراد",
+      takesReadingsOnly: "مأخوذ من القراءات، لا يُعدَّل يدويًا",
       rejected: {
         wholeNumber: "‏{{name}} يحمل عددًا صحيحًا — {{value}} ليس كذلك",
         number: "‏{{name}} يحمل رقمًا — {{value}} ليس كذلك",
