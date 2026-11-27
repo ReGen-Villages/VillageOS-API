@@ -17,11 +17,15 @@ copy of its own.**
   - the **fields** either widget asks a person to fill before a press.
 - **Builds what a press posts**: the body, and the route the widget's `via` names. `offeredChoices`
   lists the choices a row is offered, `pressOf` composes the writes a press makes and sends nothing,
-  and `sendPress` sends them and stops at a refusal.
+  and `sendPress` sends them and stops at a refusal. `choiceLabelOf` words a drawn choice in a
+  language, the one wording the console's action list and the server share.
 - **Words a figure**: a number in the format and the language asked for, a verdict's sentence, the
   line saying where a value came from, and what a figure was worked out from. The console's KPI
   card, verdict list and working list take their text from these, and `readWidget` reads a whole
-  widget out for a program with no screen.
+  widget out for a program with no screen. It reads a profile line as its span, its lowest, highest
+  and difference, and those in words, from the same function the chart uses.
+- **Reads a grid**: `gridOf` reads a `vos.Grid` value, or nothing for a value that is not one, and
+  `cellsIn` counts its cells.
 - **Says which Things a page needs**: `subscriptionForSpecification` turns a page description into
   the selector the platform reads.
 - **Names a figure's inputs**: `inputsOf` walks a Thing's derived figures to the inputs at the
@@ -32,7 +36,7 @@ copy of its own.**
 | Import | Carries | For |
 | --- | --- | --- |
 | `@tendril-ui/tendril` | Everything, the widgets and hooks included | An application that draws pages with React |
-| `@tendril-ui/tendril/reader` | The reader, the wording, the selector, the inputs and the press composition | A program with no browser |
+| `@tendril-ui/tendril/reader` | The reader, the wording, the selector, the inputs, the press composition and the grid helpers | A program with no browser |
 
 Nothing reachable from the reader entry imports React or needs a browser's types. `src/reader.test.ts`
 fails if React becomes reachable, and `npm run typecheck` checks the entry with no browser types.

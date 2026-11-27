@@ -32,6 +32,11 @@ public sealed class PipelineExecutor
     private readonly RunPlaces _places = new();
     private readonly Func<TimeSpan, Task> _pause;
     private readonly TaskCompletionSource _shuttingDown = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TimeProvider _real;
+
+    // A limit of their own, so a caller that went away never cancels them and a broker that does not answer cannot hold the run's turn for long.
+    private static readonly TimeSpan EndingWritesLimit = TimeSpan.FromSeconds(30);
+    private const string CallerWentAway = "The caller waiting for the run went away while it ran.";
 
     public PipelineExecutor(
         IMyceliumGateway gateway,
@@ -39,12 +44,14 @@ public sealed class PipelineExecutor
         ModelClock clock,
         int maxConcurrency = 4,
         Func<TimeSpan, Task>? pause = null,
-        IHostApplicationLifetime? lifetime = null)
+        IHostApplicationLifetime? lifetime = null,
+        TimeProvider? real = null)
     {
         _gateway = gateway;
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
         _clock = clock;
+        _real = real ?? TimeProvider.System;
         _pause = pause ?? (length => Task.Delay(length));
         _reports = new CallReporter(gateway, logger, _pause);
         lifetime?.ApplicationStopping.Register(() => _shuttingDown.TrySetResult());
@@ -284,14 +291,20 @@ public sealed class PipelineExecutor
     {
         var (dag, _) = await LoadAsync(record.PipelineId, cancellationToken);
         var nodes = dag?.Nodes.Select(node => (node.NodeId, node.Name)) ?? record.Nodes.Keys.Select(nodeId => (nodeId, nodeId.ToString()));
+        await CancelUnfinishedNodeRunsAsync(record, nodes, request.Reason, cancellationToken);
+        await RecordStoppedAsync(record.RunId, record.CallRecordId, request, cancellationToken);
+    }
+
+    private async Task CancelUnfinishedNodeRunsAsync(
+        RunRecord record, IEnumerable<(Guid NodeId, string Name)> nodes, string reason, CancellationToken cancellationToken)
+    {
         foreach (var (nodeId, name) in nodes)
         {
             record.Nodes.TryGetValue(nodeId, out var recorded);
             if (recorded is not null && RunStatus.IsFinished(recorded.Status)) continue;
-            await PersistStatusAsync(record.RunId, new NodeRunResult(nodeId, name, RunStatus.Cancelled, NoOutputs, request.Reason), cancellationToken,
+            await PersistStatusAsync(record.RunId, new NodeRunResult(nodeId, name, RunStatus.Cancelled, NoOutputs, reason), cancellationToken,
                 recorded?.Watching);
         }
-        await RecordStoppedAsync(record.RunId, record.CallRecordId, request, cancellationToken);
     }
 
     private async Task RecordStoppedAsync(Guid runId, Guid? callRecordId, StopRequested request, CancellationToken cancellationToken)
@@ -750,6 +763,12 @@ public sealed class PipelineExecutor
         {
             return await SweepUntilSettledAsync(rid, dag, runParams, progress, rehearsal, callRecordId, cancellationToken);
         }
+        // A shutdown aborts every waiting caller too, and its runs are carried on by the recovery at the next start.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !_shuttingDown.Task.IsCompleted)
+        {
+            await EndForACallerThatWentAwayAsync(rid, dag);
+            throw;
+        }
         finally
         {
             _stops.TryRemove(rid, out _);
@@ -761,11 +780,38 @@ public sealed class PipelineExecutor
         Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, Guid? callRecordId, CancellationToken cancellationToken)
     {
         var swept = await RunUntilNothingIsReadyAsync(rid, dag, runParams, progress, rehearsal, cancellationToken);
+        // A service call cut short by the caller's going away comes back as a failure, and that is not why the run ends.
+        cancellationToken.ThrowIfCancellationRequested();
         var (paused, ended) = await PauseWhileWaitingAsync(rid, dag, progress, swept, cancellationToken);
         if (paused is not null)
             return paused;
-        await RecordNeverReachedAsync(rid, dag, progress, ended, cancellationToken);
-        return await CloseRunAsync(rid, dag, runParams, progress, rehearsal, callRecordId, ended, cancellationToken);
+        using var ending = new CancellationTokenSource(EndingWritesLimit, _real);
+        await RecordNeverReachedAsync(rid, dag, progress, ended, ending.Token);
+        var closed = await CloseRunAsync(rid, dag, runParams, progress, rehearsal, callRecordId, ended, ending.Token);
+        if (ending.IsCancellationRequested)
+            _logger.LogError("Run {RunId}'s ending writes ran past {Seconds} s, so its record may not say how it ended", rid, EndingWritesLimit.TotalSeconds);
+        return closed;
+    }
+
+    private async Task EndForACallerThatWentAwayAsync(Guid runId, PipelineDag dag)
+    {
+        using var ending = new CancellationTokenSource(EndingWritesLimit, _real);
+        Exception? failure = null;
+        try
+        {
+            if (await _gateway.ReadRunRecordAsync(runId, ending.Token) is { } record && !RunStatus.IsFinished(record.Status))
+            {
+                await CancelUnfinishedNodeRunsAsync(record, dag.Nodes.Select(node => (node.NodeId, node.Name)), CallerWentAway, ending.Token);
+                await EndRunAsync(record, RunStatus.Cancelled, CallerWentAway, ending.Token);
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+        if (failure is not null || ending.IsCancellationRequested)
+            _logger.LogError(failure, "Run {RunId}, whose waiting caller went away, could not be recorded cancelled within {Seconds} s",
+                runId, EndingWritesLimit.TotalSeconds);
     }
 
     private sealed record SweepEnd(bool Halted, string? Unhandled, StopRequested? Stopped, List<DagNode> Pending);

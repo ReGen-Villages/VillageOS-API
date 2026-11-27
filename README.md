@@ -38,7 +38,8 @@ uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/READM
 ### Pages (page reader for C#)
 
 **vos.Pages** — a class library that lists and reads a model's pages with Tendril's own reader, run
-inside a C# process, so a program that is not a browser answers a page as Trellis draws it. See
+inside a C# process, so a program that is not a browser answers a page as Trellis draws it. It also
+offers a row's choices and composes and sends a press, as the console does. See
 [vos.Pages/README.md](vos.Pages/README.md).
 
 ### Taproot (CLI)
@@ -52,9 +53,16 @@ inside a C# process, so a program that is not a browser answers a page as Trelli
 - Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
 - Seeds, models and fragments (serialize, deserialize, plant, apply, ingest), submissions and accounts
 
-**vos.Taproot.Client** — the library Taproot reaches the Mycelium through: the client for its routes,
-name lookup, and reading a model by its role bindings. A program other than Taproot references it to
-make the same calls.
+**vos.MyceliumClient** — the library Taproot and Hypha reach the Mycelium through, in the namespace
+`vos.PlatformClient`: the client for its routes, name lookup, and reading a model by its role
+bindings. A program other than these references it to make the same calls. See
+[vos.MyceliumClient/README.md](vos.MyceliumClient/README.md).
+
+### MCP server
+
+**Hypha** (`vos.Hypha`) — a server that lets an assistant in a chat application read and change a
+model, with the rights of the API key it is given. It speaks the Model Context Protocol, which a chat
+application uses to list and call tools. See [vos.Hypha/README.md](vos.Hypha/README.md).
 
 ### Microservices
 

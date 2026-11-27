@@ -14,7 +14,7 @@
 
 `APageReadFromTheRecordedModelTests` reads every page through the library and expects exactly what Node resolved.
 
-**What answered the recording now in the repository.** The seed as merged in develop at `e3746bd0`, read by Tendril's reader as built into `vos.Pages/reader.bundle.js`, and answered on 2026-11-18 by a Mycelium built from the platform's develop of 2026-11-17 (source at or after `154544e4`), not by a current one. It is recorded again when a current engine is next built on the recording machine.
+**What answered the recording now in the repository.** The seed as it stands with its service path left empty, read by Tendril's reader as built into `vos.Pages/reader.bundle.js`, and answered on 2026-11-22 by a Mycelium built from the platform's develop at `80e9d0fa`. No service is started, so the echo endpoint answers `404` and the figure the service answers reads as nothing.
 
 To write the recording, with `Recorded/record.mjs`:
 

@@ -16,6 +16,9 @@ internal sealed class FakeGateway : IMyceliumGateway
     public PipelineGraph Graph { get; set; }
     public Exception? LoadFailure { get; set; }
 
+    // As the real gateway's HTTP calls do: a write given a cancelled token throws, and a held answer or read stops waiting.
+    public bool HonoursCancellation { get; set; }
+
     public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"outputs\":{}}");
     public List<string> Called { get; } = new();
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
@@ -170,6 +173,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
         IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null, Watch? watch = null)
     {
+        if (HonoursCancellation) ct.ThrowIfCancellationRequested();
         RecordToken(runId);
         lock (NodeStatuses)
         {
@@ -310,7 +314,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         if (!RecordReadHeldUntil.IsCompleted)
         {
             Interlocked.Increment(ref _recordReadsHeld);
-            await RecordReadHeldUntil;
+            await (HonoursCancellation ? RecordReadHeldUntil.WaitAsync(ct) : RecordReadHeldUntil);
         }
         if (RecordReadFailure is { } failure) throw failure;
         lock (_model)
@@ -429,8 +433,13 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public string? RunError { get; private set; }
 
-    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null, bool heldUntilReported = false)
+    public Task RunEndHeldUntil { get; set; } = Task.CompletedTask;
+
+    public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null, bool heldUntilReported = false)
     {
+        if (HonoursCancellation) ct.ThrowIfCancellationRequested();
+        if (RunStatus.IsFinished(status) && !RunEndHeldUntil.IsCompleted)
+            await (HonoursCancellation ? RunEndHeldUntil.WaitAsync(ct) : RunEndHeldUntil);
         RecordToken(runId);
         lock (StatusUpdates) StatusUpdates.Add(status);
         if (error != null) RunError = error;
@@ -440,7 +449,6 @@ internal sealed class FakeGateway : IMyceliumGateway
             if (RunStatus.IsFinished(status) && heldUntilReported) HeldUntilReported.Add(runId);
         }
         if (RunStatus.IsFinished(status)) OnRunFinished();
-        return Task.CompletedTask;
     }
 
     public Action OnRunFinished { get; set; } = () => { };
@@ -530,7 +538,8 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken ct)
     {
         lock (Called) { Called.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
-        return OnCallAsync?.Invoke(subdomain, envelope) ?? Task.FromResult(OnCall(subdomain, envelope));
+        var answer = OnCallAsync?.Invoke(subdomain, envelope) ?? Task.FromResult(OnCall(subdomain, envelope));
+        return HonoursCancellation ? answer.WaitAsync(ct) : answer;
     }
 
     // OnCall answers before the sweep can start anything else; this answers when the test completes the task.

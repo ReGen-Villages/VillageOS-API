@@ -429,8 +429,9 @@ the step and is left awaiting discovery, because which study its analyses read i
 ## Answering as pipeline steps
 
 Forage answers only step requests on `/handle`, so each step can be a box on a pipeline canvas. A
-relationship call is refused with `400`. The box's `step` setting chooses the step, and
-`GET /manifest/{step}` declares each one's ports:
+relationship call is refused with `400`. The step service's `callParameters` choose the step, and
+each of Forage's step services holds its own, such as `{"step":"planCalls"}`. `GET /manifest/{step}`
+declares each step's ports and offers a box no step setting:
 
 | Step | Takes | Gives |
 | --- | --- | --- |
