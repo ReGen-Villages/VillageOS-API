@@ -7,7 +7,6 @@ public sealed class StandardComfort : IThermalComfort
     public const double StillAirMetresPerSecond = 0.1;
     public const double ElevatedAirSpeedAboveMetresPerSecond = 0.2;
 
-    private const double StandardPressureKilopascals = 101.325;
     private const double WattsPerSquareMetrePerMet = 58.15;
     private const double SquareMetreKelvinPerWattPerClo = 0.155;
     private const double LargestCoolingEffectCelsius = 40;
@@ -81,7 +80,7 @@ public sealed class StandardComfort : IThermalComfort
         var skinEvaporation = 0.1 * metabolicRateMet;
 
         var vapourTorr = relativeHumidityPercent * SaturationTorr(airCelsius) / 100;
-        var atmospheres = StandardPressureKilopascals * 0.009869;
+        var atmospheres = pressureKilopascals * 0.009869;
         var clothingResistance = SquareMetreKelvinPerWattPerClo * clothingClo;
         var clothingAreaFactor = 1.0 + 0.15 * clothingClo;
         var lewisRatio = 2.2 / atmospheres;
