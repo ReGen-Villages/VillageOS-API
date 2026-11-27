@@ -62,7 +62,15 @@ public sealed class StandardComfort : IThermalComfort
 
     public static double StandardEffectiveTemperatureCelsius(
         double airCelsius, double meanRadiantCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond,
-        double metabolicRateMet, double clothingClo, double pressureKilopascals)
+        double metabolicRateMet, double clothingClo, double pressureKilopascals) =>
+        StandardEffectiveTemperatureCelsius(
+            airCelsius, meanRadiantCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo, pressureKilopascals,
+            ActivityConvection(metabolicRateMet));
+
+    // The method works the cooling effect without the convection the body's own activity makes.
+    private static double StandardEffectiveTemperatureCelsius(
+        double airCelsius, double meanRadiantCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond,
+        double metabolicRateMet, double clothingClo, double pressureKilopascals, double activityConvection)
     {
         const double bodyKilograms = 69.9;
         const double bodySquareMetres = 1.8258;
@@ -89,7 +97,8 @@ public sealed class StandardComfort : IThermalComfort
         var (criticalWettedness, clothingPermeability) = clothingClo <= 0
             ? (0.38 * Math.Pow(airSpeedMetresPerSecond, -0.29), 1.0)
             : (0.59 * Math.Pow(airSpeedMetresPerSecond, -0.08), 0.45);
-        var convection = Math.Max(3.0 * Math.Pow(atmospheres, 0.53), 8.600001 * Math.Pow(airSpeedMetresPerSecond * atmospheres, 0.53));
+        var convection = Math.Max(
+            Math.Max(3.0 * Math.Pow(atmospheres, 0.53), 8.600001 * Math.Pow(airSpeedMetresPerSecond * atmospheres, 0.53)), activityConvection);
 
         var radiation = 4.7;
         var combined = radiation + convection;
@@ -158,7 +167,7 @@ public sealed class StandardComfort : IThermalComfort
         }
 
         var skinLoss = dryLoss + skinEvaporation;
-        var standardConvection = metabolicRateMet < 0.85 ? 3.0 : Math.Max(5.66 * Math.Pow(metabolicRateMet - 0.85, 0.39), 3.0);
+        var standardConvection = Math.Max(activityConvection, 3.0);
         var standardCombined = standardConvection + radiation;
         var standardClo = 1.52 / (metabolicRateMet + 0.6944) - 0.1835;
         var standardClothingResistance = SquareMetreKelvinPerWattPerClo * standardClo;
@@ -192,10 +201,11 @@ public sealed class StandardComfort : IThermalComfort
         double metabolicRateMet, double clothingClo, double pressureKilopascals)
     {
         var moving = StandardEffectiveTemperatureCelsius(
-            airCelsius, meanRadiantCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo, pressureKilopascals);
+            airCelsius, meanRadiantCelsius, relativeHumidityPercent, airSpeedMetresPerSecond, metabolicRateMet, clothingClo, pressureKilopascals,
+            activityConvection: 0);
         double StillAirAbove(double cooling) => StandardEffectiveTemperatureCelsius(
             airCelsius - cooling, meanRadiantCelsius - cooling, relativeHumidityPercent, StillAirMetresPerSecond, metabolicRateMet, clothingClo,
-            pressureKilopascals) - moving;
+            pressureKilopascals, activityConvection: 0) - moving;
 
         if (StillAirAbove(0) <= 0) return 0;
         double cooler = 0, warmer = LargestCoolingEffectCelsius;
@@ -207,6 +217,9 @@ public sealed class StandardComfort : IThermalComfort
         }
         return (cooler + warmer) / 2;
     }
+
+    private static double ActivityConvection(double metabolicRateMet) =>
+        metabolicRateMet > 0.85 ? 5.66 * Math.Pow(metabolicRateMet - 0.85, 0.39) : 0;
 
     private static double SaturationTorr(double celsius) => Math.Exp(18.6686 - 4030.183 / (celsius + 235.0));
 }
