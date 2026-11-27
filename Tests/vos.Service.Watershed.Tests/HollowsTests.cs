@@ -52,4 +52,24 @@ public class HollowsTests
 
         HollowsOf(plane).Should().BeEmpty();
     }
+
+    // Hollow A's first basin: its cell 900 + cell 1's 1,800; its second: 900 + cell 5's 900. Hollow B: 900 + cell 3's 4,500.
+    // Cell 2 drains within hollow A, so its area is not counted again.
+    [Fact]
+    public void Each_basin_takes_its_own_cells_area_and_the_area_gathered_by_each_cell_draining_into_it_from_outside_its_hollow()
+    {
+        Hollow[] hollows =
+        [
+            new([2, 3], [0, 1], 2, [new(0, 1, 1)], 4, [3], 1),
+            new([4], [0], 1, [], 5, [4], 0),
+        ];
+        int[] drainsTo = [1, 2, 3, 4, -1, 3];
+        double[] gatheredArea = [900, 1800, 2700, 4500, 5400, 900];
+
+        var entering = Hollows.AreaEnteringEachBasin(hollows, drainsTo, gatheredArea, 900);
+
+        entering.Should().HaveCount(2);
+        entering[0].Should().Equal(2700, 1800);
+        entering[1].Should().Equal(5400);
+    }
 }

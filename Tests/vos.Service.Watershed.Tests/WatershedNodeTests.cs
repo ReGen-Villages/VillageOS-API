@@ -475,6 +475,20 @@ public class WatershedNodeTests
     }
 
     [Fact]
+    public async Task A_design_storm_without_its_runoff_coefficient_multiplier_has_no_grid_written_and_the_other_storm_s_grids_are()
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(100);
+        model.Unstates(WatershedModel.OneInFiveYears, "runoffCoefficientMultiplier");
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().NotContain("runoffClassOneInFiveGrid")
+            .And.Contain("runoffClassOneInHundredGrid", "runoffClassOneInHundredBuiltOverGrid");
+    }
+
+    [Fact]
     public async Task A_corrected_runoff_input_on_the_study_changes_the_classes()
     {
         var model = ABowlWithRunoffVocabulary();

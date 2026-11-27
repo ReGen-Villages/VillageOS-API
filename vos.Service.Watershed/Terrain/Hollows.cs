@@ -35,6 +35,10 @@ public static class Hollows
         return hollows;
     }
 
+    public static IReadOnlyList<IReadOnlyList<double>> AreaEnteringEachBasin(
+        IReadOnlyList<Hollow> hollows, IReadOnlyList<int> drainsTo, IReadOnlyList<double> gatheredArea, double cellArea) =>
+        [.. hollows.Select(hollow => new double[hollow.Basins])];
+
     private static Hollow HollowOf(TerrainSurface surface, TerrainAnalysisResult analysed, List<int> cells)
     {
         var heights = surface.Heights;
@@ -169,6 +173,9 @@ public static class HollowWater
         foreach (var root in roots) Stand(root);
         return new HollowFill(depths, overflow);
     }
+
+    public static IReadOnlyList<double> InflowOfEachBasin(IReadOnlyList<double> areaEnteringEachBasin, double gathered) =>
+        [.. areaEnteringEachBasin.Select(_ => 0.0)];
 
     private static double LevelHolding(IEnumerable<double> heights, double depthSum)
     {

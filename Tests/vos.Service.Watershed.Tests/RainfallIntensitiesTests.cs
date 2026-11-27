@@ -33,4 +33,11 @@ public class RainfallIntensitiesTests
     [InlineData(2000, 1.93)]
     public void A_duration_outside_the_table_is_held_to_its_nearest_end(double minutes, double expected) =>
         Table(OneInFive).MillimetresPerHourOver(minutes).Should().BeApproximately(expected, 1e-9);
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(60)]
+    [InlineData(2000)]
+    public void A_table_holding_one_duration_reads_its_intensity_at_any_duration(double minutes) =>
+        new RainfallIntensities([new RainfallIntensity(60, 25.35)]).MillimetresPerHourOver(minutes).Should().Be(25.35);
 }

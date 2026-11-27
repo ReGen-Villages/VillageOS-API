@@ -160,6 +160,8 @@ public sealed class WatershedModel
     public void States(Guid thing, string property, double value) =>
         _things[thing].Properties[property] = new SnapshotProperty(JsonSerializer.SerializeToElement(value), "vos.Double", "Fact");
 
+    public void Unstates(Guid thing, string property) => _things[thing].Properties.Remove(property);
+
     public void HoldsRunoffVocabulary(bool siteIsInAPlace = true, bool holdsRunoffClasses = true)
     {
         foreach (var (id, name) in new[] { (IsIn, "isIn"), (AppliesIn, "appliesIn"), (ForStorm, "forStorm"), (AlternativeOf, "alternativeOf") })
