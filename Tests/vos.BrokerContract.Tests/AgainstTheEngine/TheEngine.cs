@@ -45,6 +45,8 @@ public sealed class TheEngine : IAsyncLifetime
 
     internal bool RetiresEachSecond { get; init; }
 
+    internal string? SeedFile { get; init; }
+
 #if !VOS_ENGINE_IS_STAGED
     public Task InitializeAsync() => throw new InvalidOperationException(
         "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
@@ -68,7 +70,7 @@ public sealed class TheEngine : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _host = RetiresEachSecond ? new HostRetiringEachSecond() : new MyceliumTestHost();
+        _host = RetiresEachSecond ? new HostRetiringEachSecond { SeedFile = SeedFile } : new MyceliumTestHost { SeedFile = SeedFile };
         await _host.InitializeAsync();
 
         var signingIn = _host.CreateClient();
