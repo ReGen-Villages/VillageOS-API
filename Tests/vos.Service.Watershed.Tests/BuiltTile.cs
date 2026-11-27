@@ -37,6 +37,7 @@ public sealed record BuiltTile
     public bool Stripped { get; init; }
     public bool GeoReferenced { get; init; } = true;
     public int PaddingBeforeTables { get; init; }
+    public int? PixelsInEachBlock { get; init; }
 
     public int BlocksAcross => (Width + BlockSize - 1) / BlockSize;
     public int BlocksDown => (Height + BlockSize - 1) / BlockSize;
@@ -160,7 +161,7 @@ public sealed record BuiltTile
                 pixels[row * BlockSize + column] = CodeAtRowAndColumn(firstRow + row, firstColumn + column);
         using var compressed = new MemoryStream();
         using (var deflate = new ZLibStream(compressed, CompressionLevel.Fastest))
-            deflate.Write(pixels);
+            deflate.Write(pixels.AsSpan(0, PixelsInEachBlock ?? pixels.Length));
         return compressed.ToArray();
     }
 

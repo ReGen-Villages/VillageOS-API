@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using FluentAssertions;
 using vos.Service.Watershed.LandCover;
 using vos.Service.Watershed.Terrain;
@@ -160,6 +161,66 @@ public class WorldCoverTileTests
         var open = () => WorldCoverTile.OpenAsync(new RangesOver(built.Build().Bytes).Read, CancellationToken.None);
 
         await open.Should().ThrowAsync<UnreadableTileException>().WithMessage($"*{named}*");
+    }
+
+    private static byte[] WithEntry(byte[] file, ushort tag, ushort? type = null, uint? count = null)
+    {
+        const int directoryStart = 8;
+        var patched = file.ToArray();
+        for (var index = 0; index < BinaryPrimitives.ReadUInt16LittleEndian(patched.AsSpan(directoryStart)); index++)
+        {
+            var at = directoryStart + 2 + 12 * index;
+            if (BinaryPrimitives.ReadUInt16LittleEndian(patched.AsSpan(at)) != tag) continue;
+            if (type is { } newType) BinaryPrimitives.WriteUInt16LittleEndian(patched.AsSpan(at + 2), newType);
+            if (count is { } newCount) BinaryPrimitives.WriteUInt32LittleEndian(patched.AsSpan(at + 4), newCount);
+        }
+        return patched;
+    }
+
+    [Fact]
+    public async Task A_tag_of_a_type_ESA_does_not_write_is_refused_by_name()
+    {
+        var file = WithEntry(ThreeBlocksByTwo.Build().Bytes, tag: 258, type: 2);
+
+        var open = () => WorldCoverTile.OpenAsync(new RangesOver(file).Read, CancellationToken.None);
+
+        await open.Should().ThrowAsync<UnreadableTileException>().WithMessage("*tag 258*type 2*");
+    }
+
+    [Fact]
+    public async Task Block_tables_that_do_not_hold_one_entry_for_each_block_are_refused()
+    {
+        var file = WithEntry(ThreeBlocksByTwo.Build().Bytes, tag: 324, count: 5);
+
+        var open = () => WorldCoverTile.OpenAsync(new RangesOver(file).Read, CancellationToken.None);
+
+        await open.Should().ThrowAsync<UnreadableTileException>().WithMessage("*5 and 6 blocks*");
+    }
+
+    [Fact]
+    public async Task A_file_that_ends_before_a_range_it_needs_is_refused()
+    {
+        var file = (ThreeBlocksByTwo with { PaddingBeforeTables = 2 * WorldCoverTile.FirstReadBytes }).Build().Bytes[..1000];
+
+        var open = () => WorldCoverTile.OpenAsync(new RangesOver(file).Read, CancellationToken.None);
+
+        await open.Should().ThrowAsync<UnreadableTileException>().WithMessage("*ends before*");
+    }
+
+    [Fact]
+    public async Task A_block_that_inflates_to_less_than_a_whole_block_is_refused_by_name()
+    {
+        var built = ThreeBlocksByTwo with { PixelsInEachBlock = 1000 };
+        var tile = await WorldCoverTile.OpenAsync(new RangesOver(built.Build().Bytes).Read, CancellationToken.None);
+
+        var read = async () =>
+        {
+            await foreach (var _ in tile.PixelsWithinAsync(built.CentreOf(1, 0).Latitude, built.West, built.North, built.CentreOf(0, 1).Longitude))
+            {
+            }
+        };
+
+        await read.Should().ThrowAsync<UnreadableTileException>().WithMessage("*block 0 holds 1000 pixels*");
     }
 
     [Fact]
