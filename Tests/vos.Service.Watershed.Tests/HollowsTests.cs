@@ -16,7 +16,7 @@ public class HollowsTests
 
     private static IReadOnlyList<Hollow> HollowsOf(TerrainSurface surface) => Hollows.Of(surface, TerrainAnalysis.Of(surface));
 
-    // The rim's four lowest cells, in the middle of each edge, are all 12 m high.
+    // Rim cells 4, 36, 44 and 76: 3 × 4 = 12 m, the lowest of the rim.
     [Fact]
     public void A_bowl_whose_rim_has_equally_low_cells_is_one_hollow_of_every_raised_cell()
     {
@@ -32,7 +32,7 @@ public class HollowsTests
         hollow.Exits.Should().NotBeEmpty().And.OnlyContain(exit => hollow.Cells.Contains(exit) && !hollow.Cells.Contains(analysed.DrainsTo[exit]));
     }
 
-    // The ridge cell halfway between the pits is 9 m high, below the rim's lowest cells at 12 m.
+    // Ridge cell (7, 4): 3 × 3 = 9 m; rim cell (0, 4): 3 × 4 = 12 m.
     [Fact]
     public void Two_pits_split_by_a_ridge_below_the_rim_are_one_hollow_of_two_basins_meeting_at_that_ridge()
     {

@@ -65,6 +65,13 @@ the class of highest order whose conditions hold, with all of one alternative's 
 that class's `gridCode`. A site in no Place with a table, or a model with no runoff class, gets no runoff grid. A
 table's intensities are reached along `has` by its name until the holding role replaces it (VillageOS 8417 and 8771).
 
+**Standing water** gathers at the bottom of each hollow, the touching cells the levelling raised. The hollow's water is
+the runoff leaving it, less what the hollows above it keep. Each pit inside it, split from the next by a ridge, fills
+from the area draining into it, spills across its lowest ridge once full, and shares one level with the pit beside it
+only once both are full to that ridge. Water past the hollow's spill level runs on from its lowest edge cell. A cell's
+standing depth is how far that level stands above it. This is on purpose unlike a method that counts only the runoff
+along each cell's own route, which puts water on a shelf the hollow's whole flow crosses.
+
 **Writes.** The site's grids, profiles and figures go as one batch of observations, each share's values as one batch
 on that share, and each site layer feature's figures as one batch on that feature. Because a batch is accepted before
 it is stored, Watershed reads one value of each batch back, every 250 ms for at most 15 s, before it writes

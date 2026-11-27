@@ -58,9 +58,8 @@ public class StormRunoffTests
     private static IEnumerable<int> Around(int column, int row, double cells) => Enumerable.Range(0, Side * Side)
         .Where(cell => Math.Sqrt(Math.Pow(cell % Side - column, 2) + Math.Pow(cell / Side - row, 2)) <= cells);
 
-    // The bowl spills at 30 m, and the whole grid, about 430 cells of 900 m², drains into it. An hour of 120 mm at
-    // C = 0.25 brings about 0.25 × 0.12 × 387,000 ≈ 11,600 m³. Over the middle (0 m), its four neighbours (3 m) and
-    // its four corners (4.24 m), 900 × (9L − 28.97) = 11,600 gives L ≈ 4.65 m, short of the next ring at 6 m.
+    // Spill 30 m; ≈ 430 cells × 900 m² drain in. 1 h × 120 mm/h × C 0.25: 0.25 × 0.12 × 387,000 ≈ 11,600 m³.
+    // Middle 0 m, sides 3 m, corners 4.24 m: 900 × (9L − 28.97) = 11,600 → L ≈ 4.65 m < 6 m, the next ring.
     [Fact]
     public void A_bowl_s_runoff_stands_at_its_bottom_and_a_cell_outside_the_border_has_no_class()
     {
@@ -70,15 +69,15 @@ public class StormRunoffTests
         Enumerable.Range(0, Side * Side).Where(cell => !Interior(cell)).Should().OnlyContain(cell => double.IsNaN(codes[cell]));
     }
 
-    // Six hours of 0.05 mm an hour bring 0.3 mm, about 0.25 × 0.0003 × 387,000 ≈ 29 m³, which stands 0.03 m over the
-    // middle. Rain this light takes about three and a half hours to cross the bowl, inside the six.
+    // 6 h × 0.05 mm/h = 0.3 mm; 0.25 × 0.0003 × 387,000 ≈ 29 m³ ≈ 0.03 m over the middle. Its time of concentration in
+    // this rain is about 3.5 h, under the 6 h floor.
     [Fact]
     public void A_bowl_in_too_little_rain_has_no_standing_water()
     {
         GridCodes(Bowl(), Rain(0.05), inputs: Inputs with { ShortestTimeOfConcentrationMinutes = 360 }).Should().NotContain(3);
     }
 
-    // The dug cell holds 540 m³, and well over 2,000 m³ reaches it, so it is full and the rest runs on down the floor.
+    // Store 0.6 × 900 = 540 m³; inflow over 2,000 m³.
     [Fact]
     public void A_full_dip_stands_to_its_pour_point_and_the_floor_below_it_is_still_a_flow_path()
     {
@@ -88,9 +87,8 @@ public class StormRunoffTests
         codes[At(Middle, 1)].Should().Be(2);
     }
 
-    // Three hours of 0.4 mm an hour bring 1.2 mm, 0.0003 m³ for each square metre at C = 0.25. Alone, the lower dip
-    // gathers about 300 cells, 81 m³, standing 0.09 m. Below a dip three cells up, which keeps the 67 m³ from its own
-    // 250 cells, the lower one gets about 14 m³ and stands 0.02 m.
+    // 3 h × 0.4 mm/h = 1.2 mm; × C 0.25 = 0.0003 m³/m². Lower dip alone: ≈ 300 cells × 900 × 0.0003 ≈ 81 m³ ≈ 0.09 m.
+    // Upper dip keeps ≈ 250 cells × 900 × 0.0003 ≈ 67 m³; the lower one gets ≈ 14 m³ ≈ 0.02 m.
     [Fact]
     public void A_dip_below_another_counts_only_the_water_the_upper_one_does_not_keep()
     {
