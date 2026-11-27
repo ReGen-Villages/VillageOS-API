@@ -33,14 +33,16 @@ public sealed class WatershedNode : DagNodeService
 
     private readonly TimeProvider _clock;
     private readonly GroundHeightReader _heights;
+    private readonly LandCoverReader _landCover;
     private readonly SubscriptionClient _snapshots;
 
     public WatershedNode(
         IHttpClientFactory httpClientFactory, ILogger<WatershedNode> logger, string myceliumUrl, GroundHeightReader heights,
-        TimeProvider clock, LaunchToken? launchToken = null, string? apiKey = null)
+        LandCoverReader landCover, TimeProvider clock, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey)
     {
         _heights = heights;
+        _landCover = landCover;
         _clock = clock;
         _snapshots = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey);
     }
