@@ -399,4 +399,97 @@ public class WatershedNodeTests
         response.Result.Should().Be(NodeResponse.Failed);
         response.Retry.Should().BeNull();
     }
+
+    private static readonly string EastHalfAndBeyond =
+        LayerGeometryTests.GeoJson("Polygon", new[] { LayerGeometryTests.Closed(At(0, -400), At(900, -400), At(900, 400), At(0, 400)) });
+
+    private static double[] At(double eastMetres, double northMetres) => LayerGeometryTests.At(eastMetres, northMetres);
+
+    private static Dictionary<string, JsonElement> FeatureBatch(WatershedModel model, Guid feature) =>
+        model.Observed.Should().ContainSingle(batch => batch.Thing == feature).Subject.Values;
+
+    [Fact]
+    public async Task A_shape_over_half_the_site_has_its_hectares_inside_share_of_the_site_and_distance_written()
+    {
+        var model = new WatershedModel(Border);
+        var feature = model.HoldsALayerFeature(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        var written = FeatureBatch(model, feature);
+        written.Keys.Should().BeEquivalentTo(["hectaresInside", "shareOfSitePercent", "distanceFromSiteMetres"]);
+        written["hectaresInside"].GetDouble().Should().BeApproximately(850 * 700 / 10000.0, 1e-6);
+        written["shareOfSitePercent"].GetDouble().Should().BeApproximately(50, 1e-6);
+        written["distanceFromSiteMetres"].GetDouble().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_line_has_only_its_metres_inside_whether_it_crosses_the_border_and_its_distance_written()
+    {
+        var model = new WatershedModel(Border);
+        var feature = model.HoldsALayerFeature(LayerGeometryTests.GeoJson("LineString", new[] { At(-900, 0), At(900, 0) }));
+
+        await RunAsync(model);
+
+        var written = FeatureBatch(model, feature);
+        written.Keys.Should().BeEquivalentTo(["metresInside", "crossesBorder", "distanceFromSiteMetres"]);
+        written["metresInside"].GetDouble().Should().BeApproximately(1700, 1e-6);
+        written["crossesBorder"].GetBoolean().Should().BeTrue();
+        written["distanceFromSiteMetres"].GetDouble().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_feature_whose_geometry_cannot_be_read_is_left_unwritten_and_the_others_are_written()
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource: false);
+        model.HoldsALayerFeature("""{"type":"Point","coordinates":[-30,40]}""");
+        var readable = model.HoldsALayerFeature(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.Observed.Select(batch => batch.Thing).Should().Equal(readable);
+    }
+
+    [Fact]
+    public async Task A_model_binding_no_heights_source_still_has_its_site_layer_features_worked_out_and_is_stamped()
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource: false);
+        var feature = model.HoldsALayerFeature(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.HeightCalls.Should().Be(0);
+        model.Observed.Select(batch => batch.Thing).Should().Equal(feature);
+        StampOf(model.Fragments.Single());
+    }
+
+    [Fact]
+    public async Task A_feature_batch_that_never_reads_back_fails_the_run_so_it_can_be_tried_again_and_writes_no_stamp()
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource: false) { DropsObservations = true };
+        model.HoldsALayerFeature(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_border_enclosing_no_area_has_no_site_layer_feature_worked_out_and_is_stamped()
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource: false);
+        model.StatesBoundary("""{"type":"Polygon","coordinates":[[[-30,40],[-29.99,40],[-29.98,40],[-30,40]]]}""");
+        model.HoldsALayerFeature(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.Observed.Should().BeEmpty();
+        StampOf(model.Fragments.Single());
+    }
 }

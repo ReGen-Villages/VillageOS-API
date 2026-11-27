@@ -18,6 +18,7 @@ public sealed class WatershedModel
     public static readonly Guid ParcelArchetype = Guid.NewGuid();
     public static readonly Guid SlopeClassShareArchetype = Guid.NewGuid();
     public static readonly Guid AspectShareArchetype = Guid.NewGuid();
+    public static readonly Guid SiteLayerFeatureArchetype = Guid.NewGuid();
     public static readonly Guid Study = Guid.NewGuid();
     public static readonly Guid Site = Guid.NewGuid();
     public static readonly Guid Parcel = Guid.NewGuid();
@@ -47,6 +48,8 @@ public sealed class WatershedModel
         Bind(LandIntakeRoles.Parcel, ParcelArchetype);
         Bind(LandIntakeRoles.SlopeClassShare, SlopeClassShareArchetype);
         Bind(LandIntakeRoles.AspectShare, AspectShareArchetype);
+        Thing(SiteLayerFeatureArchetype, "SiteLayerFeature", isArchetype: true);
+        Bind(LandIntakeRoles.SiteLayerFeature, SiteLayerFeatureArchetype);
         Thing(HeightsSource, HeightsSourceName);
         if (bindsAHeightsSource) Bind(LandIntakeRoles.BorderElevation, HeightsSource);
 
@@ -106,6 +109,18 @@ public sealed class WatershedModel
         var archetype = Guid.NewGuid();
         Thing(archetype, "AnotherShare", isArchetype: true);
         return Share(archetype, Term("another term", new() { ["atLeastPercent"] = 0 }));
+    }
+
+    public Guid HoldsALayerFeature(string geometry)
+    {
+        var id = Guid.NewGuid();
+        Thing(id, $"Willow Bend layer feature {id}", properties: new()
+        {
+            ["geometry"] = new(JsonDocument.Parse(geometry).RootElement.Clone(), "vos.GeoJson", "Fact"),
+        });
+        Relate(id, Is, SiteLayerFeatureArchetype);
+        Relate(Site, Has, id);
+        return id;
     }
 
     public HttpResponseMessage Answer(HttpRequestMessage request)
