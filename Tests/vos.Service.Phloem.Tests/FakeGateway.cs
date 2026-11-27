@@ -260,28 +260,6 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (Cadences) return Task.FromResult<IReadOnlyList<Cadence>>(Cadences.ToList());
     }
 
-    public RunsToJudge RunsJudged { get; set; } = new([], new KeepPeriods(null, null), new Dictionary<Guid, KeepPeriods>(), RunRetention.RunsPerLookOf(null));
-    public List<Guid> Cleared { get; } = new();
-    public List<Guid> AskedToClear { get; } = new();
-    public HashSet<Guid> RefusesToClear { get; } = new();
-
-    public int JudgingReadsThatFail { get; set; }
-
-    public Task<RunsToJudge> RunsToJudgeAsync(CancellationToken ct)
-    {
-        if (JudgingReadsThatFail <= 0) return Task.FromResult(RunsJudged);
-        JudgingReadsThatFail--;
-        return Task.FromException<RunsToJudge>(new HttpRequestException("the snapshot read failed"));
-    }
-
-    public Task<int> ClearRunAsync(Guid runId, CancellationToken ct)
-    {
-        lock (AskedToClear) AskedToClear.Add(runId);
-        if (RefusesToClear.Contains(runId)) return Task.FromException<int>(new HttpRequestException("refused"));
-        lock (Cleared) Cleared.Add(runId);
-        return Task.FromResult(3);
-    }
-
     public Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken ct)
     {
         if (LastDueFailure is { } failure) return Task.FromException(failure);

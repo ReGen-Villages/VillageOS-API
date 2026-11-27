@@ -54,7 +54,7 @@ public class PhloemRunsAreRetiredByTheBrokerTests : IClassFixture<TheEngineRetir
             await DeclareThePeriodAsync(await RelationshipAsync(runKind, retiredFrom, endedWell));
         }
 
-        var (token, _) = await _engine.ServiceAsync("pipeline engine");
+        var token = await _engine.ServiceTokenAsync("pipeline engine");
         return new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(token));
     }
 
