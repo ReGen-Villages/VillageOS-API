@@ -280,6 +280,18 @@ describe('resolvedWriteKind', () => {
       .toBeUndefined();
   });
 
+  it('does not walk past a value stored under an inherited name that declares nothing', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: null },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend', {
+      InheritedOverrides: stored('Site', { rainfallMillimetresPerYear: 700 }),
+    });
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBeUndefined();
+  });
+
   it('answers nothing for a property nothing holds', () => {
     expect(resolvedWriteKind(thing('s', 'Willow Bend'), 'absent', alone)).toBeUndefined();
   });
