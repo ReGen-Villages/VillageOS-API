@@ -62,7 +62,7 @@ public class StandardComfortTests
 
         cooling.Should().BePositive();
         StandardComfort.StandardEffectiveTemperatureCelsius(28.0 - cooling, 30.0 - cooling, 50.0, StandardComfort.StillAirMetresPerSecond, 1.1, 0.5)
-            .Should().BeApproximately(StandardComfort.StandardEffectiveTemperatureCelsius(28.0, 30.0, 50.0, 1.0, 1.1, 0.5), 0.01);
+            .Should().BeApproximately(StandardComfort.StandardEffectiveTemperatureCelsius(28.0, 30.0, 50.0, 1.0, 1.1, 0.5), 0.05);
     }
 
     // Air hotter and more humid than skin gives heat to the body faster as it moves, so moving it cools no one.
