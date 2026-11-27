@@ -74,6 +74,15 @@ public class DesignStrategiesTests
         comfortableOnly.Of(new HourTests(_strategies, 15.0, 50.0)).Should().BeNull();
     }
 
+    [Fact]
+    public void A_group_asking_a_test_to_fail_refuses_an_hour_that_passes_it()
+    {
+        var tooHumidOnly = TemplateGroups.Groups(
+            new DesignStrategyGroup(Guid.NewGuid(), "too humid", TemplateGroups.Tests((HourTests.HumidityRatioWithinLimit, false))));
+
+        tooHumidOnly.Of(new HourTests(_strategies, 25.0, 40.0)).Should().BeNull();
+    }
+
     private static string? GroupOf(DesignStrategies strategies, double airCelsius, double relativeHumidityPercent) =>
         TemplateGroups.Groups().Of(new HourTests(strategies, airCelsius, relativeHumidityPercent))?.Name;
 
