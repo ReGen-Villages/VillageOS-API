@@ -3,6 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RelationshipList } from './RelationshipList';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
 
+vi.mock('../../hooks/useResolvedRelationshipProperties', () => ({
+  useResolvedRelationshipProperties: () => ({
+    flowLitresPerSecond: { Value: 1.5, Type: 'vos.Double', IsInherited: false },
+    weight: { Value: 0.5, Type: 'vos.Double', IsInherited: false },
+  }),
+}));
+
 const things = new Map<string, VosThing>([
   ['s1', { Id: 's1', Name: 'Subject', Properties: {} }],
   ['p1', { Id: 'p1', Name: 'connects', Properties: {} }],
@@ -101,5 +108,21 @@ describe('RelationshipList', () => {
 
     fireEvent.click(screen.getByText('Subject'));
     expect(onSelectNode).toHaveBeenCalledWith('s1');
+  });
+
+  it('offers no control to change a relationship value taken from readings only', () => {
+    const measured: VosRelationship = {
+      ...relationship,
+      Properties: { flowLitresPerSecond: 1.5, weight: 0.5 },
+      PropertyWriteKinds: { flowLitresPerSecond: 'ObservationOnly' },
+    };
+    render(
+      <RelationshipList relationships={[measured]} direction="outgoing" allThings={things} onSelectNode={vi.fn()} editMode />,
+    );
+
+    fireEvent.click(screen.getAllByRole('button')[0]);
+
+    expect(screen.queryByLabelText('flowLitresPerSecond')).toBeNull();
+    expect(screen.getByLabelText('weight')).toBeInTheDocument();
   });
 });
