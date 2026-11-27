@@ -25,4 +25,8 @@
     <ProjectReference Include="..\..\vos.Service.Stomata\vos.Service.Stomata.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Recorded\ashrae-55-validation.json" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\ashrae-55-validation.LICENSE" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
 </Project>
