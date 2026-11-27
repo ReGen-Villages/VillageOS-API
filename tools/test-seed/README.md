@@ -32,7 +32,19 @@ Change the model by editing `build_seed.py`, run it, and commit the script and b
 | One property of each origin on `Ålvik north slope` | Stated, measured, assumed and unknown |
 | `surveysCatchment` | A connection a state starts, so a catchment awaiting a survey gets a call record |
 | `echo` | The same echo service at a subdomain, which the page's form and one choice post to |
-| The `Catchments` page | Every kind of binding the reader resolves, an action list whose choices come from the model, and a form |
+| The `Catchments` page | Every kind of binding the reader resolves, a form, and an action list whose choices come from the model plus three of its own: one states a value, one posts to `echo`, and one posts to `/api/operator-activity`, a platform route that refuses the body a page sends, so a press tool must refuse that choice before sending |
+| The `Service` kind | What the platform starts a service from, described below |
+
+The `Service` kind declares what the platform starts a service from: `ExecutablePathTemplate`, a port,
+arguments, and `AutoStart` false, so a test host that loads a seed starts nothing. The template is
+empty, because where a service is built depends on the machine. With it empty the platform builds no
+path and starts no service, so a call record the seed's connection writes stays `Pending`. Whoever runs
+the seed with a live service writes the template into its copy, as a deployment does, and the platform
+fills `{service}` from the prototype's `ServiceAssembly`. The echo service states its own port nested
+under its prototype and then the `Service` kind, the shape the platform reads for a name declared two
+kinds up. Once the template is written, the first call to the echo service starts it. Every service a
+connection binds is listed, so `GET api/mycelium/services` lists the echo service, reading `Unknown`
+until a start is tried, and while the template is empty there is no program for a start to run.
 
 `CatchmentsWithAnUnreadablePage.seed.json` is the same model plus a page whose description is not readable
 JSON, for tests of how an unreadable page is listed. The seed validator refuses that page by design, so

@@ -179,7 +179,8 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
   `has` its `Port` children (`portName` / `direction` / `type` / `required` / `collection`).
 - A **wire** is a Thing of the wire archetype that its node `has`. It reaches the node it feeds along
   `carries`, the out port it takes its value from along `inputConnector` and the in port it delivers to
-  along `outputConnector`, each predicate bound by a role of the same word, and carries `fromPath`,
+  along `outputConnector`. `carries` is bound by the `wirePredicate` role, and `inputConnector` and
+  `outputConnector` each by a role of their own word. The wire carries `fromPath`,
   `toPath`, `listTransform` and `itemTransform` and no port names. A wire drawn as a relationship
   between two nodes is refused.
 - A **stop node** `is` the stop kind, which the `pipelineStop` role binds, and holds no ports of its own:
