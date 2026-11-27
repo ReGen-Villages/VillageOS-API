@@ -1,0 +1,108 @@
+using System.Text.Json;
+using FluentAssertions;
+using vos.Service.Stomata.Services;
+using Xunit;
+
+namespace vos.Service.Stomata.Tests;
+
+// Each outline is a GeoJSON Polygon in the psychrometric chart's own units: air temperature across, humidity ratio up.
+public class ZoneOutlinesTests
+{
+    private readonly ZoneOutlines _outlines = new(StatedComfort.Strategies(), hottestCelsius: 45.0, mostHumidGramsPerKilogram: 20.0);
+
+    [Fact]
+    public void The_still_air_outline_runs_round_the_stated_zones_from_their_cool_dry_corner()
+    {
+        var ring = Ring(_outlines.ComfortInStillAir());
+
+        ring.Take(3).Should().Equal([20.0, 0.0], [28.0, 0.0], [28.0, 0.5]);
+        ring.TakeLast(2).Should().Equal([20.0, 0.5], [20.0, 0.0]);
+        ring.Should().OnlyContain(corner => corner[0] == 20.0 || corner[0] == 28.0);
+        ring.Max(corner => corner[1]).Should().Be(12.0);
+    }
+
+    [Fact]
+    public void The_moving_air_outline_runs_round_the_warmer_stated_zones()
+    {
+        Ring(_outlines.ComfortWithAirMovement()).Take(2).Should().Equal([23.0, 0.0], [31.0, 0.0]);
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryOutline))]
+    public void Every_outline_is_one_closed_ring_drawn_counter_clockwise(string outline)
+    {
+        var ring = Ring(Outline(outline)!);
+
+        ring[0].Should().Equal(ring[^1]);
+        SignedArea(ring).Should().BePositive();
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryOutline))]
+    public void The_same_inputs_give_the_same_text_twice(string outline)
+    {
+        var again = new ZoneOutlines(StatedComfort.Strategies(), hottestCelsius: 45.0, mostHumidGramsPerKilogram: 20.0);
+
+        Outline(outline, again).Should().Be(Outline(outline));
+    }
+
+    [Fact]
+    public void Every_corner_is_rounded_to_a_hundredth()
+    {
+        Ring(_outlines.DirectEvaporativeCooling()!).Should().OnlyContain(corner =>
+            corner.All(value => Math.Round(value, 2) == value));
+    }
+
+    // At 8 g/kg the direct zone starts a quarter degree above the summer zone's 28 °C and ends where the wet-bulb reaches
+    // that of the zone's hot, humid corner: 1.0209 t + 20.01 kJ/kg meets the corner's 58.6 kJ/kg near 37.8 °C.
+    [Fact]
+    public void The_direct_evaporative_outline_at_eight_grams_runs_from_above_the_summer_zone_to_the_hottest_comfortable_wet_bulb()
+    {
+        var row = Ring(_outlines.DirectEvaporativeCooling()!).Where(corner => corner[1] == 8.0).Select(corner => corner[0]).ToList();
+
+        row.Min().Should().Be(28.25);
+        row.Max().Should().BeInRange(37.5, 38.0);
+    }
+
+    [Fact]
+    public void Two_stage_cooling_reaches_hotter_air_than_direct_cooling_does()
+    {
+        Ring(_outlines.TwoStageEvaporativeCooling()!).Max(corner => corner[0])
+            .Should().BeGreaterThan(Ring(_outlines.DirectEvaporativeCooling()!).Max(corner => corner[0]));
+    }
+
+    [Fact]
+    public void A_site_never_warmer_than_the_summer_zone_has_no_evaporative_outline()
+    {
+        var mild = new ZoneOutlines(StatedComfort.Strategies(), hottestCelsius: 27.0, mostHumidGramsPerKilogram: 20.0);
+
+        mild.DirectEvaporativeCooling().Should().BeNull();
+        mild.TwoStageEvaporativeCooling().Should().BeNull();
+    }
+
+    public static TheoryData<string> EveryOutline() => new("still", "moving", "direct", "two-stage");
+
+    private string? Outline(string outline, ZoneOutlines? from = null)
+    {
+        var outlines = from ?? _outlines;
+        return outline switch
+        {
+            "still" => outlines.ComfortInStillAir(),
+            "moving" => outlines.ComfortWithAirMovement(),
+            "direct" => outlines.DirectEvaporativeCooling(),
+            _ => outlines.TwoStageEvaporativeCooling(),
+        };
+    }
+
+    private static List<double[]> Ring(string polygon)
+    {
+        using var document = JsonDocument.Parse(polygon);
+        document.RootElement.GetProperty("type").GetString().Should().Be("Polygon");
+        var rings = document.RootElement.GetProperty("coordinates");
+        rings.GetArrayLength().Should().Be(1);
+        return [.. rings[0].EnumerateArray().Select(corner => corner.EnumerateArray().Select(value => value.GetDouble()).ToArray())];
+    }
+
+    private static double SignedArea(List<double[]> ring) =>
+        ring.Zip(ring.Skip(1), (from, to) => from[0] * to[1] - to[0] * from[1]).Sum() / 2;
+}
