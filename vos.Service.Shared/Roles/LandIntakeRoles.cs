@@ -72,6 +72,14 @@ public static class LandIntakeRoles
     public static readonly Role Wgs84EllipsoidAreaMethod = new("wgs84EllipsoidAreaMethod", new("54961752-debb-572e-94b9-748a56921ba5"));
     public static readonly Role VerifiedRequestBudget = new("verifiedRequestBudget", new("f333535d-e10e-5ed6-b21f-9b9e1002f18f"));
     public static readonly Role UnverifiedRequestBudget = new("unverifiedRequestBudget", new("7d88b06c-605d-5d3f-8f4c-46c2801ecc1a"));
+    public static readonly Role RunoffClass = new("runoffClass", new("152196ea-969e-589f-bbce-8e2a0d358c4f"));
+    public static readonly Role RunoffClassAlternative = new("runoffClassAlternative", new("7e1b9c86-eeff-5955-b619-e0939d6f0fcd"));
+    public static readonly Role AlternativeOf = new("alternativeOf", new("991a1daf-7239-5d6f-9e1a-b1254a6b4c65"));
+    public static readonly Role DesignStorm = new("designStorm", new("b02b4a00-ff83-5434-8297-bce625291799"));
+    public static readonly Role RainfallTable = new("rainfallTable", new("427b2470-d7f5-5f5c-a920-4b2041dfd452"));
+    public static readonly Role RainfallIntensity = new("rainfallIntensity", new("90d71d24-ee08-52f3-b6c3-9c8f8db09400"));
+    public static readonly Role ForStorm = new("forStorm", new("1d927020-c97b-52bf-ae13-762800989a4e"));
+    public static readonly Role AppliesIn = new("appliesIn", new("ced2c68d-48f9-521d-a70b-bed43aa64e66"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -87,6 +95,7 @@ public static class LandIntakeRoles
         SlopeClass, SlopeClassShare, AspectDirection, AspectShare,
         MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
         VerifiedRequestBudget, UnverifiedRequestBudget,
+        RunoffClass, RunoffClassAlternative, AlternativeOf, DesignStorm, RainfallTable, RainfallIntensity, ForStorm, AppliesIn,
     ];
 
     // A request naming any other role is refused before the model is read, so a stranger's browser reaches only

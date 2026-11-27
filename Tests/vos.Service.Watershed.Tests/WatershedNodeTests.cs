@@ -389,6 +389,102 @@ public class WatershedNodeTests
         response.Retry.Should().NotBeNull();
     }
 
+    private static readonly string[] RunoffGrids =
+        ["runoffClassOneInFiveGrid", "runoffClassOneInHundredGrid", "runoffClassOneInHundredBuiltOverGrid"];
+
+    private static readonly double BorderLongitude = Border.Average(corner => corner.Longitude);
+
+    private static double BowlAt(Position point) => 100 + 2e6 * (
+        Math.Pow(point.Latitude - Border.Average(corner => corner.Latitude), 2) + Math.Pow(point.Longitude - BorderLongitude, 2));
+
+    private static double?[] Values(JsonElement grid) =>
+        [.. grid.GetProperty("values").EnumerateArray().Select(value => value.ValueKind == JsonValueKind.Null ? (double?)null : value.GetDouble())];
+
+    private static WatershedModel ABowlWithRunoffVocabulary(bool siteIsInAPlace = true, bool holdsRunoffClasses = true)
+    {
+        var model = new WatershedModel(Border) { HeightAt = BowlAt };
+        model.HoldsRunoffVocabulary(siteIsInAPlace, holdsRunoffClasses);
+        return model;
+    }
+
+    [Fact]
+    public async Task A_site_in_a_place_with_a_rain_table_has_its_three_runoff_grids_written_laid_out_as_its_height_grid()
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(100);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        var written = SiteBatch(model);
+        var heights = written["terrainHeightGrid"];
+        foreach (var name in RunoffGrids)
+        {
+            var grid = written[name];
+            foreach (var layout in new[] { "rows", "columns", "originLatitude", "originLongitude", "cellSizeMetres", "latitudeStepDegrees", "longitudeStepDegrees" })
+                grid.GetProperty(layout).GetDouble().Should().Be(heights.GetProperty(layout).GetDouble(), layout);
+            Values(grid).Where(value => value is not null).Should().NotBeEmpty()
+                .And.OnlyContain(value => WatershedModel.RunoffGridCodes.Contains((long)value!.Value));
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(1, false)]
+    public async Task The_table_used_east_of_a_longitude_is_chosen_for_a_site_east_of_it_and_the_other_for_a_site_west_of_it(
+        double degreesFromTheSite, bool eastTableChosen)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(0.001);
+        model.HoldsRainTable(500, appliesEastOfLongitude: BorderLongitude + degreesFromTheSite);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Contains(WatershedModel.StandingWaterGridCode).Should().Be(eastTableChosen);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task The_table_of_the_nearest_place_holding_one_is_used(bool theRegionHoldsATable, bool standingWater)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        if (theRegionHoldsATable) model.HoldsRainTable(0.001);
+        model.HoldsRainTable(500, appliesIn: WatershedModel.Country);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Contains(WatershedModel.StandingWaterGridCode).Should().Be(standingWater);
+    }
+
+    [Theory]
+    [InlineData("no place")]
+    [InlineData("no table")]
+    [InlineData("no runoff class")]
+    public async Task Without_a_place_a_table_or_a_runoff_class_no_runoff_grid_is_written_and_the_study_is_still_stamped(string missing)
+    {
+        var model = ABowlWithRunoffVocabulary(siteIsInAPlace: missing != "no place", holdsRunoffClasses: missing != "no runoff class");
+        if (missing != "no table") model.HoldsRainTable(100);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().Contain("terrainHeightGrid").And.NotContain(RunoffGrids);
+        StampOf(model.Fragments.Single());
+    }
+
+    [Fact]
+    public async Task A_corrected_runoff_input_on_the_study_changes_the_classes()
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(500);
+        model.States(WatershedModel.Study, "openGroundRunoffCoefficient", 1e-9);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Should().NotContain(WatershedModel.StandingWaterGridCode);
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("\"not-a-thing\"")]

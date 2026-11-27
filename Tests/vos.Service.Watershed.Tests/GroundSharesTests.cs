@@ -22,7 +22,7 @@ public class GroundSharesTests
     private static TerrainAnalysisResult Analysed(params (double Slope, double Aspect)[] cells) => new(
         [.. cells.Select(cell => cell.Slope)], [.. cells.Select(cell => cell.Aspect)], [.. cells.Select(_ => 0.0)],
         [.. cells.Select(_ => 0.0)], [.. Enumerable.Range(0, cells.Length)], 0.5,
-        new TerrainFigures(cells.Length * 0.5, 0, 0, 0, 0, 0, 0, 0, 0));
+        new TerrainFigures(cells.Length * 0.5, 0, 0, 0, 0, 0, 0, 0, 0), [.. cells.Select(_ => 0.0)], [.. cells.Select(_ => -1)]);
 
     [Fact]
     public void A_slope_is_in_the_class_whose_lower_bound_holds_it_and_whose_upper_bound_lies_above_it()

@@ -27,6 +27,30 @@ public sealed class WatershedModel
     public static readonly (double? AtLeast, double? Below)[] SlopeClassBounds = [(0, 2), (2, 5), (5, 10), (10, 20), (20, null)];
     public static readonly double?[] AspectCentres = [0, 45, 90, 135, 180, 225, 270, 315, null];
 
+    public static readonly Guid IsIn = Guid.NewGuid();
+    public static readonly Guid AppliesIn = Guid.NewGuid();
+    public static readonly Guid ForStorm = Guid.NewGuid();
+    public static readonly Guid AlternativeOf = Guid.NewGuid();
+    public static readonly Guid RunoffClassArchetype = Guid.NewGuid();
+    public static readonly Guid RunoffClassAlternativeArchetype = Guid.NewGuid();
+    public static readonly Guid DesignStormArchetype = Guid.NewGuid();
+    public static readonly Guid RainfallTableArchetype = Guid.NewGuid();
+    public static readonly Guid RainfallIntensityArchetype = Guid.NewGuid();
+    public static readonly Guid OneInFiveYears = Guid.NewGuid();
+    public static readonly Guid OneInHundredYears = Guid.NewGuid();
+    public static readonly Guid Region = Guid.NewGuid();
+    public static readonly Guid Country = Guid.NewGuid();
+    public const long StandingWaterGridCode = 3;
+    public static readonly long[] RunoffGridCodes = [0, 1, 2, StandingWaterGridCode];
+
+    public static readonly Dictionary<string, double> RunoffInputs = new()
+    {
+        ["openGroundRunoffCoefficient"] = 0.2, ["roofAndPavingRunoffCoefficient"] = 0.85, ["plantedGroundRunoffCoefficient"] = 0.15,
+        ["imperviousShareOfBuiltGround"] = 0.6, ["sheetFlowManningRoughness"] = 0.05, ["channelManningRoughness"] = 0.05,
+        ["shortestTimeOfConcentrationMinutes"] = 10, ["sheetFlowLengthMetres"] = 130, ["smallestOverlandSlope"] = 0.002,
+        ["smallestChannelSlope"] = 0.003,
+    };
+
     public IReadOnlyList<Guid> SlopeClassShares { get; }
     public IReadOnlyList<Guid> AspectShares { get; }
     public IReadOnlyList<Guid> SlopeClassTerms { get; }
@@ -100,6 +124,92 @@ public sealed class WatershedModel
 
     public void StatesBoundary(string stated) =>
         _things[Parcel].Properties["boundary"] = new SnapshotProperty(JsonDocument.Parse(stated).RootElement.Clone(), "vos.GeoJson", "Fact");
+
+    public void States(Guid thing, string property, double value) =>
+        _things[thing].Properties[property] = new SnapshotProperty(JsonSerializer.SerializeToElement(value), "vos.Double", "Fact");
+
+    public void HoldsRunoffVocabulary(bool siteIsInAPlace = true, bool holdsRunoffClasses = true)
+    {
+        foreach (var (id, name) in new[] { (IsIn, "isIn"), (AppliesIn, "appliesIn"), (ForStorm, "forStorm"), (AlternativeOf, "alternativeOf") })
+            Thing(id, name);
+        Bind(LandIntakeRoles.PlaceNesting, IsIn);
+        Bind(LandIntakeRoles.AppliesIn, AppliesIn);
+        Bind(LandIntakeRoles.ForStorm, ForStorm);
+        Bind(LandIntakeRoles.AlternativeOf, AlternativeOf);
+        foreach (var (id, name, role) in new[]
+                 {
+                     (RunoffClassArchetype, "RunoffClass", LandIntakeRoles.RunoffClass),
+                     (RunoffClassAlternativeArchetype, "RunoffClassAlternative", LandIntakeRoles.RunoffClassAlternative),
+                     (DesignStormArchetype, "DesignStorm", LandIntakeRoles.DesignStorm),
+                     (RainfallTableArchetype, "RainfallTable", LandIntakeRoles.RainfallTable),
+                     (RainfallIntensityArchetype, "RainfallIntensity", LandIntakeRoles.RainfallIntensity),
+                 })
+        {
+            Thing(id, name, isArchetype: true);
+            Bind(role, id);
+        }
+        foreach (var (id, name, years, multiplier) in new[] { (OneInFiveYears, "one in five", 5L, 1.0), (OneInHundredYears, "one in a hundred", 100L, 1.25) })
+        {
+            Thing(id, name);
+            _things[id].Properties["returnPeriodYears"] = new SnapshotProperty(JsonSerializer.SerializeToElement(years), "vos.LongInteger", "Fact");
+            States(id, "runoffCoefficientMultiplier", multiplier);
+            Relate(id, Is, DesignStormArchetype);
+        }
+
+        Thing(Region, "a region");
+        Thing(Country, "a country");
+        Relate(Region, IsIn, Country);
+        if (siteIsInAPlace) Relate(Site, IsIn, Region);
+
+        if (holdsRunoffClasses)
+        {
+            RunoffClass("no runoff", 1, 0, new());
+            RunoffClass("shallow runoff", 2, 1, new() { ["shareOfLargestFlowAtLeast"] = 0.05, ["catchmentAboveCells"] = 1.5 });
+            var flowPath = RunoffClass("flow path", 3, 2, new() { ["shareOfLargestFlowAtLeast"] = 0.05, ["catchmentAboveCells"] = 1.5 });
+            foreach (var (name, condition) in new[] { ("deeper", "flowDepthAboveMetres"), ("faster", "depthTimesVelocityAboveSquareMetresPerSecond") })
+            {
+                var alternative = Guid.NewGuid();
+                Thing(alternative, $"flow path {name}");
+                States(alternative, condition, 0.3);
+                Relate(alternative, Is, RunoffClassAlternativeArchetype);
+                Relate(alternative, AlternativeOf, flowPath);
+            }
+            RunoffClass("standing water", 4, StandingWaterGridCode, new() { ["hollowAtLeastMetres"] = 0.5, ["standingWaterAtLeastMetres"] = 0.05 });
+        }
+
+        foreach (var (property, value) in RunoffInputs) States(Study, property, value);
+    }
+
+    public void HoldsRainTable(double millimetresPerHour, double? appliesEastOfLongitude = null, Guid? appliesIn = null)
+    {
+        var table = Guid.NewGuid();
+        Thing(table, $"a rain table of {millimetresPerHour} mm/h");
+        if (appliesEastOfLongitude is { } longitude) States(table, "appliesEastOfLongitude", longitude);
+        Relate(table, Is, RainfallTableArchetype);
+        Relate(table, AppliesIn, appliesIn ?? Region);
+        foreach (var storm in new[] { OneInFiveYears, OneInHundredYears })
+        foreach (var minutes in new[] { 5.0, 1440 })
+        {
+            var intensity = Guid.NewGuid();
+            Thing(intensity, $"{millimetresPerHour} mm/h over {minutes} minutes");
+            States(intensity, "durationMinutes", minutes);
+            States(intensity, "millimetresPerHour", millimetresPerHour);
+            Relate(intensity, Is, RainfallIntensityArchetype);
+            Relate(table, Has, intensity);
+            Relate(intensity, ForStorm, storm);
+        }
+    }
+
+    private Guid RunoffClass(string name, long order, long gridCode, Dictionary<string, double> conditions)
+    {
+        var id = Guid.NewGuid();
+        Thing(id, name);
+        _things[id].Properties["order"] = new SnapshotProperty(JsonSerializer.SerializeToElement(order), "vos.LongInteger", "Fact");
+        _things[id].Properties["gridCode"] = new SnapshotProperty(JsonSerializer.SerializeToElement(gridCode), "vos.LongInteger", "Fact");
+        foreach (var (condition, value) in conditions) States(id, condition, value);
+        Relate(id, Is, RunoffClassArchetype);
+        return id;
+    }
 
     public Guid HoldsAShareOfAnotherKind()
     {

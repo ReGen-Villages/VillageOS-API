@@ -9,7 +9,8 @@ public sealed record TerrainFigures(
 
 public sealed record TerrainAnalysisResult(
     IReadOnlyList<double> SlopePercent, IReadOnlyList<double> AspectDegrees, IReadOnlyList<double> DrainageAreaHectares,
-    IReadOnlyList<double> HollowDepthMetres, IReadOnlyList<int> CellsCounted, double CellHectares, TerrainFigures Figures);
+    IReadOnlyList<double> HollowDepthMetres, IReadOnlyList<int> CellsCounted, double CellHectares, TerrainFigures Figures,
+    IReadOnlyList<double> FilledHeights, IReadOnlyList<int> DrainsTo);
 
 public static class TerrainAnalysis
 {
@@ -43,7 +44,7 @@ public static class TerrainAnalysis
             LowestCell: lowestCell);
 
         return new TerrainAnalysisResult(
-            slope, aspect, [.. drainageCells.Select(cells => cells * cellHectares)], hollowDepth, counted, cellHectares, figures);
+            slope, aspect, [.. drainageCells.Select(cells => cells * cellHectares)], hollowDepth, counted, cellHectares, figures, [], []);
     }
 
     private static (double[] Slope, double[] Aspect) SlopeAndAspectByHornsKernel(TerrainSurface surface)

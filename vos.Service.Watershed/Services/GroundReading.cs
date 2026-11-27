@@ -12,7 +12,8 @@ public sealed record GroundReading(
     IReadOnlyList<SlopeClassBand> SlopeClasses, IReadOnlyList<AspectSector> Aspects, IReadOnlyDictionary<Guid, Guid> ShareAssessing)
 {
     public const string BoundaryProperty = "boundary";
-    private const string Has = "has";
+    // Read by name until the holding role replaces it (VillageOS 8417, bound by 8771's template).
+    public const string Has = "has";
 
     private static readonly Role[] Roles =
     [
