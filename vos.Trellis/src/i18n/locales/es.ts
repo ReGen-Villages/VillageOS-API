@@ -1209,6 +1209,7 @@ export const es: PartialResources = {
       saveFailed: "Error al guardar",
       typeLabel: "Tipo de propiedad",
       writtenByIngest: "escrito por la importación",
+      takesReadingsOnly: "tomado de las lecturas, no se edita a mano",
       rejected: {
         wholeNumber: "{{name}} contiene un número entero — {{value}} no lo es",
         number: "{{name}} contiene un número — {{value}} no lo es",

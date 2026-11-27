@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { X, Copy, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { CopyIdButton, EditModeToggle } from './DetailPanelControls';
 import { EditablePropertyList } from './EditablePropertyList';
-import { withDeclaredTypes, type EditableProperty } from './editableProperties';
+import { thingTakesReadingsOnly, withDeclaredTypes, type EditableProperty } from './editableProperties';
+import { useModelIndex } from '../../hooks/useDashboard';
 import { RelationshipList } from './RelationshipList';
 import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
@@ -81,7 +82,8 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const [propertiesVersion, setPropertiesVersion] = useState(0);
   const ownProperties = thing.Properties ? Object.entries(thing.Properties) : [];
   const ownPropertyCount = ownProperties.length;
-  const props = withDeclaredTypes(ownProperties, effectiveProperties);
+  const takesReadingsOnly = thingTakesReadingsOnly(thing, useModelIndex());
+  const props = withDeclaredTypes(ownProperties, effectiveProperties, takesReadingsOnly);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +178,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
 
             {effectiveProperties && <InheritedPropertiesSection
               effectiveProperties={effectiveProperties}
+              takesReadingsOnly={takesReadingsOnly}
               allThings={allThings}
               onSelectNode={onSelectNode}
               onExpandValue={handleExpandValue}
@@ -325,8 +328,9 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   );
 }
 
-function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
+function InheritedPropertiesSection({ effectiveProperties, takesReadingsOnly, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
   effectiveProperties: Record<string, EffectiveProperty>;
+  takesReadingsOnly: (name: string) => boolean;
   allThings: Map<string, VosThing>;
   onSelectNode: (id: string) => void;
   onExpandValue: (name: string, value: string) => void;
@@ -347,7 +351,9 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
     if (!bySource.has(sourceId)) {
       bySource.set(sourceId, { name: allThings.get(sourceId)?.Name || formatGuid(sourceId), props: [] });
     }
-    bySource.get(sourceId)!.props.push({ name, value: effectiveProperty.Value, type: effectiveProperty.Type });
+    bySource.get(sourceId)!.props.push({
+      name, value: effectiveProperty.Value, type: effectiveProperty.Type, takesReadingsOnly: takesReadingsOnly(name),
+    });
   }
 
   const toggleSource = (id: string) => setExpandedSources((previous) => toggled(previous, id));
