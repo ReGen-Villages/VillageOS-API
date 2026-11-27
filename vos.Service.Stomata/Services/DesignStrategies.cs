@@ -17,8 +17,8 @@ public sealed record ComfortAssumptions(
     double IndirectEvaporativeStageShare,
     double PressureKilopascals);
 
-// The tests an hour is put to are the Climate Consultant psychrometric chart's, as the site-study demo ports them; the groups
-// that ask them, and their order, are the model's.
+// The tests an hour is put to are the Climate Consultant psychrometric chart's; the groups that ask them, and their order, are
+// the model's.
 public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions assumptions)
 {
     private const double ComfortableVote = 0.5;
