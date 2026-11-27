@@ -17,8 +17,8 @@ public class ZoneOutlinesTests
     {
         var ring = Ring(_outlines.ComfortInStillAir());
 
-        ring.Take(3).Should().Equal([20.0, 0.0], [28.0, 0.0], [28.0, 0.5]);
-        ring.TakeLast(2).Should().Equal([20.0, 0.5], [20.0, 0.0]);
+        Corners(ring.Take(3)).Should().Equal((20.0, 0.0), (28.0, 0.0), (28.0, 0.5));
+        Corners(ring.TakeLast(2)).Should().Equal((20.0, 0.5), (20.0, 0.0));
         ring.Should().OnlyContain(corner => corner[0] == 20.0 || corner[0] == 28.0);
         ring.Max(corner => corner[1]).Should().Be(12.0);
     }
@@ -26,7 +26,7 @@ public class ZoneOutlinesTests
     [Fact]
     public void The_moving_air_outline_runs_round_the_warmer_stated_zones()
     {
-        Ring(_outlines.ComfortWithAirMovement()).Take(2).Should().Equal([23.0, 0.0], [31.0, 0.0]);
+        Corners(Ring(_outlines.ComfortWithAirMovement()).Take(2)).Should().Equal((23.0, 0.0), (31.0, 0.0));
     }
 
     [Theory]
@@ -66,12 +66,17 @@ public class ZoneOutlinesTests
         row.Max().Should().BeInRange(37.5, 38.0);
     }
 
+    // In dry air both reach the site's hottest hour, so the two are compared where direct cooling stops short of it.
     [Fact]
-    public void Two_stage_cooling_reaches_hotter_air_than_direct_cooling_does()
+    public void Two_stage_cooling_reaches_hotter_air_than_direct_cooling_does_at_eight_grams()
     {
-        Ring(_outlines.TwoStageEvaporativeCooling()).Max(corner => corner[0])
-            .Should().BeGreaterThan(Ring(_outlines.DirectEvaporativeCooling()).Max(corner => corner[0]));
+        Warmest(_outlines.TwoStageEvaporativeCooling(), 8.0).Should().BeGreaterThan(Warmest(_outlines.DirectEvaporativeCooling(), 8.0));
     }
+
+    private static IEnumerable<(double, double)> Corners(IEnumerable<double[]> corners) => corners.Select(corner => (corner[0], corner[1]));
+
+    private static double Warmest(string outline, double humidityRatio) =>
+        Ring(outline).Where(corner => corner[1] == humidityRatio).Max(corner => corner[0]);
 
     [Fact]
     public void A_site_never_warmer_than_the_summer_zone_has_empty_evaporative_outlines()

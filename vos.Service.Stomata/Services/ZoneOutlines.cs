@@ -23,7 +23,7 @@ public sealed class ZoneOutlines(
 
     private string Comfort(double airSpeedMetresPerSecond)
     {
-        var rows = HumidityRows(HumidityStep, strategies.Assumptions.HumidityRatioLimitGramsPerKilogram)
+        var rows = HumidityRows(0, strategies.Assumptions.HumidityRatioLimitGramsPerKilogram)
             .Select(humidityRatio =>
             {
                 var (cool, warm) = strategies.ZoneAt(humidityRatio, airSpeedMetresPerSecond);
