@@ -64,6 +64,8 @@ public sealed class WatershedNode : DagNodeService
             List<(Guid Thing, string Property, double Value)> written = [];
             if (ground.HeightsSource is { } source)
                 written.AddRange(await WorkOutAsync(ground, border, source, cancellationToken));
+            if (ground.LandCoverTileAddress is { } tileAddress && ground.LandCoverClasses.Count > 0)
+                written.AddRange(await CoverLandAsync(ground, border, tileAddress, cancellationToken));
             written.AddRange(await CoverSiteLayersAsync(ground.LayerFeatures, border, cancellationToken));
             if (written.Count > 0)
                 await ReadBackAsync(written, cancellationToken);
@@ -130,6 +132,22 @@ public sealed class WatershedNode : DagNodeService
         {
             await RecordAsync(ground.ShareAssessing[share.Term], new Dictionary<string, object> { [SharePercent] = share.SharePercent }, cancellationToken);
             written.Add((ground.ShareAssessing[share.Term], SharePercent, share.SharePercent));
+        }
+        return written;
+    }
+
+    private async Task<IReadOnlyList<(Guid Thing, string Property, double Value)>> CoverLandAsync(
+        GroundReading ground, IReadOnlyList<Position> border, string tileAddress, CancellationToken cancellationToken)
+    {
+        List<(Guid Thing, string Property, double Value)> written = [];
+        foreach (var share in await _landCover.SharesAsync(tileAddress, border, ground.LandCoverClasses, cancellationToken))
+        {
+            var shareThing = ground.ShareAssessing[share.Term];
+            await RecordAsync(shareThing, new Dictionary<string, object>
+            {
+                [SharePercent] = share.SharePercent, ["areaHectares"] = share.AreaHectares, ["pixelCount"] = share.PixelCount,
+            }, cancellationToken);
+            written.Add((shareThing, SharePercent, share.SharePercent));
         }
         return written;
     }
