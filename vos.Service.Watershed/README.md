@@ -83,5 +83,10 @@ the range that started the run.
 failure the orchestrator may try again, and the stamp is not written. Any other refusal by the provider, or an
 answer holding fewer heights than points asked, fails the run.
 
+**Times.** Each run logs, at information level, how many milliseconds and calls each part took: the model read, the
+height calls, the land cover read, the observation writes, the read back, the pauses between read backs and the stamp.
+It also logs the run's total, which includes the computing between calls. A run that stops part way, cancelled or
+failed, still logs them and names the part it was in.
+
 Mycelium launches it on the port its service Thing names, the first time a pipeline calls the connection that
 reaches it. The deploy's build of the services checkout builds it with the rest of the solution.
