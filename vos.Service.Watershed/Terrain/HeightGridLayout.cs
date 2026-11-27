@@ -55,22 +55,9 @@ public sealed class HeightGridLayout
         var originLongitude = middle.Longitude - (columns - 1) / 2.0 * longitudeStep;
 
         var outline = border.Select(corner => (
-            Column: (corner.Longitude - originLongitude) / longitudeStep, Row: (corner.Latitude - originLatitude) / latitudeStep)).ToArray();
-        var inside = Enumerable.Range(0, rows * columns).Select(cell => EnclosesByCountingCrossings(outline, cell % columns, cell / columns)).ToArray();
+            Across: (corner.Longitude - originLongitude) / longitudeStep, Up: (corner.Latitude - originLatitude) / latitudeStep)).ToArray();
+        var inside = Enumerable.Range(0, rows * columns).Select(cell => Crossings.Encloses(outline, cell % columns, cell / columns)).ToArray();
 
         return new HeightGridLayout(columns, rows, cell, originLatitude, originLongitude, latitudeStep, longitudeStep, inside);
-    }
-
-    private static bool EnclosesByCountingCrossings((double Column, double Row)[] outline, int column, int row)
-    {
-        var enclosed = false;
-        for (int corner = 0, previous = outline.Length - 1; corner < outline.Length; previous = corner++)
-        {
-            var (here, there) = (outline[corner], outline[previous]);
-            if ((here.Row > row) != (there.Row > row)
-                && column < (there.Column - here.Column) * (row - here.Row) / (there.Row - here.Row) + here.Column)
-                enclosed = !enclosed;
-        }
-        return enclosed;
     }
 }
