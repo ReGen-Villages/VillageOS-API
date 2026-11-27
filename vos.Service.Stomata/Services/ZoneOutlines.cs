@@ -5,18 +5,24 @@ namespace vos.Service.Stomata.Services;
 
 // Each outline is a GeoJSON Polygon in the psychrometric chart's own units, air temperature across and humidity ratio up,
 // written with a fixed corner order and rounding so that the same inputs give the same text.
-public sealed class ZoneOutlines(DesignStrategies strategies, double hottestCelsius, double mostHumidGramsPerKilogram)
+public sealed class ZoneOutlines(
+    DesignStrategies strategies, IReadOnlyCollection<(double Celsius, double HumidityRatioGramsPerKilogram)> observed)
 {
+    public const string EmptyPolygon = """{"type":"Polygon","coordinates":[]}""";
+
     private const double HumidityStep = 0.5;
     private const double TemperatureStep = 0.25;
+
+    private readonly double _hottestCelsius = observed.Max(hour => hour.Celsius);
+    private readonly double _mostHumidGramsPerKilogram = observed.Max(hour => hour.HumidityRatioGramsPerKilogram);
 
     public string ComfortInStillAir() => Comfort(strategies.Assumptions.StillAirMetresPerSecond);
 
     public string ComfortWithAirMovement() => Comfort(strategies.Assumptions.AirMovementMetresPerSecond);
 
-    public string? DirectEvaporativeCooling() => Evaporative(strategies.DirectEvaporationWorks);
+    public string DirectEvaporativeCooling() => Evaporative(strategies.DirectEvaporationWorks);
 
-    public string? TwoStageEvaporativeCooling() => Evaporative(strategies.TwoStageEvaporationWorks);
+    public string TwoStageEvaporativeCooling() => Evaporative(strategies.TwoStageEvaporationWorks);
 
     private string Comfort(double airSpeedMetresPerSecond)
     {
@@ -30,10 +36,10 @@ public sealed class ZoneOutlines(DesignStrategies strategies, double hottestCels
         return Polygon(rows);
     }
 
-    private string? Evaporative(Func<double, double, bool> works)
+    private string Evaporative(Func<double, double, bool> works)
     {
         var rows = new List<(double HumidityRatio, double Cool, double Warm)>();
-        foreach (var humidityRatio in HumidityRows(HumidityStep, mostHumidGramsPerKilogram))
+        foreach (var humidityRatio in HumidityRows(HumidityStep, _mostHumidGramsPerKilogram))
         {
             var reached = Temperatures()
                 .Where(celsius => Psychrometrics.RelativeHumidityPercent(celsius, humidityRatio, strategies.Assumptions.PressureKilopascals) < 100
@@ -42,12 +48,12 @@ public sealed class ZoneOutlines(DesignStrategies strategies, double hottestCels
                 .ToList();
             if (reached.Count > 0) rows.Add((humidityRatio, reached[0], reached[^1]));
         }
-        return rows.Count > 1 ? Polygon(rows) : null;
+        return rows.Count > 1 ? Polygon(rows) : "";
     }
 
     private IEnumerable<double> Temperatures()
     {
-        for (var step = 0; step * TemperatureStep <= hottestCelsius; step++) yield return step * TemperatureStep;
+        for (var step = 0; step * TemperatureStep <= _hottestCelsius; step++) yield return step * TemperatureStep;
     }
 
     private static IEnumerable<double> HumidityRows(double from, double to)

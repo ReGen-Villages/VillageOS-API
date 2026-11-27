@@ -8,7 +8,9 @@ namespace vos.Service.Stomata.Tests;
 // Each outline is a GeoJSON Polygon in the psychrometric chart's own units: air temperature across, humidity ratio up.
 public class ZoneOutlinesTests
 {
-    private readonly ZoneOutlines _outlines = new(StatedComfort.Strategies(), hottestCelsius: 45.0, mostHumidGramsPerKilogram: 20.0);
+    private static readonly (double, double)[] HotAndHumid = [(45.0, 6.0), (30.0, 20.0)];
+
+    private readonly ZoneOutlines _outlines = new(StatedComfort.Strategies(), HotAndHumid);
 
     [Fact]
     public void The_still_air_outline_runs_round_the_stated_zones_from_their_cool_dry_corner()
@@ -31,7 +33,7 @@ public class ZoneOutlinesTests
     [MemberData(nameof(EveryOutline))]
     public void Every_outline_is_one_closed_ring_drawn_counter_clockwise(string outline)
     {
-        var ring = Ring(Outline(outline)!);
+        var ring = Ring(Outline(outline));
 
         ring[0].Should().Equal(ring[^1]);
         SignedArea(ring).Should().BePositive();
@@ -41,7 +43,7 @@ public class ZoneOutlinesTests
     [MemberData(nameof(EveryOutline))]
     public void The_same_inputs_give_the_same_text_twice(string outline)
     {
-        var again = new ZoneOutlines(StatedComfort.Strategies(), hottestCelsius: 45.0, mostHumidGramsPerKilogram: 20.0);
+        var again = new ZoneOutlines(StatedComfort.Strategies(), HotAndHumid);
 
         Outline(outline, again).Should().Be(Outline(outline));
     }
@@ -49,7 +51,7 @@ public class ZoneOutlinesTests
     [Fact]
     public void Every_corner_is_rounded_to_a_hundredth()
     {
-        Ring(_outlines.DirectEvaporativeCooling()!).Should().OnlyContain(corner =>
+        Ring(_outlines.DirectEvaporativeCooling()).Should().OnlyContain(corner =>
             corner.All(value => Math.Round(value, 2) == value));
     }
 
@@ -58,7 +60,7 @@ public class ZoneOutlinesTests
     [Fact]
     public void The_direct_evaporative_outline_at_eight_grams_runs_from_above_the_summer_zone_to_the_hottest_comfortable_wet_bulb()
     {
-        var row = Ring(_outlines.DirectEvaporativeCooling()!).Where(corner => corner[1] == 8.0).Select(corner => corner[0]).ToList();
+        var row = Ring(_outlines.DirectEvaporativeCooling()).Where(corner => corner[1] == 8.0).Select(corner => corner[0]).ToList();
 
         row.Min().Should().Be(28.25);
         row.Max().Should().BeInRange(37.5, 38.0);
@@ -67,22 +69,33 @@ public class ZoneOutlinesTests
     [Fact]
     public void Two_stage_cooling_reaches_hotter_air_than_direct_cooling_does()
     {
-        Ring(_outlines.TwoStageEvaporativeCooling()!).Max(corner => corner[0])
-            .Should().BeGreaterThan(Ring(_outlines.DirectEvaporativeCooling()!).Max(corner => corner[0]));
+        Ring(_outlines.TwoStageEvaporativeCooling()).Max(corner => corner[0])
+            .Should().BeGreaterThan(Ring(_outlines.DirectEvaporativeCooling()).Max(corner => corner[0]));
     }
 
     [Fact]
-    public void A_site_never_warmer_than_the_summer_zone_has_no_evaporative_outline()
+    public void A_site_never_warmer_than_the_summer_zone_has_empty_evaporative_outlines()
     {
-        var mild = new ZoneOutlines(StatedComfort.Strategies(), hottestCelsius: 27.0, mostHumidGramsPerKilogram: 20.0);
+        var mild = new ZoneOutlines(StatedComfort.Strategies(), [(27.0, 20.0)]);
 
-        mild.DirectEvaporativeCooling().Should().BeNull();
-        mild.TwoStageEvaporativeCooling().Should().BeNull();
+        mild.DirectEvaporativeCooling().Should().Be(ZoneOutlines.EmptyPolygon);
+        mild.TwoStageEvaporativeCooling().Should().Be(ZoneOutlines.EmptyPolygon);
+    }
+
+    [Fact]
+    public void A_site_with_no_hours_has_empty_evaporative_outlines_and_the_comfort_outlines_its_inputs_give()
+    {
+        var unrecorded = new ZoneOutlines(StatedComfort.Strategies(), []);
+
+        unrecorded.DirectEvaporativeCooling().Should().Be(ZoneOutlines.EmptyPolygon);
+        unrecorded.TwoStageEvaporativeCooling().Should().Be(ZoneOutlines.EmptyPolygon);
+        unrecorded.ComfortInStillAir().Should().Be(_outlines.ComfortInStillAir());
+        unrecorded.ComfortWithAirMovement().Should().Be(_outlines.ComfortWithAirMovement());
     }
 
     public static TheoryData<string> EveryOutline() => new("still", "moving", "direct", "two-stage");
 
-    private string? Outline(string outline, ZoneOutlines? from = null)
+    private string Outline(string outline, ZoneOutlines? from = null)
     {
         var outlines = from ?? _outlines;
         return outline switch

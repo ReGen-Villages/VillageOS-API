@@ -23,6 +23,15 @@ public class DesignStrategiesTests
         _strategies.Of(airCelsius, relativeHumidityPercent).Should().Be(group);
     }
 
+    // At 1.6 met the summer zones are five degrees cooler: 19–23 °C in still air and 22–26 °C at 1 m/s.
+    [Fact]
+    public void A_higher_metabolic_rate_moves_an_hour_from_comfortable_as_it_is_to_needing_air_movement()
+    {
+        var active = new DesignStrategies(new StatedComfort(), StatedComfort.Assumptions with { MetabolicRateMet = 1.6 });
+
+        active.Of(25.0, 40.0).Should().Be(DesignStrategy.WithAirMovement);
+    }
+
     [Fact]
     public void The_hottest_comfortable_wet_bulb_is_that_of_the_summer_zones_hot_humid_corner()
     {

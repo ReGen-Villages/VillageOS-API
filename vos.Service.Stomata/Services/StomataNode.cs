@@ -29,6 +29,28 @@ public sealed class StomataNode : DagNodeService
     public const string WindDirectionSeries = "windDirectionDegrees";
     public const string ParticulateMatterTenSeries = "particulateMatterTenMicrogramsPerCubicMetre";
     public const string ParticulateMatterTwoAndAHalfSeries = "particulateMatterTwoAndAHalfMicrogramsPerCubicMetre";
+    public const string DesignStrategyGroupReading = "designStrategyGroup";
+    public const string MetabolicRate = "metabolicRateMet";
+    public const string SummerClothing = "summerClothingClo";
+    public const string WinterClothing = "winterClothingClo";
+    public const string StillAirSpeed = "stillAirMetresPerSecond";
+    public const string AirMovementSpeed = "airMovementMetresPerSecond";
+    public const string ComfortHumidityRatioLimit = "comfortHumidityRatioLimitGramsPerKilogram";
+    public const string IndirectEvaporativeStageShare = "indirectEvaporativeStageShare";
+    public const string ComfortInStillAirOutline = "comfortZoneInStillAirOutline";
+    public const string ComfortWithAirMovementOutline = "comfortZoneWithAirMovementOutline";
+    public const string DirectEvaporativeCoolingOutline = "directEvaporativeCoolingOutline";
+    public const string TwoStageEvaporativeCoolingOutline = "twoStageEvaporativeCoolingOutline";
+
+    public static readonly IReadOnlyList<string> ComfortInputs =
+    [
+        MetabolicRate, SummerClothing, WinterClothing, StillAirSpeed, AirMovementSpeed, ComfortHumidityRatioLimit, IndirectEvaporativeStageShare,
+    ];
+
+    public static readonly IReadOnlyList<string> Outlines =
+    [
+        ComfortInStillAirOutline, ComfortWithAirMovementOutline, DirectEvaporativeCoolingOutline, TwoStageEvaporativeCoolingOutline,
+    ];
 
     private const string ServiceName = "Stomata";
 
@@ -36,12 +58,16 @@ public sealed class StomataNode : DagNodeService
         "Stomata works out the SiteStudy on its 'subject' input: its identifier, or an object naming it by \"id\".";
 
     private readonly SubscriptionClient _snapshots;
+    private readonly IThermalComfort _comfort;
 
     public StomataNode(
-        IHttpClientFactory httpClientFactory, ILogger<StomataNode> logger, string myceliumUrl,
+        IHttpClientFactory httpClientFactory, ILogger<StomataNode> logger, string myceliumUrl, IThermalComfort comfort,
         LaunchToken? launchToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey) =>
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey)
+    {
         _snapshots = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey);
+        _comfort = comfort;
+    }
 
     public override IReadOnlyList<PortDescriptor> Ports { get; } =
     [
