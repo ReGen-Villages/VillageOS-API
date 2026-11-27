@@ -86,6 +86,14 @@ public class StandardComfortTests
         StandardComfort.CoolingEffectCelsius(44.0, 44.0, 90.0, 1.0, 1.1, 0.5, SeaLevelKilopascals).Should().Be(0.0);
     }
 
+    // pythermalcomfort v3.4.3 documents 1.68 in models/cooling_effect.py lines 94–95; the one difference found is that it radiates
+    // from 0.95 × 0.73 of the body where ASHRAE 55-2017's code radiates from 0.72.
+    [Fact]
+    public void The_cooling_effect_is_worked_without_the_bodys_own_activity_as_pythermalcomfort_documents_it()
+    {
+        StandardComfort.CoolingEffectCelsius(25.0, 25.0, 50.0, 0.3, 1.2, 0.5, SeaLevelKilopascals).Should().BeApproximately(1.68, 0.1);
+    }
+
     private static TheoryData<double, double, double, double, double, double, double> Rows(string table, string airSpeed)
     {
         var rows = new TheoryData<double, double, double, double, double, double, double>();
