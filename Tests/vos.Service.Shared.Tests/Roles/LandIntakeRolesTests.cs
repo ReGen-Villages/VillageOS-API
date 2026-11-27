@@ -25,8 +25,8 @@ public class LandIntakeRolesTests
         LandIntakeRoles.All.Select(role => role.Id).Should().OnlyHaveUniqueItems();
     }
 
-    // The identifiers the platform's templates declare, copied from land-intake.template.json and
-    // site-analysis.template.json, so a derivation that drifted from the platform's would be caught here.
+    // The identifiers the platform's templates declare, copied from land-intake.template.json,
+    // site-analysis.template.json and open-data-sources.template.json, so a derivation that drifted from the platform's would be caught here.
     [Theory]
     [InlineData("siteStudy", "e9036a23-21c1-5956-b0d8-a212e8ad8272")]
     [InlineData("proposedSite", "ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b")]
@@ -37,6 +37,7 @@ public class LandIntakeRolesTests
     [InlineData("slopeClassShare", "35b8a44c-d5ff-5dc3-bc31-d53e596854a8")]
     [InlineData("aspectDirection", "ee170eb3-5323-5601-88be-9c764477c447")]
     [InlineData("aspectShare", "eaff61c7-9ed9-5c26-9040-42c88f5d8f99")]
+    [InlineData("landCoverRaster", "e04416cd-ece6-5a3b-895f-5a550f4a1065")]
     public void The_derivation_agrees_with_the_identifiers_the_templates_declare(string word, string declared)
     {
         RoleIdentity.Of(word).Should().Be(Guid.Parse(declared));

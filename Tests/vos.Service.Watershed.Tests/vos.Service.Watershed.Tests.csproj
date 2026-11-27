@@ -29,5 +29,8 @@
   <ItemGroup>
     <None Include="Recorded\reference-parcel.json" CopyToOutputDirectory="PreserveNewest"/>
     <None Include="Recorded\demo-coverage.json" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\worldcover-N24E054.json" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\worldcover-N24E054-header.bin" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\worldcover-N24E054-block-774.bin" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>
