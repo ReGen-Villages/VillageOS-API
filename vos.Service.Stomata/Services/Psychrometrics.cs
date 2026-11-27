@@ -33,7 +33,35 @@ public static class Psychrometrics
         return 1000 * WaterToDryAirMolarMassRatio * vapour / (pressureKilopascals - vapour);
     }
 
-    public static double RelativeHumidityPercent(double celsius, double humidityRatioGramsPerKilogram, double pressureKilopascals) => double.NaN;
+    public static double RelativeHumidityPercent(double celsius, double humidityRatioGramsPerKilogram, double pressureKilopascals)
+    {
+        var ratio = humidityRatioGramsPerKilogram / 1000;
+        var vapour = ratio * pressureKilopascals / (WaterToDryAirMolarMassRatio + ratio);
+        return Math.Min(100, 100 * vapour / SaturationPressureKilopascals(celsius));
+    }
 
-    public static double WetBulbCelsius(double celsius, double humidityRatioGramsPerKilogram, double pressureKilopascals) => double.NaN;
+    // Equation 33 for a wet bulb above freezing and equation 35 below it, solved by halving the interval.
+    public static double WetBulbCelsius(double celsius, double humidityRatioGramsPerKilogram, double pressureKilopascals)
+    {
+        var target = humidityRatioGramsPerKilogram / 1000;
+        if (HumidityRatioAtWetBulb(celsius, celsius, pressureKilopascals) <= target) return celsius;
+
+        double cooler = -100, warmer = celsius;
+        for (var step = 0; step < 60; step++)
+        {
+            var middle = (cooler + warmer) / 2;
+            if (HumidityRatioAtWetBulb(celsius, middle, pressureKilopascals) < target) cooler = middle;
+            else warmer = middle;
+        }
+        return (cooler + warmer) / 2;
+    }
+
+    private static double HumidityRatioAtWetBulb(double celsius, double wetBulb, double pressureKilopascals)
+    {
+        var saturation = SaturationPressureKilopascals(wetBulb);
+        var saturated = WaterToDryAirMolarMassRatio * saturation / (pressureKilopascals - saturation);
+        return wetBulb >= 0
+            ? ((2501 - 2.326 * wetBulb) * saturated - 1.006 * (celsius - wetBulb)) / (2501 + 1.86 * celsius - 4.186 * wetBulb)
+            : ((2830 - 0.24 * wetBulb) * saturated - 1.006 * (celsius - wetBulb)) / (2830 + 1.86 * celsius - 2.1 * wetBulb);
+    }
 }
