@@ -1,19 +1,13 @@
 using FluentAssertions;
 using vos.Service.Watershed.Terrain;
 using Xunit;
+using static vos.Service.Watershed.Tests.GuidelineRain;
 
 namespace vos.Service.Watershed.Tests;
 
 // The expected figures are the site-study pages' own Codes.rain, run under Node on the same table.
 public class RainfallIntensitiesTests
 {
-    private static readonly double[] Durations = [1440, 720, 360, 300, 240, 180, 120, 90, 60, 45, 30, 20, 15, 10, 5];
-    private static readonly double[] OneInFive = [1.93, 3.68, 6.22, 7.21, 8.62, 10.81, 15.11, 18.66, 25.35, 31.78, 41.68, 53.54, 63.34, 76.98, 97.41];
-    private static readonly double[] OneInHundred = [6.1, 11.44, 18.12, 20.66, 24.61, 31.06, 44.32, 53.52, 72.81, 90.83, 111.63, 134.49, 155.29, 188.11, 209.2];
-
-    private static RainfallIntensities Table(double[] millimetresPerHour) =>
-        new(Durations.Zip(millimetresPerHour, (minutes, rain) => new RainfallIntensity(minutes, rain)));
-
     [Theory]
     [InlineData(5, 97.41)]
     [InlineData(10, 76.98)]

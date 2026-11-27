@@ -28,5 +28,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Recorded\reference-parcel.json" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recorded\reference-parcel-runoff.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>
