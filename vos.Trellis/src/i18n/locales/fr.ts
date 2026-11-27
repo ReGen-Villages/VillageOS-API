@@ -1209,6 +1209,7 @@ export const fr: PartialResources = {
       saveFailed: "Échec de l'enregistrement",
       typeLabel: "Type de propriété",
       writtenByIngest: "écrit par l'import",
+      takesReadingsOnly: "issu des relevés, non modifiable à la main",
       rejected: {
         wholeNumber: "{{name}} contient un nombre entier — {{value}} n'en est pas un",
         number: "{{name}} contient un nombre — {{value}} n'en est pas un",

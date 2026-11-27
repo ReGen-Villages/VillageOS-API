@@ -1,6 +1,4 @@
-using vos.Service.Shared;
-
-namespace vos.Service.Tributary.Services;
+namespace vos.Service.Shared;
 
 // Whole series go together where they fit, so a request rewrites each stored series it touches once.
 public static class DepositRequests

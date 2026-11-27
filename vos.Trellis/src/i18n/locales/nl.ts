@@ -1209,6 +1209,7 @@ export const nl: PartialResources = {
       saveFailed: "Opslaan mislukt",
       typeLabel: "Eigenschapstype",
       writtenByIngest: "geschreven door het inlezen",
+      takesReadingsOnly: "uit metingen overgenomen, niet met de hand te bewerken",
       rejected: {
         wholeNumber: "{{name}} bevat een heel getal — {{value}} is dat niet",
         number: "{{name}} bevat een getal — {{value}} is dat niet",

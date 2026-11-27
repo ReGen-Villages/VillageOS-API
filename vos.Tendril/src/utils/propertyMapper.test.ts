@@ -271,6 +271,25 @@ describe('unwrapRelationship', () => {
     expect(result.TargetId).toBe('t1');
     expect(result.PredicateId).toBe('p1');
   });
+
+  it('keeps the write kind each property arrives with', () => {
+    const result = unwrapRelationship({
+      ...baseRelationship,
+      Properties: {
+        flowLitresPerSecond: { typeInfo: 'vos.Double', value: 1.5, writeKind: 'ObservationOnly' },
+        weight: { typeInfo: 'vos.Double', value: 0.5 },
+      },
+    });
+    expect(result.PropertyWriteKinds).toEqual({ flowLitresPerSecond: 'ObservationOnly' });
+  });
+
+  it('records nothing for a relationship whose properties declare nothing', () => {
+    const result = unwrapRelationship({
+      ...baseRelationship,
+      Properties: { weight: { typeInfo: 'vos.Double', value: 0.5 } },
+    });
+    expect(result.PropertyWriteKinds).toBeUndefined();
+  });
 });
 
 // Unwrapping keeps only what a value is, and the declaration is the model's only

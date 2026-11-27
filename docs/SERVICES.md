@@ -195,7 +195,17 @@ service-agnostic plumbing:
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` that
   presents the bearer token
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
-  envelope
+  envelope once and answers a `RegistrationAnswer`: `Accepted`; `AskAgain`,
+  with the `Retry-After` the broker named, after a `408`, a `429`, a `5xx`, no
+  answer or no token; or `Refused`, for any other `4xx`, which the broker would
+  give again, and for a service holding no credential
+- `RegisterUntilSettledAsync(port, serviceName, startCommand, logFilePrefix,
+  logDirectory, time, cancellationToken)` — asks again until the broker
+  accepts or refuses for good, and answers whether it accepted. It waits as
+  long as `Retry-After` says, at most five minutes, otherwise one second
+  doubling up to five minutes (`AskingAgain.PauseAfter`, the schedule Phloem's
+  call reports use too). It waits on the `time` it is given: real time, never
+  the model clock, which a simulation runs faster
 - `TryGetPropertyCaseInsensitive(element, name, out value)` — reads a field out
   of an answer. The broker serializes a Thing PascalCase (`Id`, `Name`) even
   though the body you send it is camelCase, so a client that asks for one casing
@@ -225,7 +235,10 @@ await foreach (var change in sub.StreamAsync(result.SubscriptionId, result.Water
 ```
 
 The stream tracks the last delivered `Sequence` and re-sends it as `Last-Event-ID`
-on every reconnect, so delivery is gap-free and exactly-once across drops. Call
+on every reconnect, so delivery has no gap and no repeat across a dropped connection. The stream
+ends when the broker no longer holds the subscription, as after a broker restart, or no longer keeps
+the changes after its position, when the client closes the subscription first; a caller then
+subscribes again after the loop, and takes what changed from the new snapshot. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
 semantics are documented in [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions.
 
@@ -257,8 +270,9 @@ await sub.RemoveObjectsAsync(all.SubscriptionId, new[] { relationshipId, subject
 ```
 
 A subclass adds the service's own calls (`ApplyQuantityAsync`, …). A subclass
-that registers also gives a `RegisterAsync(port)` overload that calls the base
-with its `(serviceName, startCommand)`. Phloem's gateway is the example:
+that registers also gives a `RegisterUntilSettledAsync(port, cancellationToken)`
+overload that calls the base with its `(serviceName, startCommand)`. Phloem's
+gateway is the example:
 
 ```csharp
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
@@ -267,7 +281,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) => _clock = clock;
 
-    public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
+    public Task<bool> RegisterUntilSettledAsync(int port, CancellationToken cancellationToken) =>
+        RegisterUntilSettledAsync(port, "Phloem", "endpoint-service", null, null, TimeProvider.System, cancellationToken);
 
     // … the gateway's own calls
 }
@@ -287,6 +302,9 @@ sequenceDiagram
 
     Note over MS,B: The service has started
     MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, logFilePrefix?, logDirectory?, ... }
+    B-->>MS: 503 Service Unavailable, Retry-After: 5<br/>(the broker is still replaying its commit log)
+    Note over MS: Serves meanwhile, and waits as long as Retry-After says
+    MS->>B: POST /api/mycelium/register (asked again)
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
@@ -297,6 +315,10 @@ sequenceDiagram
     B->>MS: GET /health
     Note over B: After repeated failures the monitor removes the registration,<br/>unless the broker supervises the service
 ```
+
+The service serves while it asks. Phloem runs its start-up recovery once its registration is
+accepted or refused for good. The Python host (`vos_service/hosting.py`) asks the same way, in a task
+of its own that stops when the service shuts down.
 
 The registration may carry `logFilePrefix` — lowercase letters, digits and hyphens, the prefix of the
 file the service writes its own log under — so the broker's log routes can find that log by the
@@ -453,7 +475,8 @@ is enabled), and `.RequireContract<TRequest>()` on the route. The middleware rea
 
 Registration is not a step in the request path: `AddMyceliumRegistration` runs
 it off the startup path, so a broker that is slow or absent cannot stop the
-service coming up. Nothing is withdrawn on shutdown (§8).
+service coming up; it is asked again until it takes the registration, and the
+asking stops when the service does. Nothing is withdrawn on shutdown (§8).
 
 **What `/handle` receives.** A service is sent either a pipeline node
 envelope or a graph relationship naming the Thing to act on.
@@ -523,9 +546,11 @@ What makes it work:
   reconciliation for the life of the model, which reads in the log exactly like a service that is broken.
   Text where a number belongs is refused: that is a model to fix rather than a figure to wait for.
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
-  resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
-  a dropped connection, and every watched subject is recomputed rather than trusted — **each subject once**,
-  however many Things it reads.
+  resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after any gap in the stream,
+  on the same subscription or on one opened because the broker no longer held it, and every watched
+  subject is recomputed rather than trusted — **each subject once**, however many Things it reads. A
+  follower whose subscription is gone, or whose position the broker no longer keeps the changes after,
+  opens another, adds its watched Things again and recomputes each subject once.
 - **Each project is followed separately.** Mycelium binds a subscription to one model when it creates it, and
   a change event names no model — so one subscription cannot carry every project a shared daemon serves. The
   service holds one per model instead. It learns which model a subject belongs to from the bearer on the
@@ -774,9 +799,9 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 | Shared test file | What it pins |
 |---|---|
 | `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
-| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, a supplied token short-circuiting the token call |
+| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, a refusal returning false, holding no credential returning false without asking, a supplied token short-circuiting the token call |
 | `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
-| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, no withdrawal asked of the broker on shutdown, a failing broker not stopping the service serving |
+| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, a starting broker asked again until it takes the registration, asking stopping when the service stops, no withdrawal asked of the broker on shutdown, a failing broker not stopping the service serving |
 | `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, what an unusable one is answered with, and that text which is not JSON is answered rather than raising |
 
 Copying a test is the same problem as copying the code. If a behaviour is the
@@ -1018,9 +1043,10 @@ or the API keys page) or another name. A revoked or expired key frees its name.
 
 ## 13. Common issues
 
-### "Registration error: Connection refused"
+### "Mycelium has not taken the registration (Connection refused …)"
 
-Mycelium is not running or not accessible. Start it
+Mycelium is not running or not accessible. The service keeps asking, so starting
+Mycelium is enough; the service need not be restarted. Start it
 (`cd ../VillageOS/vos.Mycelium && dotnet run`), verify with
 `curl https://localhost:7243/api/mycelium/startup-status` (the one route that
 needs no credential), and check `--myceliumUrl` matches Mycelium's actual URL.
@@ -1257,6 +1283,11 @@ its first answer, so a restart that caught the call may make it again (§16.3).
   that input from the spawn's `parameters` before calling the node (an explicit wire into the same port
   wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
+- **Settings a service sends with every call.** A service's `callParameters` property holds a JSON
+  object in a `vos.String`. Phloem merges it under each box's own properties in every call that box
+  makes to the service. A box setting a key the service's `callParameters` already set, or
+  `callParameters` that are not a JSON object, is a problem listed when the drawing is built. Only an
+  admin writes `callParameters`.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`,
   and `collection: true` on a collection port, left out when false (`PortDescriptor.Input(..., collection: true)`
   in C#) — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
@@ -1273,7 +1304,14 @@ its first answer, so a restart that caught the call may make it again (§16.3).
   chooses `fail` (any item fails → the node fails, and its failed items take its fail wires) or
   `continue` (failed items take the fail wires, and are dropped where there are none → node `partial`).
   The node property `itemsAtOnce` is the most of its items called at once. It is a whole number of at
-  least 1, and a box with none uses the orchestrator's own limit. It never raises that limit.
+  least 1, and a box with none uses the orchestrator's own limit. It never raises that limit. A
+  pipeline's own `runsAtOnce`, a whole number of at least 1, is the most of its runs that go at once;
+  a pipeline with none has no limit, and any other value refuses the drawing. A fresh start past the
+  limit, a run started again included, is recorded queued with its `queueNumber` and begins in its
+  turn. A run that waits for a state gives its place up, and resumed, carried-on and recovered runs
+  go past the limit. A caller that waits for its run waits for its place too, and if it goes away
+  while the run is queued, the run is recorded cancelled. A connection that states `done_within`
+  counts the time in the queue against it, so the broker may send the call again.
 - **Items that go on by themselves.** From a node set to `continue`, each item goes on to the next node
   as soon as it answers, rather than waiting to be gathered, along a wire with no list transform from a
   port answering one value per item into a once-per-item input that wire alone fills (no second wire,
@@ -1395,6 +1433,13 @@ the run's `subject` — the name the Pipelines page gives a start node's port, c
 name, which a wire narrows by its from-path. The run relates to that Thing along the predicate the
 `runSubject` role binds.
 
+**Which token a run acts under.** While a call is answered, Phloem swaps the call's token for one
+that lasts a day, and the rest of the call acts under it: a start, a start its caller waits for, a
+start again, a run carried on, the answer to a wait, and a stop. When Mycelium will not swap the
+token, Phloem answers `503` and starts, resumes or stops nothing. A queued run keeps the token it was
+queued under and begins under it. A run recovered after a restart presents the service's own
+credential.
+
 **A run a state entry starts reports how it went.** The Phloem prototype declares
 `whenTheServiceReportsCompletion`, so the state entry's call stays open while the run goes. A state
 entry is the call whose target is a connection; the request's `relationshipId` is then the call record,
@@ -1481,12 +1526,15 @@ binds; the run itself keeps `parameters` as given and writes `finishedUtc` when 
 `keepFailedRunsForDays`, in model days, and a pipeline may state either, its own value winning; with
 neither stated, every run is kept. A finished run is due once its `finishedUtc` is older than its
 period on the model clock: `Succeeded` and `Cancelled` runs count under the first, `Failed` and
-`Refused` under the second. A run running, waiting or trying, one the orchestrator still holds, or one
-with no finish recorded is never due. The orchestrator looks once a real hour and clears at most
-`clearsAtMostRunsPerLook` runs (a whole number on the run kind, 500 where none is stated), oldest
-first; a run that cannot be cleared waits for the next look. Its node runs and their attempts go with
-it, and so does each stop request once the last run it names (along `requestedBy` or `stoppedBy`) is
-cleared.
+`Refused` under the second. A run queued, running, waiting or trying, one the orchestrator still
+holds, or one with no finish recorded is never due. The orchestrator looks once a real hour and clears
+at most `clearsAtMostRunsPerLook` runs (a whole number on the run kind, 500 where none is stated),
+oldest first; a run that cannot be cleared waits for the next look, and still takes its place among
+those the look counts. Its node runs and their attempts go with it. A stop request the run's maker
+wrote goes with it too; one a person wrote stays, with its reason, and deleting the run removes the
+relationship to it. The orchestrator clears as itself, so its service must be related, along the
+predicate the `ownDeletionGrant` role binds, to the run, node run, attempt and stop request kinds;
+without that grant every clear is refused. No shipped template binds that role.
 
 **How a run ends.** The Output node may carry a rule in its `when` property, in the same language as
 wire transforms, read over `{inputs, failures}`: the values that reached the Output node, and one entry
@@ -1499,7 +1547,8 @@ request-log entry that started it, read from the `Vos-Request-Id` header on `/ha
 **Stopping a run.** A run is stopped by a stop request — a Thing of the kind the `stopRequest` role
 binds, carrying `reason` — related to it along the predicate the `runStopping` role binds (`stops` in
 the shared template, which names the orchestrator's `stops connection` along `notifies`). Related to any other Thing, a stop request stops every run about that Thing
-still running, waiting or trying. A run under way stops at its next node, a pause between attempts
+still queued, running, waiting or trying. A queued run is recorded `cancelled` at once and never
+begins. A run under way stops at its next node, a pause between attempts
 ends at once, and a waiting node run's two relationships are retracted in the write that records it
 `cancelled`; each node not finished is recorded `cancelled` with
 the reason, and the run `cancelled` with the reason as its `error`, related to the request along
@@ -1529,7 +1578,8 @@ middle of a call is called again when its service, or a kind above it, says `may
 otherwise the run fails, saying the call may have reached a service that does not say it may be called
 again, and the caught node is recorded `interrupted`. A start or end node caught mid-step runs again; a
 tell, follow-on or stop node caught mid-step fails the run, because what it does may already be done.
-A run that already ended is left alone.
+A run that already ended is left alone. Queued runs go back in the order of their `queueNumber`,
+behind the runs carried on, and a queued run whose pipeline is deleted is recorded refused.
 
 **Starting again, or carrying on, a run a restart stopped.** Two more `/handle` shapes answer a run
 the restart failed with a node `interrupted`. `{"startAgain": runId}` starts a fresh run of the same
@@ -1621,7 +1671,7 @@ and a model may call its archetypes anything.
    while a node waits for a state; a node run may also stand at `trying` between attempts, or at
    `interrupted` when a restart caught it in the middle of a call); **Cancel**
    writes a stop request for the run, and is
-   offered on a run that is running, waiting or trying. Or create an `X runs Pipeline` relationship to
+   offered on a run that is queued, running, waiting or trying. Or create an `X runs Pipeline` relationship to
    trigger it from the model (fire-and-forget).
 
 > **Scope.** Synchronous + async spawn with level-by-level concurrency, **live run animation + cancel**,

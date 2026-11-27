@@ -43,20 +43,20 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await _engine.BindOnceAsync(PipelineRoles.NodeRun, nodeRun);
         await _engine.BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
         await _engine.BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
-        var notifies = await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
+        var notifies = await _engine.DeclareOnceAsync("notifies");
         await _engine.BindOnceAsync(PipelineRoles.NotifiedConnection, notifies);
         await _engine.BindOnceAsync(PipelineRoles.CallRecord, await _engine.DeclareOnceAsync("handledBy"));
-        await _engine.BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
-        var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
+        await _engine.BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches"));
+        var judges = await _engine.DeclareOnceAsync("judges");
         await _engine.BindOnceAsync(JudgedThingRole, judges);
-        var range = await _engine.DeclareOnceAsync("Range", isArchetype: true, Marked("__IsRangeArchetype"));
+        var range = await _engine.DeclareOnceAsync("Range", isArchetype: true);
         await _engine.BindOnceAsync(RangeRole, range);
         var plotArchetype = await _engine.DeclareOnceAsync("Plot", isArchetype: true);
 
         if (await _engine.FindAsync("resumesRun") is null)
         {
-            var connectionArchetype = await _engine.DeclareAsync("PlatformServiceConnection", isArchetype: true, Marked("__IsConnectionArchetype"));
-            var serviceArchetype = await _engine.DeclareAsync("Service", isArchetype: true, Marked("__IsServiceArchetype"));
+            var connectionArchetype = await _engine.DeclareAsync("PlatformServiceConnection", isArchetype: true);
+            var serviceArchetype = await _engine.DeclareAsync("Service", isArchetype: true);
             await _engine.BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
             await _engine.BindOnceAsync(PipelineRoles.Service, serviceArchetype);
             var resumes = await _engine.DeclareAsync("resumesRun");

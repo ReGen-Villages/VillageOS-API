@@ -96,12 +96,11 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
             var isPredicate = await engine.TheOnlyThingNamedAsync(PlatformPredicates.Is);
             var has = await engine.TheOnlyThingNamedAsync(ModelNames.Has);
 
-            var connectionKind = await vocabulary.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
-                Marked("__IsConnectionArchetype"));
-            var serviceKind = await vocabulary.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true, Marked("__IsServiceArchetype"));
-            var range = await vocabulary.PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
-            var judges = await vocabulary.PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
-            var watches = await vocabulary.PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
+            var connectionKind = await vocabulary.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true);
+            var serviceKind = await vocabulary.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true);
+            var range = await vocabulary.PlayingAsync(RangeRole, "Range", isArchetype: true);
+            var judges = await vocabulary.PlayingAsync(JudgedThingRole, "judges");
+            var watches = await vocabulary.PlayingAsync(PipelineRoles.StateWatch, "watches");
             var triggeredBy = await vocabulary.PlayingAsync(TriggerRole, "triggeredBy");
             var stateTrigger = await vocabulary.PlayingAsync(StateTriggerRole, "state");
             var completesWhen = await vocabulary.PlayingAsync(CompletesWhenRole, "completesWhen");

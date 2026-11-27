@@ -38,7 +38,8 @@ uses it from the folder beside it. See [vos.Tendril/README.md](vos.Tendril/READM
 ### Pages (page reader for C#)
 
 **vos.Pages** — a class library that lists and reads a model's pages with Tendril's own reader, run
-inside a C# process, so a program that is not a browser answers a page as Trellis draws it. See
+inside a C# process, so a program that is not a browser answers a page as Trellis draws it. It also
+offers a row's choices and composes and sends a press, as the console does. See
 [vos.Pages/README.md](vos.Pages/README.md).
 
 ### Taproot (CLI)
@@ -52,9 +53,16 @@ inside a C# process, so a program that is not a browser answers a page as Trelli
 - Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
 - Seeds, models and fragments (serialize, deserialize, plant, apply, ingest), submissions and accounts
 
-**vos.Taproot.Client** — the library Taproot reaches the Mycelium through: the client for its routes,
-name lookup, and reading a model by its role bindings. A program other than Taproot references it to
-make the same calls.
+**vos.MyceliumClient** — the library Taproot and Hypha reach the Mycelium through, in the namespace
+`vos.PlatformClient`: the client for its routes, name lookup, and reading a model by its role
+bindings. A program other than these references it to make the same calls. See
+[vos.MyceliumClient/README.md](vos.MyceliumClient/README.md).
+
+### MCP server
+
+**Hypha** (`vos.Hypha`) — a server that lets an assistant in a chat application read and change a
+model, with the rights of the API key it is given. It speaks the Model Context Protocol, which a chat
+application uses to list and call tools. See [vos.Hypha/README.md](vos.Hypha/README.md).
 
 ### Microservices
 
@@ -71,6 +79,7 @@ make the same calls.
 | vos.Service.EnergyBalance | Production | Site energy verdict as a pipeline node: from the generation inputs wired into it (solar array area, resource and efficiency, and other generation) and the consumption, answers solar and total generation, the share of consumption and whether the site is net positive |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing calls it about a study |
 | vos.Service.Transect | Production | Measures a parcel's border again as a pipeline node, with the area method the model configures and the formula the intake measures a submission with, and writes the area and the method onto the parcel. Launched by Mycelium when a pipeline first calls it. |
+| vos.Service.Stomata | Production | Works out a study's climate as a pipeline node: from its site's hourly history it writes each hour's wind rose cell, humidity ratio, and whether the windows can be open on the hour's air and on the day's, then the time the study was worked out. Launched by Mycelium when a pipeline first calls it. |
 | vos.Service.Watershed | Production | Works out a site's ground as a pipeline node: the height grid over its border, slope, aspect, drainage, hollows, the two profiles, the figures and the slope and aspect shares, written as observations, then the study's `groundWorkedOutAt`. Launched by Mycelium when a pipeline first calls it. |
 | vos.Service.Phyllotaxis | In development | The layout generator, which draws the village on a site. So far it holds the placement on the terrain: the reservoirs on the lowest gentle ground that water drains to, the village core on flat ground above them, the wind turbines on the highest ground spaced by rotor, the solar fields over the crops where the land throws least shade, and the waste plant downwind beyond its buffer. Not yet a pipeline node |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |

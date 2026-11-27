@@ -1208,6 +1208,7 @@ export const en = {
       saveFailed: "Failed to save",
       typeLabel: "Property type",
       writtenByIngest: "written by ingest",
+      takesReadingsOnly: "taken from readings, not edited by hand",
       rejected: {
         wholeNumber: "{{name}} holds a whole number — {{value}} is not one",
         number: "{{name}} holds a number — {{value}} is not one",

@@ -4,6 +4,7 @@ using System.Text.Json;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Watershed.SiteLayers;
 using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Services;
@@ -21,6 +22,9 @@ public sealed class WatershedNode : DagNodeService
     private const string SouthToNorthProfile = "terrainProfileSouthToNorth";
     private const string MeanHeight = "terrainMeanMetres";
     private const string SharePercent = "sharePercent";
+    private const string GeometryProperty = "geometry";
+    private const string HectaresInside = "hectaresInside";
+    private const string MetresInside = "metresInside";
 
     private static readonly (string Grid, long ReturnPeriodYears, bool BuiltOver)[] RunoffGrids =
     [
@@ -36,14 +40,16 @@ public sealed class WatershedNode : DagNodeService
 
     private readonly TimeProvider _clock;
     private readonly GroundHeightReader _heights;
+    private readonly LandCoverReader _landCover;
     private readonly SubscriptionClient _snapshots;
 
     public WatershedNode(
         IHttpClientFactory httpClientFactory, ILogger<WatershedNode> logger, string myceliumUrl, GroundHeightReader heights,
-        TimeProvider clock, LaunchToken? launchToken = null, string? apiKey = null)
+        LandCoverReader landCover, TimeProvider clock, LaunchToken? launchToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey)
     {
         _heights = heights;
+        _landCover = landCover;
         _clock = clock;
         _snapshots = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey);
     }
@@ -60,10 +66,16 @@ public sealed class WatershedNode : DagNodeService
         var studyId = StudyOf(subject) ?? throw new NodeFailedException(NoSubject);
 
         var ground = GroundReading.Read(await ReadAsync(GroundReading.Selector(studyId), cancellationToken), studyId);
-        if (ground.Border is { } border && ground.HeightsSource is { } source)
+        if (ground.Border is { } border)
         {
-            var written = await WorkOutAsync(ground, border, source, cancellationToken);
-            await ReadBackAsync(written, cancellationToken);
+            List<(Guid Thing, string Property, double Value)> written = [];
+            if (ground.HeightsSource is { } source)
+                written.AddRange(await WorkOutAsync(ground, border, source, cancellationToken));
+            if (ground.LandCoverTileAddress is { } tileAddress && ground.LandCoverClasses.Count > 0)
+                written.AddRange(await CoverLandAsync(ground, border, tileAddress, cancellationToken));
+            written.AddRange(await CoverSiteLayersAsync(ground.LayerFeatures, border, cancellationToken));
+            if (written.Count > 0)
+                await ReadBackAsync(written, cancellationToken);
         }
 
         await StampAsync(ground.Study, cancellationToken);
@@ -136,6 +148,60 @@ public sealed class WatershedNode : DagNodeService
             await RecordAsync(ground.ShareAssessing[share.Term], new Dictionary<string, object> { [SharePercent] = share.SharePercent }, cancellationToken);
             written.Add((ground.ShareAssessing[share.Term], SharePercent, share.SharePercent));
         }
+        return written;
+    }
+
+    private async Task<IReadOnlyList<(Guid Thing, string Property, double Value)>> CoverLandAsync(
+        GroundReading ground, IReadOnlyList<Position> border, string tileAddress, CancellationToken cancellationToken)
+    {
+        List<(Guid Thing, string Property, double Value)> written = [];
+        foreach (var share in await _landCover.SharesAsync(tileAddress, border, ground.LandCoverClasses, cancellationToken))
+        {
+            var shareThing = ground.ShareAssessing[share.Term];
+            await RecordAsync(shareThing, new Dictionary<string, object>
+            {
+                [SharePercent] = share.SharePercent, ["areaHectares"] = share.AreaHectares, ["pixelCount"] = share.PixelCount,
+            }, cancellationToken);
+            written.Add((shareThing, SharePercent, share.SharePercent));
+        }
+        return written;
+    }
+
+    private async Task<IReadOnlyList<(Guid Thing, string Property, double Value)>> CoverSiteLayersAsync(
+        IReadOnlyList<SnapshotThing> features, IReadOnlyList<Position> border, CancellationToken cancellationToken)
+    {
+        var frame = LocalFrame.Around(border);
+        var site = new PlaneShape([new PlanePolygon([.. border.Select(frame.At)], [])]);
+        List<(Guid Thing, string Property, double Value)> written = [];
+        if (site.AreaSquareMetres <= 0) return written;
+
+        foreach (var feature in features)
+            switch (feature.StatedValue(GeometryProperty) is { } stated ? LayerGeometry.Read(stated.Value, frame) : null)
+            {
+                case LayerShape { Shape: var shape }:
+                    var shapeCoverage = SiteLayerCoverage.OfShape(site, shape);
+                    await RecordAsync(feature.Id, new Dictionary<string, object>
+                    {
+                        [HectaresInside] = shapeCoverage.HectaresInside,
+                        ["shareOfSitePercent"] = shapeCoverage.ShareOfSitePercent,
+                        ["distanceFromSiteMetres"] = shapeCoverage.DistanceFromSiteMetres,
+                    }, cancellationToken);
+                    written.Add((feature.Id, HectaresInside, shapeCoverage.HectaresInside));
+                    break;
+                case LayerLines { Lines: var lines }:
+                    var lineCoverage = SiteLayerCoverage.OfLines(site, lines);
+                    await RecordAsync(feature.Id, new Dictionary<string, object>
+                    {
+                        [MetresInside] = lineCoverage.MetresInside,
+                        ["crossesBorder"] = lineCoverage.CrossesBorder,
+                        ["distanceFromSiteMetres"] = lineCoverage.DistanceFromSiteMetres,
+                    }, cancellationToken);
+                    written.Add((feature.Id, MetresInside, lineCoverage.MetresInside));
+                    break;
+                default:
+                    Logger.LogWarning("Site layer feature {Feature} holds no geometry Watershed can read, so its coverage is not worked out.", feature.Id);
+                    break;
+            }
         return written;
     }
 

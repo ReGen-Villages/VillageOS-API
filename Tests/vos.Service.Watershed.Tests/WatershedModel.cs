@@ -18,11 +18,17 @@ public sealed class WatershedModel
     public static readonly Guid ParcelArchetype = Guid.NewGuid();
     public static readonly Guid SlopeClassShareArchetype = Guid.NewGuid();
     public static readonly Guid AspectShareArchetype = Guid.NewGuid();
+    public static readonly Guid SiteLayerFeatureArchetype = Guid.NewGuid();
     public static readonly Guid Study = Guid.NewGuid();
     public static readonly Guid Site = Guid.NewGuid();
     public static readonly Guid Parcel = Guid.NewGuid();
     public static readonly Guid HeightsSource = Guid.NewGuid();
     public const string HeightsSourceName = "a heights source";
+    public static readonly Guid LandCoverShareArchetype = Guid.NewGuid();
+    public static readonly Guid LandCoverSource = Guid.NewGuid();
+    public const string LandCoverHost = "tiles.example";
+    public const string TileAddress = "https://tiles.example/land-cover/{tile}.tif";
+    public static readonly int[] LandCoverCodes = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100];
 
     public static readonly (double? AtLeast, double? Below)[] SlopeClassBounds = [(0, 2), (2, 5), (5, 10), (10, 20), (20, null)];
     public static readonly double?[] AspectCentres = [0, 45, 90, 135, 180, 225, 270, 315, null];
@@ -71,6 +77,8 @@ public sealed class WatershedModel
         Bind(LandIntakeRoles.Parcel, ParcelArchetype);
         Bind(LandIntakeRoles.SlopeClassShare, SlopeClassShareArchetype);
         Bind(LandIntakeRoles.AspectShare, AspectShareArchetype);
+        Thing(SiteLayerFeatureArchetype, "SiteLayerFeature", isArchetype: true);
+        Bind(LandIntakeRoles.SiteLayerFeature, SiteLayerFeatureArchetype);
         Thing(HeightsSource, HeightsSourceName);
         if (bindsAHeightsSource) Bind(LandIntakeRoles.BorderElevation, HeightsSource);
 
@@ -118,6 +126,30 @@ public sealed class WatershedModel
     public List<JsonElement> Fragments { get; } = [];
 
     public int HeightCalls => Asked.Count(asked => asked.StartsWith("heights", StringComparison.Ordinal));
+
+    public IReadOnlyList<Guid> LandCoverShares { get; private set; } = [];
+
+    public Dictionary<string, byte[]> LandCoverTiles { get; } = [];
+
+    public HttpStatusCode LandCoverStatus { get; set; } = HttpStatusCode.PartialContent;
+
+    public bool LandCoverUnreachable { get; set; }
+
+    public int LandCoverCalls => Asked.Count(asked => asked.StartsWith("land cover", StringComparison.Ordinal));
+
+    public Guid LandCoverShareOf(int code) => LandCoverShares[Array.IndexOf(LandCoverCodes, code)];
+
+    public void CoversLand(bool bindsTheRaster)
+    {
+        Thing(LandCoverShareArchetype, "LandCoverShare", isArchetype: true);
+        Bind(LandIntakeRoles.LandCoverShare, LandCoverShareArchetype);
+        Thing(LandCoverSource, "a land cover source", properties: new()
+        {
+            ["tileAddress"] = new(JsonSerializer.SerializeToElement(TileAddress), "vos.String", "Fact"),
+        });
+        if (bindsTheRaster) Bind(LandIntakeRoles.LandCoverRaster, LandCoverSource);
+        LandCoverShares = [.. LandCoverCodes.Select(code => Share(LandCoverShareArchetype, Term($"land cover {code}", new() { ["worldCoverCode"] = code })))];
+    }
 
     public void Holds(Guid thing, string property, object value) =>
         _things[thing].Properties[property] = new SnapshotProperty(JsonSerializer.SerializeToElement(value), null, "Observation");
@@ -218,9 +250,32 @@ public sealed class WatershedModel
         return Share(archetype, Term("another term", new() { ["atLeastPercent"] = 0 }));
     }
 
+    public Guid HoldsALayerFeature(string geometry) => HoldsAShape(SiteLayerFeatureArchetype, geometry);
+
+    public Guid HoldsAShapeOfAnotherKind(string geometry)
+    {
+        var archetype = Guid.NewGuid();
+        Thing(archetype, "AnotherShape", isArchetype: true);
+        return HoldsAShape(archetype, geometry);
+    }
+
+    private Guid HoldsAShape(Guid archetype, string geometry)
+    {
+        var id = Guid.NewGuid();
+        Thing(id, $"Willow Bend shape {id}", properties: new()
+        {
+            ["geometry"] = new(JsonDocument.Parse(geometry).RootElement.Clone(), "vos.GeoJson", "Fact"),
+        });
+        Relate(id, Is, archetype);
+        Relate(Site, Has, id);
+        return id;
+    }
+
     public HttpResponseMessage Answer(HttpRequestMessage request)
     {
         var path = request.RequestUri!.AbsolutePath;
+        if (request.RequestUri.Host == LandCoverHost)
+            return LandCoverAnswer(Path.GetFileNameWithoutExtension(path), request.Headers.Range!.Ranges.Single());
         var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
         if (path == "/api/snapshots")
         {
@@ -264,6 +319,17 @@ public sealed class WatershedModel
             return Json(new { });
         }
         throw new InvalidOperationException($"unexpected request to {path}");
+    }
+
+    private HttpResponseMessage LandCoverAnswer(string tile, System.Net.Http.Headers.RangeItemHeaderValue range)
+    {
+        Asked.Add($"land cover {tile} {range.From}-{range.To}");
+        if (LandCoverUnreachable) throw new HttpRequestException("the land cover source could not be reached");
+        if (LandCoverStatus != HttpStatusCode.PartialContent) return new HttpResponseMessage(LandCoverStatus);
+        if (!LandCoverTiles.TryGetValue(tile, out var file)) return new HttpResponseMessage(HttpStatusCode.NotFound);
+        var start = (int)Math.Min(range.From!.Value, file.Length);
+        var end = (int)Math.Min(range.To!.Value + 1, file.Length);
+        return new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = new ByteArrayContent(file[start..end]) };
     }
 
     private SnapshotReadResult Snapshot() => new(1, new SnapshotDocument(1, [.. _things.Values], [.. _edges]));

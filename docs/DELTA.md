@@ -41,7 +41,8 @@ plain behaviour, and the nearest declaration up the `is` chain wins.
 
 The templates and the kinds ship in the platform's seed templates: the shared site template declares
 `Endpoint` and `EsriEndpoint` with its kinds, the open-data template adds `PositionLookupEndpoint` and
-`DivisionLookupEndpoint`, and the basemap template adds `EsriTileEndpoint` and `CachedTileEndpoint`.
+`DivisionLookupEndpoint`, and the basemap template adds `TileEndpoint`, `CachedTileEndpoint` and
+`EsriTileEndpoint`.
 The platform's seed validation checks the tree when a model is loaded, and holds every seeded
 registration to the rule Delta applies. See [`TRIBUTARY.md`](TRIBUTARY.md) for the `EsriEndpoint`
 template and the property-field taxonomy.

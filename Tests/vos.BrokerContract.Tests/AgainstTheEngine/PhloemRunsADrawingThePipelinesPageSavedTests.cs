@@ -148,14 +148,12 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
         var has = await _engine.TheOnlyThingNamedAsync(ModelNames.Has);
         var model = new Dictionary<string, Guid> { ["is"] = @is, ["has"] = has };
 
-        var connectionKind = model["arch-connection"] = await _engine.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true,
-            Marked("__IsConnectionArchetype"));
-        var serviceKind = model["arch-service"] = await _engine.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true, Marked("__IsServiceArchetype"));
-        var range = await _engine.PlayingAsync(RangeRole, "Range", isArchetype: true, Marked("__IsRangeArchetype"));
-        var judges = await _engine.PlayingAsync(JudgedThingRole, "judges", properties: Marked("__IsJudgedThingPredicate"));
-        await _engine.PlayingAsync(PipelineRoles.StateWatch, "watches", properties: Marked("__IsStateWatchPredicate"));
-        var notifies = model["notifies"] = await _engine.PlayingAsync(PipelineRoles.NotifiedConnection, "notifies",
-            properties: Marked("__IsNotifiedConnectionPredicate"));
+        var connectionKind = model["arch-connection"] = await _engine.PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection", isArchetype: true);
+        var serviceKind = model["arch-service"] = await _engine.PlayingAsync(PipelineRoles.Service, "Service", isArchetype: true);
+        var range = await _engine.PlayingAsync(RangeRole, "Range", isArchetype: true);
+        var judges = await _engine.PlayingAsync(JudgedThingRole, "judges");
+        await _engine.PlayingAsync(PipelineRoles.StateWatch, "watches");
+        var notifies = model["notifies"] = await _engine.PlayingAsync(PipelineRoles.NotifiedConnection, "notifies");
         await _engine.PlayingAsync(PipelineRoles.CallRecord, "handledBy");
         await _engine.PlayingAsync(PipelineRoles.AwaitedThing, "awaits");
         await _engine.PlayingAsync(PipelineRoles.RunSubject, "about");

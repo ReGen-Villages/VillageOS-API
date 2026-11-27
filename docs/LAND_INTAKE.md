@@ -668,6 +668,8 @@ flowchart LR
   HA["<b>HazardAssessment</b><br/>level · date<br/>general and climate-change recommendations"]
   SH["<b>SoilHorizon</b><br/>soil properties at one depth"]
   LCS["<b>LandCoverShare</b><br/>share · area · pixels of one class"]
+  SCS["<b>SlopeClassShare</b><br/>share · area"]
+  ASH["<b>AspectShare</b><br/>share"]
   DS["<b>SubmittedSource</b><br/>which source · coverage<br/>last resolved"]
 
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area · fetched-from-register"]
@@ -675,6 +677,8 @@ flowchart LR
   HT["<b>HazardType</b><br/>river-flood · landslide · wildfire<br/>…one Thing per hazard"]
   SDE["<b>SoilDepth</b><br/>0-5cm · 5-15cm<br/>…one Thing per depth"]
   LCC["<b>LandCoverClass</b><br/>tree-cover · cropland · built-up<br/>…one Thing per class"]
+  SCL["<b>SlopeClass</b><br/>under-2-percent · 2-to-5-percent<br/>…one Thing per class"]
+  ADI["<b>AspectDirection</b><br/>north-facing · flat<br/>…one Thing per aspect"]
 
   SU -->|proposes| SI
   SU -->|resolvedAs| SD
@@ -693,6 +697,10 @@ flowchart LR
   SH -->|assesses| SDE
   SI -->|has| LCS
   LCS -->|assesses| LCC
+  SI -->|has| SCS
+  SCS -->|assesses| SCL
+  SI -->|has| ASH
+  ASH -->|assesses| ADI
 ```
 
 **A category, a boundary source and a hazard type are Things, and a submission relates to them.** All
@@ -778,7 +786,8 @@ Thing the site has in any case. A model declaring a hazard of its own gets it as
 A site likewise gets one `SoilHorizon` per soil depth the model declares, which `assesses` that depth,
 and a model declaring no soil vocabulary composes without them. It also gets one `LandCoverShare` per
 land-cover class, which `assesses` that class; a model declaring no land-cover vocabulary composes
-without them.
+without them. It likewise gets one `SlopeClassShare` per slope class and one `AspectShare` per aspect,
+each assessing its class; a model declaring none of these composes without them.
 
 **An assessment reaches its source, rather than naming it.** The source is the `SubmittedSource` Thing
 the assessment hangs off, not a name copied onto it — one per submission, under the archetype that says a
@@ -1227,7 +1236,8 @@ application, so sharing a file is the point and reaching the broker through one 
 **`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
 credential for the same reason `POST /submissions` demands none, and it spends the same request budget.
 The categories are found through the role that binds their archetype; the basemap sources are the
-Things of the archetype the `basemapSource` role binds, whatever that archetype is called (see
+Things of the archetype the `basemapSource` role binds, whatever that archetype is called, each
+carrying its `order` (see
 [the Field Guide's map chapter](FIELD_GUIDE.md#95-the-map-and-its-basemap-sources));
 the themes a report's tiles are faced with are the members of the archetype the `theme` role binds, each with its colour, icon
 and order as the model states them, and none where the model declares no themes. The kinds a layer
@@ -1275,7 +1285,7 @@ sequenceDiagram
   LI-->>S: a code, by mail
   S->>LI: POST /submissions/ticket { emailAddress, code }
   LI-->>S: a ticket, signed against that address
-  S->>LI: POST /submissions/findings { submissionId, emailAddress }<br/>X-Submission-Ticket: …
+  S->>LI: POST /submissions/findings { submissionId, emailAddress, page }<br/>X-Submission-Ticket: …
   LI->>M: the address this reference names
   LI->>M: the site this reference names, and what the page's own specification walks
   LI-->>S: the page to draw, and the reading to draw it from
@@ -1286,7 +1296,10 @@ already cleared are answered in one wording.** Told apart, answering would say w
 to whoever tried one.
 
 **Three things decide what may travel, and all three are the model's.** Which page a submitter may read
-is the Thing the `submitterFindingsDashboard` role binds; what never leaves the model is whatever `is`
+is the Thing bound to the page role the request names in `page`, `submitterLiteDataPage` or
+`submitterProDataPage`; any other role is refused with `400` `pageNotOffered` before the model is
+read. The findings reduction and the shared-document routes read the contact's address alone and
+need no page bound. What never leaves the model is whatever `is`
 the archetype the `personalDetail` role binds, dropped whatever walk reached it rather than by trusting
 that no walk does; and the relationships the reading follows are the ones that page's own specification walks. A model
 whose roles bind neither is a deployment that was never seeded for this, answered `503` as an unseeded model
@@ -1312,7 +1325,8 @@ charts over the site's climate history ask the platform's reduction over one pro
 It puts it to `POST /findings/{submissionId}/reduce`, under the ticket, with the reduce read's request
 minus its `thingId`: the service verifies the ticket was issued for the address the submission names, supplies
 the submission's own site, and hands the platform's answer back in its own words, status included, so
-a question the platform refuses reaches the page with the reason. The satellite view's tiles come
+a question the platform refuses reaches the page with the reason. The satellite view's tiles, from
+the `eox-satellite-tiles` registration in the shipped templates, come
 through `GET /basemaps/{registration}/{z}/{x}/{y}`, anonymous like the position lookups because the
 opening map is drawn before anything is verified: the route serves only the registration the
 `basemapTileRegistration` role binds, one per model, forwards the three placeholders through the

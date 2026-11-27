@@ -123,6 +123,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`. It answers `{ Service, ModelTime }`: the registration, and the model clock as `GET /api/time` would answer it
+- While the broker starts it answers the registration `503` with `Retry-After`. A service asks again after that, and after a `408`, a `429`, any other `5xx` or no answer at all, waiting as long as `Retry-After` says, at most five minutes, otherwise one second doubling up to five minutes. It stops on any other `4xx`, which the broker would give again.
 - `DELETE /api/mycelium/services/{handlerId}` (Bearer) removes a registration: a service may remove the one it made itself, and another service's is refused with `403`. The broker's liveness monitor removes a registration after repeated failed health checks, unless the broker supervises the service.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
@@ -251,7 +252,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
 | An archetype and its members by identifier, including ones made later | `{ "typeIds": ["<archetype guid>"], "includeLaterMatches": true }` |
 | Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
-| The members of a type whose property holds a given value, compared exactly and case included | `{ "typeIds": ["<archetype guid>"], "propertyValues": { "status": "open" } }`; refused without `typeIds`, `markedTypes` or `boundTypes`, or for a property no named type declares |
+| The members of a type whose property holds a given value, compared exactly and case included | `{ "typeIds": ["<archetype guid>"], "propertyValues": { "status": "open" } }`; refused without `typeIds` or `boundTypes`, or for a property no named type declares |
 | A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
@@ -264,8 +265,7 @@ touching a selected Thing, in both directions and over every predicate. A long-l
 inbound relationship for every unit of work drawn against it and keeps them, so a handler that needs
 only the Thing's own outgoing relationships would otherwise read the whole history on every call, and
 pay more for it the longer the run. `relationships` is a list of rules — each a `direction` and a
-predicate by `predicate`, by `predicateFlag` or by `predicateRole`, or none of the three for every
-predicate — and with it the
+predicate by `predicate` or by `predicateRole`, or neither for every predicate — and with it the
 snapshot carries the relationships a selected Thing holds in a rule's direction over its predicate,
 and no others. A rule may also name the far end's kind, by `farEndType` (one kind name or a list) or
 by `farEndRole` (one role Thing identifier or a list); then only the relationships whose far end is of
@@ -289,9 +289,7 @@ relationship, so a reader that has to tell which bound Thing plays which role as
 by id and follows `binds`. A traversal or relationship rule names its predicate the same way, as
 `predicateRole` — the role Thing's identifier, following the predicate it binds. This is how the
 pipeline orchestrator and the console ask, and what a service reading role-bound vocabulary should
-use. The broker also answers the older mark forms — `markedTypes`, `markedArchetypes` and a rule's
-`predicateFlag` — for a model that still writes a mark; the shared C# client's selector offers no
-mark form for a type.
+use.
 
 **A role is followed as it is bound now.** A following subscription that names a role — in
 `boundTypes`, `boundArchetypes`, a rule's `predicateRole` or `farEndRole`, or a traversal by
@@ -645,8 +643,15 @@ never told it created a Thing the model no longer holds live.
   nothing. The judging of each write's ranges is held until the batch closes, so a range is judged on
   what the whole batch leaves. Send big graphs as one fragment rather than many single writes.
 - **What a service may not write.** A service's fragment may declare neither ranges nor derived
-  properties, and only an administrator writes or removes a protected-category grant relationship;
-  either is refused whole with `403`.
+  properties. Only an administrator writes or removes a relationship along the protected-category
+  grant, secret, run-mode, only-caller, trigger or own-deletion grant predicates, or a predicate
+  beneath one; writes a service's or a connection's launch settings or its `callParameters`; deletes
+  a predicate a role binds or gives it another kind; or writes a `binds` from a role that already
+  binds something or to a predicate the model already holds. A role's first binding to a predicate
+  created in the same write is allowed, so a service may add the predicate it needs. Each refusal
+  answers `403`, and a fragment is refused whole. Writes along a role-bound predicate are never
+  refused, and a write restating a relationship or kind the model already holds changes nothing and
+  is not refused.
 
 Contrast `POST /api/model`, which **replaces** the whole model (administrators only, bulk load); the fragment
 endpoint merges incrementally into the live model.

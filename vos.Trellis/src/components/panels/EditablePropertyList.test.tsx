@@ -212,6 +212,56 @@ describe('the add-property row', () => {
   });
 });
 
+// The platform refuses a hand-written value for such a property, so a field to type into would only lead to a refusal.
+describe('a property taken from readings only, while editing', () => {
+  const onDeleteProperty = vi.fn();
+
+  function editing(showAddRow = false) {
+    render(
+      <EditablePropertyList
+        properties={[
+          { name: 'rainfall', value: 0.123456789, type: 'vos.Double', takesReadingsOnly: true },
+          { name: 'statedArea', value: 24, type: 'vos.Double', takesReadingsOnly: false },
+        ]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode
+        onDeleteProperty={onDeleteProperty}
+        showAddRow={showAddRow}
+      />,
+    );
+  }
+
+  it('offers no control to change it, and says why', () => {
+    editing();
+    expect(screen.queryByLabelText('rainfall')).toBeNull();
+    expect(screen.getByText('taken from readings, not edited by hand')).toBeInTheDocument();
+  });
+
+  it('shows the value it holds', () => {
+    editing();
+    expect(screen.getByText('0.12346')).toBeInTheDocument();
+  });
+
+  it('leaves the control of a property beside it in place', () => {
+    editing();
+    expect((screen.getByLabelText('statedArea') as HTMLInputElement).type).toBe('number');
+  });
+
+  it('keeps its delete control', () => {
+    editing();
+    expect(screen.getAllByTitle('Delete property')).toHaveLength(2);
+    fireEvent.click(screen.getAllByTitle('Delete property')[0]);
+    expect(onDeleteProperty).toHaveBeenCalledWith('rainfall');
+  });
+
+  it('leaves the add-property row offered', () => {
+    editing(true);
+    expect(screen.getByPlaceholderText('name')).toBeInTheDocument();
+    expect(screen.getByTitle('Add property')).toBeInTheDocument();
+  });
+});
+
 describe('a displayed property', () => {
   it('names the type it holds', () => {
     render(

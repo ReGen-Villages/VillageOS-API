@@ -206,6 +206,74 @@ public abstract class MyceliumClientBase
     protected Task<PlatformAnswer> AskToApplyFragmentAsync(HttpContent fragment, TimeSpan? timeout, CancellationToken cancellationToken) =>
         AskAsync(HttpMethod.Post, "/api/model/fragment", fragment, timeout, cancellationToken);
 
+    // On a loaded build agent one relationship write took fifteen seconds, and a shorter wait reported a failure while
+    // the write went on to land.
+    public static readonly TimeSpan BrokerPatience = TimeSpan.FromSeconds(30);
+
+    // The broker refuses a request above its body limit, and one slice of every climate property comes close to it, so a
+    // slice goes in several requests.
+    public const int ReadingsPerDeposit = 50_000;
+
+    // The broker validates a request whole before storing any of it and drops a reading it already holds with the same
+    // value, so a deposit that stopped at a refused request can be sent again from the start.
+    public async Task<BrokerAnswer> DepositReadingsAsync(
+        Guid subjectId, IReadOnlyList<ObservationSample> readings, CancellationToken cancellationToken = default)
+    {
+        var untimed = readings.Where(reading => reading.ObservedAt is null).Select(reading => reading.Property).Distinct().ToList();
+        if (untimed.Count > 0)
+            return new BrokerAnswer(false, $"The bulk route takes only readings with their time, and {string.Join(", ", untimed)} carries none.");
+
+        foreach (var request in DepositRequests.Of(readings, ReadingsPerDeposit))
+        {
+            var json = JsonSerializer.Serialize(request.Select(reading => new
+            {
+                objectId = subjectId,
+                property = reading.Property,
+                value = ResolveObservationValue(reading.Value),
+                observedAt = reading.ObservedAt,
+            }));
+            ValidateOutbound(json, SedimentDepositRequestSchemaId);
+
+            var answer = await PostAsync("/api/sediment", new StringContent(json, Encoding.UTF8, "application/json"), cancellationToken);
+            if (!answer.Accepted) return answer;
+        }
+        return BrokerAnswer.Done;
+    }
+
+    public Task<BrokerAnswer> ReportHistoryChangedAsync(Guid thingId, CancellationToken cancellationToken = default) =>
+        PostAsync($"/api/things/{thingId}/history/changed", content: null, cancellationToken);
+
+    // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
+    // the observation route stores; a shape it has no scalar for keeps its own JSON text.
+    protected static object? ResolveObservationValue(object? value) =>
+        value is not JsonElement element ? value
+        : JsonScalar.TryRead(element, out var scalar) ? scalar
+        : element.GetRawText();
+
+    private async Task<BrokerAnswer> PostAsync(string path, HttpContent? content, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
+            using var response = await client.PostAsync($"{MyceliumUrl}{path}", content, cancellationToken);
+            if (response.IsSuccessStatusCode) return BrokerAnswer.Done;
+
+            var answerBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var refusal = $"{(int)response.StatusCode}: {PlatformAnswer.ErrorWordsIn(answerBody) ?? answerBody}";
+            Logger.LogWarning("The broker refused {Path}: {Refusal}", path, refusal);
+            return new BrokerAnswer(false, refusal, CanBeTriedAgain: (int)response.StatusCode >= 500, response.Headers.RetryAfter?.Delta);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "The broker could not be reached for {Path}", path);
+            return new BrokerAnswer(false, $"The broker could not be reached: {exception.Message}", CanBeTriedAgain: true);
+        }
+    }
+
     private async Task<PlatformAnswer> AskAsync(
         HttpMethod method, string path, HttpContent? content, TimeSpan? timeout, CancellationToken cancellationToken)
     {
