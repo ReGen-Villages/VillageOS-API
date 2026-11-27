@@ -152,8 +152,7 @@ public static class HollowWater
             }
             var (first, second) = (pool.First!, pool.Second!);
             var (fromFirst, fromSecond) = (Settle(first), Settle(second));
-            var firstHoldsTheRidgesBasin = first.Cells.Any(cell => basinOfCell[cell] == ridge.Basin);
-            var (intoFirst, intoSecond) = firstHoldsTheRidgesBasin ? (ridge.Basin, ridge.OtherBasin) : (ridge.OtherBasin, ridge.Basin);
+            var (intoFirst, intoSecond) = (ridge.Basin, ridge.OtherBasin);
             if (fromFirst > 0 && fromSecond == 0)
             {
                 inflow[intoSecond] += fromFirst;
