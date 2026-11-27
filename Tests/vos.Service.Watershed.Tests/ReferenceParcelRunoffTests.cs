@@ -30,19 +30,38 @@ public class ReferenceParcelRunoffTests
 
     public static TheoryData<string> Grids() => new("one in five", "one in a hundred", "one in a hundred built over");
 
+    // The recording counts each cell's own route, so it puts standing water on a shelf the hollow's whole flow crosses;
+    // a hollow's water stands at its bottom instead, so the shelf keeps the flow class it would have outside a hollow.
+    private static readonly Dictionary<string, (int Cell, double Recorded, double Now)[]> ShelvesTheWaterNoLongerReaches = new()
+    {
+        ["one in five"] = [],
+        ["one in a hundred"] = [(118, 3, 1)],
+        ["one in a hundred built over"] = [(118, 3, 2)],
+    };
+
     [Theory]
     [MemberData(nameof(Grids))]
-    public void Every_cell_inside_the_border_takes_the_class_the_recorded_reference_gives(string grid)
+    public void Every_cell_inside_the_border_takes_the_recorded_class_but_a_shelf_above_its_hollow_s_lowest_ridge(string grid)
     {
-        var (storm, builtOver, expected) = grid switch
+        var (storm, builtOver, recorded) = grid switch
         {
             "one in five" => (Storm(1, GuidelineRain.OneInFive), false, RecordedClasses.OneInFive),
             "one in a hundred" => (Storm(1.25, GuidelineRain.OneInHundred), false, RecordedClasses.OneInHundred),
             _ => (Storm(1.25, GuidelineRain.OneInHundred), true, RecordedClasses.OneInHundredBuiltOver),
         };
+        var expected = recorded.ToArray();
+        foreach (var shelf in ShelvesTheWaterNoLongerReaches[grid])
+        {
+            expected[shelf.Cell].Should().Be(shelf.Recorded);
+            expected[shelf.Cell] = shelf.Now;
+        }
 
-        var codes = StormRunoff.GridCodesOf(Recorded.Surface, TerrainAnalysis.Of(Recorded.Surface), Inputs, storm, builtOver, Classes);
+        var analysed = TerrainAnalysis.Of(Recorded.Surface);
+        var codes = StormRunoff.GridCodesOf(Recorded.Surface, analysed, Inputs, storm, builtOver, Classes);
 
         codes.Select(code => double.IsNaN(code) ? (double?)null : code).Should().Equal(expected);
+        foreach (var shelf in ShelvesTheWaterNoLongerReaches[grid])
+            Hollows.Of(Recorded.Surface, analysed).Should().ContainSingle(hollow => hollow.Cells.Contains(shelf.Cell)).Which.Ridges
+                .Min(ridge => ridge.Height).Should().BeLessThan(Recorded.Surface.Heights[shelf.Cell]);
     }
 }
