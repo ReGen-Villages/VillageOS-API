@@ -453,6 +453,18 @@ public class WatershedNodeTests
     }
 
     [Fact]
+    public async Task A_shape_the_site_has_of_a_kind_the_role_does_not_bind_is_not_measured()
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource: false);
+        model.HoldsAShapeOfAnotherKind(EastHalfAndBeyond);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.Observed.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_model_binding_no_heights_source_still_has_its_site_layer_features_worked_out_and_is_stamped()
     {
         var model = new WatershedModel(Border, bindsAHeightsSource: false);

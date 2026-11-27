@@ -111,14 +111,23 @@ public sealed class WatershedModel
         return Share(archetype, Term("another term", new() { ["atLeastPercent"] = 0 }));
     }
 
-    public Guid HoldsALayerFeature(string geometry)
+    public Guid HoldsALayerFeature(string geometry) => HoldsAShape(SiteLayerFeatureArchetype, geometry);
+
+    public Guid HoldsAShapeOfAnotherKind(string geometry)
+    {
+        var archetype = Guid.NewGuid();
+        Thing(archetype, "AnotherShape", isArchetype: true);
+        return HoldsAShape(archetype, geometry);
+    }
+
+    private Guid HoldsAShape(Guid archetype, string geometry)
     {
         var id = Guid.NewGuid();
-        Thing(id, $"Willow Bend layer feature {id}", properties: new()
+        Thing(id, $"Willow Bend shape {id}", properties: new()
         {
             ["geometry"] = new(JsonDocument.Parse(geometry).RootElement.Clone(), "vos.GeoJson", "Fact"),
         });
-        Relate(id, Is, SiteLayerFeatureArchetype);
+        Relate(id, Is, archetype);
         Relate(Site, Has, id);
         return id;
     }
