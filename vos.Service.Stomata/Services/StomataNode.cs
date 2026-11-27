@@ -140,8 +140,8 @@ public sealed class StomataNode : DagNodeService
                 var humidityRatio = Psychrometrics.HumidityRatioGramsPerKilogram(celsius, humidity, metres);
                 readings.Add(new ObservationSample(HumidityRatioReading, humidityRatio, hour.At));
                 observed.Add((celsius, humidityRatio));
-                if (strategies?.Of(celsius, humidity) is { } group && groups.ThingOf(group) is { } named)
-                    readings.Add(new ObservationSample(DesignStrategyGroupReading, named, hour.At));
+                if (strategies is not null && groups.Of(new HourTests(strategies, celsius, humidity)) is { } group)
+                    readings.Add(new ObservationSample(DesignStrategyGroupReading, group.Id, hour.At));
             }
             if (onHourlyAir[at] is { } hourly)
                 readings.Add(new ObservationSample(WindowsOpenOnHourlyAirReading, hourly, hour.At));

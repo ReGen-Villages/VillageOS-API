@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
@@ -33,12 +34,6 @@ public class StomataNodeTests
         ("5-to-9-metres-per-second", 5.0, 9.0), ("over-9-metres-per-second", 9.0, null),
     ];
 
-    private static readonly string[] GroupNames =
-    [
-        "comfortable-as-it-is", "with-air-movement", "dehumidification-needed", "heating-needed", "direct-evaporative-cooling",
-        "two-stage-evaporative-cooling", "cooling-system-needed",
-    ];
-
     // The study, its site, the wind rose vocabulary and the design-strategy groups as the shared template declares them.
     private sealed class Model
     {
@@ -56,7 +51,9 @@ public class StomataNodeTests
         public Dictionary<string, Guid> Cells { get; } = [];
         public Dictionary<string, Guid> Groups { get; } = [];
 
-        public Model(bool studiesASite = true, string? withoutGroup = null, string? groupHeldTwice = null)
+        public Model(
+            bool studiesASite = true, string? withoutGroup = null, string? groupWithoutOrder = null, string namedAs = "",
+            (Guid Id, string Name)? sharingTheHeatingOrder = null)
         {
             Thing(Binds, RoleBindings.BindsPredicateName);
             Thing(Is, "is");
@@ -85,9 +82,21 @@ public class StomataNodeTests
                 }
 
             var groupKind = Kind(StomataRoles.DesignStrategyGroup, "DesignStrategyGroup");
-            foreach (var name in GroupNames.Where(name => name != withoutGroup))
-                Groups[name] = Member(groupKind, name);
-            if (groupHeldTwice is not null) Member(groupKind, groupHeldTwice);
+            foreach (var (name, order, tests) in TemplateGroups.Held.Where(group => group.Name != withoutGroup))
+                Groups[name] = GroupMember(groupKind, Guid.NewGuid(), namedAs + name, name == groupWithoutOrder ? null : order, tests);
+            if (sharingTheHeatingOrder is { } sharing)
+                Groups[sharing.Name] = GroupMember(groupKind, sharing.Id, sharing.Name, 4, TemplateGroups.Tests((HourTests.ColderThanWinterZone, true)));
+        }
+
+        private Guid GroupMember(Guid kind, Guid member, string name, long? order, IReadOnlyDictionary<string, bool> tests)
+        {
+            var properties = tests.ToDictionary(
+                test => test.Key, test => new SnapshotProperty(JsonSerializer.SerializeToElement(test.Value), "vos.Boolean", null));
+            if (order is { } placed)
+                properties[DesignStrategyGroups.OrderProperty] = new SnapshotProperty(JsonSerializer.SerializeToElement(placed), "vos.LongInteger", null);
+            Thing(member, name, properties: properties);
+            Relate(member, Is, kind);
+            return member;
         }
 
         public string Answer() => JsonSerializer.Serialize(
@@ -221,9 +230,21 @@ public class StomataNodeTests
             new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
-    private static async Task<NodeResponse> WorkOutAsync(Broker broker, string? subject = null) =>
+    private sealed class RecordingLogger : ILogger<StomataNode>
+    {
+        public List<(LogLevel Level, string Message)> Logged { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Logged.Add((logLevel, formatter(state, exception)));
+    }
+
+    private static async Task<NodeResponse> WorkOutAsync(Broker broker, string? subject = null, ILogger<StomataNode>? logger = null) =>
         await new StomataNode(
-                new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), NullLogger<StomataNode>.Instance, MyceliumUrl,
+                new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), logger ?? NullLogger<StomataNode>.Instance, MyceliumUrl,
                 new StatedComfort(), new LaunchToken("svc-jwt"))
             .HandleNodeAsync(JsonDocument.Parse(
                 $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement);
@@ -367,35 +388,68 @@ public class StomataNodeTests
     }
 
     [Fact]
-    public async Task An_hour_whose_group_the_model_does_not_hold_writes_no_group_reading_and_still_writes_the_rest()
+    public async Task An_hour_whose_group_the_model_does_not_hold_goes_into_the_next_group_that_takes_it()
     {
-        var broker = new Broker(new Model(withoutGroup: "heating-needed"));
+        var model = new Model(withoutGroup: DesignStrategy.HeatingNeeded);
+        var broker = new Broker(model);
         AnHourOf(broker, 15.0, 50.0);
 
         (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
 
-        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Should().BeEmpty();
+        GroupWritten(broker).Should().Be(model.Groups[DesignStrategy.CoolingSystemNeeded]);
         broker.DepositedAs(StomataNode.HumidityRatioReading).Should().ContainSingle();
-        Outline(broker, StomataNode.ComfortInStillAirOutline).Should().NotBeNull();
     }
 
-    // A model's names need not be unique, so a name two Things share picks out neither.
     [Fact]
-    public async Task An_hour_whose_group_two_things_are_named_for_writes_no_group_reading_and_the_other_groups_still_do()
+    public async Task A_group_renamed_in_the_model_still_takes_its_hours()
     {
-        var model = new Model(groupHeldTwice: "heating-needed");
-        var cold = new Broker(model);
-        var warm = new Broker(model);
-        AnHourOf(cold, 15.0, 50.0);
-        AnHourOf(warm, 25.0, 40.0);
+        var model = new Model(namedAs: "the project's ");
+        var broker = new Broker(model);
+        AnHourOf(broker, 15.0, 50.0);
 
-        (await WorkOutAsync(cold)).Result.Should().Be(NodeResponse.Succeeded);
-        await WorkOutAsync(warm);
+        await WorkOutAsync(broker);
 
-        cold.DepositedAs(StomataNode.DesignStrategyGroupReading).Should().BeEmpty();
-        warm.DepositedAs(StomataNode.DesignStrategyGroupReading).Single().GetProperty("value").GetGuid()
-            .Should().Be(model.Groups["comfortable-as-it-is"]);
+        GroupWritten(broker).Should().Be(model.Groups[DesignStrategy.HeatingNeeded]);
     }
+
+    [Fact]
+    public async Task A_group_with_no_order_is_never_tried_and_the_run_names_it_once()
+    {
+        var model = new Model(groupWithoutOrder: DesignStrategy.HeatingNeeded);
+        var broker = new Broker(model);
+        broker.Series[StomataNode.TemperatureSeries] = [(FirstHour, 15.0), (FirstHour.AddHours(1), 14.0)];
+        broker.Series[StomataNode.RelativeHumiditySeries] = [(FirstHour, 50.0), (FirstHour.AddHours(1), 50.0)];
+        var logger = new RecordingLogger();
+
+        await WorkOutAsync(broker, logger: logger);
+
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Select(item => item.GetProperty("value").GetGuid())
+            .Should().Equal(model.Groups[DesignStrategy.CoolingSystemNeeded], model.Groups[DesignStrategy.CoolingSystemNeeded]);
+        logger.Logged.Where(logged => logged.Message.Contains(DesignStrategy.HeatingNeeded)).Should().ContainSingle()
+            .Which.Level.Should().Be(LogLevel.Warning);
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000001", true)]
+    [InlineData("ffffffff-ffff-ffff-ffff-ffffffffffff", false)]
+    public async Task Two_groups_sharing_an_order_are_tried_by_identifier_and_the_run_names_both_once(string sharingId, bool sharingGroupFirst)
+    {
+        const string sharing = "sharing the heating order";
+        var model = new Model(sharingTheHeatingOrder: (Guid.Parse(sharingId), sharing));
+        var broker = new Broker(model);
+        AnHourOf(broker, 15.0, 50.0);
+        var logger = new RecordingLogger();
+
+        await WorkOutAsync(broker, logger: logger);
+
+        GroupWritten(broker).Should().Be(model.Groups[sharingGroupFirst ? sharing : DesignStrategy.HeatingNeeded]);
+        var named = logger.Logged.Where(logged => logged.Message.Contains(sharing)).Should().ContainSingle().Subject;
+        named.Level.Should().Be(LogLevel.Warning);
+        named.Message.Should().Contain(DesignStrategy.HeatingNeeded);
+    }
+
+    private static Guid GroupWritten(Broker broker) =>
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Single().GetProperty("value").GetGuid();
 
     [Theory]
     [MemberData(nameof(EveryComfortInput))]

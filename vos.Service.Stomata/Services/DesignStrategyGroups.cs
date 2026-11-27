@@ -2,26 +2,22 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Stomata.Services;
 
-public sealed class DesignStrategyGroups(IReadOnlyDictionary<DesignStrategy, Guid> things)
+public sealed record DesignStrategyGroup(Guid Id, string? Name, IReadOnlyDictionary<string, bool> Tests);
+
+public sealed class DesignStrategyGroups(
+    IReadOnlyList<DesignStrategyGroup> tried,
+    IReadOnlyList<DesignStrategyGroup> unordered,
+    IReadOnlyList<IReadOnlyList<DesignStrategyGroup>> sharingAnOrder)
 {
-    private static readonly IReadOnlyDictionary<string, DesignStrategy> ByName = new Dictionary<string, DesignStrategy>
-    {
-        ["comfortable-as-it-is"] = DesignStrategy.ComfortableAsItIs,
-        ["with-air-movement"] = DesignStrategy.WithAirMovement,
-        ["dehumidification-needed"] = DesignStrategy.DehumidificationNeeded,
-        ["heating-needed"] = DesignStrategy.HeatingNeeded,
-        ["direct-evaporative-cooling"] = DesignStrategy.DirectEvaporativeCooling,
-        ["two-stage-evaporative-cooling"] = DesignStrategy.TwoStageEvaporativeCooling,
-        ["cooling-system-needed"] = DesignStrategy.CoolingSystemNeeded,
-    };
+    public const string OrderProperty = "order";
 
-    public Guid? ThingOf(DesignStrategy group) => things.TryGetValue(group, out var thing) ? thing : null;
+    public IReadOnlyList<DesignStrategyGroup> Tried { get; } = tried;
 
-    // A model's names need not be unique, so a name two members share picks out neither.
-    public static DesignStrategyGroups From(SnapshotDocument snapshot) => new(
-        RoleMembers.Of(snapshot, StomataRoles.DesignStrategyGroup)
-            .Where(member => member.Name is not null && ByName.ContainsKey(member.Name))
-            .GroupBy(member => ByName[member.Name!])
-            .Where(named => named.Count() == 1)
-            .ToDictionary(named => named.Key, named => named.Single().Id));
+    public IReadOnlyList<DesignStrategyGroup> Unordered { get; } = unordered;
+
+    public IReadOnlyList<IReadOnlyList<DesignStrategyGroup>> SharingAnOrder { get; } = sharingAnOrder;
+
+    public DesignStrategyGroup? Of(HourTests hour) => null;
+
+    public static DesignStrategyGroups From(SnapshotDocument snapshot) => new([], [], []);
 }

@@ -16,18 +16,8 @@ public sealed record ComfortAssumptions(
     double IndirectEvaporativeStageShare,
     double PressureKilopascals);
 
-public enum DesignStrategy
-{
-    ComfortableAsItIs,
-    WithAirMovement,
-    DehumidificationNeeded,
-    HeatingNeeded,
-    DirectEvaporativeCooling,
-    TwoStageEvaporativeCooling,
-    CoolingSystemNeeded,
-}
-
-// The groups and their order are the Climate Consultant psychrometric chart's, as the site-study demo ports them.
+// The tests an hour is put to are the Climate Consultant psychrometric chart's, as the site-study demo ports them; the groups
+// that ask them, and their order, are the model's.
 public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions assumptions)
 {
     private const double ComfortableVote = 0.5;
@@ -41,25 +31,6 @@ public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions
     public double HottestComfortableWetBulbCelsius => _hottestComfortableWetBulb ??= Psychrometrics.WetBulbCelsius(
         TemperatureWhereTheVoteReaches(Assumptions.HumidityRatioLimitGramsPerKilogram, Assumptions.SummerClothingClo, Assumptions.StillAirMetresPerSecond, ComfortableVote),
         Assumptions.HumidityRatioLimitGramsPerKilogram, Assumptions.PressureKilopascals);
-
-    public DesignStrategy Of(double airCelsius, double relativeHumidityPercent)
-    {
-        var humidityRatio = Psychrometrics.HumidityRatioAtPressureGramsPerKilogram(airCelsius, relativeHumidityPercent, Assumptions.PressureKilopascals);
-        var dryEnough = humidityRatio <= Assumptions.HumidityRatioLimitGramsPerKilogram;
-
-        if (IsInAZone(airCelsius, relativeHumidityPercent, Assumptions.StillAirMetresPerSecond))
-            return dryEnough ? DesignStrategy.ComfortableAsItIs : DesignStrategy.DehumidificationNeeded;
-        if (IsInAZone(airCelsius, relativeHumidityPercent, Assumptions.AirMovementMetresPerSecond))
-            return dryEnough ? DesignStrategy.WithAirMovement : DesignStrategy.DehumidificationNeeded;
-        if (Vote(airCelsius, relativeHumidityPercent, Assumptions.WinterClothingClo, Assumptions.StillAirMetresPerSecond) < -ComfortableVote)
-            return DesignStrategy.HeatingNeeded;
-        if (IsWarmerThanTheSummerZone(airCelsius, humidityRatio))
-        {
-            if (DirectEvaporationWorks(airCelsius, humidityRatio)) return DesignStrategy.DirectEvaporativeCooling;
-            if (TwoStageEvaporationWorks(airCelsius, humidityRatio)) return DesignStrategy.TwoStageEvaporativeCooling;
-        }
-        return DesignStrategy.CoolingSystemNeeded;
-    }
 
     public (double CoolCelsius, double WarmCelsius) ZoneAt(double humidityRatioGramsPerKilogram, double airSpeedMetresPerSecond) =>
     (

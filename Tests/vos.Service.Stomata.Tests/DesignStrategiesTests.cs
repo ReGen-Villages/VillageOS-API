@@ -18,9 +18,9 @@ public class DesignStrategiesTests
     [InlineData(35.0, 20.0, DesignStrategy.DirectEvaporativeCooling)]    // 7.0 g/kg, wet-bulb about 18.8 °C
     [InlineData(42.0, 15.7, DesignStrategy.TwoStageEvaporativeCooling)]  // 8.0 g/kg, wet-bulb 21.5 °C; after the indirect stage 29.7 °C and 17.9 °C
     [InlineData(35.0, 60.0, DesignStrategy.CoolingSystemNeeded)]         // 21.4 g/kg, wet-bulb about 28 °C
-    public void An_hour_goes_into_the_first_group_it_fits(double airCelsius, double relativeHumidityPercent, DesignStrategy group)
+    public void An_hour_goes_into_the_first_group_it_fits(double airCelsius, double relativeHumidityPercent, string group)
     {
-        _strategies.Of(airCelsius, relativeHumidityPercent).Should().Be(group);
+        GroupOf(_strategies, airCelsius, relativeHumidityPercent).Should().Be(group);
     }
 
     // At 1.6 met the summer zones are five degrees cooler: 19–23 °C in still air and 22–26 °C at 1 m/s.
@@ -29,8 +29,53 @@ public class DesignStrategiesTests
     {
         var active = new DesignStrategies(new StatedComfort(), StatedComfort.Assumptions with { MetabolicRateMet = 1.6 });
 
-        active.Of(25.0, 40.0).Should().Be(DesignStrategy.WithAirMovement);
+        GroupOf(active, 25.0, 40.0).Should().Be(DesignStrategy.WithAirMovement);
     }
+
+    [Theory]
+    [InlineData(25.0, 40.0, HourTests.InsideStillAirZone, true)]
+    [InlineData(29.5, 30.0, HourTests.InsideStillAirZone, false)]
+    [InlineData(29.5, 30.0, HourTests.InsideMovingAirZone, true)]
+    [InlineData(15.0, 50.0, HourTests.InsideMovingAirZone, false)]
+    [InlineData(25.0, 40.0, HourTests.InsideAComfortZone, true)]
+    [InlineData(29.5, 30.0, HourTests.InsideAComfortZone, true)]
+    [InlineData(15.0, 50.0, HourTests.InsideAComfortZone, false)]
+    [InlineData(25.0, 40.0, HourTests.HumidityRatioWithinLimit, true)]
+    [InlineData(25.0, 90.0, HourTests.HumidityRatioWithinLimit, false)]
+    [InlineData(15.0, 50.0, HourTests.ColderThanWinterZone, true)]
+    [InlineData(25.0, 40.0, HourTests.ColderThanWinterZone, false)]
+    [InlineData(35.0, 20.0, HourTests.WarmerThanSummerZone, true)]
+    [InlineData(25.0, 40.0, HourTests.WarmerThanSummerZone, false)]
+    [InlineData(35.0, 20.0, HourTests.ReachedByDirectEvaporation, true)]
+    [InlineData(42.0, 15.7, HourTests.ReachedByDirectEvaporation, false)]
+    [InlineData(42.0, 15.7, HourTests.ReachedByTwoStageEvaporation, true)]
+    [InlineData(35.0, 60.0, HourTests.ReachedByTwoStageEvaporation, false)]
+    public void Each_test_an_hour_is_put_to_holds_as_worked_by_hand(double airCelsius, double relativeHumidityPercent, string test, bool holds)
+    {
+        new HourTests(_strategies, airCelsius, relativeHumidityPercent).Holds(test).Should().Be(holds);
+    }
+
+    // A 25 °C hour at 90 % is inside the still-air zone but too humid for comfortable-as-it-is.
+    [Fact]
+    public void A_test_a_group_leaves_out_is_not_asked()
+    {
+        var stillAirOnly = TemplateGroups.Groups(
+            new DesignStrategyGroup(Guid.NewGuid(), "still air", TemplateGroups.Tests((HourTests.InsideStillAirZone, true))));
+
+        (stillAirOnly.Of(new HourTests(_strategies, 25.0, 90.0))?.Name).Should().Be("still air");
+    }
+
+    [Fact]
+    public void An_hour_no_group_takes_goes_into_none()
+    {
+        var comfortableOnly = TemplateGroups.Groups(new DesignStrategyGroup(
+            Guid.NewGuid(), "comfortable", TemplateGroups.Tests((HourTests.InsideStillAirZone, true), (HourTests.HumidityRatioWithinLimit, true))));
+
+        comfortableOnly.Of(new HourTests(_strategies, 15.0, 50.0)).Should().BeNull();
+    }
+
+    private static string? GroupOf(DesignStrategies strategies, double airCelsius, double relativeHumidityPercent) =>
+        TemplateGroups.Groups().Of(new HourTests(strategies, airCelsius, relativeHumidityPercent))?.Name;
 
     [Fact]
     public void The_hottest_comfortable_wet_bulb_is_that_of_the_summer_zones_hot_humid_corner()
