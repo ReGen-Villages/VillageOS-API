@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 #if VOS_ENGINE_IS_STAGED
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using vos.Mycelium.Testing;
@@ -41,6 +42,8 @@ public sealed class TheEngine : IAsyncLifetime
     // Read once at start, while the engine holds only the model it starts with, because a case may make more.
     private (Guid Id, string Name) _firstModel;
 
+    internal IReadOnlyDictionary<string, string> Settings { get; init; } = new Dictionary<string, string>();
+
 #if !VOS_ENGINE_IS_STAGED
     public Task InitializeAsync() => throw new InvalidOperationException(
         "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
@@ -51,9 +54,18 @@ public sealed class TheEngine : IAsyncLifetime
 #else
     private MyceliumTestHost _host = null!;
 
+    private sealed class HostWithSettings(IReadOnlyDictionary<string, string> settings) : MyceliumTestHost
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            foreach (var (key, value) in settings) builder.UseSetting(key, value);
+        }
+    }
+
     public async Task InitializeAsync()
     {
-        _host = new MyceliumTestHost();
+        _host = new HostWithSettings(Settings);
         await _host.InitializeAsync();
 
         var signingIn = _host.CreateClient();
