@@ -62,6 +62,7 @@ public static class LandIntakeRoles
     public static readonly Role SoilHorizon = new("soilHorizon", new("67af9641-6c6e-56ac-b58b-20039cf040e1"));
     public static readonly Role LandCoverClass = new("landCoverClass", new("e849536c-e5de-52e1-a7c9-b0a59ee7f591"));
     public static readonly Role LandCoverShare = new("landCoverShare", new("865a1a58-ea9e-5699-8a76-73b48e705042"));
+    public static readonly Role LandCoverRaster = new("landCoverRaster", new("e04416cd-ece6-5a3b-895f-5a550f4a1065"));
     public static readonly Role SlopeClass = new("slopeClass", new("5d4a58bc-6177-5b10-8619-f78851d54173"));
     public static readonly Role SlopeClassShare = new("slopeClassShare", new("35b8a44c-d5ff-5dc3-bc31-d53e596854a8"));
     public static readonly Role AspectDirection = new("aspectDirection", new("ee170eb3-5323-5601-88be-9c764477c447"));
@@ -83,7 +84,7 @@ public static class LandIntakeRoles
         PlaceSearch, SourceCoverage, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
         Predicate, FallsBackTo, PlotsInViewLookup, BorderElevation, SiteLayerKind, SiteLayerFeature, OfLayerKind,
-        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare,
+        SourcedFrom, ShownUnder, HistorySource, SoilDepth, SoilHorizon, LandCoverClass, LandCoverShare, LandCoverRaster,
         SlopeClass, SlopeClassShare, AspectDirection, AspectShare,
         MeasuresAreaWith, AreaMeasuredWith, MeanSphereAreaMethod, Wgs84EllipsoidAreaMethod,
         VerifiedRequestBudget, UnverifiedRequestBudget,

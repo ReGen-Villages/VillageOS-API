@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { valueOrigin } from './propertyOrigin';
+import { resolvedWriteKind, valueOrigin } from './propertyOrigin';
 import type { IsChainLookup } from './propertyMapper';
 import type { DeclaredWriteKind, VosThing } from '../types/vos';
 
@@ -222,5 +222,84 @@ describe('valueOrigin', () => {
     const second = thing('b', 'Second');
     expect(valueOrigin(first, 'anything', chain([first, second], { a: ['b'], b: ['a'] })))
       .toEqual({ origin: 'unknown', assumedFrom: null });
+  });
+});
+
+// The platform refuses a hand-written value by the write kind of the property a write lands on: the one the
+// Thing holds, or else the nearest archetype's, valued or not.
+describe('resolvedWriteKind', () => {
+  it('reads the write kind of a property the Thing holds itself', () => {
+    const site = thing('s', 'Willow Bend', {
+      Properties: { rainfallMillimetresPerYear: 700 },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', alone)).toBe('ObservationOnly');
+  });
+
+  it('reads the write kind of a value stored under an inherited name', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: null },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend', {
+      InheritedOverrides: stored('Site', { rainfallMillimetresPerYear: 700 }, { rainfallMillimetresPerYear: 'ObservationOnly' }),
+    });
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBe('ObservationOnly');
+  });
+
+  it('reads the archetype\'s write kind for a property only the archetype holds', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: 650 },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend');
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBe('ObservationOnly');
+  });
+
+  it('reads the archetype\'s write kind for a property it declares with no value yet', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: null },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend');
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBe('ObservationOnly');
+  });
+
+  // A value the Thing holds with no write kind is open to either kind of write, so the platform takes a
+  // hand-written value for it whatever its archetype declares.
+  it('does not walk past a property the Thing holds that declares nothing', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: null },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend', { Properties: { rainfallMillimetresPerYear: 700 } });
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBeUndefined();
+  });
+
+  it('does not walk past a value stored under an inherited name that declares nothing', () => {
+    const archetype = thing('a', 'Site', {
+      Properties: { rainfallMillimetresPerYear: null },
+      PropertyWriteKinds: { rainfallMillimetresPerYear: 'ObservationOnly' },
+    });
+    const site = thing('s', 'Willow Bend', {
+      InheritedOverrides: stored('Site', { rainfallMillimetresPerYear: 700 }),
+    });
+    expect(resolvedWriteKind(site, 'rainfallMillimetresPerYear', chain([archetype], { s: ['a'] })))
+      .toBeUndefined();
+  });
+
+  it('answers nothing for a property nothing holds', () => {
+    expect(resolvedWriteKind(thing('s', 'Willow Bend'), 'absent', alone)).toBeUndefined();
+  });
+
+  it('answers rather than hanging when the is-chain loops back on itself', () => {
+    const first = thing('a', 'First');
+    const second = thing('b', 'Second');
+    expect(resolvedWriteKind(first, 'anything', chain([first, second], { a: ['b'], b: ['a'] })))
+      .toBeUndefined();
   });
 });

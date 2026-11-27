@@ -6,7 +6,7 @@ namespace vos.Service.Watershed.Tests;
 
 public class HeightGridLayoutTests
 {
-    private static readonly IReadOnlyList<Position> ReferenceBorder =
+    public static readonly IReadOnlyList<Position> ReferenceBorder =
     [
         new(25.1548913568011, 55.55616063595723), new(25.15129015552567, 55.54932911385871), new(25.14978772652261, 55.5468216600034),
         new(25.14886667062588, 55.54735722283466), new(25.15562986578318, 55.5691377022649), new(25.15707226778431, 55.56848828530388),

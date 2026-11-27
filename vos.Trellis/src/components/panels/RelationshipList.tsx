@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { EditablePropertyList } from './EditablePropertyList';
-import { withDeclaredTypes } from './editableProperties';
+import { relationshipTakesReadingsOnly, withDeclaredTypes } from './editableProperties';
 import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
 import { AddRelationshipRow } from './AddRelationshipRow';
 import type { VosRelationship, VosThing } from '@tendril-ui/tendril';
@@ -73,7 +73,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
             {isExpanded && relationshipProperties.length > 0 && (
               <div className="ml-5 mb-1 pl-2 border-l-2 border-zinc-700">
                 <ExpandedRelationshipProperties
-                  relationshipId={r.Id}
+                  relationship={r}
                   storedProperties={relationshipProperties}
                   editMode={editMode}
                 />
@@ -99,18 +99,18 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
  * property's declared type, and it is asked for only when a row is opened — a node with many
  * relationships would otherwise read every one of them to show a list nobody expanded.
  */
-function ExpandedRelationshipProperties({ relationshipId, storedProperties, editMode }: {
-  relationshipId: string;
+function ExpandedRelationshipProperties({ relationship, storedProperties, editMode }: {
+  relationship: VosRelationship;
   storedProperties: [string, unknown][];
   editMode: boolean;
 }) {
   const [version, setVersion] = useState(0);
-  const resolved = useResolvedRelationshipProperties(relationshipId, { version });
+  const resolved = useResolvedRelationshipProperties(relationship.Id, { version });
 
   return (
     <EditablePropertyList
-      properties={withDeclaredTypes(storedProperties, resolved)}
-      entityId={relationshipId}
+      properties={withDeclaredTypes(storedProperties, resolved, relationshipTakesReadingsOnly(relationship))}
+      entityId={relationship.Id}
       entityType="relationship"
       editMode={editMode && resolved !== null}
       onSaved={() => setVersion((v) => v + 1)}

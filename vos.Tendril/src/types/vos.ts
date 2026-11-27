@@ -89,6 +89,8 @@ export interface VosRelationship {
   PredicateId: string;
   TargetId: string;
   Properties: Record<string, unknown>;
+  /** As on {@link VosThing}. */
+  PropertyWriteKinds?: Record<string, DeclaredWriteKind>;
 }
 
 export interface ModelSummary {

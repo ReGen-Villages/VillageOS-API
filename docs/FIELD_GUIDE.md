@@ -1457,7 +1457,7 @@ with geometry.
 | Tab | What it shows |
 | --- | --- |
 | **Ranges** | The states the Thing currently holds as coloured badges; its own ranges with their criteria and whether each holds; the ranges it inherits, grouped by the kind that supplies them, each name a link to that kind; the ranges on every relationship it sits on; and, per binding, how far a value sits from its bounds. **Add Range** creates one from a name and a criterion; each own range has a delete control; an inherited range is removed from the kind that declares it. The tab holds a still picture of the world while you read it, so a stream of state changes does not shuffle the panel under you; the refresh control takes a fresh one |
-| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for, a ticket naming a stored image as the image itself (the ticket text, with the reason, where the image cannot be shown). Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
+| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for, a ticket naming a stored image as the image itself (the ticket text, with the reason, where the image cannot be shown). Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A value the model takes only from readings keeps no field and says so, because the platform refuses one written by hand. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
 | **Relationships** | What points at the Thing and what it points to, each name a link. A chevron opens a relationship's own values for editing; an icon opens the relationship's own panel. In editing mode a row at the bottom of each list adds a relationship from a predicate and a Thing, and a **retype** row repoints the Thing's `is` to another kind in one step, offering declared kinds only |
 | **3D** | An auto-rotating view of the element. Drag to orbit, scroll to zoom. A container with no geometry of its own — a building, a storey — shows what it contains, coloured by element class |
 
@@ -1466,7 +1466,8 @@ with geometry.
 ![The Relationships tab: outgoing and incoming relationships, each expandable](assets/trellis-graph-relationships.png)
 
 **Click a relationship** for its panel: its subject, predicate and target as links, its own
-values with editing, its ranges and states, and a delete control.
+values with editing (a value taken only from readings keeps no field, as on a Thing), its ranges and
+states, and a delete control.
 
 ![A relationship selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
 

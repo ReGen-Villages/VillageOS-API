@@ -6,7 +6,7 @@ import { formatGuid } from '../../utils/formatters';
 import { relationshipLabel } from '../../utils/relationshipLabel';
 import { CopyIdButton, EditModeToggle } from './DetailPanelControls';
 import { EditablePropertyList } from './EditablePropertyList';
-import { withDeclaredTypes } from './editableProperties';
+import { relationshipTakesReadingsOnly, withDeclaredTypes } from './editableProperties';
 import { RangesTabContent } from './RangesTabContent';
 import { relationshipRangeApi } from '../../api/rangeApi';
 import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
@@ -44,7 +44,7 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
   });
   const ownProperties = relationship.Properties ? Object.entries(relationship.Properties) : [];
   const ownPropertyCount = ownProperties.length;
-  const props = withDeclaredTypes(ownProperties, resolvedProperties);
+  const props = withDeclaredTypes(ownProperties, resolvedProperties, relationshipTakesReadingsOnly(relationship));
 
   const handlePropertySaved = () => {
     setPropertiesVersion((v) => v + 1);
