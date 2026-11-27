@@ -44,10 +44,18 @@ public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions
         Vote(airCelsius, Psychrometrics.RelativeHumidityPercent(airCelsius, humidityRatioGramsPerKilogram, Assumptions.PressureKilopascals),
             Assumptions.SummerClothingClo, Assumptions.StillAirMetresPerSecond) > ComfortableVote;
 
+    public bool IsColderThanTheWinterZone(double airCelsius, double relativeHumidityPercent) =>
+        Vote(airCelsius, relativeHumidityPercent, Assumptions.WinterClothingClo, Assumptions.StillAirMetresPerSecond) < -ComfortableVote;
+
+    public bool IsWithinTheHumidityLimit(double humidityRatioGramsPerKilogram) =>
+        humidityRatioGramsPerKilogram <= Assumptions.HumidityRatioLimitGramsPerKilogram;
+
     // Evaporation moves air along its wet-bulb line, so it can reach the zone only from a wet-bulb at or below the zone's hottest.
+    public bool IsReachedByDirectEvaporation(double airCelsius, double humidityRatioGramsPerKilogram) =>
+        Psychrometrics.WetBulbCelsius(airCelsius, humidityRatioGramsPerKilogram, Assumptions.PressureKilopascals) <= HottestComfortableWetBulbCelsius;
+
     public bool DirectEvaporationWorks(double airCelsius, double humidityRatioGramsPerKilogram) =>
-        humidityRatioGramsPerKilogram <= Assumptions.HumidityRatioLimitGramsPerKilogram
-        && Psychrometrics.WetBulbCelsius(airCelsius, humidityRatioGramsPerKilogram, Assumptions.PressureKilopascals) <= HottestComfortableWetBulbCelsius;
+        IsWithinTheHumidityLimit(humidityRatioGramsPerKilogram) && IsReachedByDirectEvaporation(airCelsius, humidityRatioGramsPerKilogram);
 
     // The indirect stage cools the air at constant humidity first, which lowers its wet-bulb before the direct stage.
     public bool TwoStageEvaporationWorks(double airCelsius, double humidityRatioGramsPerKilogram)
@@ -58,7 +66,7 @@ public sealed class DesignStrategies(IThermalComfort comfort, ComfortAssumptions
                <= HottestComfortableWetBulbCelsius;
     }
 
-    private bool IsInAZone(double airCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond) =>
+    public bool IsInAZone(double airCelsius, double relativeHumidityPercent, double airSpeedMetresPerSecond) =>
         Math.Abs(Vote(airCelsius, relativeHumidityPercent, Assumptions.SummerClothingClo, airSpeedMetresPerSecond)) <= ComfortableVote
         || Math.Abs(Vote(airCelsius, relativeHumidityPercent, Assumptions.WinterClothingClo, airSpeedMetresPerSecond)) <= ComfortableVote;
 

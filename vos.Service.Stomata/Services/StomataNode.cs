@@ -89,8 +89,9 @@ public sealed class StomataNode : DagNodeService
         IReadOnlyDictionary<string, string> outlines = new Dictionary<string, string>();
         if (SiteOf(snapshot, studyId) is { } siteId)
         {
-            (var readings, outlines) = await WorkOutAsync(
-                studyId, siteId, WindRose.From(snapshot), DesignStrategyGroups.From(snapshot), cancellationToken);
+            var groups = DesignStrategyGroups.From(snapshot);
+            ReportGroupsNotTriedInTheirOwnPlace(groups);
+            (var readings, outlines) = await WorkOutAsync(studyId, siteId, WindRose.From(snapshot), groups, cancellationToken);
             if (readings.Count > 0)
             {
                 Accept(await DepositReadingsAsync(siteId, readings, cancellationToken), "the hourly readings");
@@ -149,6 +150,15 @@ public sealed class StomataNode : DagNodeService
                 readings.Add(new ObservationSample(WindowsOpenOnDailyAirReading, daily, hour.At));
         }
         return (readings, strategies is null ? new Dictionary<string, string>() : OutlinesOf(new ZoneOutlines(strategies, observed)));
+    }
+
+    private void ReportGroupsNotTriedInTheirOwnPlace(DesignStrategyGroups groups)
+    {
+        foreach (var group in groups.Unordered)
+            Logger.LogWarning("Design-strategy group {Group} has no order, so Stomata tries no hour against it.", group.Label);
+        foreach (var sharing in groups.SharingAnOrder)
+            Logger.LogWarning("Design-strategy groups {Groups} share one order, so Stomata tries them by identifier.",
+                string.Join(", ", sharing.Select(group => group.Label)));
     }
 
     private static ComfortAssumptions AssumptionsOf(StudyInputs inputs, double elevationMetres) => new(
