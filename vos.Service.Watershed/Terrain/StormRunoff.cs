@@ -7,8 +7,7 @@ public sealed record RunoffInputs(
 
 public sealed record DesignStormRain(double RunoffCoefficientMultiplier, RainfallIntensities Rain);
 
-// The rational method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4), as the
-// site-study pages' storm-check.js works it out.
+// The rational method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4).
 public static class StormRunoff
 {
     // The kinematic wave equation for sheet flow in metric units, with rain in millimetres an hour.

@@ -2,7 +2,7 @@ using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Tests;
 
-// The two storms of the reference parcel's rain table in the stormwater guideline the site-study pages read.
+// The two storms of the reference parcel's rain table in the stormwater guideline.
 public static class GuidelineRain
 {
     public static readonly double[] Durations = [1440, 720, 360, 300, 240, 180, 120, 90, 60, 45, 30, 20, 15, 10, 5];

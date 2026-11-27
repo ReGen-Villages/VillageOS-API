@@ -6,12 +6,12 @@ using static vos.Service.Watershed.Tests.ReferenceParcel;
 
 namespace vos.Service.Watershed.Tests;
 
-// The recorded classes are the site-study pages' own storm-check.js, run under Node on the recorded heights at the true cell.
+// The recorded classes were worked out from the recorded heights at the true cell by a separate implementation of the same method, outside this code.
 public class ReferenceParcelRunoffTests
 {
-    private sealed record DemoRunoff(double?[] OneInFive, double?[] OneInHundred, double?[] OneInHundredBuiltOver);
+    private sealed record RecordedRunoff(double?[] OneInFive, double?[] OneInHundred, double?[] OneInHundredBuiltOver);
 
-    private static readonly DemoRunoff Demo = JsonSerializer.Deserialize<DemoRunoff>(
+    private static readonly RecordedRunoff RecordedClasses = JsonSerializer.Deserialize<RecordedRunoff>(
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Recorded", "reference-parcel-runoff.json")),
         new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
@@ -32,13 +32,13 @@ public class ReferenceParcelRunoffTests
 
     [Theory]
     [MemberData(nameof(Grids))]
-    public void Every_cell_inside_the_border_takes_the_class_the_demos_own_code_gives(string grid)
+    public void Every_cell_inside_the_border_takes_the_class_the_recorded_reference_gives(string grid)
     {
         var (storm, builtOver, expected) = grid switch
         {
-            "one in five" => (Storm(1, GuidelineRain.OneInFive), false, Demo.OneInFive),
-            "one in a hundred" => (Storm(1.25, GuidelineRain.OneInHundred), false, Demo.OneInHundred),
-            _ => (Storm(1.25, GuidelineRain.OneInHundred), true, Demo.OneInHundredBuiltOver),
+            "one in five" => (Storm(1, GuidelineRain.OneInFive), false, RecordedClasses.OneInFive),
+            "one in a hundred" => (Storm(1.25, GuidelineRain.OneInHundred), false, RecordedClasses.OneInHundred),
+            _ => (Storm(1.25, GuidelineRain.OneInHundred), true, RecordedClasses.OneInHundredBuiltOver),
         };
 
         var codes = StormRunoff.GridCodesOf(Recorded.Surface, TerrainAnalysis.Of(Recorded.Surface), Inputs, storm, builtOver, Classes);

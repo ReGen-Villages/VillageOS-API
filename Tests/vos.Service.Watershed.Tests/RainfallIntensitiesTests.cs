@@ -5,7 +5,7 @@ using static vos.Service.Watershed.Tests.GuidelineRain;
 
 namespace vos.Service.Watershed.Tests;
 
-// The expected figures are the site-study pages' own Codes.rain, run under Node on the same table.
+// The expected figures were worked out on the same table by a separate implementation of the same reading, outside this code.
 public class RainfallIntensitiesTests
 {
     [Theory]

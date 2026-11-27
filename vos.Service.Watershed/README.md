@@ -55,8 +55,8 @@ reaches its features along `has`.
 
 **Runoff.** Three grids of runoff classes are worked out on the same cells: the 1-in-5 and 1-in-100 year storms
 on bare ground, and the 1-in-100 year storm with every cell inside the border built over. The method is the rational
-method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4), as the site-study
-pages work it out. The runoff coefficients, the roughness of the ground, the shortest time of concentration, the
+method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4).
+The runoff coefficients, the roughness of the ground, the shortest time of concentration, the
 length of sheet flow and the smallest slopes are the study's own correctable inputs. The rain comes from a table
 reached through the site's Places, nearest first: of the tables that apply in that Place, the one used east of the
 greatest longitude west of the site, else the one with no such longitude. Each RunoffClass holds the conditions a cell
