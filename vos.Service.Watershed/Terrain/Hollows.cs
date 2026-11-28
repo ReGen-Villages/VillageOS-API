@@ -103,8 +103,6 @@ public static class Hollows
     }
 }
 
-// Each pit fills from its own inflow until it reaches the ridge to its neighbour, spills into the basin across that
-// ridge, and the two share one level only once both are full to it.
 public static class HollowWater
 {
     private sealed class Pool(List<int> cells, int leaf)

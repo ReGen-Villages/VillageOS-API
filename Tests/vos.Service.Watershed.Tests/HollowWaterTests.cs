@@ -72,7 +72,6 @@ public class HollowWaterTests
         ShouldStand(HollowWater.Fill(ThreePits, ThreePitBasins, TwoRidges, [4.6, 0, 0], Spill, 1), 1.1, 0.7, 1.4, 1.0, 0.35, 0.05);
     }
 
-    // 8 × 3 / 4 = 6 and 8 × 1 / 4 = 2.
     [Fact]
     public void A_hollow_s_gathered_water_is_shared_among_its_basins_by_the_area_entering_each()
     {
