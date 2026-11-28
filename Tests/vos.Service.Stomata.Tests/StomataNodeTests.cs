@@ -24,14 +24,14 @@ public class StomataNodeTests
 
     private static readonly string[] SectorNames =
     [
-        "north", "north-northeast", "northeast", "east-northeast", "east", "east-southeast", "southeast", "south-southeast",
-        "south", "south-southwest", "southwest", "west-southwest", "west", "west-northwest", "northwest", "north-northwest",
+        "North", "NorthNortheast", "Northeast", "EastNortheast", "East", "EastSoutheast", "Southeast", "SouthSoutheast",
+        "South", "SouthSouthwest", "Southwest", "WestSouthwest", "West", "WestNorthwest", "Northwest", "NorthNorthwest",
     ];
 
     private static readonly (string Name, double? AtLeast, double? Below)[] Bands =
     [
-        ("under-2-metres-per-second", null, 2.0), ("2-to-3-metres-per-second", 2.0, 3.0), ("3-to-5-metres-per-second", 3.0, 5.0),
-        ("5-to-9-metres-per-second", 5.0, 9.0), ("over-9-metres-per-second", 9.0, null),
+        ("Under2MetresPerSecond", null, 2.0), ("From2To3MetresPerSecond", 2.0, 3.0), ("From3To5MetresPerSecond", 3.0, 5.0),
+        ("From5To9MetresPerSecond", 5.0, 9.0), ("Over9MetresPerSecond", 9.0, null),
     ];
 
     // The study, its site, the wind rose vocabulary and the design-strategy groups as the shared template declares them.
@@ -282,7 +282,7 @@ public class StomataNodeTests
         broker.Deposited.Should().OnlyContain(item => item.GetProperty("objectId").GetGuid() == Model.Site
                                                       && item.GetProperty("observedAt").GetDateTime() == FirstHour);
         broker.DepositedAs(StomataNode.WindRoseCellReading).Single().GetProperty("value").GetGuid()
-            .Should().Be(model.Cells["east 3-to-5-metres-per-second"]);
+            .Should().Be(model.Cells["East From3To5MetresPerSecond"]);
         broker.DepositedAs(StomataNode.HumidityRatioReading).Single().GetProperty("value").GetDouble().Should().BeApproximately(13.31, 0.01);
         broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Single().GetProperty("value").GetDouble().Should().Be(1.0);
         broker.DepositedAs(StomataNode.WindowsOpenOnDailyAirReading).Should().BeEmpty("one hour is not a day of readings");
@@ -369,13 +369,13 @@ public class StomataNodeTests
     }
 
     [Theory]
-    [InlineData(25.0, 40.0, "comfortable-as-it-is")]
-    [InlineData(29.5, 30.0, "with-air-movement")]
-    [InlineData(25.0, 90.0, "dehumidification-needed")]
-    [InlineData(15.0, 50.0, "heating-needed")]
-    [InlineData(35.0, 20.0, "direct-evaporative-cooling")]
-    [InlineData(42.0, 15.7, "two-stage-evaporative-cooling")]
-    [InlineData(35.0, 60.0, "cooling-system-needed")]
+    [InlineData(25.0, 40.0, "ComfortableAsItIs")]
+    [InlineData(29.5, 30.0, "WithAirMovement")]
+    [InlineData(25.0, 90.0, "DehumidificationNeeded")]
+    [InlineData(15.0, 50.0, "HeatingNeeded")]
+    [InlineData(35.0, 20.0, "DirectEvaporativeCooling")]
+    [InlineData(42.0, 15.7, "TwoStageEvaporativeCooling")]
+    [InlineData(35.0, 60.0, "CoolingSystemNeeded")]
     public async Task An_hour_writes_a_reading_naming_the_design_strategy_group_it_goes_into(
         double airCelsius, double relativeHumidityPercent, string group)
     {

@@ -236,13 +236,13 @@ public class DeclaredVocabularyReaderTests
     {
         var model = DeclaredModel.Seeded()
             .WithArchetype("SoilDepth").Bound(LandIntakeRoles.SoilDepth, "SoilDepth")
-            .With("0-5cm").Relate("0-5cm", "is", "SoilDepth")
-            .With("5-15cm").Relate("5-15cm", "is", "SoilDepth");
+            .With("From0To5Centimetres").Relate("From0To5Centimetres", "is", "SoilDepth")
+            .With("From5To15Centimetres").Relate("From5To15Centimetres", "is", "SoilDepth");
 
         var soilDepths = DeclaredVocabularyReader.Read(model.Build()).SoilDepths;
 
         soilDepths.Should().NotBeNull();
-        soilDepths!.Terms.Select(term => term.Name).Should().BeEquivalentTo("0-5cm", "5-15cm");
+        soilDepths!.Terms.Select(term => term.Name).Should().BeEquivalentTo("From0To5Centimetres", "From5To15Centimetres");
         soilDepths.Predicate.Id.Should().Be(model.Id("assesses"));
     }
 
@@ -257,11 +257,11 @@ public class DeclaredVocabularyReaderTests
     {
         var model = DeclaredModel.Seeded()
             .WithArchetype("LandCoverClass").Bound(LandIntakeRoles.LandCoverClass, "LandCoverClass")
-            .With("cropland").Relate("cropland", "is", "LandCoverClass");
+            .With("Cropland").Relate("Cropland", "is", "LandCoverClass");
 
         var classes = DeclaredVocabularyReader.Read(model.Build()).LandCoverClasses;
 
-        classes!.Terms.Select(term => term.Name).Should().Equal("cropland");
+        classes!.Terms.Select(term => term.Name).Should().Equal("Cropland");
         classes.Predicate.Id.Should().Be(model.Id("assesses"));
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).LandCoverClasses.Should().BeNull();
     }
@@ -271,11 +271,11 @@ public class DeclaredVocabularyReaderTests
     {
         var model = DeclaredModel.Seeded()
             .WithArchetype("SlopeClass").Bound(LandIntakeRoles.SlopeClass, "SlopeClass")
-            .With("under-2-percent").Relate("under-2-percent", "is", "SlopeClass");
+            .With("Under2Percent").Relate("Under2Percent", "is", "SlopeClass");
 
         var classes = DeclaredVocabularyReader.Read(model.Build()).SlopeClasses;
 
-        classes!.Terms.Select(term => term.Name).Should().Equal("under-2-percent");
+        classes!.Terms.Select(term => term.Name).Should().Equal("Under2Percent");
         classes.Predicate.Id.Should().Be(model.Id("assesses"));
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).SlopeClasses.Should().BeNull();
     }
@@ -285,11 +285,11 @@ public class DeclaredVocabularyReaderTests
     {
         var model = DeclaredModel.Seeded()
             .WithArchetype("AspectDirection").Bound(LandIntakeRoles.AspectDirection, "AspectDirection")
-            .With("north-facing").Relate("north-facing", "is", "AspectDirection");
+            .With("NorthFacing").Relate("NorthFacing", "is", "AspectDirection");
 
         var aspects = DeclaredVocabularyReader.Read(model.Build()).AspectDirections;
 
-        aspects!.Terms.Select(term => term.Name).Should().Equal("north-facing");
+        aspects!.Terms.Select(term => term.Name).Should().Equal("NorthFacing");
         aspects.Predicate.Id.Should().Be(model.Id("assesses"));
         DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).AspectDirections.Should().BeNull();
     }

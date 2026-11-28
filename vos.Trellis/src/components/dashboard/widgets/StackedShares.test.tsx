@@ -224,8 +224,8 @@ describe('the stacked percentage bar from hours counted under each group Thing',
     function wordedGroups(archetype: string, comfort: string | undefined, cooling: string | undefined): Binding {
       const binding: Binding = { kind: 'thingList', archetype };
       values.set(JSON.stringify(binding), [
-        { id: 'G-COOLING', order: 7, name: 'cooling-system-needed', wording: cooling, colour: '#c0392b' },
-        { id: 'G-COMFORT', order: 1, name: 'comfortable-as-it-is', wording: comfort, colour: '#27ae60' },
+        { id: 'G-COOLING', order: 7, name: 'CoolingSystemNeeded', wording: cooling, colour: '#c0392b' },
+        { id: 'G-COMFORT', order: 1, name: 'ComfortableAsItIs', wording: comfort, colour: '#27ae60' },
       ]);
       return binding;
     }
@@ -255,13 +255,13 @@ describe('the stacked percentage bar from hours counted under each group Thing',
     it('falls back to the English words, then to the label column, where the page language has none', async () => {
       await drawIn('de', wordedGroups('EnglishOnlyGroups', JSON.stringify({ en: 'Comfortable as it is' }), undefined));
 
-      expect(legend()).toEqual(['Comfortable as it is', 'cooling-system-needed']);
+      expect(legend()).toEqual(['Comfortable as it is', 'CoolingSystemNeeded']);
     });
 
     it('reads a wording column that is not words by language as no wording, and shows the label column', async () => {
       await drawIn('de', wordedGroups('MalformedGroups', '{"de": ', JSON.stringify(['Kühlanlage nötig'])));
 
-      expect(legend()).toEqual(['comfortable-as-it-is', 'cooling-system-needed']);
+      expect(legend()).toEqual(['ComfortableAsItIs', 'CoolingSystemNeeded']);
     });
   });
 });

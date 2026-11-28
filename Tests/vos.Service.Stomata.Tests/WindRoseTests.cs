@@ -8,13 +8,13 @@ public class WindRoseTests
 {
     private static readonly string[] SectorNames =
     [
-        "north", "north-northeast", "northeast", "east-northeast", "east", "east-southeast", "southeast", "south-southeast",
-        "south", "south-southwest", "southwest", "west-southwest", "west", "west-northwest", "northwest", "north-northwest",
+        "North", "NorthNortheast", "Northeast", "EastNortheast", "East", "EastSoutheast", "Southeast", "SouthSoutheast",
+        "South", "SouthSouthwest", "Southwest", "WestSouthwest", "West", "WestNorthwest", "Northwest", "NorthNorthwest",
     ];
 
     private static readonly (string Name, double? AtLeast, double? Below)[] BandBounds =
     [
-        ("under-2", null, 2.0), ("2-to-3", 2.0, 3.0), ("3-to-5", 3.0, 5.0), ("5-to-9", 5.0, 9.0), ("over-9", 9.0, null),
+        ("Under2", null, 2.0), ("From2To3", 2.0, 3.0), ("From3To5", 3.0, 5.0), ("From5To9", 5.0, 9.0), ("Over9", 9.0, null),
     ];
 
     private sealed class Vocabulary
@@ -48,15 +48,15 @@ public class WindRoseTests
     private static readonly Vocabulary Sixteen = new(16);
 
     [Theory]
-    [InlineData(100.0, 3.4, "east", "3-to-5")]
-    [InlineData(0.0, 1.0, "north", "under-2")]
-    [InlineData(348.75, 1.0, "north", "under-2")]
-    [InlineData(348.74, 1.0, "north-northwest", "under-2")]
-    [InlineData(11.25, 1.0, "north-northeast", "under-2")]
-    [InlineData(11.24, 1.0, "north", "under-2")]
-    [InlineData(359.99, 2.0, "north", "2-to-3")]
-    [InlineData(180.0, 9.0, "south", "over-9")]
-    [InlineData(270.0, 8.99, "west", "5-to-9")]
+    [InlineData(100.0, 3.4, "East", "From3To5")]
+    [InlineData(0.0, 1.0, "North", "Under2")]
+    [InlineData(348.75, 1.0, "North", "Under2")]
+    [InlineData(348.74, 1.0, "NorthNorthwest", "Under2")]
+    [InlineData(11.25, 1.0, "NorthNortheast", "Under2")]
+    [InlineData(11.24, 1.0, "North", "Under2")]
+    [InlineData(359.99, 2.0, "North", "From2To3")]
+    [InlineData(180.0, 9.0, "South", "Over9")]
+    [InlineData(270.0, 8.99, "West", "From5To9")]
     public void An_hour_is_in_the_cell_whose_sector_holds_its_direction_and_whose_class_holds_its_speed(
         double direction, double speed, string sector, string band)
     {
@@ -68,8 +68,8 @@ public class WindRoseTests
     {
         var eight = new Vocabulary(8);
 
-        eight.Rose.CellOf(22.4, 1.0).Should().Be(eight.Cells[("sector 0", "under-2")]);
-        eight.Rose.CellOf(22.5, 1.0).Should().Be(eight.Cells[("sector 1", "under-2")]);
+        eight.Rose.CellOf(22.4, 1.0).Should().Be(eight.Cells[("sector 0", "Under2")]);
+        eight.Rose.CellOf(22.5, 1.0).Should().Be(eight.Cells[("sector 1", "Under2")]);
     }
 
     // The rose's shares are taken over the hours that have a cell, so a calm hour counts in none of them.

@@ -77,7 +77,7 @@ public class RoleMembersTests
         var groupKind = snapshot.Bound(StomataRoles.DesignStrategyGroup, "DesignStrategyGroup");
         snapshot.Kind("NeedsHeating", groupKind);
         var beside = snapshot.Kind("WindDirectionSector");
-        snapshot.Member("north", beside);
+        snapshot.Member("North", beside);
 
         RoleMembers.Of(snapshot.Document(), StomataRoles.DesignStrategyGroup).Should().BeEmpty();
     }
