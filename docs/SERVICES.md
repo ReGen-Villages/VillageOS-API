@@ -1529,19 +1529,15 @@ change, not duplicate Things), each change of state written as one fragment; a T
 out port marked `produces` is related from the node run along the predicate the `producedThing` role
 binds; the run itself keeps `parameters` as given and writes `finishedUtc` when it ends.
 
-**Finished runs are cleared after their period.** The run kind may state `keepRunsForDays` and
-`keepFailedRunsForDays`, in model days, and a pipeline may state either, its own value winning; with
-neither stated, every run is kept. A finished run is due once its `finishedUtc` is older than its
-period on the model clock: `Succeeded` and `Cancelled` runs count under the first, `Failed` and
-`Refused` under the second. A run queued, running, waiting or trying, one the orchestrator still
-holds, or one with no finish recorded is never due. The orchestrator looks once a real hour and clears
-at most `clearsAtMostRunsPerLook` runs (a whole number on the run kind, 500 where none is stated),
-oldest first; a run that cannot be cleared waits for the next look, and still takes its place among
-those the look counts. Its node runs and their attempts go with it. A stop request the run's maker
-wrote goes with it too; one a person wrote stays, with its reason, and deleting the run removes the
-relationship to it. The orchestrator clears as itself, so its service must be related, along the
-predicate the `ownDeletionGrant` role binds, to the run, node run, attempt and stop request kinds;
-without that grant every clear is refused. No shipped template binds that role.
+**The broker retires finished runs.** The orchestrator reads no finished run and deletes none. The run
+kind's template declares, along the predicate the `retiringState` role binds, the state a run must be
+in and for how many seconds of model time; the shared site template retires a run 30 model days after
+it succeeded or was cancelled, and 90 after it failed or was refused. The broker then retracts the run
+with its node runs and their attempts, which it holds along `has`. A stop request the run's maker wrote
+goes with it too; one a person wrote stays, with its reason, and only the relationship to it goes. A
+run still queued, running, waiting or trying is in neither state and stays, and so does a run that a
+Thing outside it holds along `has`. A read at an instant before the retirement still sees the run. The
+orchestrator needs no deletion grant for any of this.
 
 **How a run ends.** The Output node may carry a rule in its `when` property, in the same language as
 wire transforms, read over `{inputs, failures}`: the values that reached the Output node, and one entry

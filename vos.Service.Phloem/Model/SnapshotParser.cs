@@ -31,7 +31,6 @@ public static class SnapshotParser
             {
                 Id = thing.Id,
                 Name = thing.Name ?? string.Empty,
-                MadeBy = thing.MadeBy,
                 Properties = Stated(thing.ValuesStated()),
             };
         }

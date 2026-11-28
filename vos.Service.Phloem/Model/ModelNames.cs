@@ -48,9 +48,6 @@ public static class ModelNames
     public const string Total = "total";
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
-    public const string KeepRunsForDays = "keepRunsForDays";
-    public const string KeepFailedRunsForDays = "keepFailedRunsForDays";
-    public const string ClearsAtMostRunsPerLook = "clearsAtMostRunsPerLook";
     // On a node that waits, the most model minutes it waits; on its node run, the model instant the wait fails at.
     public const string WaitsAtMostMinutes = "waitsAtMostMinutes";
     public const string WaitsUntil = "waitsUntil";

@@ -102,8 +102,7 @@ public sealed record SnapshotThing(
     Dictionary<string, SnapshotProperty> Properties,
     Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States,
-    Guid[]? Relationships,
-    Guid? MadeBy = null);
+    Guid[]? Relationships);
 
 public sealed record SnapshotRelationship(
     Guid Id,
@@ -113,8 +112,7 @@ public sealed record SnapshotRelationship(
     Guid TargetId,
     Dictionary<string, SnapshotProperty> Properties,
     Dictionary<string, InheritedPropertySet>? InheritedOverrides,
-    string[] States,
-    Guid? MadeBy = null);
+    string[] States);
 
 // Sequence is the commit sequence, which is the stream's event id that a resume starts after. An entry or a
 // departure — a Thing or relationship a following subscription brought in or let go — rides beside the change

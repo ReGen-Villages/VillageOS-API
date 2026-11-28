@@ -41,6 +41,10 @@ public sealed class TheEngine : IAsyncLifetime
     // Read once at start, while the engine holds only the model it starts with, because a case may make more.
     private (Guid Id, string Name) _firstModel;
 
+    internal TimeSpan? RetirementPassInterval { get; init; }
+
+    internal string? SeedFile { get; init; }
+
 #if !VOS_ENGINE_IS_STAGED
     public Task InitializeAsync() => throw new InvalidOperationException(
         "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
@@ -53,7 +57,7 @@ public sealed class TheEngine : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _host = new MyceliumTestHost();
+        _host = new MyceliumTestHost { SeedFile = SeedFile, RetirementPassInterval = RetirementPassInterval };
         await _host.InitializeAsync();
 
         var signingIn = _host.CreateClient();
@@ -180,9 +184,7 @@ public sealed class TheEngine : IAsyncLifetime
 
     // A launched service's own token is minted by the broker and no route issues one, so a case that must not hold the
     // administrator's bearer takes a service key's token, which carries the same role and names its service the same way.
-    public async Task<string> ServiceTokenAsync(string serviceName) => (await ServiceAsync(serviceName)).Token;
-
-    public async Task<(string Token, Guid Thing)> ServiceAsync(string serviceName)
+    public async Task<string> ServiceTokenAsync(string serviceName)
     {
         var modelId = await TheModelIdAsync();
         var isPredicate = await DeclareOnceAsync("is");
@@ -191,11 +193,10 @@ public sealed class TheEngine : IAsyncLifetime
         var service = await DeclareAsync($"{serviceName} service {Guid.NewGuid():N}");
         await RelateAsync(service, isPredicate, serviceKind);
 
-        var token = await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
-        return (token, service);
+        return await TokenOfANewKeyAsync(new { Name = $"{serviceName} {Guid.NewGuid():N}", Role = "service", ModelId = modelId, ServiceId = service });
     }
 
-    public HttpClient Holding(string token)
+    private HttpClient Holding(string token)
     {
         var client = new HttpClient(Transport, disposeHandler: false) { BaseAddress = Admin.BaseAddress };
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
