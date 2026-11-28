@@ -382,9 +382,9 @@ public class RunsAtOnceTests
         var later = Recorded(RunStatus.Queued, queueNumber: 8);
         var earlier = Recorded(RunStatus.Queued, queueNumber: 5);
 
-        await _executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await _executor.RecoverUnfinishedAsync();
         var since = await StartAsync();
-        var queuedAgain = await _executor.RecoverQueuedAsync(CancellationToken.None);
+        var queuedAgain = await _executor.RecoverQueuedAsync();
 
         queuedAgain.Should().BeGreaterThanOrEqualTo(2);
         await BegunAsync(carriedOn);
@@ -403,7 +403,7 @@ public class RunsAtOnceTests
         Limit(2);
         var queued = new[] { 1, 2, 3 }.Select(number => Recorded(RunStatus.Queued, number)).ToList();
 
-        await _executor.RecoverQueuedAsync(CancellationToken.None);
+        await _executor.RecoverQueuedAsync();
 
         await BegunAsync(queued[0]);
         await BegunAsync(queued[1]);

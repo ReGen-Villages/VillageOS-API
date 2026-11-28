@@ -144,7 +144,7 @@ public class WaitTimeLimitTests
         var runId = await AWaitingRunAsync(setup);
         var restarted = new PipelineExecutor(setup.Gateway, NullLogger<PipelineExecutor>.Instance, setup.Clock);
 
-        await restarted.RecoverWaitsAsync(CancellationToken.None);
+        await restarted.RecoverWaitsAsync();
         restarted.WaitsHeldWithATimeLimit.Should().Be(1);
         setup.Real.Advance(TimeSpan.FromMinutes(91));
 

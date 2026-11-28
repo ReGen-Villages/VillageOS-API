@@ -260,7 +260,7 @@ public class RelateBoxTests
         gateway.Records[(runId, box.Relate.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
         gateway.ReachedAlong[(Study.Id, box.Predicate.Id)] = [new RunSubject(box.Service.Id, box.Service.Name)];
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.Watches.ContainsKey((runId, box.Relate.Id)), "the box waits again");

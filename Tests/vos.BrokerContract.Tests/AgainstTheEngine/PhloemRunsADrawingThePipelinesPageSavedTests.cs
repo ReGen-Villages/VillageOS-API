@@ -66,7 +66,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
         await WriteNowAsync(study, RecordedAt);
         await AnsweredAsync(run.RunId);
         // The platform's call along resumesRun reaches a stand-in rather than Phloem's /handle, so the answer it completes is read back as a starting orchestrator reads it.
-        (await executor.RecoverWaitsAsync(CancellationToken.None)).Resumed.Should().Be(1);
+        (await executor.RecoverWaitsAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None)).Resumed.Should().Be(1);
 
         var relating = await Gateway().ReadRunRecordAsync(run.RunId, CancellationToken.None);
         relating!.Nodes[saved.Relate].Status.Should().Be(RunStatus.Waiting, relating.Nodes[saved.Relate].Error);
@@ -77,7 +77,7 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
 
         await WriteNowAsync(study, WorkedOutAt);
         await AnsweredAsync(run.RunId);
-        (await executor.RecoverWaitsAsync(CancellationToken.None)).Resumed.Should().Be(1);
+        (await executor.RecoverWaitsAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None)).Resumed.Should().Be(1);
 
         var finished = await Gateway().ReadRunRecordAsync(run.RunId, CancellationToken.None);
         finished!.Status.Should().Be(RunStatus.Succeeded, string.Join("; ", finished.Nodes.Values.Select(node => node.Error)));
@@ -253,6 +253,6 @@ public sealed class PhloemRunsADrawingThePipelinesPageSavedTests : IClassFixture
         _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new ModelClock(), new LaunchToken(_engine.AdminToken));
 
     private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
-        (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
+        (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Waits.SingleOrDefault(held => held.RunId == runId);
 
 }

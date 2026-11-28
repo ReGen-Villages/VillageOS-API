@@ -34,13 +34,13 @@ public class PhloemQueuesRunsTests : IClassFixture<TheEngine>
         var pipelineId = await APipelineInAModelThatBindsItsRunRolesAsync();
         var runId = Guid.NewGuid();
         await Gateway().CreateRunAsync(runId, pipelineId, CancellationToken.None, queueNumber: 42);
-        var queuedAtFirst = await Gateway().QueuedRunsAsync(CancellationToken.None);
+        var queuedAtFirst = (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Queued;
 
         await Gateway().BeginQueuedRunAsync(runId, CancellationToken.None);
 
         queuedAtFirst.Should().Contain(new QueuedRun(runId, pipelineId, 42));
         (await Gateway().ReadRunRecordAsync(runId, CancellationToken.None))!.Status.Should().Be(RunStatus.Running);
-        (await Gateway().QueuedRunsAsync(CancellationToken.None)).Should().NotContain(queued => queued.RunId == runId);
+        (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Queued.Should().NotContain(queued => queued.RunId == runId);
     }
 
     [FactAgainstTheEngine]
@@ -52,7 +52,7 @@ public class PhloemQueuesRunsTests : IClassFixture<TheEngine>
 
         (await _engine.Admin.DeleteAsync($"/api/things/{pipelineId}")).EnsureSuccessStatusCode();
 
-        (await Gateway().QueuedRunsAsync(CancellationToken.None)).Should().Contain(new QueuedRun(runId, pipelineId, 7));
+        (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Queued.Should().Contain(new QueuedRun(runId, pipelineId, 7));
         (await Gateway().ReadRunRecordAsync(runId, CancellationToken.None))!.PipelineId.Should().Be(pipelineId);
     }
 }

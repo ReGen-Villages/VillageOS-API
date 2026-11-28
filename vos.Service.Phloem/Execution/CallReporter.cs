@@ -47,9 +47,8 @@ public sealed class CallReporter
         return sending;
     }
 
-    public async Task<int> SendOwedAsync(CancellationToken cancellationToken)
+    public int SendOwed(IReadOnlyList<OwedReport> owed)
     {
-        var owed = await _gateway.OwedReportsAsync(cancellationToken);
         foreach (var run in owed)
             _ = SendAsync(run.RunId, run.CallRecordId, ReportFor(run.Status, run.Error));
         return owed.Count;

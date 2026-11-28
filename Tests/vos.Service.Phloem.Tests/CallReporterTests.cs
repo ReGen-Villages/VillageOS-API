@@ -157,7 +157,7 @@ public class CallReporterTests
         gateway.Owed.Add(new OwedReport(running.Run, running.CallRecord, RunStatus.Running, null));
         gateway.Owed.Add(new OwedReport(ended.Run, ended.CallRecord, RunStatus.Cancelled, "the catchment was withdrawn"));
 
-        var owed = await reporter.SendOwedAsync(CancellationToken.None);
+        var owed = reporter.SendOwed(gateway.Owed);
 
         owed.Should().Be(2);
         await Settle.UntilAsync(() => gateway.ReportsSentSoFar().Count == 2 && gateway.Released.Count == 1, "both reports are sent");

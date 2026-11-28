@@ -40,3 +40,7 @@ public sealed record HeldNodeRun(Guid RunId, Guid NodeId);
 public sealed record UnfinishedNodeRun(Guid RunId, Guid NodeId);
 
 public sealed record QueuedRun(Guid RunId, Guid PipelineId, long QueueNumber, Guid? CallRecordId = null);
+
+// What the orchestrator holds when it starts, read once, so the start-up recovery works only on runs an earlier orchestrator left.
+public sealed record HeldRunsListing(
+    IReadOnlyList<OwedReport> Owed, IReadOnlyList<HeldWait> Waits, IReadOnlyList<UnfinishedNodeRun> Unfinished, IReadOnlyList<QueuedRun> Queued);

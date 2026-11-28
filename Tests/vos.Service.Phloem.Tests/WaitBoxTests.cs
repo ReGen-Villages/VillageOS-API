@@ -145,7 +145,7 @@ public class WaitBoxTests
         var waited = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission);
         gateway.Answers[(waited.RunId, box.Wait.Id)] = WaitAnswer.Done;
 
-        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         recovered.Resumed.Should().Be(1);
         PublishedIn(gateway).EnumerateArray().Single().GetProperty("id").GetGuid().Should().Be(Promoted.Id);
@@ -158,7 +158,7 @@ public class WaitBoxTests
         var waited = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission);
         gateway.Watches[(waited.RunId, box.Wait.Id)] = new Watch(null, box.Decided.Id);
 
-        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         recovered.WatchedAgain.Should().Be(1);
         gateway.Watches[(waited.RunId, box.Wait.Id)].Should().Be(new Watch(Submission.Id, box.Decided.Id));

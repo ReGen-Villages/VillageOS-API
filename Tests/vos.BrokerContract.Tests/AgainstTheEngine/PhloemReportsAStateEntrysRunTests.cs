@@ -42,7 +42,7 @@ public sealed class PhloemReportsAStateEntrysRunTests : IClassFixture<TheEngine>
         result.Success.Should().BeTrue(result.Error);
         whileTheRunGoes.Should().Be("Received");
         (await model.Gateway().ReadRunRecordAsync(result.RunId, CancellationToken.None))!.CallRecordId.Should().Be(call.CallRecordId);
-        await Settle.UntilAsync(async () => (await model.Gateway().OwedReportsAsync(CancellationToken.None)).All(owed => owed.RunId != result.RunId),
+        await Settle.UntilAsync(async () => (await model.Gateway().ListHeldRunsAsync(CancellationToken.None)).Owed.All(owed => owed.RunId != result.RunId),
             "a run whose last report was taken is held no longer");
     }
 

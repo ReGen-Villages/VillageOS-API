@@ -486,9 +486,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     // Attempts are numbered under their node run, so their identifiers are derived in a space of their own.
     private static readonly Guid AttemptsOfANodeRun = new("a77e3b1c-6d0e-4c4f-9b2a-5f1e2d3c4b5a");
 
-    public async Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken cancellationToken)
+    public async Task<HeldRunsListing> ListHeldRunsAsync(CancellationToken cancellationToken)
     {
         var graph = await HeldRunsAsync(cancellationToken);
+        return new HeldRunsListing(OwedIn(graph), WaitsIn(graph), UnfinishedIn(graph), QueuedIn(graph));
+    }
+
+    private static List<UnfinishedNodeRun> UnfinishedIn(PipelineGraph graph)
+    {
         var unfinished = new List<UnfinishedNodeRun>();
         foreach (var nodeRun in graph.Things)
         {
@@ -519,9 +524,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static string ReasonFor(HttpStatusCode status, string body) =>
         PlatformAnswer.ErrorWordsIn(body) ?? $"HTTP {(int)status}";
 
-    public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)
+    private static List<HeldWait> WaitsIn(PipelineGraph graph)
     {
-        var graph = await HeldRunsAsync(cancellationToken);
         var waits = new List<HeldWait>();
         foreach (var nodeRun in graph.Things)
         {
@@ -552,9 +556,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static Guid? CallRecordOf(GraphThing run) =>
         Guid.TryParse(run.PropertyString(ModelNames.CallRecordId), out var callRecordId) ? callRecordId : null;
 
-    public async Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken cancellationToken)
+    private static List<OwedReport> OwedIn(PipelineGraph graph)
     {
-        var graph = await HeldRunsAsync(cancellationToken);
         if (graph.Bound(PipelineRoles.Orchestrator) is not { } orchestrator) return [];
         return graph.OutgoingTargets(orchestrator, ModelNames.Has)
             .Select(run => CallRecordOf(run) is { } callRecordId
@@ -564,9 +567,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
             .ToList();
     }
 
-    public async Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken)
+    private static List<QueuedRun> QueuedIn(PipelineGraph graph)
     {
-        var graph = await HeldRunsAsync(cancellationToken);
         if (graph.Bound(PipelineRoles.Orchestrator) is not { } orchestrator) return [];
         return graph.OutgoingTargets(orchestrator, ModelNames.Has)
             .Where(run => run.PropertyString(ModelNames.Status) == RunStatus.Queued)

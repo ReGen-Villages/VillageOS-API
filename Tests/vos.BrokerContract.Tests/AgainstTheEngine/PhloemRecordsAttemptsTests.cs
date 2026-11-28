@@ -56,7 +56,7 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
     {
         var (gateway, runId, nodeId) = await ANodeRunThatTriedAsync();
 
-        var unfinished = await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
+        var unfinished = (await gateway.ListHeldRunsAsync(CancellationToken.None)).Unfinished;
 
         unfinished.Should().Contain(new UnfinishedNodeRun(runId, nodeId));
     }
@@ -69,7 +69,7 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
         await gateway.SetNodeRunStatusAsync(runId, calling, "Check", RunStatus.Running, null, CancellationToken.None);
         await gateway.SetNodeRunStatusAsync(runId, finished, "Record", RunStatus.Succeeded, null, CancellationToken.None);
 
-        var unfinished = await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
+        var unfinished = (await gateway.ListHeldRunsAsync(CancellationToken.None)).Unfinished;
 
         unfinished.Should().Contain(new UnfinishedNodeRun(runId, calling));
         unfinished.Should().NotContain(new UnfinishedNodeRun(runId, finished));
