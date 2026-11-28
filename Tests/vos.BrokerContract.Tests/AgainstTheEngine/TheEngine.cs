@@ -3,10 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 #if VOS_ENGINE_IS_STAGED
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using vos.Mycelium.Services;
 using vos.Mycelium.Testing;
 #endif
 using vos.Service.Shared;
@@ -43,7 +41,7 @@ public sealed class TheEngine : IAsyncLifetime
     // Read once at start, while the engine holds only the model it starts with, because a case may make more.
     private (Guid Id, string Name) _firstModel;
 
-    internal bool RetiresEachSecond { get; init; }
+    internal TimeSpan? RetirementPassInterval { get; init; }
 
     internal string? SeedFile { get; init; }
 
@@ -57,20 +55,9 @@ public sealed class TheEngine : IAsyncLifetime
 #else
     private MyceliumTestHost _host = null!;
 
-    // The test host removes every hosted service, the broker's retirement pass among them.
-    private sealed class HostRetiringEachSecond : MyceliumTestHost
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-            builder.UseSetting("Retirement:PassInterval", "00:00:01");
-            builder.ConfigureServices(services => services.AddHostedService<RetirementService>());
-        }
-    }
-
     public async Task InitializeAsync()
     {
-        _host = RetiresEachSecond ? new HostRetiringEachSecond { SeedFile = SeedFile } : new MyceliumTestHost { SeedFile = SeedFile };
+        _host = new MyceliumTestHost { SeedFile = SeedFile, RetirementPassInterval = RetirementPassInterval };
         await _host.InitializeAsync();
 
         var signingIn = _host.CreateClient();

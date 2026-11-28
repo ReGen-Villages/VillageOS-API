@@ -2,12 +2,12 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// The broker's retirement pass otherwise runs once a minute, longer than a case may wait.
+// The test host runs the broker's retirement pass only when given an interval, and the broker's own minute is longer than a case may wait.
 public sealed class TheEngineRetiringEachSecond : IAsyncLifetime
 {
     private readonly string _seed = RunRetirementSeed.Write();
 
-    public TheEngineRetiringEachSecond() => Engine = new() { RetiresEachSecond = true, SeedFile = _seed };
+    public TheEngineRetiringEachSecond() => Engine = new() { RetirementPassInterval = TimeSpan.FromSeconds(1), SeedFile = _seed };
 
     public TheEngine Engine { get; }
 
