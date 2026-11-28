@@ -27,6 +27,7 @@ public sealed class EndpointCallService
     private readonly DiskResponseCache _diskCache;
     private readonly ProviderUnavailability _unavailability;
     private readonly PassedOnRequestLimitWarnings _limitWarnings;
+    private readonly ProviderBudgetLedger _budgets;
     private readonly TimeProvider _clock;
 
     public EndpointCallService(
@@ -38,9 +39,11 @@ public sealed class EndpointCallService
         DiskResponseCache diskCache,
         ProviderUnavailability unavailability,
         PassedOnRequestLimitWarnings limitWarnings,
+        ProviderBudgetLedger budgets,
         TimeProvider clock,
         ILogger<EndpointCallService> logger)
     {
+        _budgets = budgets;
         _mycelium = mycelium;
         _httpClientFactory = httpClientFactory;
         _observationService = observationService;
@@ -62,7 +65,7 @@ public sealed class EndpointCallService
     // call would go out unauthenticated. The subscription client throws on any non-success status, so
     // the catch is what keeps a momentary gateway failure from escaping this method as an exception
     // rather than the 502 every other gateway call here produces.
-    private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed, bool IsHistorySource)?> ReadEndpointAsync(
+    private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed, bool IsHistorySource, ProviderBudgetsRead Budgets)?> ReadEndpointAsync(
         Guid endpointId, CancellationToken cancellationToken)
     {
         SnapshotReadResult read;
@@ -81,7 +84,7 @@ public sealed class EndpointCallService
         }
 
         return (EndpointKindResolver.Resolve(read.Snapshot, endpointId), ObservedEdges.Resolve(read.Snapshot, endpointId),
-            EndpointKindResolver.IsHistorySource(read.Snapshot, endpointId));
+            EndpointKindResolver.IsHistorySource(read.Snapshot, endpointId), ProviderBudgets.Resolve(read.Snapshot, endpointId));
     }
 
     // A call cut short by the deadline answers with what it was waiting on, so Mycelium is told why instead
@@ -129,8 +132,13 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
+        if (endpoint.Budgets.Unreadable is { } unreadable)
+            return Problem(502, "Endpoint resolution failed",
+                $"The request budget {unreadable} does not state a whole number of requests and of seconds above nothing. " +
+                "Refusing rather than calling out past the provider's limits.");
+
         if (!TryPlanCall(request, thing.Value.Id, effective, EndpointKinds.Reached(endpoint.Kinds), endpoint.IsHistorySource,
-                out var plan, out var refusal))
+                endpoint.Budgets.Budgets, out var plan, out var refusal))
             return refusal.ToResult();
 
         deadline.Awaiting = AwaitedStep.DataSource;
@@ -168,6 +176,7 @@ public sealed class EndpointCallService
         IReadOnlyDictionary<string, JsonElement> effective,
         EndpointKinds kinds,
         bool depositsTimedReadings,
+        IReadOnlyList<ProviderBudget> budgets,
         [NotNullWhen(true)] out EndpointCallPlan? plan,
         [NotNullWhen(false)] out Refusal? refusal)
     {
@@ -223,7 +232,8 @@ public sealed class EndpointCallService
 
         plan = new EndpointCallPlan(
             address, binaryResponse, reshape, headers, queryParameters, requestContentType, acceptHeader,
-            statedTimeout ?? OutboundRequest.DefaultTimeout, unavailability, credential, paging, cacheFor, keep, depositsTimedReadings);
+            statedTimeout ?? OutboundRequest.DefaultTimeout, unavailability, credential, paging, cacheFor, keep, depositsTimedReadings,
+            budgets);
         return true;
     }
 
@@ -241,7 +251,8 @@ public sealed class EndpointCallService
         OffsetPaginationConfig? Paging,
         TimeSpan? CacheFor,
         KeepPlan? Keep,
-        bool DepositsTimedReadings);
+        bool DepositsTimedReadings,
+        IReadOnlyList<ProviderBudget> Budgets);
 
     private async Task<(OutboundCall? Call, EndpointCallResult? TokenFailure)> PrepareOutboundAsync(
         EndpointCallRequest request, EndpointCallPlan plan, TributaryRequestDeadline deadline)
@@ -310,7 +321,7 @@ public sealed class EndpointCallService
         // application/json so the result passes through the forwarding route unchanged.
         var (status, bytes, upstreamContentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
-            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadBytes, token),
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadBytes, deadline, token),
             answered => answered.StatusCode,
             answered => Encoding.UTF8.GetString(answered.Body),
             deadline.Token);
@@ -349,7 +360,7 @@ public sealed class EndpointCallService
                     if (paging.PageSizeParameter != null && paging.PageSize is > 0)
                         pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                    var page = await SendAsync(plan, outbound.Headers, pageParams, request.Body, ReadText, ct);
+                    var page = await SendAsync(plan, outbound.Headers, pageParams, request.Body, ReadText, deadline, ct);
                     if (page.StatusCode is < 200 or >= 300)
                         throw new PageNotAnsweredException(page.StatusCode, page.Body, page.ContentType, page.RetryAfter, offset);
                     return page.Body;
@@ -391,7 +402,7 @@ public sealed class EndpointCallService
     {
         var answered = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
-            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadText, token),
+            token => SendAsync(plan, outbound.Headers, outbound.QueryParameters, request.Body, ReadText, deadline, token),
             answer => answer.StatusCode,
             answer => answer.Body,
             deadline.Token);
@@ -522,8 +533,19 @@ public sealed class EndpointCallService
         IReadOnlyDictionary<string, string> queryParameters,
         JsonElement body,
         Func<HttpContent, CancellationToken, Task<TBody>> readBody,
+        TributaryRequestDeadline deadline,
         CancellationToken cancellationToken)
     {
+        // Without a deadline the endpoint's own timeout bounds the wait, so a daily budget cannot hold a request for hours.
+        var slot = await _budgets.TakeAsync(plan.Budgets, deadline.TimeLeft ?? plan.Timeout, cancellationToken);
+        if (!slot.Taken)
+        {
+            using var words = new StringContent(BudgetRefusal(plan.Budgets, slot.TryAgainAfter), Encoding.UTF8, "text/plain");
+            return new ProviderAnswer<TBody>(
+                429, await readBody(words, cancellationToken), words.Headers.ContentType?.ToString(),
+                new RetryConditionHeaderValue(slot.TryAgainAfter));
+        }
+
         var client = _httpClientFactory.CreateClient();
         client.Timeout = plan.Timeout;
 
@@ -535,6 +557,12 @@ public sealed class EndpointCallService
         var contentType = response.Content.Headers.ContentType?.ToString();
         return new ProviderAnswer<TBody>((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
     }
+
+    private static string BudgetRefusal(IReadOnlyList<ProviderBudget> budgets, TimeSpan tryAgainAfter) =>
+        "Tributary holds calls to this provider to its request budgets ("
+        + string.Join(", ", budgets.Select(budget =>
+            $"{budget.Name}: {budget.RequestCount} in {budget.Window.TotalSeconds.ToString(CultureInfo.InvariantCulture)} seconds"))
+        + $"); the next call may go in {tryAgainAfter.TotalSeconds.ToString(CultureInfo.InvariantCulture)} seconds.";
 
     // Text is read as text so it is decoded in the character set the provider declares, not assumed to be UTF-8.
     private static readonly Func<HttpContent, CancellationToken, Task<string>> ReadText =

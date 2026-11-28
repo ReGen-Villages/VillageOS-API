@@ -32,12 +32,19 @@ public static class EndpointKindResolver
         // The endpoint's observed relationships are asked for through the role, and without the predicate the role
         // binds none of them can be told from any other relationship; asking here lets one read answer both.
         // The `historySource` role is asked for so the same read says whether the endpoint's timed readings are deposited.
-        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id],
+        // The `licence` and `holding` roles are asked for so the same read carries the provider's request budgets.
+        Ids =
+        [
+            endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id,
+            LandIntakeRoles.Licence.Id, LandIntakeRoles.Holding.Id,
+        ],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [
             new TraverseRule { Predicate = PlatformPredicates.Is, Depth = TemplateChainDepth },
             .. EndpointKindRoles.All.Select(role => new TraverseRule { Predicate = role }),
+            new TraverseRule { PredicateRole = LandIntakeRoles.Licence.Id },
+            new TraverseRule { PredicateRole = LandIntakeRoles.Holding.Id },
             RoleBindings.FollowBindings,
         ],
         IncludeRelationships = true,
@@ -49,6 +56,8 @@ public static class EndpointKindResolver
             // By the role, not the word: a model binding the role to a predicate of another name would otherwise
             // read every observed Thing as not yet observed.
             new RelationshipRule { PredicateRole = LandIntakeRoles.Observed.Id, Direction = "outgoing" },
+            new RelationshipRule { PredicateRole = LandIntakeRoles.Licence.Id, Direction = "outgoing" },
+            new RelationshipRule { PredicateRole = LandIntakeRoles.Holding.Id, Direction = "outgoing" },
         ],
     };
 
@@ -89,7 +98,7 @@ public static class EndpointKindResolver
 
     // The endpoint and then its templates, nearest first, so the closest declaration of a role wins —
     // the same closest-ancestor-wins rule a narrowed property follows.
-    private static IEnumerable<Guid> ChainFrom(
+    internal static IEnumerable<Guid> ChainFrom(
         SnapshotDocument snapshot, Guid start, IReadOnlyDictionary<Guid, SnapshotThing> thingsById)
     {
         var seen = new HashSet<Guid>();
