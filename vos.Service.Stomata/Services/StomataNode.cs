@@ -29,19 +29,47 @@ public sealed class StomataNode : DagNodeService
     public const string WindDirectionSeries = "windDirectionDegrees";
     public const string ParticulateMatterTenSeries = "particulateMatterTenMicrogramsPerCubicMetre";
     public const string ParticulateMatterTwoAndAHalfSeries = "particulateMatterTwoAndAHalfMicrogramsPerCubicMetre";
+    public const string DesignStrategyGroupReading = "designStrategyGroup";
+    public const string MetabolicRate = "metabolicRateMet";
+    public const string SummerClothing = "summerClothingClo";
+    public const string WinterClothing = "winterClothingClo";
+    public const string StillAirSpeed = "stillAirMetresPerSecond";
+    public const string AirMovementSpeed = "airMovementMetresPerSecond";
+    public const string ComfortHumidityRatioLimit = "comfortHumidityRatioLimitGramsPerKilogram";
+    public const string IndirectEvaporativeStageShare = "indirectEvaporativeStageShare";
+    public const string ComfortInStillAirOutline = "comfortZoneInStillAirOutline";
+    public const string ComfortWithAirMovementOutline = "comfortZoneWithAirMovementOutline";
+    public const string DirectEvaporativeCoolingOutline = "directEvaporativeCoolingOutline";
+    public const string TwoStageEvaporativeCoolingOutline = "twoStageEvaporativeCoolingOutline";
+
+    public static readonly IReadOnlyList<string> ComfortInputs =
+    [
+        MetabolicRate, SummerClothing, WinterClothing, StillAirSpeed, AirMovementSpeed, ComfortHumidityRatioLimit, IndirectEvaporativeStageShare,
+    ];
+
+    public static readonly IReadOnlyList<string> Outlines =
+    [
+        ComfortInStillAirOutline, ComfortWithAirMovementOutline, DirectEvaporativeCoolingOutline, TwoStageEvaporativeCoolingOutline,
+    ];
 
     private const string ServiceName = "Stomata";
+
+    private static readonly IReadOnlyList<Role> RolesRead = [.. StomataRoles.WindRose, StomataRoles.DesignStrategyGroup];
 
     private const string NoSubject =
         "Stomata works out the SiteStudy on its 'subject' input: its identifier, or an object naming it by \"id\".";
 
     private readonly SubscriptionClient _snapshots;
+    private readonly IThermalComfort _comfort;
 
     public StomataNode(
-        IHttpClientFactory httpClientFactory, ILogger<StomataNode> logger, string myceliumUrl,
+        IHttpClientFactory httpClientFactory, ILogger<StomataNode> logger, string myceliumUrl, IThermalComfort comfort,
         LaunchToken? launchToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey) =>
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey)
+    {
         _snapshots = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey);
+        _comfort = comfort;
+    }
 
     public override IReadOnlyList<PortDescriptor> Ports { get; } =
     [
@@ -58,9 +86,12 @@ public sealed class StomataNode : DagNodeService
         var study = snapshot.Things.FirstOrDefault(thing => thing.Id == studyId)
             ?? throw new NodeFailedException($"The model holds no study {studyId}, so there is no climate to work out.");
 
+        IReadOnlyDictionary<string, string> outlines = new Dictionary<string, string>();
         if (SiteOf(snapshot, studyId) is { } siteId)
         {
-            var readings = await WorkOutAsync(studyId, siteId, WindRose.From(snapshot), cancellationToken);
+            var groups = DesignStrategyGroups.From(snapshot);
+            ReportGroupsNotTriedInTheirOwnPlace(groups);
+            (var readings, outlines) = await WorkOutAsync(studyId, siteId, WindRose.From(snapshot), groups, cancellationToken);
             if (readings.Count > 0)
             {
                 Accept(await DepositReadingsAsync(siteId, readings, cancellationToken), "the hourly readings");
@@ -68,11 +99,12 @@ public sealed class StomataNode : DagNodeService
             }
         }
 
-        await StampAsync(study, cancellationToken);
+        await StampAsync(study, outlines, cancellationToken);
         return NodeResult.Ok(new Dictionary<string, object?> { [SubjectPort] = subject });
     }
 
-    private async Task<List<ObservationSample>> WorkOutAsync(Guid studyId, Guid siteId, WindRose rose, CancellationToken cancellationToken)
+    private async Task<(List<ObservationSample> Readings, IReadOnlyDictionary<string, string> Outlines)> WorkOutAsync(
+        Guid studyId, Guid siteId, WindRose rose, DesignStrategyGroups groups, CancellationToken cancellationToken)
     {
         var studyInputs = new StudyInputs(await GetAsync(MyceliumRoutes.ThingProperties(studyId), cancellationToken) ?? Empty, ServiceName);
         var siteInputs = new StudyInputs(await GetAsync(MyceliumRoutes.ThingProperties(siteId), cancellationToken) ?? Empty, ServiceName);
@@ -93,22 +125,59 @@ public sealed class StomataNode : DagNodeService
                          && studyInputs.WaitingFor([LeastHourlyReadingsForADailyMean]).Count == 0
             ? WindowsOpen.OnDailyAir(hours, dailyLimits, (int)Math.Ceiling(studyInputs.Number(LeastHourlyReadingsForADailyMean)))
             : Unknown(hours);
+        var strategies = elevation is { } studied && studyInputs.WaitingFor(ComfortInputs).Count == 0
+            ? new DesignStrategies(_comfort, AssumptionsOf(studyInputs, studied))
+            : null;
 
         var readings = new List<ObservationSample>();
+        var observed = new List<(double Celsius, double HumidityRatioGramsPerKilogram)>();
         for (var at = 0; at < hours.Count; at++)
         {
             var hour = hours[at];
             if (rose.CellOf(hour.WindDirectionDegrees, hour.WindSpeedMetresPerSecond) is { } cell)
                 readings.Add(new ObservationSample(WindRoseCellReading, cell, hour.At));
             if (hour is { TemperatureCelsius: { } celsius, RelativeHumidityPercent: { } humidity } && elevation is { } metres)
-                readings.Add(new ObservationSample(HumidityRatioReading, Psychrometrics.HumidityRatioGramsPerKilogram(celsius, humidity, metres), hour.At));
+            {
+                var humidityRatio = Psychrometrics.HumidityRatioGramsPerKilogram(celsius, humidity, metres);
+                readings.Add(new ObservationSample(HumidityRatioReading, humidityRatio, hour.At));
+                observed.Add((celsius, humidityRatio));
+                if (strategies is not null && groups.Of(new HourTests(strategies, celsius, humidity)) is { } group)
+                    readings.Add(new ObservationSample(DesignStrategyGroupReading, group.Id, hour.At));
+            }
             if (onHourlyAir[at] is { } hourly)
                 readings.Add(new ObservationSample(WindowsOpenOnHourlyAirReading, hourly, hour.At));
             if (onDailyAir[at] is { } daily)
                 readings.Add(new ObservationSample(WindowsOpenOnDailyAirReading, daily, hour.At));
         }
-        return readings;
+        return (readings, strategies is null ? new Dictionary<string, string>() : OutlinesOf(new ZoneOutlines(strategies, observed)));
     }
+
+    private void ReportGroupsNotTriedInTheirOwnPlace(DesignStrategyGroups groups)
+    {
+        foreach (var group in groups.Unordered)
+            Logger.LogWarning("Design-strategy group {Group} has no order, so Stomata tries no hour against it.", group.Label);
+        foreach (var sharing in groups.SharingAnOrder)
+            Logger.LogWarning("Design-strategy groups {Groups} share one order, so Stomata tries them by identifier.",
+                string.Join(", ", sharing.Select(group => group.Label)));
+    }
+
+    private static ComfortAssumptions AssumptionsOf(StudyInputs inputs, double elevationMetres) => new(
+        MetabolicRateMet: inputs.Number(MetabolicRate),
+        SummerClothingClo: inputs.Number(SummerClothing),
+        WinterClothingClo: inputs.Number(WinterClothing),
+        StillAirMetresPerSecond: inputs.Number(StillAirSpeed),
+        AirMovementMetresPerSecond: inputs.Number(AirMovementSpeed),
+        HumidityRatioLimitGramsPerKilogram: inputs.Number(ComfortHumidityRatioLimit),
+        IndirectEvaporativeStageShare: inputs.Number(IndirectEvaporativeStageShare),
+        PressureKilopascals: Psychrometrics.PressureAtElevationKilopascals(elevationMetres));
+
+    private static Dictionary<string, string> OutlinesOf(ZoneOutlines zones) => new()
+    {
+        [ComfortInStillAirOutline] = zones.ComfortInStillAir(),
+        [ComfortWithAirMovementOutline] = zones.ComfortWithAirMovement(),
+        [DirectEvaporativeCoolingOutline] = zones.DirectEvaporativeCooling(),
+        [TwoStageEvaporativeCoolingOutline] = zones.TwoStageEvaporativeCooling(),
+    };
 
     private static ParticulateLimits? LimitsOf(StudyInputs inputs, string ten, string twoAndAHalf) =>
         inputs.WaitingFor([ten, twoAndAHalf]).Count == 0 ? new ParticulateLimits(inputs.Number(ten), inputs.Number(twoAndAHalf)) : null;
@@ -155,9 +224,9 @@ public sealed class StomataNode : DagNodeService
         {
             return (await _snapshots.ReadSnapshotAsync(new SubscriptionSelector
             {
-                Ids = [studyId, LandIntakeRoles.StudiedSite.Id, .. RoleBindings.Identifiers(StomataRoles.WindRose)],
-                Names = [RoleBindings.BindsPredicateName, WindRose.IsPredicateName],
-                BoundTypes = RoleBindings.Identifiers(StomataRoles.WindRose),
+                Ids = [studyId, LandIntakeRoles.StudiedSite.Id, .. RoleBindings.Identifiers(RolesRead)],
+                Names = [RoleBindings.BindsPredicateName, RoleMembers.IsPredicateName],
+                BoundTypes = RoleBindings.Identifiers(RolesRead),
                 Traverse = [RoleBindings.FollowBindings],
                 IncludeRelationships = true,
             }, cancellationToken)).Snapshot;
@@ -189,10 +258,15 @@ public sealed class StomataNode : DagNodeService
         throw new NodeFailedException($"The model refused {what}: {answer.Refusal}");
     }
 
-    private async Task StampAsync(SnapshotThing study, CancellationToken cancellationToken)
+    private async Task StampAsync(SnapshotThing study, IReadOnlyDictionary<string, string> outlines, CancellationToken cancellationToken)
     {
         var modelNow = await ReadModelTimeAsync(cancellationToken)
             ?? throw new FailureCanBeTriedAgainException("The model's clock could not be read, so the study cannot be stamped worked out.");
+        var properties = new Dictionary<string, object>
+        {
+            [StampProperty] = new { typeInfo = "vos.DateTime", value = modelNow.Now.UtcDateTime },
+        };
+        foreach (var (name, outline) in outlines) properties[name] = new { typeInfo = "vos.GeoJson", value = outline };
         var fragment = new
         {
             Name = $"{study.Name} climate worked out",
@@ -202,10 +276,7 @@ public sealed class StomataNode : DagNodeService
                 {
                     study.Id,
                     Name = study.Name ?? study.Id.ToString(),
-                    Properties = new Dictionary<string, object>
-                    {
-                        [StampProperty] = new { typeInfo = "vos.DateTime", value = modelNow.Now.UtcDateTime },
-                    },
+                    Properties = properties,
                 },
             },
         };

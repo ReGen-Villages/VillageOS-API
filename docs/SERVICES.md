@@ -485,12 +485,13 @@ covered by its own tests, so the entry point only dispatches on the answer.
 Forage's is the example; it answers pipeline steps alone, so it refuses a relationship:
 
 ```csharp
+using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
 using var reader = new StreamReader(httpContext.Request.Body);
 var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
 return request.Kind switch
 {
-    HandleRequestKind.NodeEnvelope => Results.Ok(await steps.HandleNodeAsync(request.Json, httpContext.RequestAborted)),
+    HandleRequestKind.NodeEnvelope => Results.Ok(await steps.HandleNodeAsync(request.Json, deadline, httpContext.RequestAborted)),
     HandleRequestKind.RelationshipSubject => Results.BadRequest(new { success = false, error = ForageSteps.RelationshipCallRefusal }),
     _ => Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") }),
 };
@@ -1360,18 +1361,24 @@ public sealed class MyNode : DagNodeService
 
 // A service that is this node and nothing else hands it to DagNodeHost.Run (§7), which maps this
 // /handle with /manifest, /health, /stats and /shutdown. One that handles other requests too maps it:
+var passedOnRequestLimit = new PassedOnRequestLimit(launchSettings.PassedOnRequestLimit, TimeProvider.System);
 app.MapPost("/handle", async (HttpContext ctx, MyNode node) =>
 {
+    using var deadline = passedOnRequestLimit.StartDeadline(ctx.RequestAborted);
     using var reader = new StreamReader(ctx.Request.Body);
     var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
     return request.Kind == HandleRequestKind.NodeEnvelope
-        ? Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted))
+        ? Results.Ok(await node.HandleNodeAsync(request.Json, deadline, ctx.RequestAborted))
         : Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope("MyNode") });
 });
 ```
 
 `HandleNodeAsync` parses the envelope, resolves `ref` inputs, runs `ExecuteNodeAsync`, and shapes
-`{result,outputs,error}`. A throw becomes `{result:"fail",error:"…"}` — never an unhandled 500 — so the
+`{result,outputs,error}`. Each request is handed a deadline, which the step reads as `context.Deadline`: the
+`--passedOnRequestLimitSeconds` less 2 seconds for the answer, counted from when the request arrived, and
+`PassedOnRequestDeadline.None` when no limit was given. `Deadline.TimeLeft` tells a step whether work it is
+about to wait for can finish before Mycelium gives up on the request. The deadline does not cancel the step's
+work: the cancellation token stays the request's own. A throw becomes `{result:"fail",error:"…"}` — never an unhandled 500 — so the
 orchestrator records the failure and follows the node's fail wires. **Echo** (`EchoNode`) is the reference node
 (`message` → `echo`). Non-.NET services implement the same JSON envelope directly.
 

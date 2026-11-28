@@ -1209,6 +1209,7 @@ export const de: PartialResources = {
       saveFailed: "Speichern fehlgeschlagen",
       typeLabel: "Eigenschaftstyp",
       writtenByIngest: "vom Import geschrieben",
+      takesReadingsOnly: "aus Messwerten übernommen, nicht von Hand bearbeitbar",
       rejected: {
         wholeNumber: "{{name}} enthält eine ganze Zahl — {{value}} ist keine",
         number: "{{name}} enthält eine Zahl — {{value}} ist keine",

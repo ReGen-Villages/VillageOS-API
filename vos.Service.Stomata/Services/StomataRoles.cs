@@ -9,4 +9,6 @@ public static class StomataRoles
     public static readonly Role WindRoseCell = new("windRoseCell", RoleIdentity.Of("windRoseCell"));
 
     public static readonly IReadOnlyList<Role> WindRose = [WindDirectionSector, WindSpeedClass, WindRoseCell];
+
+    public static readonly Role DesignStrategyGroup = new("designStrategyGroup", RoleIdentity.Of("designStrategyGroup"));
 }

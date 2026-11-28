@@ -31,7 +31,6 @@ public sealed class TributaryStep : DagNodeService
 
     private readonly EndpointCallService _calls;
     private readonly IEndpointMyceliumClient _broker;
-    private readonly PassedOnRequestLimit _passedOnRequestLimit;
     private readonly TimeProvider _clock;
 
     public TributaryStep(
@@ -42,13 +41,11 @@ public sealed class TributaryStep : DagNodeService
         string? apiKey,
         EndpointCallService calls,
         IEndpointMyceliumClient broker,
-        PassedOnRequestLimit passedOnRequestLimit,
         TimeProvider clock)
         : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
         _calls = calls;
         _broker = broker;
-        _passedOnRequestLimit = passedOnRequestLimit;
         _clock = clock;
     }
 
@@ -69,21 +66,20 @@ public sealed class TributaryStep : DagNodeService
     protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken) =>
         (context.Param(StepSetting) is { ValueKind: JsonValueKind.String } step ? step.GetString() : null) switch
         {
-            null or Fetch => FetchAsync(context, cancellationToken),
-            HistoryChanged => AskForTheHistoryToBeJudgedAsync(context, cancellationToken),
+            null or Fetch => FetchAsync(context),
+            HistoryChanged => AskForTheHistoryToBeJudgedAsync(context),
             var named => throw new InvalidOperationException(
                 $"A Tributary box names its step in the '{StepSetting}' setting, one of: {string.Join(", ", Kinds.Select(kind => kind.Name))}; " +
                 $"'{named}' is not one."),
         };
 
-    private async Task<NodeResult> FetchAsync(NodeContext context, CancellationToken cancellationToken)
+    private async Task<NodeResult> FetchAsync(NodeContext context)
     {
         if (context.Input(CallPort) is not { ValueKind: JsonValueKind.Object } call)
             throw new InvalidOperationException(NoCall);
 
         var request = call.Deserialize<EndpointCallRequest>(JsonSerializerOptions.Web) ?? throw new InvalidOperationException(NoCall);
-        using var deadline = _passedOnRequestLimit.StartDeadline(cancellationToken);
-        var answer = StepAnswer.From(await _calls.ExecuteAsync(request, deadline), call, _clock.GetUtcNow());
+        var answer = StepAnswer.From(await _calls.ExecuteAsync(request, new TributaryRequestDeadline(context.Deadline)), call, _clock.GetUtcNow());
 
         if (answer.Succeeded) return NodeResult.Ok((OutcomePort, answer.Outcome));
 
@@ -93,12 +89,12 @@ public sealed class TributaryStep : DagNodeService
             : new NodeFailedException(answer.Reason!, outputs);
     }
 
-    private async Task<NodeResult> AskForTheHistoryToBeJudgedAsync(NodeContext context, CancellationToken cancellationToken)
+    private async Task<NodeResult> AskForTheHistoryToBeJudgedAsync(NodeContext context)
     {
         var subject = context.Input(SubjectPort);
         var thingId = ThingIdOf(subject) ?? throw new InvalidOperationException(NoSubject);
 
-        using var deadline = _passedOnRequestLimit.StartDeadline(cancellationToken);
+        var deadline = context.Deadline;
         BrokerAnswer answer;
         try
         {

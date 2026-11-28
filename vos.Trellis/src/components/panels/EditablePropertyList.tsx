@@ -67,13 +67,15 @@ export function EditablePropertyList({
       {properties.length === 0 && !editMode && (
         <p className="text-zinc-500 text-xs italic">{t('panels.properties.none')}</p>
       )}
-      {properties.map(({ name, value, type }) =>
+      {properties.map(({ name, value, type, takesReadingsOnly }) =>
         editMode ? (
           <EditableRow
             key={name}
             name={name}
             value={value}
             declaredType={type}
+            takesReadingsOnly={takesReadingsOnly ?? false}
+            numbers={numbers}
             entityId={entityId}
             entityType={entityType}
             onSaved={onSaved}
@@ -267,6 +269,8 @@ function EditableRow({
   name,
   value,
   declaredType,
+  takesReadingsOnly,
+  numbers,
   entityId,
   entityType,
   onSaved,
@@ -275,6 +279,8 @@ function EditableRow({
   name: string;
   value: unknown;
   declaredType: string;
+  takesReadingsOnly: boolean;
+  numbers: NumberDisplaySettings;
   entityId: string;
   entityType: 'thing' | 'relationship';
   onSaved?: () => void;
@@ -360,7 +366,14 @@ function EditableRow({
     <div className="flex items-center justify-between py-1 gap-2">
       <span className="text-zinc-400 text-xs shrink-0">{name}</span>
       <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
-        {editor === 'readOnly' ? (
+        {takesReadingsOnly ? (
+          <>
+            <span className="text-xs font-mono truncate max-w-[120px]">{formatPropertyValue(value, declaredType, numbers)}</span>
+            <span className="text-[11px] text-zinc-500 italic truncate" title={t('panels.properties.takesReadingsOnly')}>
+              {t('panels.properties.takesReadingsOnly')}
+            </span>
+          </>
+        ) : editor === 'readOnly' ? (
           <span className="text-[11px] text-zinc-500 italic truncate" title={t('panels.properties.writtenByIngest')}>
             {t('panels.properties.writtenByIngest')}
           </span>

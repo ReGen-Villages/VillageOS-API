@@ -141,7 +141,7 @@ public class TransectNodeTests
     private static async Task<(NodeResponse Response, Broker Broker)> MeasureAsync(Model model, string? subject = null)
     {
         var broker = new Broker(model.Answer);
-        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope(subject ?? $"\"{Model.Parcel}\""));
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope(subject ?? $"\"{Model.Parcel}\""), PassedOnRequestDeadline.None(CancellationToken.None));
         return (response, broker);
     }
 
@@ -252,7 +252,7 @@ public class TransectNodeTests
     {
         var broker = new Broker(() => "{}", HttpStatusCode.ServiceUnavailable);
 
-        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""));
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Retry.Should().NotBeNull();
@@ -264,7 +264,7 @@ public class TransectNodeTests
     {
         var broker = new Broker(() => "{}", HttpStatusCode.Forbidden);
 
-        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""));
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Retry.Should().BeNull();
@@ -280,7 +280,7 @@ public class TransectNodeTests
         var model = new Model(Model.MeanSphere, StringValue(GeoJsonOf(ReferenceBorder)));
         var broker = new Broker(model.Answer, fragmentStatus: answered);
 
-        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""));
+        var response = await NodeAnsweredBy(broker).HandleNodeAsync(Envelope($"\"{Model.Parcel}\""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         (response.Retry is not null).Should().Be(triedAgain);

@@ -25,7 +25,7 @@ public class EnergyBalanceNodeTests
              "otherGenerationMwhPerYear":900,"annualConsumptionMwhPerYear":18743}
             """);
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Succeeded);
         ((double)response.Outputs["totalGenerationMwhPerYear"]!).Should().BeApproximately(20900, 1e-6);
@@ -41,7 +41,7 @@ public class EnergyBalanceNodeTests
              "otherGenerationMwhPerYear":900}
             """);
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("annualConsumptionMwhPerYear");
@@ -60,7 +60,7 @@ public class EnergyBalanceNodeTests
              "otherGenerationMwhPerYear":null,"annualConsumptionMwhPerYear":18743}
             """);
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("otherGenerationMwhPerYear");

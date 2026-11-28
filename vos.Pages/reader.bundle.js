@@ -2378,7 +2378,8 @@
   function unwrapRelationship(relationship) {
     return {
       ...relationship,
-      Properties: unwrapProperties(relationship.Properties)
+      Properties: unwrapProperties(relationship.Properties),
+      PropertyWriteKinds: declaredWriteKinds(relationship.Properties)
     };
   }
 

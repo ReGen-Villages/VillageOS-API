@@ -22,7 +22,7 @@ public class WaterReserveNodeTests
         var node = BuildNode();
         var root = Envelope("""{"population":1000,"perCapitaConsumptionM3":50,"storageCapacityM3":100000}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Succeeded);
         ((double)response.Outputs["daysOfSupply"]!).Should().BeApproximately(730.0, 1e-6);
@@ -37,7 +37,7 @@ public class WaterReserveNodeTests
         var node = BuildNode();
         var root = Envelope("""{"population":1000,"perCapitaConsumptionM3":50,"storageCapacityM3":null}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("storageCapacityM3");
@@ -49,7 +49,7 @@ public class WaterReserveNodeTests
         var node = BuildNode();
         var root = Envelope("""{"population":1000,"perCapitaConsumptionM3":50}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("storageCapacityM3");

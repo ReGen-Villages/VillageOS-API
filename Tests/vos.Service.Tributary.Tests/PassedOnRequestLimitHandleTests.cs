@@ -106,6 +106,41 @@ public class PassedOnRequestLimitHandleTests
     }
 
     [Fact]
+    public async Task A_steps_deadline_counts_from_when_its_request_arrived_so_reading_its_inputs_uses_it_up()
+    {
+        var holder = Guid.NewGuid();
+        var site = Guid.NewGuid();
+        FakeTimeProvider? clock = null;
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: request => request.RequestUri!.AbsolutePath == $"/api/things/{site}/history/changed",
+            answers: request =>
+            {
+                if (request.RequestUri!.AbsolutePath != $"/api/things/{holder}/properties") return null;
+                clock!.Advance(Deadline - TimeSpan.FromSeconds(1));
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new Dictionary<string, object> { ["studied"] = new { Value = site.ToString() } }),
+                };
+            });
+        clock = host.Clock;
+
+        var answer = host.Client.PostAsJsonAsync("/handle", new
+        {
+            runId = Guid.NewGuid(),
+            nodeId = Guid.NewGuid(),
+            inputs = new Dictionary<string, object?> { ["subject"] = new { @ref = new { thingId = holder, property = "studied" } } },
+            @params = new Dictionary<string, object> { ["step"] = "historyChanged" },
+        });
+        await Settle.ForAsync(host.Stalled, "the step reaches the broker's history route");
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        await Settle.ForAsync(answer, "Tributary answers at the deadline that started when the request arrived");
+
+        var step = await (await answer).Content.ReadFromJsonAsync<JsonElement>();
+        step.GetProperty("error").GetString().Should().Contain($"had not judged the history of {site}");
+    }
+
+    [Fact]
     public async Task Handle_WhenTheReadingsAreWritten_LogsHowLongTheReshapeAndTheWriteTook()
     {
         var thingId = Guid.NewGuid();
@@ -416,7 +451,7 @@ public class PassedOnRequestLimitHandleTests
         log.Lines.Should().BeEmpty();
     }
 
-    private static async Task<CapturingLogger<PassedOnRequestLimit>> CalledTwiceAsync(
+    private static async Task<CapturingLogger<PassedOnRequestLimitWarnings>> CalledTwiceAsync(
         string timeout, string? passedOnRequestLimitSeconds)
     {
         var thingId = Guid.NewGuid();
@@ -427,7 +462,7 @@ public class PassedOnRequestLimitHandleTests
           "Endpoint.timeout":    {"Value":{{timeout}}}
         }
         """;
-        var log = new CapturingLogger<PassedOnRequestLimit>();
+        var log = new CapturingLogger<PassedOnRequestLimitWarnings>();
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = request => request.RequestUri!.Host == "api.test"
@@ -438,7 +473,7 @@ public class PassedOnRequestLimitHandleTests
         {
             if (passedOnRequestLimitSeconds is not null)
                 builder.UseSetting("PassedOnRequestLimitSeconds", passedOnRequestLimitSeconds);
-            builder.ConfigureTestServices(services => services.AddSingleton<ILogger<PassedOnRequestLimit>>(log));
+            builder.ConfigureTestServices(services => services.AddSingleton<ILogger<PassedOnRequestLimitWarnings>>(log));
         });
         using var client = host.CreateClient();
 
@@ -484,7 +519,7 @@ public class PassedOnRequestLimitHandleTests
 
         public FakeTimeProvider Clock { get; } = new();
         public CapturingLogger<EndpointCallService> Log { get; } = new();
-        public CapturingLogger<PassedOnRequestLimit> LimitLog { get; } = new();
+        public CapturingLogger<PassedOnRequestLimitWarnings> LimitLog { get; } = new();
         public CapturingLogger<MyceliumClient> BrokerLog { get; } = new();
         public HttpClient Client { get; }
         public Task Stalled => _stalled.Task;
@@ -514,7 +549,7 @@ public class PassedOnRequestLimitHandleTests
                     services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(handler));
                     services.AddSingleton<TimeProvider>(Clock);
                     services.AddSingleton<ILogger<EndpointCallService>>(Log);
-                    services.AddSingleton<ILogger<PassedOnRequestLimit>>(LimitLog);
+                    services.AddSingleton<ILogger<PassedOnRequestLimitWarnings>>(LimitLog);
                     services.AddSingleton<ILogger<MyceliumClient>>(BrokerLog);
                 });
             });

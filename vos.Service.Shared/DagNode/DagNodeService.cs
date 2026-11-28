@@ -29,7 +29,8 @@ public abstract class DagNodeService : MyceliumClientBase
         && root.TryGetProperty("runId", out _)
         && root.TryGetProperty("nodeId", out _);
 
-    public async Task<NodeResponse> HandleNodeAsync(JsonElement root, CancellationToken cancellationToken = default)
+    public async Task<NodeResponse> HandleNodeAsync(
+        JsonElement root, PassedOnRequestDeadline deadline, CancellationToken cancellationToken = default)
     {
         NodeRequest request;
         try
@@ -44,7 +45,7 @@ public abstract class DagNodeService : MyceliumClientBase
         try
         {
             var inputs = await ResolveInputsAsync(request.Inputs, cancellationToken);
-            var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs);
+            var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs, deadline);
             var result = await ExecuteNodeAsync(context, cancellationToken);
             return new NodeResponse(NodeResponse.Succeeded, result.Outputs, null);
         }

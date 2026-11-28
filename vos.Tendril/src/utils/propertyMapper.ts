@@ -230,5 +230,6 @@ export function unwrapRelationship(relationship: VosRelationship): VosRelationsh
   return {
     ...relationship,
     Properties: unwrapProperties(relationship.Properties),
+    PropertyWriteKinds: declaredWriteKinds(relationship.Properties),
   };
 }

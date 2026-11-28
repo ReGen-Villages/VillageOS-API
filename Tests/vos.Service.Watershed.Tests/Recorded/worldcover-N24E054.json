@@ -1,0 +1,7 @@
+{
+  "source": "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N24E054_Map.tif",
+  "credit": "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium, CC BY 4.0",
+  "readAt": "2026-11-27T12:12:31Z",
+  "header": { "file": "worldcover-N24E054-header.bin", "offset": 0, "length": 24012 },
+  "block": { "file": "worldcover-N24E054-block-774.bin", "index": 774, "offset": 13685636, "length": 46623 }
+}

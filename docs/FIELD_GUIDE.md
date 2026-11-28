@@ -1457,7 +1457,7 @@ with geometry.
 | Tab | What it shows |
 | --- | --- |
 | **Ranges** | The states the Thing currently holds as coloured badges; its own ranges with their criteria and whether each holds; the ranges it inherits, grouped by the kind that supplies them, each name a link to that kind; the ranges on every relationship it sits on; and, per binding, how far a value sits from its bounds. **Add Range** creates one from a name and a criterion; each own range has a delete control; an inherited range is removed from the kind that declares it. The tab holds a still picture of the world while you read it, so a stream of state changes does not shuffle the panel under you; the refresh control takes a fresh one |
-| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for, a ticket naming a stored image as the image itself (the ticket text, with the reason, where the image cannot be shown). Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
+| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for, a ticket naming a stored image as the image itself (the ticket text, with the reason, where the image cannot be shown). Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A value the model takes only from readings keeps no field and says so, because the platform refuses one written by hand. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
 | **Relationships** | What points at the Thing and what it points to, each name a link. A chevron opens a relationship's own values for editing; an icon opens the relationship's own panel. In editing mode a row at the bottom of each list adds a relationship from a predicate and a Thing, and a **retype** row repoints the Thing's `is` to another kind in one step, offering declared kinds only |
 | **3D** | An auto-rotating view of the element. Drag to orbit, scroll to zoom. A container with no geometry of its own — a building, a storey — shows what it contains, coloured by element class |
 
@@ -1466,7 +1466,8 @@ with geometry.
 ![The Relationships tab: outgoing and incoming relationships, each expandable](assets/trellis-graph-relationships.png)
 
 **Click a relationship** for its panel: its subject, predicate and target as links, its own
-values with editing, its ranges and states, and a delete control.
+values with editing (a value taken only from readings keeps no field, as on a Thing), its ranges and
+states, and a delete control.
 
 ![A relationship selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
 
@@ -3457,15 +3458,23 @@ rather than at a level of self-sufficiency no site reaches.
 
 ### Climate
 
-Each figure is folded from the last ten years of hourly temperature readings that discovery fetched for
-the site.
+Each figure is folded from the last ten years of hourly readings: those discovery fetched for the site,
+and those Stomata works out from them.
 
 | Figure | How it is worked out | Why |
 | --- | --- | --- |
-| `comfortableWithoutASystemPercent`, `airMovementPercent`, `evaporativeCoolingPercent`, `directEvaporativeCoolingPercent`, `dehumidificationPercent`, `heatingPercent`, `coolingSystemPercent` | The share of the hours whose design strategy is of each kind: each hourly `designStrategyGroup` reading counts 1 when it names a Thing of that kind and 0 when not, averaged for each year and then across the years. No service that ships writes these readings, so each figure reads unknown | A strategy group weighs humidity and air movement as well as temperature |
-| `windowsOpenPercent` | The share of the hours the hourly `windowsOpenHours` readings mark, averaged for each year and then across the years; unknown for the same reason | As above |
+| `comfortableWithoutASystemPercent`, `airMovementPercent`, `evaporativeCoolingPercent`, `directEvaporativeCoolingPercent`, `dehumidificationPercent`, `heatingPercent`, `coolingSystemPercent` | The share of the hours whose design strategy is of each kind: each hourly `designStrategyGroup` reading counts 1 when it names a Thing of that kind and 0 when not, averaged for each year and then across the years. Stomata writes one reading for each hour with a temperature and a humidity, naming the first group, by its `order`, whose tests the hour all passes. Each group holds its tests in the model, so a project changes, reorders or adds a group by editing Things. The shared template's groups, in order: comfortable as it is (inside the summer or the winter zone in still air, at or under `comfortHumidityRatioLimitGramsPerKilogram`); with air movement (the same at `airMovementMetresPerSecond`); dehumidification needed (inside a zone, above the humidity limit); heating needed (colder than the winter zone); direct evaporative cooling (warmer than the summer zone, at or under the humidity limit, with a wet-bulb at or below that of the summer zone's hot, humid corner, the Climate Consultant rule); two-stage evaporative cooling (the same once an indirect stage has taken `indirectEvaporativeStageShare` of the wet-bulb depression at constant humidity); cooling system needed (every other hour). A zone is the air temperatures where the predicted mean vote is −0.5 to +0.5, for `summerClothingClo` or `winterClothingClo` at `metabolicRateMet`. The vote is Fanger's, as ASHRAE 55-2017 gives it. Above 0.2 m/s, that edition's limit for its elevated air speed method, it is worked in still air at a temperature lowered by the cooling effect: the drop at which still air gives the same standard effective temperature, by the standard's two-node model at the site's air pressure. The cooling effect is worked without the convection the body's own activity makes, which the standard effective temperature otherwise counts above 0.85 met | A strategy group weighs humidity and air movement as well as temperature. The site's history holds no radiant temperature, so mean radiant temperature is taken to equal the air's |
+| `windowsOpenOnHourlyAirPercent`, `windowsOpenOnDailyAirPercent` | The share of the hours the hourly `windowsOpenOnHourlyAirHours` and `windowsOpenOnDailyAirHours` readings mark, averaged for each year and then across the years. Stomata writes both; its README names the limits each reads | An hour's air and a day's air are judged against different limits, so each has its own share |
 | `frostDaysPerYear` | Each day's lowest temperature; the days at or below `frostCelsius`, counted for each year; the yearly counts averaged | The figure describes a typical year, not any single one |
 | `hotDaysPerYear` | Each day's highest temperature; the days above `hotDayCelsius`, counted for each year; the yearly counts averaged | As above |
+
+Stomata also draws the study's outlines each time it stamps it, so they always come from the inputs
+it was stamped with: `comfortZoneInStillAirOutline`, `comfortZoneWithAirMovementOutline`,
+`directEvaporativeCoolingOutline` and `twoStageEvaporativeCoolingOutline`. Each is a GeoJSON Polygon in the
+psychrometric chart's own units, air temperature in °C across and humidity ratio in g/kg up, its corners
+rounded to a hundredth. An evaporative outline is drawn over the temperatures and humidity ratios the site
+recorded. An empty outline, `{"type":"Polygon","coordinates":[]}`, means no hour qualified: that cooling
+brings no air in the site's recorded range into the summer zone.
 
 Every threshold these read is an assumption on the study, so nothing that reads one holds a number of
 its own. A study that moves its frost threshold recomputes its frost days.

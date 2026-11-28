@@ -33,9 +33,11 @@ public class WatershedNodeTests
         var factory = new PerCallHttpClientFactory(new MockHttpMessageHandler(model.Answer));
         var clock = new ClockThatWaitsNoTime();
         var heights = new GroundHeightReader(factory, NullLogger<GroundHeightReader>.Instance, MyceliumUrl, clock, new LaunchToken("svc-jwt"));
-        var node = new WatershedNode(factory, NullLogger<WatershedNode>.Instance, MyceliumUrl, heights, clock, new LaunchToken("svc-jwt"));
+        var node = new WatershedNode(
+            factory, NullLogger<WatershedNode>.Instance, MyceliumUrl, heights, new LandCoverReader(factory), clock, new LaunchToken("svc-jwt"));
         return await node.HandleNodeAsync(JsonDocument.Parse(
-            $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{WatershedModel.Study}\""}}}}}""").RootElement);
+            $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{WatershedModel.Study}\""}}}}}""").RootElement,
+            PassedOnRequestDeadline.None(CancellationToken.None));
     }
 
     private static Dictionary<string, JsonElement> SiteBatch(WatershedModel model) =>
@@ -59,7 +61,7 @@ public class WatershedNodeTests
         var factory = new PerCallHttpClientFactory(new MockHttpMessageHandler(model.Answer));
         var clock = new ClockThatWaitsNoTime();
         var node = new WatershedNode(factory, NullLogger<WatershedNode>.Instance, MyceliumUrl,
-            new GroundHeightReader(factory, NullLogger<GroundHeightReader>.Instance, MyceliumUrl, clock), clock);
+            new GroundHeightReader(factory, NullLogger<GroundHeightReader>.Instance, MyceliumUrl, clock), new LandCoverReader(factory), clock);
 
         node.Ports.Select(port => (port.PortName, port.Direction)).Should().Equal(("subject", "in"), ("subject", "out"));
     }
@@ -389,6 +391,168 @@ public class WatershedNodeTests
         response.Retry.Should().NotBeNull();
     }
 
+    private static readonly string[] RunoffGrids =
+        ["runoffClassOneInFiveGrid", "runoffClassOneInHundredGrid", "runoffClassOneInHundredBuiltOverGrid"];
+
+    private static readonly double BorderLongitude = Border.Average(corner => corner.Longitude);
+
+    private static double BowlAt(Position point) => 100 + 2e6 * (
+        Math.Pow(point.Latitude - Border.Average(corner => corner.Latitude), 2) + Math.Pow(point.Longitude - BorderLongitude, 2));
+
+    private static double?[] Values(JsonElement grid) =>
+        [.. grid.GetProperty("values").EnumerateArray().Select(value => value.ValueKind == JsonValueKind.Null ? (double?)null : value.GetDouble())];
+
+    private static WatershedModel ABowlWithRunoffVocabulary(bool siteIsInAPlace = true, bool holdsRunoffClasses = true)
+    {
+        var model = new WatershedModel(Border) { HeightAt = BowlAt };
+        model.HoldsRunoffVocabulary(siteIsInAPlace, holdsRunoffClasses);
+        return model;
+    }
+
+    [Fact]
+    public async Task A_site_in_a_place_with_a_rain_table_has_its_three_runoff_grids_written_laid_out_as_its_height_grid()
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(100);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        var written = SiteBatch(model);
+        var heights = written["terrainHeightGrid"];
+        foreach (var name in RunoffGrids)
+        {
+            var grid = written[name];
+            foreach (var layout in new[] { "rows", "columns", "originLatitude", "originLongitude", "cellSizeMetres", "latitudeStepDegrees", "longitudeStepDegrees" })
+                grid.GetProperty(layout).GetDouble().Should().Be(heights.GetProperty(layout).GetDouble(), layout);
+            Values(grid).Where(value => value is not null).Should().NotBeEmpty()
+                .And.OnlyContain(value => WatershedModel.RunoffGridCodes.Contains((long)value!.Value));
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(1, false)]
+    public async Task The_table_used_east_of_a_longitude_is_chosen_for_a_site_east_of_it_and_the_other_for_a_site_west_of_it(
+        double degreesFromTheSite, bool eastTableChosen)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(0.001);
+        model.HoldsRainTable(500, appliesEastOfLongitude: BorderLongitude + degreesFromTheSite);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Contains(WatershedModel.StandingWaterGridCode).Should().Be(eastTableChosen);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task The_table_of_the_nearest_place_holding_one_is_used(bool theRegionHoldsATable, bool standingWater)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        if (theRegionHoldsATable) model.HoldsRainTable(0.001);
+        model.HoldsRainTable(500, appliesIn: WatershedModel.Country);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Contains(WatershedModel.StandingWaterGridCode).Should().Be(standingWater);
+    }
+
+    [Theory]
+    [InlineData("no place")]
+    [InlineData("no table")]
+    [InlineData("no runoff class")]
+    public async Task Without_a_place_a_table_or_a_runoff_class_no_runoff_grid_is_written_and_the_study_is_still_stamped(string missing)
+    {
+        var model = ABowlWithRunoffVocabulary(siteIsInAPlace: missing != "no place", holdsRunoffClasses: missing != "no runoff class");
+        if (missing != "no table") model.HoldsRainTable(100);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().Contain("terrainHeightGrid").And.NotContain(RunoffGrids);
+        StampOf(model.Fragments.Single());
+    }
+
+    [Theory]
+    [InlineData("returnPeriodYears")]
+    [InlineData("runoffCoefficientMultiplier")]
+    public async Task A_design_storm_without_its_return_period_or_runoff_coefficient_multiplier_has_no_grid_written_and_the_other_storm_s_grids_are(
+        string property)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(100);
+        model.Unstates(WatershedModel.OneInFiveYears, property);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().NotContain("runoffClassOneInFiveGrid")
+            .And.Contain("runoffClassOneInHundredGrid", "runoffClassOneInHundredBuiltOverGrid");
+    }
+
+    [Theory]
+    [InlineData("durationMinutes")]
+    [InlineData("millimetresPerHour")]
+    public async Task A_rain_intensity_without_its_duration_or_rate_is_left_out_so_a_storm_left_with_none_has_no_grid_written(string property)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        foreach (var (intensity, storm) in model.HoldsRainTable(100))
+            if (storm == WatershedModel.OneInFiveYears) model.Unstates(intensity, property);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().NotContain("runoffClassOneInFiveGrid")
+            .And.Contain("runoffClassOneInHundredGrid", "runoffClassOneInHundredBuiltOverGrid");
+    }
+
+    [Theory]
+    [InlineData("order")]
+    [InlineData("gridCode")]
+    public async Task A_runoff_class_without_its_order_or_grid_code_is_left_out_and_the_other_classes_are_used(string property)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(500);
+        model.Unstates(model.StandingWaterClass, property);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Should().NotContain(WatershedModel.StandingWaterGridCode)
+            .And.Contain(value => value != null);
+    }
+
+    public static TheoryData<string> EachRunoffInput { get; } = new(WatershedModel.RunoffInputs.Keys);
+
+    [Theory]
+    [MemberData(nameof(EachRunoffInput))]
+    public async Task A_study_missing_a_runoff_input_has_no_runoff_grid_written_and_is_still_stamped(string input)
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(100);
+        model.Unstates(WatershedModel.Study, input);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        SiteBatch(model).Keys.Should().Contain("terrainHeightGrid").And.NotContain(RunoffGrids);
+        StampOf(model.Fragments.Single());
+    }
+
+    [Fact]
+    public async Task A_corrected_runoff_input_on_the_study_changes_the_classes()
+    {
+        var model = ABowlWithRunoffVocabulary();
+        model.HoldsRainTable(500);
+        model.States(WatershedModel.Study, "openGroundRunoffCoefficient", 1e-9);
+
+        await RunAsync(model);
+
+        Values(SiteBatch(model)["runoffClassOneInHundredGrid"]).Should().NotContain(WatershedModel.StandingWaterGridCode);
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("\"not-a-thing\"")]
@@ -502,6 +666,150 @@ public class WatershedNodeTests
 
         response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
         model.Observed.Should().BeEmpty();
+        StampOf(model.Fragments.Single());
+    }
+
+    private const double BorderHectares = 1700 * 700 / 10000.0;
+    private static readonly string[] TilesTheBorderTouches = ["N39W033", "N39W030"];
+
+    private static byte TreesWestBareEast(Position centre) => centre.Longitude < MadeUpBorders.Longitude ? (byte)10 : (byte)60;
+
+    private static WatershedModel CoveringLand(bool bindsAHeightsSource = true, bool bindsTheRaster = true, Func<BuiltTile, BuiltTile>? laidOut = null)
+    {
+        var model = new WatershedModel(Border, bindsAHeightsSource);
+        model.CoversLand(bindsTheRaster);
+        foreach (var name in TilesTheBorderTouches)
+            model.LandCoverTiles[name] = (laidOut ?? (built => built))(BuiltTile.Named(name).Over(Border, TreesWestBareEast)).Build().Bytes;
+        return model;
+    }
+
+    private static Dictionary<string, JsonElement> ShareBatch(WatershedModel model, int code) =>
+        model.Observed.Should().ContainSingle(batch => batch.Thing == model.LandCoverShareOf(code)).Subject.Values;
+
+    [Fact]
+    public async Task Each_land_cover_share_is_written_with_its_pixel_count_area_and_share_of_the_land_inside_the_border()
+    {
+        var model = CoveringLand();
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        foreach (var code in WatershedModel.LandCoverCodes)
+            ShareBatch(model, code).Keys.Should().BeEquivalentTo("pixelCount", "sharePercent", "areaHectares");
+        var (trees, bare) = (ShareBatch(model, 10), ShareBatch(model, 60));
+        (trees["sharePercent"].GetDouble() + bare["sharePercent"].GetDouble()).Should().BeApproximately(100, 1e-9);
+        trees["sharePercent"].GetDouble().Should().BeApproximately(50, 1, "the border is split evenly at the line between the two tiles");
+        (trees["areaHectares"].GetDouble() + bare["areaHectares"].GetDouble()).Should().BeApproximately(BorderHectares, BorderHectares / 100);
+        WatershedModel.LandCoverCodes.Where(code => code is not (10 or 60))
+            .Should().OnlyContain(code => ShareBatch(model, code)["pixelCount"].GetInt32() == 0 && ShareBatch(model, code)["sharePercent"].GetDouble() == 0);
+    }
+
+    [Fact]
+    public async Task The_land_cover_is_read_after_the_terrain_is_recorded()
+    {
+        var model = CoveringLand();
+
+        await RunAsync(model);
+
+        model.Asked.IndexOf($"observations {WatershedModel.Site}").Should()
+            .BeLessThan(model.Asked.FindIndex(asked => asked.StartsWith("land cover", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task A_land_cover_batch_that_never_reads_back_fails_the_run_so_it_can_be_tried_again_and_writes_no_stamp()
+    {
+        var model = CoveringLand(bindsAHeightsSource: false);
+        model.DropsObservations = true;
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_model_binding_no_land_cover_raster_asks_for_no_tile_writes_no_share_and_is_stamped()
+    {
+        var model = CoveringLand(bindsTheRaster: false);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.LandCoverCalls.Should().Be(0);
+        model.Observed.Should().NotContain(batch => model.LandCoverShares.Contains(batch.Thing));
+        StampOf(model.Fragments.Single());
+    }
+
+    [Fact]
+    public async Task A_place_the_source_holds_no_tile_for_writes_no_share_and_is_stamped()
+    {
+        var model = CoveringLand();
+        model.LandCoverTiles.Clear();
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.LandCoverCalls.Should().Be(TilesTheBorderTouches.Length);
+        model.Observed.Should().NotContain(batch => model.LandCoverShares.Contains(batch.Thing));
+        StampOf(model.Fragments.Single());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(null)]
+    public async Task A_land_cover_source_that_cannot_be_reached_or_answers_later_can_be_tried_again_and_the_terrain_written_stays(HttpStatusCode? status)
+    {
+        var model = CoveringLand();
+        if (status is { } answered) model.LandCoverStatus = answered;
+        else model.LandCoverUnreachable = true;
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().NotBeNull();
+        model.Fragments.Should().BeEmpty();
+        SiteBatch(model).Should().ContainKey("terrainHeightGrid");
+    }
+
+    [Fact]
+    public async Task A_tile_in_another_layout_fails_the_run_naming_what_differs_and_writes_no_stamp()
+    {
+        var model = CoveringLand(laidOut: built => built with { Compression = 5 });
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        response.Error.Should().Contain("compression 5");
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_source_that_answers_a_byte_range_with_the_whole_file_fails_the_run_and_writes_no_stamp()
+    {
+        var model = CoveringLand();
+        model.LandCoverStatus = HttpStatusCode.OK;
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Failed);
+        response.Retry.Should().BeNull();
+        response.Error.Should().Contain("byte range");
+        model.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_model_binding_no_heights_source_still_has_its_land_cover_worked_out_and_is_stamped()
+    {
+        var model = CoveringLand(bindsAHeightsSource: false);
+
+        var response = await RunAsync(model);
+
+        response.Result.Should().Be(NodeResponse.Succeeded, response.Error);
+        model.HeightCalls.Should().Be(0);
+        model.Observed.Select(batch => batch.Thing).Should().BeEquivalentTo(model.LandCoverShares);
         StampOf(model.Fragments.Single());
     }
 }

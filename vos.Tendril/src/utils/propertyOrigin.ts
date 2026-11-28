@@ -22,6 +22,36 @@ export function valueOrigin(thing: VosThing, property: string, lookup: IsChainLo
   }
 }
 
+/** The write kind the platform judges a write to this property by: that of the property the Thing holds
+ *  under the name, or else of the nearest archetype holding it, valued or not. */
+export function resolvedWriteKind(thing: VosThing, property: string, lookup: IsChainLookup): DeclaredWriteKind | undefined {
+  const holder = holderOfName(thing, property, lookup, new Set());
+  return holder ? storedWriteKind(holder, property) : undefined;
+}
+
+function holderOfName(
+  thing: VosThing,
+  property: string,
+  lookup: IsChainLookup,
+  visiting: Set<string>,
+): VosThing | null {
+  if (holdsName(thing, property)) return thing;
+  if (visiting.has(thing.Id)) return null;
+  visiting.add(thing.Id);
+  for (const parent of ancestorsInPrecedenceOrder(thing, lookup)) {
+    const holder = holderOfName(parent, property, lookup, visiting);
+    if (holder) return holder;
+  }
+  return null;
+}
+
+function holdsName(thing: VosThing, property: string): boolean {
+  return (
+    Object.hasOwn(thing.Properties ?? {}, property) ||
+    firstInStoredSets(thing.InheritedOverrides, (set) => (Object.hasOwn(set.Properties ?? {}, property) ? true : undefined)) === true
+  );
+}
+
 /** The Thing whose value this one resolves to: itself where it holds one, otherwise the nearest
  *  archetype up the `is`-chain that holds one. A malformed model can put a cycle in that chain, and
  *  a walk over model-supplied data that trusts it is a stack overflow, so each is visited once. */

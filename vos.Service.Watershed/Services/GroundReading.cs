@@ -3,6 +3,7 @@ using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Watershed.LandCover;
 using vos.Service.Watershed.Terrain;
 
 namespace vos.Service.Watershed.Services;
@@ -10,15 +11,19 @@ namespace vos.Service.Watershed.Services;
 public sealed record GroundReading(
     SnapshotThing Study, SnapshotThing? Site, IReadOnlyList<Position>? Border, string? HeightsSource,
     IReadOnlyList<SlopeClassBand> SlopeClasses, IReadOnlyList<AspectSector> Aspects, IReadOnlyDictionary<Guid, Guid> ShareAssessing,
-    IReadOnlyList<SnapshotThing> LayerFeatures)
+    IReadOnlyList<SnapshotThing> LayerFeatures, string? LandCoverTileAddress, IReadOnlyList<LandCoverClassCode> LandCoverClasses)
 {
     public const string BoundaryProperty = "boundary";
-    private const string Has = "has";
+    // Read by name until the holding role replaces it (VillageOS 8417, bound by 8771's template).
+    public const string Has = "has";
+    private const string TileAddressProperty = "tileAddress";
+    private const string WorldCoverCodeProperty = "worldCoverCode";
 
     private static readonly Role[] Roles =
     [
         LandIntakeRoles.StudiedSite, LandIntakeRoles.Assesses, LandIntakeRoles.Parcel, LandIntakeRoles.SlopeClassShare,
         LandIntakeRoles.AspectShare, LandIntakeRoles.BorderElevation, LandIntakeRoles.SiteLayerFeature,
+        LandIntakeRoles.LandCoverShare, LandIntakeRoles.LandCoverRaster,
     ];
 
     // The bindings are followed last, so the walk along `has` does not spread from the kinds the roles bind.
@@ -48,16 +53,19 @@ public sealed record GroundReading(
         bool IsA(Guid thing, Guid? kind) => kind is not null && Along(thing, Named(PlatformPredicates.Is)).Contains(kind.Value);
 
         var site = Along(studyId, Only(LandIntakeRoles.StudiedSite)).Select(id => things.GetValueOrDefault(id)).FirstOrDefault(thing => thing is not null);
-        if (site is null) return new GroundReading(study, null, null, null, [], [], new Dictionary<Guid, Guid>(), []);
+        if (site is null) return new GroundReading(study, null, null, null, [], [], new Dictionary<Guid, Guid>(), [], null, []);
 
         var held = Along(site.Id, Named(Has)).ToArray();
         var parcel = held.FirstOrDefault(thing => IsA(thing, Only(LandIntakeRoles.Parcel)));
         var border = things.GetValueOrDefault(parcel) is { } parcelThing ? BorderOf(parcelThing) : null;
         var source = snapshot.Bound(LandIntakeRoles.BorderElevation).OrderBy(thing => thing.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
+        var tileAddress = snapshot.Bound(LandIntakeRoles.LandCoverRaster).OrderBy(thing => thing.Name, StringComparer.Ordinal)
+            .Select(thing => thing.StatedText(TileAddressProperty)).FirstOrDefault(address => address is not null);
 
         var shareAssessing = new Dictionary<Guid, Guid>();
         var slopeClasses = new List<SlopeClassBand>();
         var aspects = new List<AspectSector>();
+        var landCoverClasses = new List<LandCoverClassCode>();
         foreach (var share in held)
         {
             if (Along(share, Only(LandIntakeRoles.Assesses)).Select(id => things.GetValueOrDefault(id)).FirstOrDefault(term => term is not null) is not { } term)
@@ -72,12 +80,17 @@ public sealed record GroundReading(
                 aspects.Add(new AspectSector(term.Id, term.StatedNumber("centreDegrees")));
                 shareAssessing[term.Id] = share;
             }
+            else if (IsA(share, Only(LandIntakeRoles.LandCoverShare)) && term.StatedNumber(WorldCoverCodeProperty) is { } code)
+            {
+                landCoverClasses.Add(new LandCoverClassCode(term.Id, (int)code));
+                shareAssessing[term.Id] = share;
+            }
         }
 
         var layerFeatures = held.Where(thing => IsA(thing, Only(LandIntakeRoles.SiteLayerFeature)))
             .Select(id => things.GetValueOrDefault(id)).OfType<SnapshotThing>().ToList();
 
-        return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing, layerFeatures);
+        return new GroundReading(study, site, border, source, slopeClasses, aspects, shareAssessing, layerFeatures, tileAddress, landCoverClasses);
     }
 
     private static IReadOnlyList<Position>? BorderOf(SnapshotThing parcel)

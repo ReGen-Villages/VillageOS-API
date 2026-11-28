@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
@@ -33,7 +34,7 @@ public class StomataNodeTests
         ("5-to-9-metres-per-second", 5.0, 9.0), ("over-9-metres-per-second", 9.0, null),
     ];
 
-    // The study, its site and the wind rose vocabulary as the shared template declares them.
+    // The study, its site, the wind rose vocabulary and the design-strategy groups as the shared template declares them.
     private sealed class Model
     {
         public static readonly Guid Study = Guid.NewGuid();
@@ -48,8 +49,11 @@ public class StomataNodeTests
         private readonly List<SnapshotRelationship> _edges = [];
 
         public Dictionary<string, Guid> Cells { get; } = [];
+        public Dictionary<string, Guid> Groups { get; } = [];
 
-        public Model(bool studiesASite = true)
+        public Model(
+            bool studiesASite = true, string? withoutGroup = null, string? groupWithoutOrder = null, string namedAs = "",
+            (Guid Id, string Name)? sharingTheHeatingOrder = null)
         {
             Thing(Binds, RoleBindings.BindsPredicateName);
             Thing(Is, "is");
@@ -76,6 +80,23 @@ public class StomataNodeTests
                     Relate(cell, InSpeedClass, band);
                     Cells[$"{name} {bandName}"] = cell;
                 }
+
+            var groupKind = Kind(StomataRoles.DesignStrategyGroup, "DesignStrategyGroup");
+            foreach (var (name, order, tests) in TemplateGroups.Held.Where(group => group.Name != withoutGroup))
+                Groups[name] = GroupMember(groupKind, Guid.NewGuid(), namedAs + name, name == groupWithoutOrder ? null : order, tests);
+            if (sharingTheHeatingOrder is { } sharing)
+                Groups[sharing.Name] = GroupMember(groupKind, sharing.Id, sharing.Name, 4, TemplateGroups.Tests((HourTests.ColderThanWinterZone, true)));
+        }
+
+        private Guid GroupMember(Guid kind, Guid member, string name, long? order, IReadOnlyDictionary<string, bool> tests)
+        {
+            var properties = tests.ToDictionary(
+                test => test.Key, test => new SnapshotProperty(JsonSerializer.SerializeToElement(test.Value), "vos.Boolean", null));
+            if (order is { } placed)
+                properties[DesignStrategyGroups.OrderProperty] = new SnapshotProperty(JsonSerializer.SerializeToElement(placed), "vos.LongInteger", null);
+            Thing(member, name, properties: properties);
+            Relate(member, Is, kind);
+            return member;
         }
 
         public string Answer() => JsonSerializer.Serialize(
@@ -123,6 +144,17 @@ public class StomataNodeTests
             [StomataNode.ParticulateMatterTwoAndAHalfSeries] = [(FirstHour, 8.0)],
         };
 
+        public Dictionary<string, double> ComfortInputs { get; } = new()
+        {
+            [StomataNode.MetabolicRate] = StatedComfort.Assumptions.MetabolicRateMet,
+            [StomataNode.SummerClothing] = StatedComfort.Assumptions.SummerClothingClo,
+            [StomataNode.WinterClothing] = StatedComfort.Assumptions.WinterClothingClo,
+            [StomataNode.StillAirSpeed] = StatedComfort.Assumptions.StillAirMetresPerSecond,
+            [StomataNode.AirMovementSpeed] = StatedComfort.Assumptions.AirMovementMetresPerSecond,
+            [StomataNode.ComfortHumidityRatioLimit] = StatedComfort.Assumptions.HumidityRatioLimitGramsPerKilogram,
+            [StomataNode.IndirectEvaporativeStageShare] = StatedComfort.Assumptions.IndirectEvaporativeStageShare,
+        };
+
         public double? ElevationMetres { get; set; } = 0.0;
         public double HourlyLimitTen { get; set; } = 45.0;
         public double DailyLimitTen { get; set; } = 45.0;
@@ -133,6 +165,7 @@ public class StomataNodeTests
         public List<string> Asked { get; } = [];
         public List<JsonElement> Deposited { get; } = [];
         public List<JsonElement> Fragments { get; } = [];
+        public List<string> SnapshotsAsked { get; } = [];
 
         public HttpResponseMessage Answer(HttpRequestMessage request)
         {
@@ -140,20 +173,28 @@ public class StomataNodeTests
             Asked.Add($"{request.Method} {path}");
             var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
             if (Instead.TryGetValue(path, out var instead)) return instead();
-            if (path == "/api/snapshots") return Json(model.Answer());
+            if (path == "/api/snapshots")
+            {
+                SnapshotsAsked.Add(body ?? "");
+                return Json(model.Answer());
+            }
             if (path == "/api/time")
                 return AnswersTheModelClock
                     ? Json(JsonSerializer.Serialize(new { now = ModelNow, rate = 1.0 }))
                     : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             if (path == $"/api/things/{Model.Study}/properties")
-                return Json(JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                var inputs = new Dictionary<string, object>
                 {
                     [$"SiteStudy.{StomataNode.HourlyAirLimitParticulateMatterTen}"] = new { Value = HourlyLimitTen },
                     [$"SiteStudy.{StomataNode.HourlyAirLimitParticulateMatterTwoAndAHalf}"] = new { Value = 15.0 },
                     [$"SiteStudy.{StomataNode.DailyAirLimitParticulateMatterTen}"] = new { Value = DailyLimitTen },
                     [$"SiteStudy.{StomataNode.DailyAirLimitParticulateMatterTwoAndAHalf}"] = new { Value = 15.0 },
                     [$"SiteStudy.{StomataNode.LeastHourlyReadingsForADailyMean}"] = new { Value = 18.0 },
-                }));
+                };
+                foreach (var (name, value) in ComfortInputs) inputs[$"SiteStudy.{name}"] = new { Value = value };
+                return Json(JsonSerializer.Serialize(inputs));
+            }
             if (path == $"/api/things/{Model.Site}/properties")
                 return Json(ElevationMetres is { } metres
                     ? JsonSerializer.Serialize(new Dictionary<string, object> { [StomataNode.ElevationProperty] = new { Value = metres } })
@@ -189,12 +230,25 @@ public class StomataNodeTests
             new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
-    private static async Task<NodeResponse> WorkOutAsync(Broker broker, string? subject = null) =>
+    private sealed class RecordingLogger : ILogger<StomataNode>
+    {
+        public List<(LogLevel Level, string Message)> Logged { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Logged.Add((logLevel, formatter(state, exception)));
+    }
+
+    private static async Task<NodeResponse> WorkOutAsync(Broker broker, string? subject = null, ILogger<StomataNode>? logger = null) =>
         await new StomataNode(
-                new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), NullLogger<StomataNode>.Instance, MyceliumUrl,
-                new LaunchToken("svc-jwt"))
+                new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), logger ?? NullLogger<StomataNode>.Instance, MyceliumUrl,
+                new StatedComfort(), new LaunchToken("svc-jwt"))
             .HandleNodeAsync(JsonDocument.Parse(
-                $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement);
+                $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement,
+                PassedOnRequestDeadline.None(CancellationToken.None));
 
     private static DateTime? Stamp(Broker broker) =>
         broker.Fragments.Select(fragment => fragment.GetProperty("Things")[0])
@@ -202,6 +256,20 @@ public class StomataNodeTests
             .Select(thing => thing.GetProperty("Properties").GetProperty(StomataNode.StampProperty).GetProperty("value").GetDateTime())
             .Cast<DateTime?>()
             .SingleOrDefault();
+
+    private static JsonElement StampedProperties(Broker broker) =>
+        broker.Fragments.Select(fragment => fragment.GetProperty("Things")[0])
+            .Single(thing => thing.GetProperty("Id").GetGuid() == Model.Study)
+            .GetProperty("Properties");
+
+    private static string? Outline(Broker broker, string outline) =>
+        StampedProperties(broker).TryGetProperty(outline, out var held) ? held.GetProperty("value").GetString() : null;
+
+    private static void AnHourOf(Broker broker, double airCelsius, double relativeHumidityPercent)
+    {
+        broker.Series[StomataNode.TemperatureSeries] = [(FirstHour, airCelsius)];
+        broker.Series[StomataNode.RelativeHumiditySeries] = [(FirstHour, relativeHumidityPercent)];
+    }
 
     [Fact]
     public async Task An_hour_of_climate_writes_its_wind_rose_cell_humidity_ratio_and_windows_open_on_the_site()
@@ -275,23 +343,187 @@ public class StomataNodeTests
         broker.DepositedAs(StomataNode.WindowsOpenOnHourlyAirReading).Should().ContainSingle();
     }
 
+    private static readonly string[] EveryHourlyReading =
+    [
+        StomataNode.WindRoseCellReading, StomataNode.HumidityRatioReading, StomataNode.WindowsOpenOnHourlyAirReading,
+        StomataNode.DesignStrategyGroupReading,
+    ];
+
     [Theory]
-    [InlineData(StomataNode.TemperatureSeries, StomataNode.HumidityRatioReading)]
-    [InlineData(StomataNode.RelativeHumiditySeries, StomataNode.HumidityRatioReading)]
-    [InlineData(StomataNode.WindSpeedSeries, StomataNode.WindRoseCellReading)]
-    [InlineData(StomataNode.WindDirectionSeries, StomataNode.WindRoseCellReading)]
-    [InlineData(StomataNode.ParticulateMatterTenSeries, StomataNode.WindowsOpenOnHourlyAirReading)]
-    [InlineData(StomataNode.ParticulateMatterTwoAndAHalfSeries, StomataNode.WindowsOpenOnHourlyAirReading)]
-    public async Task An_hour_missing_one_series_writes_no_reading_that_needs_it_and_every_reading_that_does_not(string missing, string unwritten)
+    [InlineData(StomataNode.TemperatureSeries, new[] { StomataNode.HumidityRatioReading, StomataNode.DesignStrategyGroupReading })]
+    [InlineData(StomataNode.RelativeHumiditySeries, new[] { StomataNode.HumidityRatioReading, StomataNode.DesignStrategyGroupReading })]
+    [InlineData(StomataNode.WindSpeedSeries, new[] { StomataNode.WindRoseCellReading })]
+    [InlineData(StomataNode.WindDirectionSeries, new[] { StomataNode.WindRoseCellReading })]
+    [InlineData(StomataNode.ParticulateMatterTenSeries, new[] { StomataNode.WindowsOpenOnHourlyAirReading })]
+    [InlineData(StomataNode.ParticulateMatterTwoAndAHalfSeries, new[] { StomataNode.WindowsOpenOnHourlyAirReading })]
+    public async Task An_hour_missing_one_series_writes_no_reading_that_needs_it_and_every_reading_that_does_not(string missing, string[] unwritten)
     {
         var broker = new Broker(new Model());
         broker.Series.Remove(missing);
 
         (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
 
-        broker.DepositedAs(unwritten).Should().BeEmpty();
-        broker.Deposited.Select(item => item.GetProperty("property").GetString()).Should().HaveCount(2).And.NotContain(unwritten);
+        broker.Deposited.Select(item => item.GetProperty("property").GetString())
+            .Should().BeEquivalentTo(EveryHourlyReading.Except(unwritten));
         Stamp(broker).Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(25.0, 40.0, "comfortable-as-it-is")]
+    [InlineData(29.5, 30.0, "with-air-movement")]
+    [InlineData(25.0, 90.0, "dehumidification-needed")]
+    [InlineData(15.0, 50.0, "heating-needed")]
+    [InlineData(35.0, 20.0, "direct-evaporative-cooling")]
+    [InlineData(42.0, 15.7, "two-stage-evaporative-cooling")]
+    [InlineData(35.0, 60.0, "cooling-system-needed")]
+    public async Task An_hour_writes_a_reading_naming_the_design_strategy_group_it_goes_into(
+        double airCelsius, double relativeHumidityPercent, string group)
+    {
+        var model = new Model();
+        var broker = new Broker(model);
+        AnHourOf(broker, airCelsius, relativeHumidityPercent);
+
+        await WorkOutAsync(broker);
+
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Single().GetProperty("value").GetGuid().Should().Be(model.Groups[group]);
+    }
+
+    [Fact]
+    public async Task An_hour_whose_group_the_model_does_not_hold_goes_into_the_next_group_that_takes_it()
+    {
+        var model = new Model(withoutGroup: DesignStrategy.HeatingNeeded);
+        var broker = new Broker(model);
+        AnHourOf(broker, 15.0, 50.0);
+
+        (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
+
+        GroupWritten(broker).Should().Be(model.Groups[DesignStrategy.CoolingSystemNeeded]);
+        broker.DepositedAs(StomataNode.HumidityRatioReading).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_group_renamed_in_the_model_still_takes_its_hours()
+    {
+        var model = new Model(namedAs: "the project's ");
+        var broker = new Broker(model);
+        AnHourOf(broker, 15.0, 50.0);
+
+        await WorkOutAsync(broker);
+
+        GroupWritten(broker).Should().Be(model.Groups[DesignStrategy.HeatingNeeded]);
+    }
+
+    [Fact]
+    public async Task A_group_with_no_order_is_never_tried_and_the_run_names_it_once()
+    {
+        var model = new Model(groupWithoutOrder: DesignStrategy.HeatingNeeded);
+        var broker = new Broker(model);
+        broker.Series[StomataNode.TemperatureSeries] = [(FirstHour, 15.0), (FirstHour.AddHours(1), 14.0)];
+        broker.Series[StomataNode.RelativeHumiditySeries] = [(FirstHour, 50.0), (FirstHour.AddHours(1), 50.0)];
+        var logger = new RecordingLogger();
+
+        await WorkOutAsync(broker, logger: logger);
+
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Select(item => item.GetProperty("value").GetGuid())
+            .Should().Equal(model.Groups[DesignStrategy.CoolingSystemNeeded], model.Groups[DesignStrategy.CoolingSystemNeeded]);
+        logger.Logged.Where(logged => logged.Message.Contains(DesignStrategy.HeatingNeeded)).Should().ContainSingle()
+            .Which.Level.Should().Be(LogLevel.Warning);
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000001", true)]
+    [InlineData("ffffffff-ffff-ffff-ffff-ffffffffffff", false)]
+    public async Task Two_groups_sharing_an_order_are_tried_by_identifier_and_the_run_names_both_once(string sharingId, bool sharingGroupFirst)
+    {
+        const string sharing = "sharing the heating order";
+        var model = new Model(sharingTheHeatingOrder: (Guid.Parse(sharingId), sharing));
+        var broker = new Broker(model);
+        AnHourOf(broker, 15.0, 50.0);
+        var logger = new RecordingLogger();
+
+        await WorkOutAsync(broker, logger: logger);
+
+        GroupWritten(broker).Should().Be(model.Groups[sharingGroupFirst ? sharing : DesignStrategy.HeatingNeeded]);
+        var named = logger.Logged.Where(logged => logged.Message.Contains(sharing)).Should().ContainSingle().Subject;
+        named.Level.Should().Be(LogLevel.Warning);
+        named.Message.Should().Contain(DesignStrategy.HeatingNeeded);
+    }
+
+    private static Guid GroupWritten(Broker broker) =>
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Single().GetProperty("value").GetGuid();
+
+    [Theory]
+    [MemberData(nameof(EveryComfortInput))]
+    public async Task A_study_missing_a_comfort_input_writes_no_group_and_no_outline_and_still_writes_the_rest(string input)
+    {
+        var broker = new Broker(new Model());
+        broker.ComfortInputs.Remove(input);
+
+        (await WorkOutAsync(broker)).Result.Should().Be(NodeResponse.Succeeded);
+
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Should().BeEmpty();
+        broker.DepositedAs(StomataNode.HumidityRatioReading).Should().ContainSingle();
+        StomataNode.Outlines.Select(outline => Outline(broker, outline)).Should().OnlyContain(outline => outline == null);
+        Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+    }
+
+    public static TheoryData<string> EveryComfortInput() => new(StomataNode.ComfortInputs.ToArray());
+
+    [Fact]
+    public async Task The_four_outlines_land_with_the_stamp_and_are_drawn_from_the_studys_inputs_and_the_sites_hours()
+    {
+        var broker = new Broker(new Model());
+        AnHourOf(broker, 42.0, 15.7);
+
+        await WorkOutAsync(broker);
+
+        var drawn = new ZoneOutlines(StatedComfort.Strategies(), [(42.0, Psychrometrics.HumidityRatioGramsPerKilogram(42.0, 15.7, 0.0))]);
+        Outline(broker, StomataNode.ComfortInStillAirOutline).Should().Be(drawn.ComfortInStillAir());
+        Outline(broker, StomataNode.ComfortWithAirMovementOutline).Should().Be(drawn.ComfortWithAirMovement());
+        Outline(broker, StomataNode.DirectEvaporativeCoolingOutline)
+            .Should().Be(drawn.DirectEvaporativeCooling()).And.NotBe(ZoneOutlines.EmptyPolygon);
+        Outline(broker, StomataNode.TwoStageEvaporativeCoolingOutline)
+            .Should().Be(drawn.TwoStageEvaporativeCooling()).And.NotBe(ZoneOutlines.EmptyPolygon);
+        StomataNode.Outlines.Select(outline => StampedProperties(broker).GetProperty(outline).GetProperty("typeInfo").GetString())
+            .Should().OnlyContain(type => type == "vos.GeoJson");
+    }
+
+    [Fact]
+    public async Task The_same_inputs_and_hours_write_the_same_outline_text_twice()
+    {
+        var first = new Broker(new Model());
+        var second = new Broker(new Model());
+        AnHourOf(first, 42.0, 15.7);
+        AnHourOf(second, 42.0, 15.7);
+
+        await WorkOutAsync(first);
+        await WorkOutAsync(second);
+
+        var written = StomataNode.Outlines.Select(outline => Outline(first, outline)).ToList();
+        written.Should().NotContainNulls();
+        StomataNode.Outlines.Select(outline => Outline(second, outline)).Should().Equal(written);
+    }
+
+    [Fact]
+    public async Task A_mild_climate_writes_each_evaporative_outline_as_the_empty_polygon()
+    {
+        var broker = new Broker(new Model());
+        AnHourOf(broker, 20.0, 50.0);
+
+        await WorkOutAsync(broker);
+
+        Outline(broker, StomataNode.DirectEvaporativeCoolingOutline).Should().Be(ZoneOutlines.EmptyPolygon);
+        Outline(broker, StomataNode.TwoStageEvaporativeCoolingOutline).Should().Be(ZoneOutlines.EmptyPolygon);
+    }
+
+    [Fact]
+    public async Task The_snapshot_read_asks_for_the_design_strategy_groups_by_their_role()
+    {
+        var broker = new Broker(new Model());
+
+        await WorkOutAsync(broker);
+
+        broker.SnapshotsAsked.Single().Should().Contain(StomataRoles.DesignStrategyGroup.Id.ToString());
     }
 
     [Fact]
@@ -304,6 +536,9 @@ public class StomataNodeTests
 
         broker.Asked.Should().NotContain(asked => asked.EndsWith("/api/sediment") || asked.EndsWith("/history/changed"));
         Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+        Outline(broker, StomataNode.ComfortInStillAirOutline).Should().NotBe(ZoneOutlines.EmptyPolygon).And.NotBeNull();
+        Outline(broker, StomataNode.DirectEvaporativeCoolingOutline).Should().Be(ZoneOutlines.EmptyPolygon);
+        Outline(broker, StomataNode.TwoStageEvaporativeCoolingOutline).Should().Be(ZoneOutlines.EmptyPolygon);
     }
 
     [Fact]
@@ -314,6 +549,8 @@ public class StomataNodeTests
         await WorkOutAsync(broker);
 
         broker.DepositedAs(StomataNode.HumidityRatioReading).Should().BeEmpty();
+        broker.DepositedAs(StomataNode.DesignStrategyGroupReading).Should().BeEmpty();
+        StomataNode.Outlines.Select(outline => Outline(broker, outline)).Should().OnlyContain(outline => outline == null);
         broker.DepositedAs(StomataNode.WindRoseCellReading).Should().ContainSingle();
     }
 
@@ -342,6 +579,7 @@ public class StomataNodeTests
 
         broker.Deposited.Should().BeEmpty();
         Stamp(broker).Should().Be(ModelNow.UtcDateTime);
+        StampedProperties(broker).EnumerateObject().Select(property => property.Name).Should().Equal(StomataNode.StampProperty);
     }
 
     // The model's clock here stands in 2027, so a stamp taken off this machine's clock could not match it.
