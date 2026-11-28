@@ -78,6 +78,9 @@ try
         ?? Path.Combine(Directory.GetCurrentDirectory(), "cache");
     builder.Services.AddSingleton(sp =>
         new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
+    // One per process, which is one per platform, since every connection bound to Tributary shares its process.
+    builder.Services.AddSingleton(sp =>
+        new ProviderBudgetLedger(Path.Combine(cacheDirectory, "request-budgets"), sp.GetRequiredService<TimeProvider>()));
     builder.Services.AddSingleton(ProviderUnavailability.FromConfiguration(builder.Configuration));
     builder.Services.AddSingleton(sp => new PassedOnRequestLimit(
         launchSettings.PassedOnRequestLimit,

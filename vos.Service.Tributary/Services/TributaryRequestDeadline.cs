@@ -63,6 +63,7 @@ public sealed class TributaryRequestDeadline(PassedOnRequestDeadline deadline)
 {
     public CancellationToken Token => deadline.Token;
     public bool HasPassed => deadline.HasPassed;
+    public TimeSpan? TimeLeft => deadline.TimeLeft;
     public AwaitedStep Awaiting { get; set; } = AwaitedStep.EndpointSettings;
 
     public string Reason(string? endpointName)
