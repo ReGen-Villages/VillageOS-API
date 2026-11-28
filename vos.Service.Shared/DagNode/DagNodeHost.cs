@@ -57,6 +57,8 @@ public static class DagNodeHost
                 myceliumUrl, launchToken, apiKey));
             builder.Services.AddMyceliumRegistration(serviceName, launchSettings.Port);
 
+            var passedOnRequestLimit = new PassedOnRequestLimit(launchSettings.PassedOnRequestLimit, TimeProvider.System);
+
             var app = builder.Build();
 
             if (authEnabled)
@@ -68,10 +70,11 @@ public static class DagNodeHost
 
             var handle = app.MapPost("/handle", async (HttpContext context, TNode node) =>
             {
+                using var deadline = passedOnRequestLimit.StartDeadline(context.RequestAborted);
                 using var reader = new StreamReader(context.Request.Body);
                 var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
                 return request.Kind == HandleRequestKind.NodeEnvelope
-                    ? Results.Ok(await node.HandleNodeAsync(request.Json, context.RequestAborted))
+                    ? Results.Ok(await node.HandleNodeAsync(request.Json, deadline, context.RequestAborted))
                     : Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope(serviceName) });
             });
             if (authEnabled) handle.RequireAuthorization();

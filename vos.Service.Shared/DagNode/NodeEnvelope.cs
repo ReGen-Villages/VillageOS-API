@@ -30,13 +30,16 @@ public sealed class NodeContext
     public Guid NodeId { get; }
     public JsonElement Params { get; }
     public IReadOnlyDictionary<string, JsonElement> Inputs { get; }
+    public PassedOnRequestDeadline Deadline { get; }
 
-    public NodeContext(Guid runId, Guid nodeId, JsonElement @params, IReadOnlyDictionary<string, JsonElement> inputs)
+    public NodeContext(
+        Guid runId, Guid nodeId, JsonElement @params, IReadOnlyDictionary<string, JsonElement> inputs, PassedOnRequestDeadline deadline)
     {
         RunId = runId;
         NodeId = nodeId;
         Params = @params;
         Inputs = inputs;
+        Deadline = deadline;
     }
 
     public JsonElement? Input(string portName) =>

@@ -22,7 +22,7 @@ public class EchoNodeTests
         var node = BuildNode();
         var root = Envelope("""{"message":"hello pipeline"}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Succeeded);
         response.Outputs["echo"].Should().Be("hello pipeline");
@@ -34,7 +34,7 @@ public class EchoNodeTests
         var node = BuildNode();
         var root = Envelope("""{}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("message");

@@ -504,7 +504,8 @@ Tributary's contract is **fetch-and-shape**:
    retries to fit inside the call the broker is waiting on, is not sent again.
 
    **The deadline.** When Mycelium passes `--passedOnRequestLimitSeconds`, Tributary gives each request
-   it is passed one deadline: that limit minus 2 seconds from when it arrives. Every call made while
+   it is passed one deadline: that limit minus 2 seconds from when it arrives. It is the shared
+   `PassedOnRequestDeadline` every .NET node service is handed (SERVICES.md §16.2). Every call made while
    answering gets the time left — the reads of the endpoint's settings, the token exchange, the fetch
    and its pages, reshaping the answer, the readings write, and keeping the response. A deadline that
    passes while the answer is reshaped is answered as "Tributary had not finished reshaping the answer

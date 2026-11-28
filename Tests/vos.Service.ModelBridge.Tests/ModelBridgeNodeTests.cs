@@ -51,7 +51,7 @@ public class ModelBridgeNodeTests
     public async Task Read_outputs_the_property_value()
     {
         var handler = new RecordingHandler((_, _) => Json("""{ "total_pv_area": { "Value": 13842.0 } }"""));
-        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"), PassedOnRequestDeadline.None(CancellationToken.None));
 
         Assert.Equal(NodeResponse.Succeeded, response.Result);
         Assert.Equal(13842.0, Assert.IsType<double>(response.Outputs["value"]));
@@ -63,7 +63,7 @@ public class ModelBridgeNodeTests
     public async Task Write_posts_the_input_value_as_a_fact()
     {
         var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK));
-        var response = await NewNode(handler).HandleNodeAsync(Envelope("write", "percentOfConsumption", inputs: """{ "value": 120 }"""));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("write", "percentOfConsumption", inputs: """{ "value": 120 }"""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         Assert.Equal(NodeResponse.Succeeded, response.Result);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
@@ -75,7 +75,7 @@ public class ModelBridgeNodeTests
     public async Task Unknown_mode_fails_the_node_not_a_500()
     {
         var response = await NewNode(new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK)))
-            .HandleNodeAsync(Envelope("bogus", "x"));
+            .HandleNodeAsync(Envelope("bogus", "x"), PassedOnRequestDeadline.None(CancellationToken.None));
 
         Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("mode", response.Error);
@@ -85,7 +85,7 @@ public class ModelBridgeNodeTests
     public async Task Read_of_a_missing_property_fails_the_node()
     {
         var handler = new RecordingHandler((_, _) => Json("""{ "other": { "Value": 1 } }"""));
-        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"), PassedOnRequestDeadline.None(CancellationToken.None));
 
         Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("total_pv_area", response.Error);
@@ -95,7 +95,7 @@ public class ModelBridgeNodeTests
     public async Task Read_the_platform_refuses_fails_the_node_naming_the_property_and_the_status()
     {
         var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.Forbidden));
-        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"), PassedOnRequestDeadline.None(CancellationToken.None));
 
         Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains($"{ThingId}.total_pv_area", response.Error);

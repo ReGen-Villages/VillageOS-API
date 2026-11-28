@@ -81,8 +81,8 @@ try
     builder.Services.AddSingleton(ProviderUnavailability.FromConfiguration(builder.Configuration));
     builder.Services.AddSingleton(sp => new PassedOnRequestLimit(
         launchSettings.PassedOnRequestLimit,
-        sp.GetRequiredService<TimeProvider>(),
-        sp.GetRequiredService<ILogger<PassedOnRequestLimit>>()));
+        sp.GetRequiredService<TimeProvider>()));
+    builder.Services.AddSingleton<PassedOnRequestLimitWarnings>();
     builder.Services.AddSingleton<EndpointCallService>();
     builder.Services.AddSingleton(sp => new TributaryStep(
         sp.GetRequiredService<IHttpClientFactory>(),
@@ -92,12 +92,11 @@ try
         apiKey,
         sp.GetRequiredService<EndpointCallService>(),
         sp.GetRequiredService<IEndpointMyceliumClient>(),
-        sp.GetRequiredService<PassedOnRequestLimit>(),
         sp.GetRequiredService<TimeProvider>()));
 
     var app = builder.Build();
 
-    app.Services.GetRequiredService<PassedOnRequestLimit>().WarnWhenTooShortToAnswerFirst();
+    app.Services.GetRequiredService<PassedOnRequestLimitWarnings>().WarnWhenTooShortToAnswerFirst();
 
     if (authEnabled)
     {
@@ -118,13 +117,13 @@ try
 
         using var reader = new StreamReader(httpContext.Request.Body);
         var body = HandleRequestRouter.Classify(await reader.ReadToEndAsync(httpContext.RequestAborted));
+        using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
         if (body.Kind == HandleRequestKind.NodeEnvelope)
-            return Results.Ok(await step.HandleNodeAsync(body.Json, httpContext.RequestAborted));
+            return Results.Ok(await step.HandleNodeAsync(body.Json, deadline, httpContext.RequestAborted));
         if (DirectRequest(body) is not { } request)
             return Results.BadRequest();
 
-        using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
-        var result = await endpointCallService.ExecuteAsync(request, deadline);
+        var result = await endpointCallService.ExecuteAsync(request, new TributaryRequestDeadline(deadline));
         if (result.RetryAfter is { } providersWait)
             httpContext.Response.Headers.RetryAfter = providersWait.ToString();
         return ToHttpResult(result);
