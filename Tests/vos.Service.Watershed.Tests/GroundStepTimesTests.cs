@@ -74,7 +74,7 @@ public class GroundStepTimesTests
         public TimeSpan EachWarning { get; init; } = TimeSpan.Zero;
         public int ReadBacksUntilStored { get; init; } = 1;
         public bool CancelledDuringTheFirstReadBack { get; init; }
-        public int Snapshots { get; private set; }
+        public int ReadBacks { get; private set; }
 
         private readonly CancellationTokenSource _aborted = new();
 
@@ -97,18 +97,18 @@ public class GroundStepTimesTests
                 Clock.Advance(TileRead);
             else if (path == "/api/snapshots")
             {
-                Snapshots++;
-                if (Snapshots == 1)
+                if (Model.Observed.Count == 0)
                     Clock.Advance(ModelRead);
                 else
                 {
+                    ReadBacks++;
                     Clock.Advance(ReadBack);
                     if (CancelledDuringTheFirstReadBack)
                     {
                         _aborted.Cancel();
                         throw new OperationCanceledException(_aborted.Token);
                     }
-                    if (Snapshots - 1 == ReadBacksUntilStored)
+                    if (ReadBacks == ReadBacksUntilStored)
                         foreach (var (thing, values) in Model.Observed)
                             foreach (var (property, value) in values)
                                 Model.Holds(thing, property, value);
@@ -155,14 +155,14 @@ public class GroundStepTimesTests
         var tileReads = step.Model.LandCoverCalls;
         var pause = WatershedNode.ReadBackEvery;
         lines.Should().Equal(
-            Part("the model read", ModelRead, 1),
+            Part("the model read", 2 * ModelRead, 2),
             Part("the height calls", heightRequests * HeightCall, 2),
             Part("the observation writes", writes * ObservationWrite, writes),
             Part("the land cover read", tileReads * TileRead, 1),
             Part("the read back", 3 * ReadBack, 3),
             Part("the pauses between read backs", 2 * pause, 2),
             Part("the stamp", ClockRead + Fragment, 2),
-            InAll(ModelRead + heightRequests * HeightCall + writes * ObservationWrite + tileReads * TileRead + 3 * ReadBack + 2 * pause + ClockRead + Fragment));
+            InAll(2 * ModelRead + heightRequests * HeightCall + writes * ObservationWrite + tileReads * TileRead + 3 * ReadBack + 2 * pause + ClockRead + Fragment));
     }
 
     [Fact]
@@ -176,11 +176,11 @@ public class GroundStepTimesTests
         var heightRequests = step.Model.HeightCalls;
         var writes = step.Model.Observed.Count;
         lines.Should().Equal(
-            Part("the model read", ModelRead, 1),
+            Part("the model read", 2 * ModelRead, 2),
             Part("the height calls", heightRequests * HeightCall, 2),
             Part("the observation writes", writes * ObservationWrite, writes),
             $"Ground step {Node} (run {Run}): the read back took {ReadBack.TotalMilliseconds:0} ms over 0 finished calls and was under way when the step stopped",
-            InAll(ModelRead + heightRequests * HeightCall + writes * ObservationWrite + ReadBack));
+            InAll(2 * ModelRead + heightRequests * HeightCall + writes * ObservationWrite + ReadBack));
     }
 
     [Fact]

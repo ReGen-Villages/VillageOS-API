@@ -14,7 +14,8 @@ public sealed record GroundReading(
     IReadOnlyList<SnapshotThing> LayerFeatures, string? LandCoverTileAddress, IReadOnlyList<LandCoverClassCode> LandCoverClasses)
 {
     public const string BoundaryProperty = "boundary";
-    private const string Has = "has";
+    // Read by name until the holding role replaces it (VillageOS 8417, bound by 8771's template).
+    public const string Has = "has";
     private const string TileAddressProperty = "tileAddress";
     private const string WorldCoverCodeProperty = "worldCoverCode";
 

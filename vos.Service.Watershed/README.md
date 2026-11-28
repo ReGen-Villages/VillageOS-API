@@ -1,6 +1,6 @@
 # Watershed
 
-**Works out a site's ground, as a pipeline step: heights over its border, slope, aspect, drainage, hollows and land cover.**
+**Works out a site's ground, as a pipeline step: heights over its border, slope, aspect, drainage, hollows, land cover and where the rain of a design storm runs.**
 
 A pipeline hands Watershed a SiteStudy on its `subject` input. Watershed follows the study to the site it studies and
 the site to its Parcel's `boundary`, the share Things the site has and the terms they assess. Each predicate and kind is
@@ -52,6 +52,25 @@ reaches its features along `has`.
   The parts of a MultiPolygon are taken not to overlap.
 - Every figure that applies is written on every run, so a changed border leaves none behind. A feature whose geometry
   cannot be read is left as it is and named in the log, and a border enclosing no area measures none.
+
+**Runoff.** Three grids of runoff classes are worked out on the same cells: the 1-in-5 and 1-in-100 year storms
+on bare ground, and the 1-in-100 year storm with every cell inside the border built over. The method is the rational
+method of the Dubai Municipality Stormwater Design Guidelines (version 02, July 2024, section 4.4).
+The runoff coefficients, the roughness of the ground, the shortest time of concentration, the
+length of sheet flow and the smallest slopes are the study's own correctable inputs. The rain comes from a table
+reached through the site's Places, nearest first: of the tables that apply in that Place, the one used east of the
+greatest longitude west of the site, else the one with no such longitude. Each RunoffClass holds the conditions a cell
+meets to take it, and a class that can be met more than one way has alternatives, each holding its own. A cell takes
+the class of highest order whose conditions hold, with all of one alternative's where it has any, and the cell holds
+that class's `gridCode`. A site in no Place with a table, or a model with no runoff class, gets no runoff grid. A
+table's intensities are reached along `has` by its name until the holding role replaces it (VillageOS 8417 and 8771).
+
+**Standing water** gathers at the bottom of each hollow, the touching cells the levelling raised. The hollow's water is
+the runoff leaving it, less what the hollows above it keep. Each pit inside it, split from the next by a ridge, fills
+from the area draining into it, spills across its lowest ridge once full, and shares one level with the pit beside it
+only once both are full to that ridge. Water past the hollow's spill level runs on from its lowest edge cell. A cell's
+standing depth is how far that level stands above it. This is on purpose unlike a method that counts only the runoff
+along each cell's own route, which puts water on a shelf the hollow's whole flow crosses.
 
 **Writes.** The site's grids, profiles and figures go as one batch of observations, each share's values as one batch
 on that share, and each site layer feature's figures as one batch on that feature. Because a batch is accepted before

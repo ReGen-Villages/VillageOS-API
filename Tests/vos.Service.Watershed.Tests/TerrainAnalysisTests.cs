@@ -80,6 +80,30 @@ public class TerrainAnalysisTests
     }
 
     [Fact]
+    public void On_a_plane_rising_to_the_east_each_cell_drains_to_its_west_neighbour_and_the_west_edge_drains_off_the_grid()
+    {
+        var analysed = TerrainAnalysis.Of(Surface((column, _) => 0.05 * Cell * column));
+
+        for (var row = 0; row < Side; row++)
+        {
+            analysed.DrainsTo[At(0, row)].Should().Be(-1);
+            for (var column = 1; column < Side; column++)
+                analysed.DrainsTo[At(column, row)].Should().Be(At(column - 1, row));
+        }
+        analysed.FilledHeights.Should().Equal(Enumerable.Range(0, Side * Side).Select(cell => 0.05 * Cell * (cell % Side)));
+    }
+
+    [Fact]
+    public void A_bowl_s_filled_heights_reach_its_lowest_rim_and_its_middle_drains_towards_that_rim()
+    {
+        var analysed = TerrainAnalysis.Of(Surface((column, row) => 0.1 * Cell * CellsFromTheMiddle(column, row)));
+
+        analysed.FilledHeights[At(4, 4)].Should().BeApproximately(12.004, 1e-9);
+        analysed.FilledHeights[At(4, 0)].Should().Be(12);
+        analysed.DrainsTo[At(4, 4)].Should().BeOneOf(At(3, 4), At(5, 4), At(4, 3), At(4, 5));
+    }
+
+    [Fact]
     public void A_site_smaller_than_one_cell_is_read_over_the_whole_grid()
     {
         var analysed = TerrainAnalysis.Of(Surface((column, _) => column, (_, _) => false));

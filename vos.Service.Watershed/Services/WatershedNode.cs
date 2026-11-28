@@ -26,6 +26,13 @@ public sealed class WatershedNode : DagNodeService
     private const string HectaresInside = "hectaresInside";
     private const string MetresInside = "metresInside";
 
+    private static readonly (string Grid, long ReturnPeriodYears, bool BuiltOver)[] RunoffGrids =
+    [
+        ("runoffClassOneInFiveGrid", 5, false),
+        ("runoffClassOneInHundredGrid", 100, false),
+        ("runoffClassOneInHundredBuiltOverGrid", 100, true),
+    ];
+
     private const string NoSubject =
         "Watershed works out the ground of the SiteStudy on its 'subject' input: its identifier, or an object naming it by \"id\".";
 
@@ -122,12 +129,16 @@ public sealed class WatershedNode : DagNodeService
             ? [.. storedWestToEast.Values, .. storedSouthToNorth.Values]
             : await times.TimeAsync(HeightCallsPart, () => _heights.HeightsAtAsync(source, [.. westToEast.Points, .. southToNorth.Points], cancellationToken));
 
-        var analysed = TerrainAnalysis.Of(new TerrainSurface(layout.Columns, layout.Rows, layout.CellSizeMetres, heights, layout.Inside));
+        var surface = new TerrainSurface(layout.Columns, layout.Rows, layout.CellSizeMetres, heights, layout.Inside);
+        var analysed = TerrainAnalysis.Of(surface);
         var figures = analysed.Figures;
         var lowest = layout.PointsRowByRowFromTheSouthWest[figures.LowestCell];
+        var runoff = RunoffReading.Read(
+            await times.TimeAsync(ModelReadPart, () => ReadAsync(RunoffReading.Selector(ground.Site!.Id), cancellationToken)),
+            ground.Site!.Id, border.Average(corner => corner.Longitude));
 
         object Grid(IReadOnlyList<double> values) => StoredGrid.Written(layout, values);
-        await RecordAsync(ground.Site!.Id, new Dictionary<string, object>
+        var siteValues = new Dictionary<string, object>
         {
             [HeightGrid] = Grid(heights),
             ["terrainSlopeGrid"] = Grid(analysed.SlopePercent),
@@ -150,7 +161,15 @@ public sealed class WatershedNode : DagNodeService
             ["hollowHectares"] = figures.HollowHectares,
             ["lowestPointLatitude"] = lowest.Latitude,
             ["lowestPointLongitude"] = lowest.Longitude,
-        }, times, cancellationToken);
+        };
+        if (runoff is not null && RunoffInputsOf(ground.Study) is { } inputs)
+        {
+            var hollows = Hollows.Of(surface, analysed);
+            foreach (var (grid, returnPeriodYears, builtOver) in RunoffGrids)
+                if (runoff.StormsByReturnPeriodYears.TryGetValue(returnPeriodYears, out var storm))
+                    siteValues[grid] = Grid(StormRunoff.GridCodesOf(surface, analysed, hollows, inputs, storm, builtOver, runoff.Classes));
+        }
+        await RecordAsync(ground.Site!.Id, siteValues, times, cancellationToken);
         List<(Guid Thing, string Property, double Value)> written = [(ground.Site!.Id, MeanHeight, figures.MeanMetres)];
 
         foreach (var share in GroundShares.InSlopeClasses(analysed, ground.SlopeClasses))
@@ -309,6 +328,20 @@ public sealed class WatershedNode : DagNodeService
             throw new NodeFailedException($"The model refused the read: {refused.Message}");
         }
     }
+
+    private static RunoffInputs? RunoffInputsOf(SnapshotThing study) =>
+        study.StatedNumber("openGroundRunoffCoefficient") is { } open
+        && study.StatedNumber("roofAndPavingRunoffCoefficient") is { } roofAndPaving
+        && study.StatedNumber("plantedGroundRunoffCoefficient") is { } planted
+        && study.StatedNumber("imperviousShareOfBuiltGround") is { } impervious
+        && study.StatedNumber("sheetFlowManningRoughness") is { } sheetRoughness
+        && study.StatedNumber("channelManningRoughness") is { } channelRoughness
+        && study.StatedNumber("shortestTimeOfConcentrationMinutes") is { } shortest
+        && study.StatedNumber("sheetFlowLengthMetres") is { } sheetLength
+        && study.StatedNumber("smallestOverlandSlope") is { } overlandSlope
+        && study.StatedNumber("smallestChannelSlope") is { } channelSlope
+            ? new RunoffInputs(open, roofAndPaving, planted, impervious, sheetRoughness, channelRoughness, shortest, sheetLength, overlandSlope, channelSlope)
+            : null;
 
     private static Guid? StudyOf(JsonElement? subject)
     {

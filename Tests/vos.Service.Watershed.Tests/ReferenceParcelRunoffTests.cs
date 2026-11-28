@@ -1,0 +1,68 @@
+using System.Text.Json;
+using FluentAssertions;
+using vos.Service.Watershed.Terrain;
+using Xunit;
+using static vos.Service.Watershed.Tests.ReferenceParcel;
+
+namespace vos.Service.Watershed.Tests;
+
+// The recorded classes were worked out from the recorded heights at the true cell by a separate implementation of the same method, outside this code.
+public class ReferenceParcelRunoffTests
+{
+    private sealed record RecordedRunoff(double?[] OneInFive, double?[] OneInHundred, double?[] OneInHundredBuiltOver);
+
+    private static readonly RecordedRunoff RecordedClasses = JsonSerializer.Deserialize<RecordedRunoff>(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Recorded", "reference-parcel-runoff.json")),
+        new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+    private static readonly RunoffInputs Inputs = new(0.2, 0.85, 0.15, 0.6, 0.05, 0.05, 10, 130, 0.002, 0.003);
+
+    private static readonly IReadOnlyList<RunoffClassRule> Classes =
+    [
+        new(1, 0, new Dictionary<string, double>(), []),
+        new(2, 1, new Dictionary<string, double> { ["shareOfLargestFlowAtLeast"] = 0.05, ["catchmentAboveCells"] = 1.5 }, []),
+        new(3, 2, new Dictionary<string, double> { ["shareOfLargestFlowAtLeast"] = 0.05, ["catchmentAboveCells"] = 1.5 },
+            [new Dictionary<string, double> { ["flowDepthAboveMetres"] = 0.3 }, new Dictionary<string, double> { ["depthTimesVelocityAboveSquareMetresPerSecond"] = 0.3 }]),
+        new(4, 3, new Dictionary<string, double> { ["hollowAtLeastMetres"] = 0.5, ["standingWaterAtLeastMetres"] = 0.05 }, []),
+    ];
+
+    private static DesignStormRain Storm(double multiplier, double[] rain) => new(multiplier, GuidelineRain.Table(rain));
+
+    public static TheoryData<string> Grids() => new("one in five", "one in a hundred", "one in a hundred built over");
+
+    // The recording counts each cell's own route, so it puts standing water on a shelf the hollow's whole flow crosses;
+    // a hollow's water stands at its bottom instead, so the shelf keeps the flow class it would have outside a hollow.
+    private static readonly Dictionary<string, (int Cell, double Recorded, double Now)[]> ShelvesTheWaterNoLongerReaches = new()
+    {
+        ["one in five"] = [],
+        ["one in a hundred"] = [(118, 3, 1)],
+        ["one in a hundred built over"] = [(118, 3, 2)],
+    };
+
+    [Theory]
+    [MemberData(nameof(Grids))]
+    public void Every_cell_inside_the_border_takes_the_recorded_class_but_a_shelf_above_its_hollow_s_lowest_ridge(string grid)
+    {
+        var (storm, builtOver, recorded) = grid switch
+        {
+            "one in five" => (Storm(1, GuidelineRain.OneInFive), false, RecordedClasses.OneInFive),
+            "one in a hundred" => (Storm(1.25, GuidelineRain.OneInHundred), false, RecordedClasses.OneInHundred),
+            _ => (Storm(1.25, GuidelineRain.OneInHundred), true, RecordedClasses.OneInHundredBuiltOver),
+        };
+        var expected = recorded.ToArray();
+        foreach (var shelf in ShelvesTheWaterNoLongerReaches[grid])
+        {
+            expected[shelf.Cell].Should().Be(shelf.Recorded);
+            expected[shelf.Cell] = shelf.Now;
+        }
+
+        var analysed = TerrainAnalysis.Of(Recorded.Surface);
+        var hollows = Hollows.Of(Recorded.Surface, analysed);
+        var codes = StormRunoff.GridCodesOf(Recorded.Surface, analysed, hollows, Inputs, storm, builtOver, Classes);
+
+        codes.Select(code => double.IsNaN(code) ? (double?)null : code).Should().Equal(expected);
+        foreach (var shelf in ShelvesTheWaterNoLongerReaches[grid])
+            hollows.Should().ContainSingle(hollow => hollow.Cells.Contains(shelf.Cell)).Which.Ridges
+                .Min(ridge => ridge.Height).Should().BeLessThan(Recorded.Surface.Heights[shelf.Cell]);
+    }
+}
