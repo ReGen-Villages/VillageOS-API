@@ -132,7 +132,7 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
-        if (endpoint.Budgets.Unreadable is { } unreadable)
+        if (endpoint.Budgets.UnreadableBudgetName is { } unreadable)
             return Problem(502, "Endpoint resolution failed",
                 $"The request budget {unreadable} does not state a whole number of requests and of seconds above nothing. " +
                 "Refusing rather than calling out past the provider's limits.");

@@ -6,8 +6,7 @@ namespace vos.Service.Tributary.Helpers;
 
 public sealed record ProviderBudget(Guid Id, string Name, int RequestCount, TimeSpan Window);
 
-// Unreadable is the name of a budget that cannot be read, so the call can be refused naming it.
-public sealed record ProviderBudgetsRead(IReadOnlyList<ProviderBudget> Budgets, string? Unreadable);
+public sealed record ProviderBudgetsRead(IReadOnlyList<ProviderBudget> Budgets, string? UnreadableBudgetName);
 
 // Found through the `licence` and `holding` roles, so a model may call both predicates whatever it likes.
 public static class ProviderBudgets

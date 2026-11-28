@@ -14,7 +14,7 @@ public sealed record KeptWindow(Guid BudgetId, long Version, IReadOnlyList<DateT
 public sealed class ProviderBudgetLedger(string directory, TimeProvider clock)
 {
     // A restart forgets a window this short, which costs the provider at most one window of calls.
-    public static readonly TimeSpan LongestWindowNotKept = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan LongestWindowNotKept = TimeSpan.FromMinutes(1);
 
     private sealed class Window
     {

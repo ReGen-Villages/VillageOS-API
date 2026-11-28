@@ -62,7 +62,7 @@ public class ProviderBudgetsTests
     {
         var read = ProviderBudgets.Resolve(Snapshot(), Registration);
 
-        read.Unreadable.Should().BeNull();
+        read.UnreadableBudgetName.Should().BeNull();
         read.Budgets.Should().BeEquivalentTo(new[]
         {
             new ProviderBudget(PerSecond, "OpenTopoDataBudgetPerSecond", 1, TimeSpan.FromSeconds(1)),
@@ -94,7 +94,7 @@ public class ProviderBudgetsTests
         var read = ProviderBudgets.Resolve(Snapshot([Thing(PerSecond, "Logo")]), Registration);
 
         read.Budgets.Should().BeEmpty();
-        read.Unreadable.Should().BeNull();
+        read.UnreadableBudgetName.Should().BeNull();
     }
 
     [Theory]
@@ -104,7 +104,7 @@ public class ProviderBudgetsTests
     {
         var read = ProviderBudgets.Resolve(Snapshot([Thing(PerSecond, "OpenTopoDataBudgetPerSecond", (stated, "1"))]), Registration);
 
-        read.Unreadable.Should().Be("OpenTopoDataBudgetPerSecond");
+        read.UnreadableBudgetName.Should().Be("OpenTopoDataBudgetPerSecond");
     }
 
     [Theory]
@@ -118,6 +118,6 @@ public class ProviderBudgetsTests
             Snapshot([Thing(PerSecond, "OpenTopoDataBudgetPerSecond", ("requestCount", count), ("windowSeconds", seconds))]),
             Registration);
 
-        read.Unreadable.Should().Be("OpenTopoDataBudgetPerSecond");
+        read.UnreadableBudgetName.Should().Be("OpenTopoDataBudgetPerSecond");
     }
 }
