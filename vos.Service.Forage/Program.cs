@@ -81,6 +81,8 @@ try
         sp.GetRequiredService<DivisionResolver>(),
         sp.GetRequiredService<VocabularyEdgeWriter>(),
         ForageLaunchSettings.SourceWindowDays));
+    builder.Services.AddSingleton(sp => new PassedOnRequestLimit(
+        launchSettings.Service.PassedOnRequestLimit, sp.GetRequiredService<TimeProvider>()));
 
     var app = builder.Build();
 
@@ -94,14 +96,15 @@ try
         app.UseMyceliumModelToken();
     }
 
-    var handleEndpoint = app.MapPost("/handle", async (ForageSteps steps, HttpContext httpContext) =>
+    var handleEndpoint = app.MapPost("/handle", async (ForageSteps steps, PassedOnRequestLimit passedOnRequestLimit, HttpContext httpContext) =>
     {
+        using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
         using var reader = new StreamReader(httpContext.Request.Body);
         var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
         return request.Kind switch
         {
-            HandleRequestKind.NodeEnvelope => Results.Ok(await steps.HandleNodeAsync(request.Json, httpContext.RequestAborted)),
+            HandleRequestKind.NodeEnvelope => Results.Ok(await steps.HandleNodeAsync(request.Json, deadline, httpContext.RequestAborted)),
             HandleRequestKind.RelationshipSubject => Results.BadRequest(new { success = false, error = ForageSteps.RelationshipCallRefusal }),
             _ => Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") }),
         };

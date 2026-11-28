@@ -54,6 +54,8 @@ builder.Services.AddSingleton(sp =>
         myceliumUrl,
         launchToken, apiKey: apiKey));
 
+var passedOnRequestLimit = new PassedOnRequestLimit(launchSettings.PassedOnRequestLimit, TimeProvider.System);
+
 var app = builder.Build();
 
 if (authEnabled)
@@ -70,6 +72,7 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
 {
     var count = Interlocked.Increment(ref requestCount);
 
+    using var deadline = passedOnRequestLimit.StartDeadline(ctx.RequestAborted);
     using var reader = new StreamReader(ctx.Request.Body);
     var rawJson = await reader.ReadToEndAsync();
     var request = HandleRequestRouter.Classify(rawJson);
@@ -82,7 +85,7 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
     if (request.Kind == HandleRequestKind.NodeEnvelope)
     {
         Log.Information("Echo node invocation #{Count}", count);
-        return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
+        return Results.Ok(await node.HandleNodeAsync(request.Json, deadline, ctx.RequestAborted));
     }
 
     Log.Information("Echo request #{Count} received", count);

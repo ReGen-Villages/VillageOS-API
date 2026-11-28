@@ -36,7 +36,8 @@ public class WatershedNodeTests
         var node = new WatershedNode(
             factory, NullLogger<WatershedNode>.Instance, MyceliumUrl, heights, new LandCoverReader(factory), clock, new LaunchToken("svc-jwt"));
         return await node.HandleNodeAsync(JsonDocument.Parse(
-            $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{WatershedModel.Study}\""}}}}}""").RootElement);
+            $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{WatershedModel.Study}\""}}}}}""").RootElement,
+            PassedOnRequestDeadline.None(CancellationToken.None));
     }
 
     private static Dictionary<string, JsonElement> SiteBatch(WatershedModel model) =>

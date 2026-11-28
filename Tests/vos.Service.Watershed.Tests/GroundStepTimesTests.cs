@@ -27,31 +27,6 @@ public class GroundStepTimesTests
     private static readonly TimeSpan ClockRead = TimeSpan.FromMilliseconds(2);
     private static readonly TimeSpan Fragment = TimeSpan.FromMilliseconds(40);
 
-    private sealed class SteppingClock : TimeProvider
-    {
-        private long _ticks;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override long GetTimestamp() => Interlocked.Read(ref _ticks);
-
-        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            Advance(dueTime);
-            _ = Task.Run(() => callback(state));
-            return new NothingToStop();
-        }
-
-        private sealed class NothingToStop : ITimer
-        {
-            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
-            public void Dispose() { }
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-        }
-    }
-
     private sealed class ClockMovingLogger(SteppingClock clock, TimeSpan eachWarning) : ILogger<WatershedNode>
     {
         public CapturingLogger<WatershedNode> Captured { get; } = new();
@@ -86,7 +61,7 @@ public class GroundStepTimesTests
             var node = new WatershedNode(factory, logger, MyceliumUrl, heights, new LandCoverReader(factory), Clock, new LaunchToken("svc-jwt"));
             var response = await node.HandleNodeAsync(JsonDocument.Parse(
                 $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":"{{{WatershedModel.Study}}}"}}""").RootElement,
-                _aborted.Token);
+                PassedOnRequestDeadline.None(_aborted.Token), _aborted.Token);
             return (response, [.. logger.Captured.Lines.Where(line => line.StartsWith($"Ground step {Node}", StringComparison.Ordinal))]);
         }
 

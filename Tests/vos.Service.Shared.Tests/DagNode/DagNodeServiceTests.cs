@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using vos.Service.Shared.DagNode;
 using vos.Tests.Shared;
 using Xunit;
@@ -33,7 +34,7 @@ public class DagNodeServiceTests
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected for literal inputs"));
         var root = Envelope(inputs: """{"message":"hello"}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Succeeded);
         response.Error.Should().BeNull();
@@ -47,7 +48,7 @@ public class DagNodeServiceTests
     {
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), alwaysThrow: nodeThrows);
 
-        var response = await node.HandleNodeAsync(Envelope(inputs: JsonSerializer.Serialize(new { message })));
+        var response = await node.HandleNodeAsync(Envelope(inputs: JsonSerializer.Serialize(new { message })), PassedOnRequestDeadline.None(CancellationToken.None));
 
         JsonSerializer.Serialize(response).Should().Be(answer);
     }
@@ -62,7 +63,7 @@ public class DagNodeServiceTests
             new Dictionary<string, object?> { ["call"] = "North" });
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), throwing: failure);
 
-        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         JsonSerializer.Serialize(response).Should().Be(answer);
     }
@@ -73,7 +74,7 @@ public class DagNodeServiceTests
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),
             throwing: new NodeFailedException("400: lat out of range", new Dictionary<string, object?> { ["call"] = "North" }));
 
-        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         JsonSerializer.Serialize(response).Should().Be("""{"result":"fail","outputs":{"call":"North"},"error":"400: lat out of range"}""");
     }
@@ -93,7 +94,7 @@ public class DagNodeServiceTests
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"),
             throwing: new FailureCanBeTriedAgainException("the provider is down"));
 
-        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""), PassedOnRequestDeadline.None(CancellationToken.None));
 
         JsonSerializer.Serialize(response).Should().Be("""{"result":"fail","outputs":{},"error":"the provider is down","retry":{}}""");
     }
@@ -109,7 +110,7 @@ public class DagNodeServiceTests
         });
         var root = Envelope(RefInput(Source, "text"));
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Succeeded);
         response.Outputs["echo"].Should().Be("resolved-from-graph");
@@ -123,7 +124,7 @@ public class DagNodeServiceTests
         var (node, _) = BuildNode(_ => Json(HttpStatusCode.OK, """{"other":{"Value":1}}"""));
         var root = Envelope(RefInput(Source, "text"));
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("text");
@@ -136,11 +137,22 @@ public class DagNodeServiceTests
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), alwaysThrow: true);
         var root = Envelope(inputs: """{"message":"hi"}""");
 
-        var response = await node.HandleNodeAsync(root);
+        var response = await node.HandleNodeAsync(root, PassedOnRequestDeadline.None(CancellationToken.None));
 
         response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("boom");
         response.Outputs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_step_is_given_the_deadline_its_request_was_handed()
+    {
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"));
+        using var deadline = PassedOnRequestDeadline.Start(TimeSpan.FromSeconds(30), new FakeTimeProvider(), CancellationToken.None);
+
+        await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""), deadline);
+
+        node.Ran!.Deadline.Should().BeSameAs(deadline);
     }
 
     [Fact]
@@ -184,8 +196,11 @@ public class DagNodeServiceTests
             PortDescriptor.Output("echo", "string"),
         };
 
+        public NodeContext? Ran { get; private set; }
+
         protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken)
         {
+            Ran = context;
             if (_failure is not null) throw _failure;
             var message = context.Input("message")?.GetString()
                 ?? throw new InvalidOperationException("required input 'message' missing");

@@ -26,7 +26,7 @@ public sealed class EndpointCallService
 
     private readonly DiskResponseCache _diskCache;
     private readonly ProviderUnavailability _unavailability;
-    private readonly PassedOnRequestLimit _passedOnRequestLimit;
+    private readonly PassedOnRequestLimitWarnings _limitWarnings;
     private readonly TimeProvider _clock;
 
     public EndpointCallService(
@@ -37,7 +37,7 @@ public sealed class EndpointCallService
         ISubscriptionClient subscriptions,
         DiskResponseCache diskCache,
         ProviderUnavailability unavailability,
-        PassedOnRequestLimit passedOnRequestLimit,
+        PassedOnRequestLimitWarnings limitWarnings,
         TimeProvider clock,
         ILogger<EndpointCallService> logger)
     {
@@ -48,7 +48,7 @@ public sealed class EndpointCallService
         _subscriptions = subscriptions;
         _diskCache = diskCache;
         _unavailability = unavailability;
-        _passedOnRequestLimit = passedOnRequestLimit;
+        _limitWarnings = limitWarnings;
         _clock = clock;
         _logger = logger;
     }
@@ -86,7 +86,7 @@ public sealed class EndpointCallService
 
     // A call cut short by the deadline answers with what it was waiting on, so Mycelium is told why instead
     // of giving up on the request.
-    public async Task<EndpointCallResult> ExecuteAsync(EndpointCallRequest request, PassedOnRequestDeadline deadline)
+    public async Task<EndpointCallResult> ExecuteAsync(EndpointCallRequest request, TributaryRequestDeadline deadline)
     {
         EndpointCallResult answer;
         try
@@ -102,7 +102,7 @@ public sealed class EndpointCallService
         return deadline.HasPassed && answer.Error is not null ? AtTheDeadline(request, deadline) : answer;
     }
 
-    private EndpointCallResult AtTheDeadline(EndpointCallRequest request, PassedOnRequestDeadline deadline)
+    private EndpointCallResult AtTheDeadline(EndpointCallRequest request, TributaryRequestDeadline deadline)
     {
         var reason = deadline.Reason(request.EndpointName);
         _logger.LogWarning("Answered the request for endpoint {EndpointName} at its deadline: {Reason}",
@@ -110,7 +110,7 @@ public sealed class EndpointCallService
         return Problem(504, "No answer before the deadline", reason);
     }
 
-    private async Task<EndpointCallResult> AnswerAsync(EndpointCallRequest request, PassedOnRequestDeadline deadline)
+    private async Task<EndpointCallResult> AnswerAsync(EndpointCallRequest request, TributaryRequestDeadline deadline)
     {
         var cancellationToken = deadline.Token;
 
@@ -200,7 +200,7 @@ public sealed class EndpointCallService
         if (!EndpointCallChecks.TryTimeout(effective, out var statedTimeout, out refusal))
             return false;
         if (statedTimeout is { } stated)
-            _passedOnRequestLimit.WarnOnceWhenNotShorter(endpointThingId, request.EndpointName!, stated);
+            _limitWarnings.WarnOnceWhenNotShorter(endpointThingId, request.EndpointName!, stated);
         if (!EndpointCallChecks.TryUnavailability(effective, _unavailability, out var unavailability, out refusal))
             return false;
         if (!EndpointCallChecks.TryCredential(kinds.Authentication, effective, out var credential, out refusal))
@@ -244,7 +244,7 @@ public sealed class EndpointCallService
         bool DepositsTimedReadings);
 
     private async Task<(OutboundCall? Call, EndpointCallResult? TokenFailure)> PrepareOutboundAsync(
-        EndpointCallRequest request, EndpointCallPlan plan, PassedOnRequestDeadline deadline)
+        EndpointCallRequest request, EndpointCallPlan plan, TributaryRequestDeadline deadline)
     {
         // A credential that has to be fetched is fetched here, just before the call. Its own catch returns a
         // generic 502, because the upstream message can name the credential; the real one is logged.
@@ -300,7 +300,7 @@ public sealed class EndpointCallService
 
     private async Task<EndpointCallResult> CallBinaryAsync(
         EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
-        ObservedEdges observed, PassedOnRequestDeadline deadline)
+        ObservedEdges observed, TributaryRequestDeadline deadline)
     {
         if (outbound.Cached is { } fromDisk)
             return EndpointCallResult.Body(BinaryEnvelope(fromDisk.Bytes, fromDisk.ContentType), "application/json");
@@ -333,7 +333,7 @@ public sealed class EndpointCallService
 
     private async Task<EndpointCallResult> CallPagedAsync(
         EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
-        ObservedEdges observed, PassedOnRequestDeadline deadline)
+        ObservedEdges observed, TributaryRequestDeadline deadline)
     {
         var paging = plan.Paging!;
         string body;
@@ -387,7 +387,7 @@ public sealed class EndpointCallService
 
     private async Task<EndpointCallResult> CallOnceAsync(
         EndpointCallRequest request, EndpointCallPlan plan, OutboundCall outbound, Guid endpointThingId,
-        ObservedEdges observed, PassedOnRequestDeadline deadline)
+        ObservedEdges observed, TributaryRequestDeadline deadline)
     {
         var answered = await AskedOnceMoreWhileUnavailableAsync(
             plan.Unavailability, request.EndpointName!,
@@ -414,7 +414,7 @@ public sealed class EndpointCallService
         Guid endpointThingId,
         ObservedEdges observed,
         ProviderAnswer<string> answered,
-        PassedOnRequestDeadline deadline)
+        TributaryRequestDeadline deadline)
     {
         var (status, body, contentType, retryAfter) = answered;
         var providerAway = plan.Unavailability.IsAnswered(status, () => body);
@@ -463,7 +463,7 @@ public sealed class EndpointCallService
     // kept, anything else is the 502 every other broker write failure here produces.
     private async Task<EndpointCallResult?> KeepAsync(
         KeepPlan keep, byte[] bytes, string contentType, Guid endpointThingId, ObservedEdges observed,
-        PassedOnRequestDeadline deadline)
+        TributaryRequestDeadline deadline)
     {
         deadline.Awaiting = AwaitedStep.ResponseKept;
         var ticket = await _mycelium.DepositAssetAsync(bytes, contentType, deadline.Token);

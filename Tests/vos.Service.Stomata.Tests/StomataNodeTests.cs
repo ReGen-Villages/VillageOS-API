@@ -247,7 +247,8 @@ public class StomataNodeTests
                 new PerCallHttpClientFactory(new MockHttpMessageHandler(broker.Answer)), logger ?? NullLogger<StomataNode>.Instance, MyceliumUrl,
                 new StatedComfort(), new LaunchToken("svc-jwt"))
             .HandleNodeAsync(JsonDocument.Parse(
-                $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement);
+                $$$"""{"runId":"{{{Run}}}","nodeId":"{{{Node}}}","params":{},"inputs":{"subject":{{{subject ?? $"\"{Model.Study}\""}}}}}""").RootElement,
+                PassedOnRequestDeadline.None(CancellationToken.None));
 
     private static DateTime? Stamp(Broker broker) =>
         broker.Fragments.Select(fragment => fragment.GetProperty("Things")[0])
