@@ -98,6 +98,28 @@ class RoleBindingTests(unittest.TestCase):
         self.assertEqual(kit.things[carries]["Name"], "carries")
         self.assertEqual(kinds, {predicate_root}, "carries is a Predicate and nothing else, not a kind of wire")
 
+    def test_no_thing_is_a_kind_one_of_its_other_kinds_already_is(self):
+        kit = G.build()
+        is_ids = {t["Id"] for t in kit.things.values() if t["Name"] == "is"}
+        kinds_of = {}
+        for r in kit.rels.values():
+            if r["Predicate"] in is_ids:
+                kinds_of.setdefault(r["Subject"], set()).add(r["Target"])
+
+        def reached_from(start):
+            reached, waiting = set(), list(kinds_of.get(start, ()))
+            while waiting:
+                kind = waiting.pop()
+                if kind not in reached:
+                    reached.add(kind)
+                    waiting.extend(kinds_of.get(kind, ()))
+            return reached
+
+        implied = [(kit.things[thing]["Name"], kit.things[kind]["Name"])
+                   for thing, kinds in kinds_of.items() for kind in kinds
+                   if any(kind in reached_from(other) for other in kinds - {kind})]
+        self.assertEqual(implied, [], "a Thing names only its nearest kinds")
+
     def test_every_role_thing_is_role_and_role_is_configuration(self):
         kit = G.build()
         things, rels = list(kit.things.values()), list(kit.rels.values())
