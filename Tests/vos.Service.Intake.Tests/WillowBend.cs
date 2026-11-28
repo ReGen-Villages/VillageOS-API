@@ -44,18 +44,18 @@ public static class WillowBend
     public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
     public static readonly Guid SoilHorizonArchetypeId = new("50505050-5050-5050-5050-505050505050");
 
-    public static readonly string[] SoilDepthNames = ["0-5cm", "5-15cm", "15-30cm"];
+    public static readonly string[] SoilDepthNames = ["From0To5Centimetres", "From5To15Centimetres", "From15To30Centimetres"];
     public static readonly Guid LandCoverShareArchetypeId = new("60606060-6060-6060-6060-606060606060");
 
-    public static readonly string[] LandCoverClassNames = ["tree-cover", "cropland", "built-up"];
+    public static readonly string[] LandCoverClassNames = ["TreeCover", "Cropland", "BuiltUp"];
 
     public static readonly Guid SlopeClassShareArchetypeId = new("70707070-7070-7070-7070-707070707070");
 
-    public static readonly string[] SlopeClassNames = ["under-2-percent", "flat"];
+    public static readonly string[] SlopeClassNames = ["Under2Percent", "Flat"];
 
     public static readonly Guid AspectShareArchetypeId = new("80808080-8080-8080-8080-808080808080");
 
-    public static readonly string[] AspectNames = ["north-facing", "flat"];
+    public static readonly string[] AspectNames = ["NorthFacing", "Flat"];
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),

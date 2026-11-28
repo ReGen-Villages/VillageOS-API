@@ -142,6 +142,16 @@ describe('savePipeline — create (no existing pipeline id)', () => {
       r.Subject === saved.pipelineId && r.Name === 'is' && r.Target === 'arch-pipeline')).toBe(true);
   });
 
+  it('saves a node calling a connection under the archetype bound as node, since it has no kind of its own', async () => {
+    const model = buildModel();
+    await savePipeline('Fresh', [node('n1', 'A')], [], model);
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const nodeThing = frag.Things.find((t) => t.Name === 'A')!;
+    expect(frag.Relationships.filter((r) => r.Subject === nodeThing.Id && r.Name === 'is').map((r) => r.Target))
+      .toEqual(['arch-node']);
+  });
+
   it('saves every pipeline published, so the model starts what the page draws', async () => {
     const model = buildModel();
     await savePipeline('Fresh', [node('n1', 'A')], [], model);
@@ -220,7 +230,7 @@ type Frag = {
 };
 
 describe('savePipeline — boundary nodes', () => {
-  it('persists an Input node under the archetypes bound as input and as node, with its declared output port and no connection', async () => {
+  it('persists an Input node under the archetype bound as input alone, with its declared output port and no connection', async () => {
     const model = buildModel();
     const inputNode: EditorNode = {
       id: 'nin', label: 'Input', connectionId: '', x: 0, y: 0, kind: 'input',
@@ -232,8 +242,7 @@ describe('savePipeline — boundary nodes', () => {
     const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
     const nodeThing = frag.Things.find((t) => t.Name === 'Input')!;
     const isTargets = frag.Relationships.filter((r) => r.Subject === nodeThing.Id && r.Name === 'is').map((r) => r.Target);
-    expect(isTargets).toContain('arch-input');
-    expect(isTargets).toContain('arch-node');
+    expect(isTargets).toEqual(['arch-input']);
 
     const portThing = frag.Things.find((t) => t.Name === 'seed')!;
     expect(portThing.Id).toBe('seed-port');
@@ -1003,9 +1012,9 @@ describe('nodes the orchestrator runs', () => {
 
     const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
     const kindOf = (id: string) => frag.Relationships.filter((r) => r.Subject === id && r.Name === 'is').map((r) => r.Target).sort();
-    expect(kindOf('TELL')).toEqual(['arch-node', 'arch-tell']);
-    expect(kindOf('FOLLOW')).toEqual(['arch-follow-on', 'arch-node']);
-    expect(kindOf('STOP')).toEqual(['arch-node', 'arch-stop']);
+    expect(kindOf('TELL')).toEqual(['arch-tell']);
+    expect(kindOf('FOLLOW')).toEqual(['arch-follow-on']);
+    expect(kindOf('STOP')).toEqual(['arch-stop']);
     expect(frag.Relationships.filter((r) => ['TELL', 'FOLLOW', 'STOP'].includes(r.Subject) && r.Name === 'has').map((r) => r.Target).sort())
       .toEqual(['FOLLOW.in.payload', 'FOLLOW.out.payload', 'TELL.in.payload', 'TELL.out.payload']);
     expect(frag.Things.some((t) => t.Id.startsWith('arch-stop.'))).toBe(false);
@@ -1028,7 +1037,7 @@ describe('nodes the orchestrator runs', () => {
     const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
     const id = frag.Things.find((t) => t.Name === 'Tell the office')!.Id;
     expect(frag.Relationships.filter((r) => r.Subject === id).map((r) => [r.Name, r.Target]).sort()).toEqual([
-      ['has', 'p.in'], ['has', 'p.out'], ['is', 'arch-node'], ['is', 'arch-tell'], ['standsFor', 'OFFICE'],
+      ['has', 'p.in'], ['has', 'p.out'], ['is', 'arch-tell'], ['standsFor', 'OFFICE'],
     ]);
     expect(frag.Things.find((t) => t.Id === 'p.in')!.Properties.required).toEqual({ typeInfo: 'vos.String', value: 'true' });
   });

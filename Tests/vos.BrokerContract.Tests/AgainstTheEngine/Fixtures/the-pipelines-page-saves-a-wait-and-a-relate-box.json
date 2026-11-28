@@ -1,7 +1,6 @@
 {
   "references": [
     "arch-input",
-    "arch-node",
     "arch-output",
     "arch-pipeline",
     "arch-port",
@@ -162,19 +161,13 @@
             "Name": "is",
             "Subject": "{{new:4}}",
             "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-node}}"
+            "Target": "{{model:arch-input}}"
           },
           {
             "Name": "has",
             "Subject": "{{new:3}}",
             "Predicate": "{{model:has}}",
             "Target": "{{new:4}}"
-          },
-          {
-            "Name": "is",
-            "Subject": "{{new:4}}",
-            "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-input}}"
           },
           {
             "Name": "is",
@@ -192,7 +185,7 @@
             "Name": "is",
             "Subject": "{{new:5}}",
             "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-node}}"
+            "Target": "{{model:arch-wait}}"
           },
           {
             "Name": "has",
@@ -202,27 +195,15 @@
           },
           {
             "Name": "is",
-            "Subject": "{{new:5}}",
-            "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-wait}}"
-          },
-          {
-            "Name": "is",
             "Subject": "{{new:6}}",
             "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-node}}"
+            "Target": "{{model:arch-relate}}"
           },
           {
             "Name": "has",
             "Subject": "{{new:3}}",
             "Predicate": "{{model:has}}",
             "Target": "{{new:6}}"
-          },
-          {
-            "Name": "is",
-            "Subject": "{{new:6}}",
-            "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-relate}}"
           },
           {
             "Name": "standsFor",
@@ -234,19 +215,13 @@
             "Name": "is",
             "Subject": "{{new:7}}",
             "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-node}}"
+            "Target": "{{model:arch-output}}"
           },
           {
             "Name": "has",
             "Subject": "{{new:3}}",
             "Predicate": "{{model:has}}",
             "Target": "{{new:7}}"
-          },
-          {
-            "Name": "is",
-            "Subject": "{{new:7}}",
-            "Predicate": "{{model:is}}",
-            "Target": "{{model:arch-output}}"
           },
           {
             "Name": "is",

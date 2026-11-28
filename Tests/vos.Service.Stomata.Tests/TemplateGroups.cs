@@ -4,13 +4,13 @@ namespace vos.Service.Stomata.Tests;
 
 public static class DesignStrategy
 {
-    public const string ComfortableAsItIs = "comfortable-as-it-is";
-    public const string WithAirMovement = "with-air-movement";
-    public const string DehumidificationNeeded = "dehumidification-needed";
-    public const string HeatingNeeded = "heating-needed";
-    public const string DirectEvaporativeCooling = "direct-evaporative-cooling";
-    public const string TwoStageEvaporativeCooling = "two-stage-evaporative-cooling";
-    public const string CoolingSystemNeeded = "cooling-system-needed";
+    public const string ComfortableAsItIs = "ComfortableAsItIs";
+    public const string WithAirMovement = "WithAirMovement";
+    public const string DehumidificationNeeded = "DehumidificationNeeded";
+    public const string HeatingNeeded = "HeatingNeeded";
+    public const string DirectEvaporativeCooling = "DirectEvaporativeCooling";
+    public const string TwoStageEvaporativeCooling = "TwoStageEvaporativeCooling";
+    public const string CoolingSystemNeeded = "CoolingSystemNeeded";
 }
 
 // A copy of the shared site template's design-strategy groups, which live in the platform's repository and not this one.

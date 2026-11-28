@@ -227,9 +227,9 @@ function pipelineFragment(
       if (n.waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, n.waitsAtMostMinutes);
       else if (model.stated(thingId).waitsAtMostMinutes !== undefined) props.waitsAtMostMinutes = env(INTEGER, null);
     }
-    // A node of a kind is a pipeline node too, so the run and the editor find it, and of its kind's archetype,
-    // which makes it a run's start, its end, or a node the orchestrator runs itself.
-    addHeldThing(fragment, roles, pipelineId, { Id: thingId, Name: n.label, Properties: props }, nodeArchetype);
+    // Each kind's archetype is itself a pipeline node archetype, so a node of a kind is typed by its kind alone.
+    const archetype = n.kind ? roles.kindArchetype(n.kind)! : nodeArchetype;
+    addHeldThing(fragment, roles, pipelineId, { Id: thingId, Name: n.label, Properties: props }, archetype);
 
     if (n.kind) addNodeOfAKind(n, n.kind, thingId, roles, model, fragment);
     else addConnectionNode(n, thingId, roles, model, fragment);
@@ -240,9 +240,8 @@ function pipelineFragment(
 function addNodeOfAKind(
   n: EditorNode, kind: NodeKind, thingId: string, roles: SavingRoles, model: PipelineModel, fragment: PipelineFragment,
 ) {
-  const { isId, portArchetype, standsForId, kindArchetype } = roles;
+  const { portArchetype, standsForId } = roles;
   const { relationships } = fragment;
-  relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(kind)! });
   // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
   // longer declared is retracted.
   const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));

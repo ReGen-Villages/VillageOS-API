@@ -496,7 +496,6 @@ def build():
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")
                 k.thing(nid, label, props)
-                k.rel(nid, is_, PipelineNode)
                 k.rel(nid, is_, PipelineInput if is_input else PipelineOutput)
                 direction = "out" if is_input else "in"
                 for spec in node["input" if is_input else "output"]:

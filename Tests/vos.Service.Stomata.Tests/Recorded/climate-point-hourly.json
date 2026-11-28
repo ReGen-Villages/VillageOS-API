@@ -199,13 +199,13 @@
    }
   ],
   "designStrategyGroups": {
-   "comfortable-as-it-is": 17.5,
-   "with-air-movement": 3.2,
-   "direct-evaporative-cooling": 6.1,
-   "two-stage-evaporative-cooling": 7,
-   "dehumidification-needed": 16.6,
-   "heating-needed": 14.9,
-   "cooling-system-needed": 34.7
+   "ComfortableAsItIs": 17.5,
+   "WithAirMovement": 3.2,
+   "DirectEvaporativeCooling": 6.1,
+   "TwoStageEvaporativeCooling": 7,
+   "DehumidificationNeeded": 16.6,
+   "HeatingNeeded": 14.9,
+   "CoolingSystemNeeded": 34.7
   }
  }
 }

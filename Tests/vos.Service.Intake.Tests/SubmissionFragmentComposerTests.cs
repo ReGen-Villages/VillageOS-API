@@ -635,8 +635,8 @@ public class SubmissionFragmentComposerTests
     public void A_slope_share_and_an_aspect_share_of_one_name_are_two_Things()
     {
         var composed = ComposeWithTerrain();
-        var slope = SharesOf(composed, WillowBend.SlopeClassShareArchetypeId).Single(thing => thing.Name == "Willow Bend flat");
-        var aspect = SharesOf(composed, WillowBend.AspectShareArchetypeId).Single(thing => thing.Name == "Willow Bend flat");
+        var slope = SharesOf(composed, WillowBend.SlopeClassShareArchetypeId).Single(thing => thing.Name == "Willow Bend Flat");
+        var aspect = SharesOf(composed, WillowBend.AspectShareArchetypeId).Single(thing => thing.Name == "Willow Bend Flat");
 
         slope.Id.Should().NotBe(aspect.Id);
     }
@@ -653,14 +653,14 @@ public class SubmissionFragmentComposerTests
     [Fact]
     public void A_model_binding_no_share_archetype_composes_no_share_for_the_classes_it_declares() =>
         ComposeWith(WillowBend.KnownArchetypes, TerrainVocabulary).Fragment.Things
-            .Should().NotContain(thing => thing.Name == "Willow Bend flat");
+            .Should().NotContain(thing => thing.Name == "Willow Bend Flat");
 
     [Fact]
     public void A_model_declaring_no_soil_vocabulary_composes_no_horizon()
     {
         var composed = Compose(WillowBend.Submission());
 
-        composed.Fragment.Things.Should().NotContain(thing => thing.Name.EndsWith("0-5cm"));
+        composed.Fragment.Things.Should().NotContain(thing => thing.Name.EndsWith("From0To5Centimetres"));
     }
 
     // A term added to the model reaches the next submission without this service being rebuilt, which is
