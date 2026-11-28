@@ -120,7 +120,7 @@ public class HeightLineTests
                 if (request.RequestUri!.AbsolutePath != $"/api/endpoints/{OutsideCalls.FetcherSubdomain}" || Interlocked.Increment(ref heightCalls) > 1)
                     return model.Answer(request);
                 heightsAsked.Release();
-                answerTheHeights.Wait(TimeSpan.FromSeconds(30));
+                answerTheHeights.Wait(Settle.Ceiling);
                 return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             },
         };
@@ -128,13 +128,13 @@ public class HeightLineTests
         using var client = factory.CreateClient();
 
         var first = client.PostAsync("/handle", new StringContent(Envelope(), Encoding.UTF8, "application/json"));
-        (await heightsAsked.WaitAsync(TimeSpan.FromSeconds(20))).Should().BeTrue();
+        await Settle.ForAsync(heightsAsked.WaitAsync(), "the first step asks for its heights");
         try
         {
-            var second = await client.PostAsync("/handle", new StringContent(Envelope(), Encoding.UTF8, "application/json"))
-                .WaitAsync(TimeSpan.FromSeconds(20));
+            var second = client.PostAsync("/handle", new StringContent(Envelope(), Encoding.UTF8, "application/json"));
+            await Settle.ForAsync(second, "the second step answers without waiting behind the first");
 
-            var answer = await second.Content.ReadFromJsonAsync<JsonElement>();
+            var answer = await (await second).Content.ReadFromJsonAsync<JsonElement>();
             answer.GetProperty("error").GetString().Should().StartWith($"The height line is full: {CallsOfOneStep} calls are ahead");
             answer.GetProperty("retry").GetProperty("afterSeconds").GetDouble().Should().Be(CallsOfOneStep);
         }

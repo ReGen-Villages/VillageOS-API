@@ -106,6 +106,41 @@ public class PassedOnRequestLimitHandleTests
     }
 
     [Fact]
+    public async Task A_steps_deadline_counts_from_when_its_request_arrived_so_reading_its_inputs_uses_it_up()
+    {
+        var holder = Guid.NewGuid();
+        var site = Guid.NewGuid();
+        FakeTimeProvider? clock = null;
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: request => request.RequestUri!.AbsolutePath == $"/api/things/{site}/history/changed",
+            answers: request =>
+            {
+                if (request.RequestUri!.AbsolutePath != $"/api/things/{holder}/properties") return null;
+                clock!.Advance(Deadline - TimeSpan.FromSeconds(1));
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new Dictionary<string, object> { ["studied"] = new { Value = site.ToString() } }),
+                };
+            });
+        clock = host.Clock;
+
+        var answer = host.Client.PostAsJsonAsync("/handle", new
+        {
+            runId = Guid.NewGuid(),
+            nodeId = Guid.NewGuid(),
+            inputs = new Dictionary<string, object?> { ["subject"] = new { @ref = new { thingId = holder, property = "studied" } } },
+            @params = new Dictionary<string, object> { ["step"] = "historyChanged" },
+        });
+        await Settle.ForAsync(host.Stalled, "the step reaches the broker's history route");
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        await Settle.ForAsync(answer, "Tributary answers at the deadline that started when the request arrived");
+
+        var step = await (await answer).Content.ReadFromJsonAsync<JsonElement>();
+        step.GetProperty("error").GetString().Should().Contain($"had not judged the history of {site}");
+    }
+
+    [Fact]
     public async Task Handle_WhenTheReadingsAreWritten_LogsHowLongTheReshapeAndTheWriteTook()
     {
         var thingId = Guid.NewGuid();
