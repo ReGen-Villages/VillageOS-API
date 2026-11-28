@@ -50,10 +50,24 @@ public class EndpointKindResolverTests
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
         selector.Ids.Should().Equal(
-            Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id);
+            Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id, LandIntakeRoles.HistorySource.Id,
+            LandIntakeRoles.Licence.Id, LandIntakeRoles.Holding.Id);
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);
+    }
+
+    [Fact]
+    public void SelectorFor_FollowsTheLicenceRoleAndThenTheHoldingRole_AndCarriesBothRelationshipsByRole()
+    {
+        var selector = EndpointKindResolver.SelectorFor(Registration);
+
+        selector.Traverse!.Select(rule => rule.PredicateRole).OfType<Guid>()
+            .Should().Equal(LandIntakeRoles.Licence.Id, LandIntakeRoles.Holding.Id);
+        selector.Traverse.Where(rule => rule.PredicateRole is not null)
+            .Should().OnlyContain(rule => rule.Predicate == "" && rule.Direction == "outgoing" && rule.Depth == 1);
+        selector.Relationships!.Select(rule => rule.PredicateRole).OfType<Guid>()
+            .Should().Contain([LandIntakeRoles.Licence.Id, LandIntakeRoles.Holding.Id]);
     }
 
     // A predicate Thing is not pulled into a snapshot by being a predicate. Traversal adds the Things
