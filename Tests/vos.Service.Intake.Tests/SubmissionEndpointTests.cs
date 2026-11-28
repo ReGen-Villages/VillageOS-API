@@ -14,8 +14,6 @@ public class SubmissionEndpointTests
 {
     private const string TicketHeader = "X-Submission-Ticket";
 
-    private static readonly string WillowBendDocument = AboutTheSite(",'population':320");
-
     // The project and contact every submission carries. The details are a synthetic enquiry:
     // they reach this service by design, and a log line is the one place they would leave the model
     // behind.
@@ -26,10 +24,12 @@ public class SubmissionEndpointTests
     // The land itself, which every submission describes — an analysis divides its area, so a
     // submission without one is refused. Generated from the stated area rather than surveyed, which is
     // what the boundary source records.
-    private const string TheLand =
-        ",'parcel':{'boundarySource':'generated-from-stated-area','boundary':["
+    private static readonly string TheLand =
+        ",'parcel':{'boundarySource':'" + WillowBend.Word("generated-from-stated-area") + "','boundary':["
         + "{'latitude':39.4988,'longitude':-8.4168},{'latitude':39.5036,'longitude':-8.4168},"
         + "{'latitude':39.5036,'longitude':-8.4106},{'latitude':39.4988,'longitude':-8.4106}]}";
+
+    private static readonly string WillowBendDocument = AboutTheSite(",'population':320");
 
     // A whole submission, varying only what is known about the land.
     private static string AboutTheSite(string sitePart) =>

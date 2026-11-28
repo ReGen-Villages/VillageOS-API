@@ -36,6 +36,24 @@ type BoundaryObtainedBy =
   | typeof BOUNDARY_DRAWN_BY_HAND
   | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
 
+export type BoundaryWay = 'drawn' | 'imported' | 'register' | 'generated';
+
+export interface Term {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface SubmissionWords {
+  readonly categories: readonly Term[];
+  readonly hazardTypes: readonly Term[];
+  readonly hazardLevels: readonly Term[];
+  readonly boundarySources: Readonly<Partial<Record<BoundaryWay, string>>>;
+}
+
+export const NO_WORDS: SubmissionWords = { categories: [], hazardTypes: [], hazardLevels: [], boundarySources: {} };
+
+export class WordNotHeldError extends Error {}
+
 /** The share of the parcel each chosen category takes, by the category's own name in the model. */
 export type ProgrammeShares = Readonly<Record<string, number>>;
 

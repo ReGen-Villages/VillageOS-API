@@ -25,6 +25,8 @@ import {
   withStepVisited,
   type ProgrammeShares,
   type SubmissionDraft,
+  type SubmissionWords,
+  WordNotHeldError,
 } from './submissionDraft';
 
 const MODEL = 'model-under-test';
@@ -52,6 +54,21 @@ function filled(patch: Partial<SubmissionDraft> = {}): SubmissionDraft {
 
 const total = (shares: ProgrammeShares) => Object.values(shares).reduce((sum, share) => sum + share, 0);
 
+const WORDS: SubmissionWords = {
+  categories: [
+    { id: 'category-residential', name: 'residential' },
+    { id: 'category-food', name: 'food-and-agriculture' },
+  ],
+  hazardTypes: [{ id: 'hazard-river-flood', name: 'river-flood' }],
+  hazardLevels: [
+    { id: 'level-high', name: 'high' },
+    { id: 'level-low', name: 'low' },
+  ],
+  boundarySources: { drawn: 'source-drawn', generated: 'source-generated' },
+};
+
+const post = (draft: SubmissionDraft) => documentFrom(draft, WORDS);
+
 describe('the area and the unit it was typed in', () => {
   it('converts an area typed in acres to the hectares that are stored', () => {
     expect(statedAreaHectares(filled({ statedArea: '10', areaUnit: 'acres' }))).toBeCloseTo(4.0468564224, 9);
@@ -70,7 +87,7 @@ describe('the area and the unit it was typed in', () => {
   });
 
   it('submits hectares whatever unit the planner was typing in', () => {
-    expect(documentFrom(filled({ statedArea: '24', areaUnit: 'acres' })).site.statedAreaHectares).toBeCloseTo(
+    expect(post(filled({ statedArea: '24', areaUnit: 'acres' })).site.statedAreaHectares).toBeCloseTo(
       24 * HECTARES_PER_ACRE,
       9,
     );
@@ -78,15 +95,15 @@ describe('the area and the unit it was typed in', () => {
 
   it.each(['-4', 'twelve', '', '   ', '-'])('treats %s as no area rather than as a figure', (typed) => {
     expect(statedAreaHectares(filled({ statedArea: typed }))).toBeNull();
-    expect(documentFrom(filled({ statedArea: typed })).site.statedAreaHectares).toBeUndefined();
+    expect(post(filled({ statedArea: typed })).site.statedAreaHectares).toBeUndefined();
   });
 
   it('keeps a stated area of nothing, which is a figure somebody gave', () => {
-    expect(documentFrom(filled({ statedArea: '0' })).site.statedAreaHectares).toBe(0);
+    expect(post(filled({ statedArea: '0' })).site.statedAreaHectares).toBe(0);
   });
 
   it('keeps a coordinate west of Greenwich, where the same figure would be no area at all', () => {
-    const document = documentFrom(filled({ longitude: '-8.4137', statedArea: '-8.4137' }));
+    const document = post(filled({ longitude: '-8.4137', statedArea: '-8.4137' }));
 
     expect(document.site.longitude).toBe(-8.4137);
     expect(document.site.statedAreaHectares).toBeUndefined();
@@ -148,25 +165,29 @@ describe('the parcel boundary', () => {
     expect(boundaryCleared()).toEqual({ boundary: [], boundarySource: null });
   });
 
-  it('is posted with its corners and its origin once it has three of them', () => {
-    const document = documentFrom(
-      filled({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND }),
-    );
+  it('is posted with its corners and the identifier of the source bound to its way once it has three of them', () => {
+    const document = post(filled({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND }));
 
-    expect(document.parcel).toEqual({ boundarySource: 'drawn-by-hand', boundary: CORNERS });
+    expect(document.parcel).toEqual({ boundarySource: 'source-drawn', boundary: CORNERS });
+  });
+
+  it('is not posted where the model binds no source to its way', () => {
+    const drawn = filled({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND });
+
+    expect(() => documentFrom(drawn, { ...WORDS, boundarySources: {} })).toThrow(WordNotHeldError);
   });
 
   it('is left out of the document below three corners, which enclose nothing', () => {
     const twoCorners = filled({ boundary: CORNERS.slice(0, 2), boundarySource: BOUNDARY_DRAWN_BY_HAND });
 
-    expect(documentFrom(twoCorners).parcel).toBeUndefined();
-    expect(documentFrom(filled()).parcel).toBeUndefined();
+    expect(post(twoCorners).parcel).toBeUndefined();
+    expect(post(filled()).parcel).toBeUndefined();
   });
 
   it('posts only the corner coordinates, not whatever else a stored corner carried', () => {
     const carrying = [...CORNERS.slice(0, 2), { ...CORNERS[2], zoom: 15 } as BoundaryPoint];
 
-    const posted = documentFrom(filled({ boundary: carrying, boundarySource: BOUNDARY_DRAWN_BY_HAND }));
+    const posted = post(filled({ boundary: carrying, boundarySource: BOUNDARY_DRAWN_BY_HAND }));
 
     expect(posted.parcel?.boundary[2]).toEqual(CORNERS[2]);
   });
@@ -183,7 +204,7 @@ describe('the parcel boundary', () => {
   it.each([
     ['a word where the corners should be', { boundary: 'a word' }],
     ['a corner that is not a coordinate pair', { boundary: [{ latitude: 'north', longitude: -8.41 }] }],
-    ['an origin the wizard cannot truthfully claim', { boundary: CORNERS, boundarySource: 'imported-from-file' }],
+    ['an origin the wizard cannot truthfully claim', { boundary: CORNERS, boundarySource: 'imported' }],
     ['corners with no origin at all', { boundary: CORNERS, boundarySource: null }],
   ])('falls back to no boundary where what was stored holds %s', (_case, patch) => {
     localStorage.setItem(
@@ -226,7 +247,7 @@ describe('the programme split', () => {
 
     expect(shares).toEqual({});
     expect(total(shares)).toBe(0);
-    expect(documentFrom(filled({ shares })).allocations).toBeUndefined();
+    expect(post(filled({ shares })).allocations).toBeUndefined();
   });
 
   it('moves the difference across the others when one share is set', () => {
@@ -296,7 +317,7 @@ describe('the split as it is shown', () => {
 
 describe('the document that is posted', () => {
   it('carries every answer the planner gave', () => {
-    const document = documentFrom(filled({ shares: { residential: 40, 'food-and-agriculture': 60 } }));
+    const document = post(filled({ shares: { residential: 40, 'food-and-agriculture': 60 } }));
 
     expect(document).toEqual({
       submissionId: 'sub-0001',
@@ -321,14 +342,29 @@ describe('the document that is posted', () => {
         householdSize: 2.4,
       },
       allocations: [
-        { category: 'residential', sharePercent: 40 },
-        { category: 'food-and-agriculture', sharePercent: 60 },
+        { category: 'category-residential', sharePercent: 40 },
+        { category: 'category-food', sharePercent: 60 },
       ],
     });
   });
 
+  it('posts each word as the identifier of the one term of its own kind that the name matches', () => {
+    const levelNamedLikeACategory = { ...WORDS, hazardLevels: [...WORDS.hazardLevels, { id: 'level-residential', name: 'residential' }] };
+
+    const document = documentFrom(filled({ shares: { residential: 100 } }), levelNamedLikeACategory);
+
+    expect(document.allocations).toEqual([{ category: 'category-residential', sharePercent: 100 }]);
+  });
+
+  it.each([
+    ['matches no term', 'orchard', WORDS],
+    ['matches two terms', 'residential', { ...WORDS, categories: [...WORDS.categories, { id: 'category-residential-2', name: 'residential' }] }],
+  ])('does not post a word whose name %s', (_case, category, words) => {
+    expect(() => documentFrom(filled({ shares: { [category]: 100 } }), words)).toThrow(WordNotHeldError);
+  });
+
   it('leaves out an optional field nobody filled in, and carries the ones a submission cannot go without', () => {
-    const document = documentFrom({
+    const document = post({
       ...emptyDraft('sub-0002'),
       projectName: 'Old Quarry Regeneration',
       contactName: 'Ana Ferreira',
@@ -345,7 +381,7 @@ describe('the document that is posted', () => {
   });
 
   it('refuses a population typed with a decimal point rather than rounding it', () => {
-    expect(documentFrom(filled({ population: '320.5' })).site.population).toBeUndefined();
+    expect(post(filled({ population: '320.5' })).site.population).toBeUndefined();
   });
 
   const CORNERS = [
@@ -404,7 +440,7 @@ describe('a draft left and come back to', () => {
     const reopened = loadDraft(MODEL)!;
     saveDraft(MODEL, { ...reopened, statedArea: '30' });
 
-    expect(documentFrom(loadDraft(MODEL)!).site.statedAreaHectares).toBe(30);
+    expect(post(loadDraft(MODEL)!).site.statedAreaHectares).toBe(30);
   });
 
   it('reads nothing where no draft was left', () => {
@@ -485,8 +521,8 @@ describe('what a submitter reports of a hazard', () => {
     const draft = withHazardReported(emptyDraft('sub-0009'), 'river-flood', 'high');
 
     expect(draft.reportedHazards).toEqual({ 'river-flood': 'high' });
-    expect(documentFrom({ ...draft, siteName: 'Willow Bend', projectName: 'P', contactName: 'C', emailAddress: 'a@b.c' }).hazards)
-      .toEqual([{ hazardType: 'river-flood', reportedLevel: 'high' }]);
+    expect(post({ ...draft, siteName: 'Willow Bend', projectName: 'P', contactName: 'C', emailAddress: 'a@b.c' }).hazards)
+      .toEqual([{ hazardType: 'hazard-river-flood', reportedLevel: 'level-high' }]);
   });
 
   it('takes a report back when the level is cleared', () => {
@@ -505,6 +541,6 @@ describe('what a submitter reports of a hazard', () => {
       siteName: 'Willow Bend', projectName: 'P', contactName: 'C', emailAddress: 'a@b.c',
     };
 
-    expect(documentFrom(draft).hazards).toBeUndefined();
+    expect(post(draft).hazards).toBeUndefined();
   });
 });

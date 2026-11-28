@@ -111,6 +111,10 @@ const THINGS: VosThing[] = [
   thing('measured-with', 'measuredWithMethod'),
   thing('round', 'Round earth'),
   thing('oblate', 'Flattened earth'),
+  thing(LAND_INTAKE_ROLE.BoundaryDrawnByHand, 'boundaryDrawnByHand'),
+  thing(LAND_INTAKE_ROLE.BoundaryGeneratedFromStatedArea, 'boundaryGeneratedFromStatedArea'),
+  thing('source-drawn', 'traced'),
+  thing('source-generated', 'squared'),
   {
     Id: 'aerial',
     Name: 'Aerial imagery',
@@ -136,6 +140,8 @@ const EDGES: VosRelationship[] = [
   edge('b7', LAND_INTAKE_ROLE.MeanSphereAreaMethod, 'binds', 'round'),
   edge('b8', LAND_INTAKE_ROLE.Wgs84EllipsoidAreaMethod, 'binds', 'oblate'),
   edge('m1', 'plot', 'measured-with', 'round'),
+  edge('b9', LAND_INTAKE_ROLE.BoundaryDrawnByHand, 'binds', 'source-drawn'),
+  edge('b10', LAND_INTAKE_ROLE.BoundaryGeneratedFromStatedArea, 'binds', 'source-generated'),
 ];
 
 function measuringWith(method: 'round' | 'oblate' | null): VosRelationship[] {
@@ -457,7 +463,7 @@ describe('the parcel step', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Place a draft boundary' }));
 
     expect(await screen.findByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
-    expect(loadDraft('model-1')?.boundarySource).toBe('generated-from-stated-area');
+    expect(loadDraft('model-1')?.boundarySource).toBe('generated');
     expect(loadDraft('model-1')?.boundary).toHaveLength(4);
     expect((await screen.findByTestId('site-map')).dataset.corners).toBe('4');
   });
@@ -479,7 +485,7 @@ describe('the parcel step', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'stub-place-corner' }));
     }
 
-    expect(loadDraft('model-1')?.boundarySource).toBe('drawn-by-hand');
+    expect(loadDraft('model-1')?.boundarySource).toBe('drawn');
     expect(loadDraft('model-1')?.boundary).toHaveLength(3);
   });
 
@@ -490,7 +496,7 @@ describe('the parcel step', () => {
         { latitude: 39.501, longitude: -8.41 },
         { latitude: 39.501, longitude: -8.409 },
       ],
-      boundarySource: 'drawn-by-hand',
+      boundarySource: 'drawn',
     });
     render(<IntakeWizardPage />);
     goToStep(4);
@@ -513,7 +519,7 @@ describe('the parcel step', () => {
       ['oblate', '23.1%'],
     ] as const)('measures with the method the parcel archetype chooses (%s)', async (method, apart) => {
       vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(method)));
-      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn' });
       render(<IntakeWizardPage />);
       goToStep(4);
 
@@ -522,7 +528,7 @@ describe('the parcel step', () => {
 
     it('compares no areas where the model chooses no method', async () => {
       vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(measuringWith(null)));
-      located({ statedArea: '100', boundary: box, boundarySource: 'drawn-by-hand' });
+      located({ statedArea: '100', boundary: box, boundarySource: 'drawn' });
       render(<IntakeWizardPage />);
       goToStep(4);
       await act(() => new Promise((resolve) => setTimeout(resolve, ANSWER_DELAY_MILLISECONDS * 3)));
@@ -652,7 +658,7 @@ describe('posting the submission', () => {
       { latitude: 39.502, longitude: -8.41 },
       { latitude: 39.502, longitude: -8.408 },
     ];
-    saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn-by-hand' }));
+    saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn' }));
     render(<IntakeWizardPage />);
     goToStep(5);
 
@@ -660,7 +666,7 @@ describe('posting the submission', () => {
 
     await waitFor(() =>
       expect(intakeApi.submit).toHaveBeenCalledWith(
-        expect.objectContaining({ parcel: { boundarySource: 'drawn-by-hand', boundary: corners } }),
+        expect.objectContaining({ parcel: { boundarySource: 'source-drawn', boundary: corners } }),
         '314159',
       ),
     );

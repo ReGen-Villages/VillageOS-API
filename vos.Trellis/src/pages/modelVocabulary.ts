@@ -35,6 +35,10 @@ export function termsBound(reading: ModelReading, roleId: string): string[] {
   return termThingsBound(reading, roleId).map((term) => term.Name);
 }
 
+export function boundarySourcesBound(_reading: ModelReading): Record<string, string> {
+  return {};
+}
+
 /** The property a term states its words in, as JSON text of words by language. */
 const WORDING_PROPERTY = 'wording';
 

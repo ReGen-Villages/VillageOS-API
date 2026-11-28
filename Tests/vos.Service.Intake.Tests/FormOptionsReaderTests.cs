@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
@@ -12,12 +11,15 @@ namespace vos.Service.Intake.Tests;
 // basemap sources are found by the archetype name every client that draws a map already reads.
 public class FormOptionsReaderTests
 {
+    private static IEnumerable<DeclaredTerm> Terms(IEnumerable<string> names) =>
+        names.Select(name => new DeclaredTerm(name, WillowBend.TermId(name)));
+
     [Fact]
-    public void The_categories_are_the_terms_declared_under_the_marked_archetype()
+    public void Each_category_travels_with_its_identifier_beside_its_name()
     {
         var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
 
-        options.AllocationCategories.Should().BeEquivalentTo(WillowBend.AllocationCategoryNames);
+        options.AllocationCategories.Should().BeEquivalentTo(Terms(WillowBend.AllocationCategoryNames));
     }
 
     [Fact]
@@ -31,7 +33,7 @@ public class FormOptionsReaderTests
 
         var options = FormOptionsReader.Read(model.Build());
 
-        options.AllocationCategories.Should().Equal("Orchard");
+        options.AllocationCategories.Select(term => term.Name).Should().Equal("Orchard");
     }
 
     // A category the form offers and a submission is then refused for naming would be worse than no form,
@@ -120,27 +122,41 @@ public class FormOptionsReaderTests
         options.BasemapSources.Should().BeEmpty();
     }
 
-    // The route is anonymous, so what it answers is what anybody may read: the vocabularies the form draws
-    // itself with, and nothing else the model happens to hold. How a boundary was obtained is not among
-    // them — the parcel step records that from what it did rather than asking.
+    // The parcel step records how it obtained a boundary rather than asking, so it needs to know which source
+    // is which without reading a name.
     [Fact]
-    public void Nothing_the_form_does_not_draw_itself_with_travels()
+    public void Each_boundary_source_travels_with_the_role_that_binds_it()
     {
-        var answered = JsonSerializer.Serialize(FormOptionsReader.Read(DeclaredModel.Seeded().Build()));
+        var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
 
-        foreach (var withheld in WillowBend.BoundarySourceNames)
-            answered.Should().NotContain(withheld);
+        options.BoundarySources.Should().BeEquivalentTo(
+        [
+            new DeclaredBoundarySource(LandIntakeRoles.BoundaryDrawnByHand.Id, WillowBend.TermId("drawn-by-hand"), "drawn-by-hand"),
+            new DeclaredBoundarySource(LandIntakeRoles.BoundaryImportedFromFile.Id, WillowBend.TermId("imported-from-file"), "imported-from-file"),
+            new DeclaredBoundarySource(LandIntakeRoles.BoundaryFetchedFromRegister.Id, WillowBend.TermId("fetched-from-register"), "fetched-from-register"),
+            new DeclaredBoundarySource(LandIntakeRoles.BoundaryGeneratedFromStatedArea.Id, WillowBend.TermId("generated-from-stated-area"), "generated-from-stated-area"),
+        ]);
+        FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.BoundaryDrawnByHand.Id);
+    }
+
+    [Fact]
+    public void A_model_binding_no_boundary_source_roles_answers_with_none()
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var role in LandIntakeRoles.BoundarySourceRoles) model.Unbound(role);
+
+        FormOptionsReader.Read(model.Build()).BoundarySources.Should().BeEmpty();
     }
 
     // The hazards a form asks about are the model's to name, so they have to reach it. A form offering a
     // word the model does not hold collects an answer the submission is then refused for.
     [Fact]
-    public void The_hazards_a_form_asks_about_are_the_ones_the_model_declares()
+    public void Each_hazard_type_and_level_travels_with_its_identifier_beside_its_name()
     {
         var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
 
-        options.HazardTypes.Should().BeEquivalentTo(WillowBend.HazardTypeNames);
-        options.HazardLevels.Should().BeEquivalentTo(WillowBend.HazardLevelNames);
+        options.HazardTypes.Should().BeEquivalentTo(Terms(WillowBend.HazardTypeNames));
+        options.HazardLevels.Should().BeEquivalentTo(Terms(WillowBend.HazardLevelNames));
     }
 
     // The same kindness the basemap gets: a deployment declaring no hazards draws one step fewer rather
@@ -243,7 +259,11 @@ public class FormOptionsReaderTests
 
         var options = FormOptionsReader.Read(model.Build());
 
-        options.LayerKinds.Should().BeEquivalentTo([new DeclaredLayerKind("flood-extent", "#56CCF2", []), new DeclaredLayerKind("other-layer", null, [])]);
+        options.LayerKinds.Should().BeEquivalentTo(
+        [
+            new DeclaredLayerKind(WillowBend.TermId("flood-extent"), "flood-extent", "#56CCF2", []),
+            new DeclaredLayerKind(WillowBend.TermId("other-layer"), "other-layer", null, []),
+        ]);
         options.Wording["flood-extent"]["de"].Should().Be("Überflutungsfläche");
         FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.SiteLayerKind.Id);
         FormOptionsReader.Selector().BoundTypes.Should().Contain(LandIntakeRoles.SiteLayerKind.Id,
@@ -257,9 +277,9 @@ public class FormOptionsReaderTests
 
         options.LayerKinds.Should().BeEquivalentTo(
         [
-            new DeclaredLayerKind("brook-or-wadi", null, ["Vegetation", "Water"]),
-            new DeclaredLayerKind("flood-extent", null, ["Water"]),
-            new DeclaredLayerKind("other-layer", null, []),
+            new DeclaredLayerKind(WillowBend.TermId("brook-or-wadi"), "brook-or-wadi", null, ["Vegetation", "Water"]),
+            new DeclaredLayerKind(WillowBend.TermId("flood-extent"), "flood-extent", null, ["Water"]),
+            new DeclaredLayerKind(WillowBend.TermId("other-layer"), "other-layer", null, []),
         ], strictly => strictly.WithStrictOrdering());
         FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.ShownUnder.Id,
             "the predicate is known only through the role that binds it");

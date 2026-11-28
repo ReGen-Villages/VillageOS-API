@@ -70,15 +70,16 @@ public static class FormOptionsReader
         var themes = ThemeThings(snapshot);
 
         return new FormOptions(
-            [.. categories.Select(term => term.Name)],
+            [.. categories.Select(term => new DeclaredTerm(term.Name, Guid.Empty))],
             BasemapSources(snapshot),
-            [.. hazardTypes.Select(term => term.Name)],
-            [.. hazardLevels.Select(term => term.Name)],
+            [.. hazardTypes.Select(term => new DeclaredTerm(term.Name, Guid.Empty))],
+            [.. hazardLevels.Select(term => new DeclaredTerm(term.Name, Guid.Empty))],
             DefaultProgramme(snapshot),
             PositionLookupReader.ParcelLookups(snapshot).Count > 0,
             PositionLookupReader.PlaceSearches(snapshot).Count > 0,
             [.. themes.Select(Theme)],
             LayerKinds(snapshot, layerKinds, themes),
+            [],
             Wording(snapshot, [
                 .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
                 .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
@@ -101,6 +102,7 @@ public static class FormOptionsReader
         [
             .. kinds.Where(kind => thingsById.ContainsKey(kind.Id))
                 .Select(kind => new DeclaredLayerKind(
+                    Guid.Empty,
                     kind.Name,
                     thingsById[kind.Id].StatedText(ColourProperty),
                     [
@@ -159,7 +161,7 @@ public static class FormOptionsReader
                 .Where(term => thingsById.ContainsKey(term.Id))
                 .Select(term => (term.Name, Share: thingsById[term.Id].StatedNumber(DefaultShareProperty)))
                 .Where(category => category.Share is not null)
-                .Select(category => new DeclaredShare(category.Name, category.Share!.Value)),
+                .Select(category => new DeclaredShare(Guid.Empty, category.Share!.Value)),
         ];
     }
 

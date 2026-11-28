@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { intakeApi } from './intakeApi';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import type { SubmissionDocument } from '../intake/submissionDraft';
 
 const fetchMock = vi.fn();
@@ -148,7 +149,7 @@ describe('what the form draws itself with', () => {
   it('asks the service, because a page holding no credential cannot read the model', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ allocationCategories: ['residential'], basemapSources: [] }),
+      json: () => Promise.resolve({ allocationCategories: [{ id: 'category-1', name: 'residential' }], basemapSources: [] }),
     });
 
     const options = await intakeApi.formOptions();
@@ -156,7 +157,26 @@ describe('what the form draws itself with', () => {
     const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/form');
     expect(requestOptions).toEqual({ method: 'GET', headers: {} });
-    expect(options.allocationCategories).toEqual(['residential']);
+    expect(options.allocationCategories).toEqual([{ id: 'category-1', name: 'residential' }]);
+  });
+
+  it('knows each boundary source by the role that binds it, and none whose role binds two', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          boundarySources: [
+            { role: LAND_INTAKE_ROLE.BoundaryDrawnByHand, id: 'source-drawn', name: 'traced' },
+            { role: LAND_INTAKE_ROLE.BoundaryFetchedFromRegister, id: 'source-register', name: 'fetched' },
+            { role: LAND_INTAKE_ROLE.BoundaryImportedFromFile, id: 'source-imported-1', name: 'imported' },
+            { role: LAND_INTAKE_ROLE.BoundaryImportedFromFile, id: 'source-imported-2', name: 'uploaded' },
+          ],
+        }),
+    });
+
+    const options = await intakeApi.formOptions();
+
+    expect(options.boundarySources).toEqual({ drawn: 'source-drawn', register: 'source-register' });
   });
 
   it('judges the sources it is told about by the rule the signed-in page judges them by', async () => {
@@ -226,15 +246,15 @@ describe('what the form draws itself with', () => {
         Promise.resolve({
           allocationCategories: [],
           layerKinds: [
-            { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+            { id: 'kind-1', name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
             { name: 'other-layer' },
           ],
         }),
     });
 
     expect((await intakeApi.formOptions()).layerKinds).toEqual([
-      { name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
-      { name: 'other-layer', colour: null, themes: [] },
+      { id: 'kind-1', name: 'brook-or-wadi', colour: '#2F80ED', themes: ['Vegetation', 'Water'] },
+      { id: '', name: 'other-layer', colour: null, themes: [] },
     ]);
 
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ allocationCategories: [] }) });

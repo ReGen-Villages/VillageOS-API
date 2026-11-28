@@ -396,7 +396,7 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         </Document></kml>
         """);
 
-    private const string BothChosen = """{"Mill Brook":"brook-or-wadi","Flood Line":"flood-extent"}""";
+    private static readonly string BothChosen = $$"""{"Mill Brook":"{{BrookKind}}","Flood Line":"{{FloodKind}}"}""";
 
     private async Task<(HttpResponseMessage Response, Broker Broker)> ShareLayerAsync(
         string features, BrokerSnapshot? model = null, byte[]? bytes = null, string fileName = "layers.kml")
@@ -510,9 +510,22 @@ public sealed class SharedDocumentEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task A_kind_sent_by_its_name_is_refused_and_nothing_is_kept()
+    {
+        var (response, broker) = await ShareLayerAsync("""{"Mill Brook":"brook-or-wadi"}""");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var (code, values) = await RefusalReading.ReadAsync(response);
+        code.Should().Be(RefusalCode.TermUnknown);
+        values.GetProperty("value").GetString().Should().Be("brook-or-wadi");
+        Directory.Exists(_folder).Should().BeFalse();
+        broker.Fragments.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_feature_the_file_does_not_hold_is_refused_and_nothing_is_kept()
     {
-        var (response, broker) = await ShareLayerAsync("""{"Upper Catchment":"flood-extent"}""");
+        var (response, broker) = await ShareLayerAsync($$"""{"Upper Catchment":"{{FloodKind}}"}""");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.FeatureNotInFile);

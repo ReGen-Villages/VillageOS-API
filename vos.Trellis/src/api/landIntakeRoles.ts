@@ -5,6 +5,7 @@
  * role's word, which the intake service and the command line read too.
  */
 import { PROPERTY_NAME_ROLE } from '@tendril-ui/tendril';
+import type { BoundaryWay } from '../intake/submissionDraft';
 
 export const LAND_INTAKE_ROLE = {
   SiteStudy: 'e9036a23-21c1-5956-b0d8-a212e8ad8272',
@@ -17,6 +18,10 @@ export const LAND_INTAKE_ROLE = {
   SharedDocument: 'a3605555-fa7a-50c0-9422-3085734c5c22',
   Shares: 'bdd517c7-e2d1-5b2f-a8ef-dad58e1fc8c7',
   BoundarySource: 'ec334dde-46d5-5696-9f80-5963dcea3dc7',
+  BoundaryDrawnByHand: '7fa9991f-e235-573f-a196-0d3046222cd9',
+  BoundaryImportedFromFile: '26221822-cf64-5fe9-8f25-c516c47899ee',
+  BoundaryFetchedFromRegister: 'b2ddf387-62c0-5ff0-ae93-989b50877937',
+  BoundaryGeneratedFromStatedArea: '695a4985-1d51-5554-9777-71d8eec62a1a',
   ObtainedBy: 'fffc87a4-7fef-5a2c-b56e-dee55bab3ea3',
   HazardType: '84c01d40-c4d9-56ec-b31a-b168be53e2f9',
   Assesses: 'd6515c5a-ce3e-5484-a1b4-ab19d5fb9876',
@@ -45,3 +50,10 @@ export const LAND_INTAKE_ROLE = {
   RefusedCandidate: '3634a526-0bab-5e7b-ae8f-6d822ce7c1b1',
   BasemapSource: '61066752-41d5-5bea-a1cd-5450e6603486',
 } as const;
+
+export const BOUNDARY_WAY_ROLES: Readonly<Record<BoundaryWay, string>> = {
+  drawn: LAND_INTAKE_ROLE.BoundaryDrawnByHand,
+  imported: LAND_INTAKE_ROLE.BoundaryImportedFromFile,
+  register: LAND_INTAKE_ROLE.BoundaryFetchedFromRegister,
+  generated: LAND_INTAKE_ROLE.BoundaryGeneratedFromStatedArea,
+};

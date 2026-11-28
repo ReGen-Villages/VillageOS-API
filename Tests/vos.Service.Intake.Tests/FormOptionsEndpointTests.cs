@@ -55,7 +55,7 @@ public class FormOptionsEndpointTests
     }
 
     private static IEnumerable<string?> Categories(JsonElement form) =>
-        form.GetProperty("allocationCategories").EnumerateArray().Select(category => category.GetString());
+        form.GetProperty("allocationCategories").EnumerateArray().Select(category => category.GetProperty("name").GetString());
 
     // Every public request asks the model the same question, and the answer changes only when the model does.
     [Fact]
@@ -163,8 +163,8 @@ public class FormOptionsEndpointTests
         var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
 
         answered.GetProperty("allocationCategories").EnumerateArray()
-            .Select(category => category.GetString()).Should()
-            .BeEquivalentTo(WillowBend.AllocationCategoryNames);
+            .Select(category => (category.GetProperty("id").GetString(), category.GetProperty("name").GetString()))
+            .Should().BeEquivalentTo(WillowBend.AllocationCategoryNames.Select(name => (WillowBend.Word(name), name)));
         answered.GetProperty("basemapSources").EnumerateArray()
             .Select(source => source.GetProperty("name").GetString()).Should()
             .Contain(WillowBend.VectorBasemapName);
@@ -245,7 +245,7 @@ public class FormOptionsEndpointTests
             .Select(share => (share.GetProperty("category").GetString(),
                 share.GetProperty("sharePercent").GetDouble()))
             .Should().BeEquivalentTo(
-                WillowBend.DefaultProgramme.Select(share => (share.Category, share.SharePercent)));
+                WillowBend.DefaultProgramme.Select(share => (WillowBend.Word(share.Category), share.SharePercent)));
         answered.GetProperty("parcelLookup").GetBoolean().Should().BeTrue();
         answered.GetProperty("placeSearch").GetBoolean().Should().BeTrue();
     }

@@ -51,6 +51,7 @@ const FORM = {
   parcelLookup: true,
   placeSearch: true,
   areaMethod: 'meanSphereAreaMethod',
+  boundarySources: { drawn: 'source-drawn', imported: 'source-imported', register: 'source-register' },
 } as unknown as FormOptions;
 
 const confirmed = vi.fn();
@@ -467,7 +468,7 @@ describe('confirming the site', () => {
     expect(posted).toMatchObject({
       contact: { name: 'planner@example.org', emailAddress: 'planner@example.org' },
       site: { name: 'North field' },
-      parcel: { boundarySource: 'imported-from-file', boundary: BORDER },
+      parcel: { boundarySource: 'source-imported', boundary: BORDER },
     });
     expect(intakeApi.sendDocument).toHaveBeenCalledWith(posted.submissionId, file, 'ticket-4');
   });

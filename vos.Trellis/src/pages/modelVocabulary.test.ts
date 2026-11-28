@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
 import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
-import { ALLOCATION_CATEGORY_ROLE, areaMethodConfigured, boundBy, termsBound, type ModelReading } from './modelVocabulary';
+import {
+  ALLOCATION_CATEGORY_ROLE,
+  areaMethodConfigured,
+  boundarySourcesBound,
+  boundBy,
+  termsBound,
+  type ModelReading,
+} from './modelVocabulary';
 
 // Every name here is spelled differently from the shipped land-intake template, so a reader answering
 // only to that spelling fails rather than passes.
@@ -51,9 +58,12 @@ function reading(patch: Partial<ModelReading> = {}): ModelReading {
   };
 }
 
+const namesBound = (read: ModelReading, roleId: string): string[] =>
+  termsBound(read, roleId).map((term) => term.name);
+
 describe('the terms a model declares under the archetype a role binds', () => {
   it('offers every term under the archetype the role binds, whatever the archetype is called', () => {
-    expect(termsBound(reading(), ROLE)).toEqual(['growing', 'housing', 'roads']);
+    expect(namesBound(reading(), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('reads the terms whatever properties the archetype and its terms carry', () => {
@@ -62,7 +72,7 @@ describe('the terms a model declares under the archetype a role binds', () => {
       housing: { stale: owned(true) },
     };
 
-    expect(termsBound(reading({ properties: carried }), ROLE)).toEqual(['growing', 'housing', 'roads']);
+    expect(namesBound(reading({ properties: carried }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('reaches a term grouped under a type of its own beneath the archetype', () => {
@@ -73,7 +83,7 @@ describe('the terms a model declares under the archetype a role binds', () => {
       edge('e5', 'workshops', 'is', 'built'),
     ];
 
-    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual([
+    expect(namesBound(reading({ things, relationships }), ROLE)).toEqual([
       'growing',
       'housing',
       'roads',
@@ -82,23 +92,23 @@ describe('the terms a model declares under the archetype a role binds', () => {
   });
 
   it('offers nothing where the model binds the role to nothing', () => {
-    expect(termsBound(reading({ relationships: EDGES.filter((one) => one.Id !== 'b1') }), ROLE)).toEqual([]);
+    expect(namesBound(reading({ relationships: EDGES.filter((one) => one.Id !== 'b1') }), ROLE)).toEqual([]);
   });
 
   it('offers nothing where the role binds two Things and neither can be said to hold the vocabulary', () => {
     const relationships = [...EDGES, edge('b2', ROLE, 'binds', 'unrelated')];
 
-    expect(termsBound(reading({ relationships }), ROLE)).toEqual([]);
+    expect(namesBound(reading({ relationships }), ROLE)).toEqual([]);
   });
 
   it('offers nothing where the model holds no binds predicate to read the binding through', () => {
     const things = THINGS.filter((one) => one.Id !== 'binds');
 
-    expect(termsBound(reading({ things }), ROLE)).toEqual([]);
+    expect(namesBound(reading({ things }), ROLE)).toEqual([]);
   });
 
   it('leaves out the archetype itself, which is not one of its own terms', () => {
-    expect(termsBound(reading(), ROLE)).not.toContain('LandUse');
+    expect(namesBound(reading(), ROLE)).not.toContain('LandUse');
   });
 
   it('lists a term once where two paths reach it', () => {
@@ -109,7 +119,7 @@ describe('the terms a model declares under the archetype a role binds', () => {
       edge('e5', 'housing', 'is', 'built'),
     ];
 
-    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
+    expect(namesBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('answers a model whose types lead back to each other, rather than walking for ever', () => {
@@ -120,19 +130,54 @@ describe('the terms a model declares under the archetype a role binds', () => {
       edge('e5', 'land-use', 'is', 'built'),
     ];
 
-    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
+    expect(namesBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('leaves out an edge whose subject the reading holds no Thing for', () => {
     const relationships = [...EDGES, edge('e7', 'gone', 'is', 'land-use')];
 
-    expect(termsBound(reading({ relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
+    expect(namesBound(reading({ relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('leaves out a Thing reached through some other predicate', () => {
     const relationships = [...EDGES, edge('e6', 'unrelated', 'covers', 'land-use')];
 
-    expect(termsBound(reading({ relationships }), ROLE)).not.toContain('Willow Bend');
+    expect(namesBound(reading({ relationships }), ROLE)).not.toContain('Willow Bend');
+  });
+
+  it('offers each term with its identifier, which is what a submission sends', () => {
+    const things = [...THINGS, thing('term-7', 'workshops')];
+    const relationships = [...EDGES, edge('e4', 'term-7', 'is', 'land-use')];
+
+    expect(termsBound(reading({ things, relationships }), ROLE)).toContainEqual({ id: 'term-7', name: 'workshops' });
+  });
+});
+
+describe('the boundary source each way of drawing a boundary is bound to', () => {
+  const DRAWN = LAND_INTAKE_ROLE.BoundaryDrawnByHand;
+  const IMPORTED = LAND_INTAKE_ROLE.BoundaryImportedFromFile;
+  const SOURCES: VosThing[] = [
+    thing('binds', 'binds'),
+    thing(DRAWN, 'boundaryDrawnByHand'),
+    thing(IMPORTED, 'boundaryImportedFromFile'),
+    thing('source-1', 'DrawnByHand'),
+    thing('source-2', 'ImportedFromFile'),
+    thing('source-3', 'FetchedFromRegister'),
+  ];
+
+  it('gives each way the identifier of the source its role binds', () => {
+    const relationships = [edge('b1', DRAWN, 'binds', 'source-1'), edge('b2', IMPORTED, 'binds', 'source-2')];
+
+    expect(boundarySourcesBound(reading({ things: SOURCES, relationships }))).toEqual({
+      drawn: 'source-1',
+      imported: 'source-2',
+    });
+  });
+
+  it('gives no source to a way whose role binds two', () => {
+    const relationships = [edge('b1', DRAWN, 'binds', 'source-1'), edge('b2', DRAWN, 'binds', 'source-3')];
+
+    expect(boundarySourcesBound(reading({ things: SOURCES, relationships }))).toEqual({});
   });
 });
 
