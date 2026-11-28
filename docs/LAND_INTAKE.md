@@ -286,26 +286,26 @@ the work.
     "householdSize": 2.4
   },
   "parcel": {                                 // left out until a boundary has been drawn
-    "boundarySource": "drawn-by-hand",        // a term the model declares, not free text
+    "boundarySource": "<identifier of drawn-by-hand>", // the identifier of a term the model declares
     "boundary": [
       { "latitude": 39.4990248, "longitude": -8.4165190 }
       // …at least three corners
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "residential", "sharePercent": 22 },
-    { "category": "food-and-agriculture", "sharePercent": 34 }
+    { "category": "<identifier of residential>", "sharePercent": 22 },
+    { "category": "<identifier of food-and-agriculture>", "sharePercent": 34 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
     {
-      "hazardType": "river-flood",       // a term the model declares, not free text
+      "hazardType": "<identifier of river-flood>", // the identifier of a term the model declares
       "source": {                             // becomes a Thing the assessment hangs off
         "name": "National flood portal",
         "coverageDescription": "Mainland river catchments, updated yearly."
       }
     },
-    { "hazardType": "wildfire", "source": { "name": "National flood portal" } }
+    { "hazardType": "<identifier of wildfire>", "source": { "name": "National flood portal" } }
     // …two hazards naming one source share that source
   ]
 }
@@ -1245,9 +1245,16 @@ file's shapes may be given are the members of the archetype the `siteLayerKind` 
 colour, and none where the model declares no site layer. Each kind also carries `themes`, the names of
 the form's themes it is related to along the predicate the `shownUnder` role binds, in the order the
 form offers its themes; a model that binds no `shownUnder` role answers every kind with an empty list.
-Each category, hazard, theme and layer kind carries its
-`wording` — its words in every language the model states them in — so the form
-offers a term in the reader's language and still submits it by its name. A model that was never
+Each category, hazard type, hazard level and layer kind is served as its `id` beside its `name`, and
+`defaultProgramme` names each category by its `id`. `boundarySources` lists each way of obtaining a
+boundary as the `role` that binds it (`boundaryDrawnByHand`, `boundaryImportedFromFile`,
+`boundaryFetchedFromRegister`, `boundaryGeneratedFromStatedArea`), the source's `id` and its `name`, so a
+page that knows how it got a boundary finds the source by its role. The top-level `wording` gives, for each
+category, hazard, theme and layer kind by name, its words in every language the model states them in, so
+the form offers a term in the reader's language. A submission sends each word as its `id`: the intake
+service resolves `parcel.boundarySource`, `allocation.category`, `hazard.hazardType`,
+`hazard.reportedLevel` and each layer feature's kind by identifier only, and refuses a name with
+`termUnknown`. A model that was never
 seeded is answered `503` carrying the code `serviceUnavailable` and nothing else, as a submission into
 one is.
 

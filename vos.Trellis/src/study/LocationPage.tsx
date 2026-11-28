@@ -233,7 +233,10 @@ export function LocationPage({
     setRefusal(null);
     try {
       const submissionId = crypto.randomUUID();
-      const posted = await intakeApi.submitWithTicket(siteDocument(site, session, submissionId), ticket.current);
+      const posted = await intakeApi.submitWithTicket(
+        siteDocument(site, session, submissionId, { boundarySources: form?.boundarySources ?? {} }),
+        ticket.current,
+      );
       ticket.current = posted.ticket;
       if (importedFile !== null) ticket.current = await intakeApi.sendDocument(submissionId, importedFile, ticket.current);
       onConfirmed(submissionId);

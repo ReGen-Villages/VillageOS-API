@@ -46,6 +46,7 @@ import {
   type StepId,
   withHazardReported,
   type SubmissionDraft,
+  type SubmissionWords,
 } from './submissionDraft';
 import { figureRefusals, FIGURE_REFUSAL_WORDING } from './typedFigure';
 import { useTermWords, type TermWording } from '@tendril-ui/tendril';
@@ -53,23 +54,18 @@ import { useTermWords, type TermWording } from '@tendril-ui/tendril';
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
 
 export function IntakeWizard({
-  categories,
+  words,
   basemapSources,
-  hazardTypes,
-  hazardLevels,
   wording,
   draftOwner,
   areaMethod,
 }: {
-  categories: readonly string[];
+  /** The model's categories, hazards and levels, and its boundary sources. The hazard lists are empty where a
+   *  deployment declares none, which draws the step with nothing to mark rather than hiding it — a person who
+   *  reached it should be told why there is nothing there. */
+  words: SubmissionWords;
   basemapSources: BasemapSource[];
-  /** The hazards somebody may report on and the words they may use, both the model's. Empty where a
-   *  deployment declares none, which draws the step with nothing to mark rather than hiding it — a
-   *  person who reached it should be told why there is nothing there. */
-  hazardTypes: readonly string[];
-  hazardLevels: readonly string[];
-  /** What each category, hazard and level is called in each language. Each is still submitted by its
-   *  name, which is what the service resolves against. */
+  /** What each category, hazard and level is called in each language, keyed by its name. */
   wording: TermWording;
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
@@ -78,6 +74,9 @@ export function IntakeWizard({
 }) {
   const { t } = useTranslation();
   const wordsFor = useTermWords(wording);
+  const categoryNames = useMemo(() => words.categories.map((term) => term.name), [words]);
+  const hazardTypeNames = useMemo(() => words.hazardTypes.map((term) => term.name), [words]);
+  const hazardLevelNames = useMemo(() => words.hazardLevels.map((term) => term.name), [words]);
   const [draft, setDraft] = useState<SubmissionDraft | null>(null);
   const [step, setStep] = useState<StepId>('project');
   const [submitting, setSubmitting] = useState(false);
@@ -148,7 +147,7 @@ export function IntakeWizard({
     if (!draft) return;
     setSubmitting(true);
     try {
-      const result = await intakeApi.submit(documentFrom(draft), code.trim());
+      const result = await intakeApi.submit(documentFrom(draft, words), code.trim());
       setAccepted(result);
       setAwaitingCode(false);
       setCode('');
@@ -186,10 +185,12 @@ export function IntakeWizard({
         {step === 'project' && <ProjectStep draft={draft} onChange={change} />}
         {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
-        {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} wordsFor={wordsFor} onChange={change} />}
+        {step === 'programme' && (
+          <ProgrammeStep draft={draft} categories={categoryNames} wordsFor={wordsFor} onChange={change} />
+        )}
         {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} areaMethod={areaMethod} onChange={change} />}
         {step === 'hazards' && (
-          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} wordsFor={wordsFor} onChange={change} />
+          <HazardsStep draft={draft} types={hazardTypeNames} levels={hazardLevelNames} wordsFor={wordsFor} onChange={change} />
         )}
       </div>
       <Navigation

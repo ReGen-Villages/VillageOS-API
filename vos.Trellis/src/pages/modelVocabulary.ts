@@ -3,8 +3,9 @@
  *  without a change here. */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '@tendril-ui/tendril';
-import { BINDS_PREDICATE_NAME } from '@tendril-ui/tendril';
-import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import { BINDS_PREDICATE_NAME, thingBoundBy } from '@tendril-ui/tendril';
+import { BOUNDARY_WAY_ROLES, LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import type { BoundaryWay, Term } from '../intake/submissionDraft';
 import type { AreaMethod } from '../utils/borderArea';
 import { wordingIn, type TermWording } from '@tendril-ui/tendril';
 
@@ -31,12 +32,19 @@ export interface ModelReading {
  *  them. A model binding the role to nothing, or to more than one Thing, has no vocabulary this can
  *  read — two bindings leave no way to say which one a term belongs to, so it answers with none rather
  *  than picking. */
-export function termsBound(reading: ModelReading, roleId: string): string[] {
-  return termThingsBound(reading, roleId).map((term) => term.Name);
+export function termsBound(reading: ModelReading, roleId: string): Term[] {
+  return termThingsBound(reading, roleId).map((term) => ({ id: term.Id, name: term.Name }));
 }
 
-export function boundarySourcesBound(_reading: ModelReading): Record<string, string> {
-  return {};
+/** The boundary source the model binds to each way's role. A way whose role binds nothing, or more than one Thing,
+ *  is absent. */
+export function boundarySourcesBound(reading: ModelReading): Partial<Record<BoundaryWay, string>> {
+  const byWay: Partial<Record<BoundaryWay, string>> = {};
+  for (const [way, role] of Object.entries(BOUNDARY_WAY_ROLES) as [BoundaryWay, string][]) {
+    const source = thingBoundBy(role, reading.things, reading.relationships);
+    if (source) byWay[way] = source.Id;
+  }
+  return byWay;
 }
 
 /** The property a term states its words in, as JSON text of words by language. */

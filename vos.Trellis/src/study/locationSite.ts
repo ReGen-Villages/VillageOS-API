@@ -1,5 +1,5 @@
 import type { LargestArea, RegisteredPlot } from '../api/intakeApi';
-import { BOUNDARY_DRAWN_BY_HAND, type SubmissionDocument } from '../intake/submissionDraft';
+import { boundarySourceOf, type SubmissionDocument, type SubmissionWords } from '../intake/submissionDraft';
 import { borderAreaHectares, type AreaMethod } from '../utils/borderArea';
 import { enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 import type { StudySession } from './SignIn';
@@ -22,12 +22,6 @@ export type SiteArea =
   | { readonly kind: 'register'; readonly hectares: number; readonly label: string | null }
   | { readonly kind: 'drawn' | 'imported'; readonly hectares: number }
   | { readonly kind: 'unknown' };
-
-const BOUNDARY_SOURCE_TERMS: Readonly<Record<BorderSource, string>> = {
-  drawn: BOUNDARY_DRAWN_BY_HAND,
-  imported: 'imported-from-file',
-  register: 'fetched-from-register',
-};
 
 const NO_BORDER = { border: [], borderSource: null, plotLabel: null, givenHectares: null } as const;
 
@@ -77,7 +71,12 @@ export function siteConfirmable(site: LocationSite): boolean {
 }
 
 /** The demo's sign-in asks no name, so the contact is named by the address until a later step asks for one. */
-export function siteDocument(site: LocationSite, session: StudySession, submissionId: string): SubmissionDocument {
+export function siteDocument(
+  site: LocationSite,
+  session: StudySession,
+  submissionId: string,
+  words: Pick<SubmissionWords, 'boundarySources'>,
+): SubmissionDocument {
   return {
     submissionId,
     project: { name: session.projectName },
@@ -87,7 +86,7 @@ export function siteDocument(site: LocationSite, session: StudySession, submissi
       latitude: site.position.latitude,
       longitude: site.position.longitude,
     },
-    parcel: { boundarySource: BOUNDARY_SOURCE_TERMS[site.borderSource ?? 'drawn'], boundary: [...site.border] },
+    parcel: { boundarySource: boundarySourceOf(words, site.borderSource ?? 'drawn'), boundary: [...site.border] },
   };
 }
 
