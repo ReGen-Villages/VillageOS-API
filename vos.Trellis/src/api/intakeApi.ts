@@ -1,4 +1,5 @@
-import type { SubmissionDocument } from '../intake/submissionDraft';
+import type { BoundaryWay, SubmissionDocument, Term } from '../intake/submissionDraft';
+import { BOUNDARY_WAY_ROLES } from './landIntakeRoles';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '@tendril-ui/tendril';
 import { basemapSourcesFrom } from '../utils/basemapSources';
@@ -29,15 +30,17 @@ const TICKET_HEADER = 'X-Submission-Ticket';
 /** A page with no credential cannot read the model, so the service reads it for the form. Which sources
  *  are usable is judged here by the same rule the planner's page uses. */
 export interface FormOptions {
-  allocationCategories: string[];
+  allocationCategories: Term[];
   basemapSources: BasemapSource[];
   /** The model's own, so a form cannot offer a term a submission is then refused for. Empty where a
    *  deployment declares no hazards, which draws one step fewer rather than refusing to answer. */
-  hazardTypes: string[];
-  hazardLevels: string[];
-  /** Offered before anybody states a programme, as each category Thing states it. Empty where the model
+  hazardTypes: Term[];
+  hazardLevels: Term[];
+  /** Offered before anybody states a programme, by each category's identifier. Empty where the model
    *  states no defaults, which starts a page with nothing chosen. */
   defaultProgramme: { category: string; sharePercent: number }[];
+  /** The boundary source the model binds to each way's role. A way the model binds no source to is absent. */
+  boundarySources: Partial<Record<BoundaryWay, string>>;
   /** So a page draws no search box for a model with no gazetteer, and asks no register that is absent. */
   parcelLookup: boolean;
   placeSearch: boolean;
@@ -45,7 +48,7 @@ export interface FormOptions {
    *  draws every section as a list. */
   themes: DeclaredTheme[];
   /** The kinds a planner may give each named shape of a layer file. Empty where the model declares no site layer. */
-  layerKinds: { name: string; colour: string | null; themes: string[] }[];
+  layerKinds: { id: string; name: string; colour: string | null; themes: string[] }[];
   /** Keyed by the names the lists above offer. A term the model words in no language is absent and shown by its name. */
   wording: TermWording;
   /** Null where the service names a method this page does not measure with, so the page shows no area rather than
@@ -54,6 +57,15 @@ export interface FormOptions {
 }
 
 const AREA_METHODS: readonly AreaMethod[] = ['meanSphereAreaMethod', 'wgs84EllipsoidAreaMethod'];
+
+function boundarySourcesByWay(served: readonly { role: string; id: string }[]): Partial<Record<BoundaryWay, string>> {
+  const byWay: Partial<Record<BoundaryWay, string>> = {};
+  for (const [way, role] of Object.entries(BOUNDARY_WAY_ROLES) as [BoundaryWay, string][]) {
+    const bound = served.filter((source) => source.role === role);
+    if (bound.length === 1) byWay[way] = bound[0].id;
+  }
+  return byWay;
+}
 
 export interface ViewBox {
   southLatitude: number;
@@ -100,15 +112,16 @@ export const intakeApi = {
   formOptions: async (): Promise<FormOptions> => {
     const response = await intakeRequest('/submissions/form');
     const answered = (await response.json()) as {
-      allocationCategories?: string[];
+      allocationCategories?: Term[];
       basemapSources?: DeclaredBasemapSource[];
-      hazardTypes?: string[];
-      hazardLevels?: string[];
+      hazardTypes?: Term[];
+      hazardLevels?: Term[];
       defaultProgramme?: { category: string; sharePercent: number }[];
+      boundarySources?: { role: string; id: string }[];
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];
-      layerKinds?: { name?: string; colour?: string | null; themes?: string[] }[];
+      layerKinds?: { id?: string; name?: string; colour?: string | null; themes?: string[] }[];
       wording?: TermWording;
       areaMethod?: string;
     };
@@ -118,6 +131,7 @@ export const intakeApi = {
       hazardTypes: answered.hazardTypes ?? [],
       hazardLevels: answered.hazardLevels ?? [],
       defaultProgramme: answered.defaultProgramme ?? [],
+      boundarySources: boundarySourcesByWay(answered.boundarySources ?? []),
       parcelLookup: answered.parcelLookup ?? false,
       placeSearch: answered.placeSearch ?? false,
       wording: answered.wording ?? {},
@@ -128,6 +142,7 @@ export const intakeApi = {
         order: theme.order ?? null,
       })),
       layerKinds: (answered.layerKinds ?? []).map((kind) => ({
+        id: kind.id ?? '',
         name: kind.name ?? '',
         colour: kind.colour ?? null,
         themes: kind.themes ?? [],

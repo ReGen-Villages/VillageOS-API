@@ -17,6 +17,10 @@ public static class LandIntakeRoles
     public static readonly Role SharedDocument = new("sharedDocument", new("a3605555-fa7a-50c0-9422-3085734c5c22"));
     public static readonly Role Shares = new("shares", new("bdd517c7-e2d1-5b2f-a8ef-dad58e1fc8c7"));
     public static readonly Role BoundarySource = new("boundarySource", new("ec334dde-46d5-5696-9f80-5963dcea3dc7"));
+    public static readonly Role BoundaryDrawnByHand = new("boundaryDrawnByHand", new("7fa9991f-e235-573f-a196-0d3046222cd9"));
+    public static readonly Role BoundaryImportedFromFile = new("boundaryImportedFromFile", new("26221822-cf64-5fe9-8f25-c516c47899ee"));
+    public static readonly Role BoundaryFetchedFromRegister = new("boundaryFetchedFromRegister", new("b2ddf387-62c0-5ff0-ae93-989b50877937"));
+    public static readonly Role BoundaryGeneratedFromStatedArea = new("boundaryGeneratedFromStatedArea", new("695a4985-1d51-5554-9777-71d8eec62a1a"));
     public static readonly Role ObtainedBy = new("obtainedBy", new("fffc87a4-7fef-5a2c-b56e-dee55bab3ea3"));
     public static readonly Role HazardType = new("hazardType", new("84c01d40-c4d9-56ec-b31a-b168be53e2f9"));
     public static readonly Role Assesses = new("assesses", new("d6515c5a-ce3e-5484-a1b4-ab19d5fb9876"));
@@ -82,10 +86,13 @@ public static class LandIntakeRoles
     public static readonly Role ForStorm = new("forStorm", new("1d927020-c97b-52bf-ae13-762800989a4e"));
     public static readonly Role AppliesIn = new("appliesIn", new("ced2c68d-48f9-521d-a70b-bed43aa64e66"));
 
+    public static readonly IReadOnlyList<Role> BoundarySourceRoles =
+        [BoundaryDrawnByHand, BoundaryImportedFromFile, BoundaryFetchedFromRegister, BoundaryGeneratedFromStatedArea];
+
     public static readonly IReadOnlyList<Role> All =
     [
         SiteStudy, Site, AllocationCategory, CategorizedAs, WaterDemandComponent, PropertyName, ProposedSite,
-        PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
+        PersonalDetail, SharedDocument, Shares, BoundarySource, .. BoundarySourceRoles, ObtainedBy, HazardType, Assesses, HazardLevel,
         ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterProDataPage, SubmitterLiteDataPage, RootPlace,
         PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,

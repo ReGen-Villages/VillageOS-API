@@ -38,6 +38,7 @@ beforeEach(async () => {
     parcelLookup: false,
     placeSearch: true,
     areaMethod: 'meanSphereAreaMethod',
+    boundarySources: { drawn: 'source-drawn' },
   } as unknown as FormOptions);
   vi.mocked(intakeApi.searchPlaces).mockResolvedValue({
     places: [{ name: 'Willow Bend Farm, Alentejo', latitude: 38.5, longitude: -7.9 }],

@@ -68,9 +68,8 @@ public static class WillowBend
     public static readonly Guid AssessesPredicateId = new("0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a");
     public static readonly Guid ReportedAsPredicateId = new("0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b");
 
-    // The vocabularies the land-intake template declares, under the names it declares them
-    // with. A submission names a term as the model spells it; how the term is displayed is the wizard's
-    // business and never reaches here.
+    // The vocabularies the land-intake template declares, under the names it declares them with. A submission
+    // sends each term's identifier, never its name or how it is displayed.
     public static readonly string[] AllocationCategoryNames =
     [
         "residential", "food-and-agriculture", "green-water-and-restoration", "commercial-and-retail",
@@ -78,7 +77,7 @@ public static class WillowBend
     ];
 
     public static readonly string[] BoundarySourceNames =
-        ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
+        ["drawn-by-hand", "imported-from-file", "fetched-from-register", "generated-from-stated-area"];
 
     public static readonly string[] HazardTypeNames =
     [
@@ -164,6 +163,8 @@ public static class WillowBend
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 
+    public static string Word(string name) => TermId(name).ToString();
+
     private static DeclaredTerms Declared(Guid predicateId, string predicateName, IEnumerable<string> terms) =>
         new(new DeclaredTerm(predicateName, predicateId),
             [.. terms.Select(name => new DeclaredTerm(name, TermId(name)))]);
@@ -194,17 +195,17 @@ public static class WillowBend
             Population = 320,
             HouseholdSize = 2.4,
         },
-        // The programme from LAND_INTAKE.md §8, each category named as the model declares it. The shares add
-        // to 100 there, but nothing in the producer requires it — they are normalised across the chosen
-        // categories further down the analysis.
+        // The programme from LAND_INTAKE.md §8, each category sent as the identifier the model declares it
+        // under. The shares add to 100 there, but nothing in the producer requires it — they are normalised
+        // across the chosen categories further down the analysis.
         Allocations =
         [
-            new SubmittedAllocation { Category = "residential", SharePercent = 22 },
-            new SubmittedAllocation { Category = "food-and-agriculture", SharePercent = 34 },
-            new SubmittedAllocation { Category = "green-water-and-restoration", SharePercent = 20 },
-            new SubmittedAllocation { Category = "commercial-and-retail", SharePercent = 8 },
-            new SubmittedAllocation { Category = "community-education-and-health", SharePercent = 9 },
-            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePercent = 7 },
+            new SubmittedAllocation { Category = Word("residential"), SharePercent = 22 },
+            new SubmittedAllocation { Category = Word("food-and-agriculture"), SharePercent = 34 },
+            new SubmittedAllocation { Category = Word("green-water-and-restoration"), SharePercent = 20 },
+            new SubmittedAllocation { Category = Word("commercial-and-retail"), SharePercent = 8 },
+            new SubmittedAllocation { Category = Word("community-education-and-health"), SharePercent = 9 },
+            new SubmittedAllocation { Category = Word("mobility-and-infrastructure"), SharePercent = 7 },
         ],
         // Two hazards read off one portal, so the source is one Thing both hang off. LAND_INTAKE.md §8
         // calls a level without a source a recollection rather than an assessment, so neither is here.
@@ -212,7 +213,7 @@ public static class WillowBend
         [
             new SubmittedHazard
             {
-                HazardType = "river-flood",
+                HazardType = Word("river-flood"),
                 Source = new SubmittedDataSource
                 {
                     Name = "National flood portal",
@@ -221,13 +222,13 @@ public static class WillowBend
             },
             new SubmittedHazard
             {
-                HazardType = "wildfire",
+                HazardType = Word("wildfire"),
                 Source = new SubmittedDataSource { Name = "National flood portal" },
             },
         ],
         Parcel = new SubmittedParcel
         {
-            BoundarySource = "drawn-by-hand",
+            BoundarySource = Word("drawn-by-hand"),
             // A boundary that encloses 23.4 hectares against the 24.0 the planner stated — the disagreement
             // the document's worked example turns on.
             Boundary =

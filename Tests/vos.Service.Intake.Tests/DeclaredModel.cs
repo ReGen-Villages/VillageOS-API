@@ -46,6 +46,10 @@ public sealed class DeclaredModel
                 .Relate(category, "is", "AllocationCategory");
         foreach (var source in WillowBend.BoundarySourceNames)
             model.Relate(source, "is", "BoundarySource");
+        model.Bound(LandIntakeRoles.BoundaryDrawnByHand, "drawn-by-hand")
+            .Bound(LandIntakeRoles.BoundaryImportedFromFile, "imported-from-file")
+            .Bound(LandIntakeRoles.BoundaryFetchedFromRegister, "fetched-from-register")
+            .Bound(LandIntakeRoles.BoundaryGeneratedFromStatedArea, "generated-from-stated-area");
         foreach (var hazardType in WillowBend.HazardTypeNames)
             model.Relate(hazardType, "is", "HazardType");
         foreach (var level in WillowBend.HazardLevelNames)
@@ -110,7 +114,7 @@ public sealed class DeclaredModel
     public Guid Id(string name)
     {
         if (_idsByName.TryGetValue(name, out var existing)) return existing;
-        var id = Guid.NewGuid();
+        var id = WillowBend.TermId(name);
         _idsByName[name] = id;
         _things.Add(Thing(id, name, isArchetype: false, []));
         return id;

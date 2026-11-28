@@ -191,7 +191,7 @@ public static class SubmissionFragmentComposer
             new PredicateIdentity(areaMethod.AreaMeasuredWith.Name, areaMethod.AreaMeasuredWith.Id, Minted: false),
             new NamedThing(areaMethod.Method.Id, areaMethod.Method.Name));
 
-        var categoriesAlreadyGiven = new Dictionary<Guid, string>();
+        var categoriesGiven = new HashSet<Guid>();
         foreach (var allocation in submission.Allocations ?? [])
         {
             var submitted = Required(allocation.Category, "allocation.category",
@@ -199,14 +199,12 @@ public static class SubmissionFragmentComposer
             var category = Resolve(vocabulary.AllocationCategories, "allocation.category", submitted);
 
             // Identity comes from the category rather than from a position in the list, so a wizard that
-            // reorders them re-posts onto the same Things. It comes from the resolved term rather than the
-            // word submitted, so two spellings of one category are one share and not two.
-            if (categoriesAlreadyGiven.TryGetValue(category.Id, out var alreadyGiven))
+            // reorders them re-posts onto the same Things.
+            if (!categoriesGiven.Add(category.Id))
                 throw new SubmissionError(RefusalCode.SharesDisagree,
-                    $"'allocations' gives '{alreadyGiven}' and '{submitted}' as separate shares of one "
-                    + "category: they disagree about it and nothing here can say which was meant.",
-                    Refusal.With(("first", alreadyGiven), ("second", submitted)));
-            categoriesAlreadyGiven[category.Id] = submitted;
+                    $"'allocations' gives '{category.Name}' twice as separate shares: they disagree about it "
+                    + "and nothing here can say which was meant.",
+                    Refusal.With(("first", category.Name), ("second", category.Name)));
 
             var allocationThing = new NamedThing(
                 StableIdentity.Derive(submissionId, $"allocation:{Key(category.Name)}"),
@@ -222,7 +220,7 @@ public static class SubmissionFragmentComposer
         // source's name for the same reason an allocation's comes from its category.
         var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
         var coverageAlreadyGiven = new Dictionary<string, string?>();
-        var hazardsAlreadyGiven = new Dictionary<Guid, string>();
+        var hazardsGiven = new HashSet<Guid>();
         var assessments = new Dictionary<Guid, NamedThing>();
         var assessedProperties = new Dictionary<Guid, Dictionary<string, TypedValue>>();
 
@@ -273,14 +271,11 @@ public static class SubmissionFragmentComposer
                 "an assessment is about one named hazard").Trim();
             var hazardType = Resolve(vocabulary.HazardTypes, "hazard.hazardType", submittedType);
 
-            // Identity comes from the resolved term rather than the word submitted, for the same reason an
-            // allocation's comes from its category: two spellings of one hazard are one assessment.
-            if (hazardsAlreadyGiven.TryGetValue(hazardType.Id, out var alreadyGiven))
+            if (!hazardsGiven.Add(hazardType.Id))
                 throw new SubmissionError(RefusalCode.HazardsDisagree,
-                    $"'hazards' gives '{alreadyGiven}' and '{submittedType}' as separate assessments of one "
-                    + "hazard: they disagree about it and nothing here can say which was meant.",
-                    Refusal.With(("first", alreadyGiven), ("second", submittedType)));
-            hazardsAlreadyGiven[hazardType.Id] = submittedType;
+                    $"'hazards' gives '{hazardType.Name}' twice as separate assessments: they disagree about it "
+                    + "and nothing here can say which was meant.",
+                    Refusal.With(("first", hazardType.Name), ("second", hazardType.Name)));
 
             var hazardThing = AssessmentOf(hazardType);
 
@@ -440,25 +435,19 @@ public static class SubmissionFragmentComposer
         };
     }
 
-    // A word the model does not declare is refused by naming what the model does declare, so a planner is
-    // corrected by the vocabulary the analysis will actually read rather than by whatever list this service
-    // was compiled with. A term added to the model needs no change here.
+    // A word is sent as the identifier the form options served for it, so no client holds a term's name. One the
+    // model does not declare is refused by naming what the model does declare, so a planner is corrected by the
+    // vocabulary the analysis will actually read rather than by whatever list this service was compiled with.
     internal static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
     {
-        var byKey = new Dictionary<string, DeclaredTerm>();
-        foreach (var term in declared.Terms)
-            if (!byKey.TryAdd(Key(term.Name), term))
-                throw new ModelNotSeededError(
-                    $"this model declares '{byKey[Key(term.Name)].Name}' and '{term.Name}' as separate terms, "
-                    + $"and a submitted '{field}' cannot say which of them it means.");
-
-        if (byKey.TryGetValue(Key(submitted), out var found))
+        if (Guid.TryParse(submitted, out var identifier)
+            && declared.Terms.FirstOrDefault(term => term.Id == identifier) is { } found)
             return found;
 
         throw new SubmissionError(RefusalCode.TermUnknown, declared.Terms.Count == 0
             ? $"'{field}' is '{submitted}', and this model declares no term to resolve it against."
-            : $"'{field}' is '{submitted}': the model declares "
-              + string.Join(", ", declared.Terms.Select(term => $"'{term.Name}'")) + ".",
+            : $"'{field}' is '{submitted}', which is not the identifier of a term the model declares: it declares "
+              + string.Join(", ", declared.Terms.Select(term => $"'{term.Id}' ({term.Name})")) + ".",
             Refusal.With(("field", field), ("value", submitted)));
     }
 

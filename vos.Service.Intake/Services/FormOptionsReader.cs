@@ -48,7 +48,7 @@ public static class FormOptionsReader
     {
         Ids = RoleBindings.Identifiers(
             [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource,
-                .. AreaMethodReader.Roles]),
+                .. AreaMethodReader.Roles, .. LandIntakeRoles.BoundarySourceRoles]),
         Names = [PlatformPredicates.Is, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
@@ -70,15 +70,16 @@ public static class FormOptionsReader
         var themes = ThemeThings(snapshot);
 
         return new FormOptions(
-            [.. categories.Select(term => term.Name)],
+            categories,
             BasemapSources(snapshot),
-            [.. hazardTypes.Select(term => term.Name)],
-            [.. hazardLevels.Select(term => term.Name)],
+            hazardTypes,
+            hazardLevels,
             DefaultProgramme(snapshot),
             PositionLookupReader.ParcelLookups(snapshot).Count > 0,
             PositionLookupReader.PlaceSearches(snapshot).Count > 0,
             [.. themes.Select(Theme)],
             LayerKinds(snapshot, layerKinds, themes),
+            BoundarySources(snapshot),
             Wording(snapshot, [
                 .. categories, .. hazardTypes, .. hazardLevels, .. layerKinds,
                 .. themes.Select(theme => new DeclaredTerm(theme.Name ?? string.Empty, theme.Id)),
@@ -101,6 +102,7 @@ public static class FormOptionsReader
         [
             .. kinds.Where(kind => thingsById.ContainsKey(kind.Id))
                 .Select(kind => new DeclaredLayerKind(
+                    kind.Id,
                     kind.Name,
                     thingsById[kind.Id].StatedText(ColourProperty),
                     [
@@ -111,7 +113,7 @@ public static class FormOptionsReader
     }
 
     // What each offered term is called in each language, as the term Thing states it: a JSON object from
-    // language code to words. A term is still submitted by its name; the words are only shown.
+    // language code to words. A term is submitted by its identifier; the words are only shown.
     public const string WordingProperty = "wording";
 
     private static Dictionary<string, IReadOnlyDictionary<string, string>> Wording(
@@ -150,6 +152,12 @@ public static class FormOptionsReader
     // where the wizard starts — with nothing chosen.
     public const string DefaultShareProperty = "defaultSharePercent";
 
+    private static List<DeclaredBoundarySource> BoundarySources(SnapshotDocument snapshot) =>
+    [
+        .. LandIntakeRoles.BoundarySourceRoles.SelectMany(role => snapshot.Bound(role)
+            .Select(source => new DeclaredBoundarySource(role.Id, source.Id, source.Name ?? string.Empty))),
+    ];
+
     private static List<DeclaredShare> DefaultProgramme(SnapshotDocument snapshot)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
@@ -157,9 +165,9 @@ public static class FormOptionsReader
         [
             .. DeclaredVocabularyReader.AllocationCategories(snapshot).Terms
                 .Where(term => thingsById.ContainsKey(term.Id))
-                .Select(term => (term.Name, Share: thingsById[term.Id].StatedNumber(DefaultShareProperty)))
+                .Select(term => (term.Id, Share: thingsById[term.Id].StatedNumber(DefaultShareProperty)))
                 .Where(category => category.Share is not null)
-                .Select(category => new DeclaredShare(category.Name, category.Share!.Value)),
+                .Select(category => new DeclaredShare(category.Id, category.Share!.Value)),
         ];
     }
 

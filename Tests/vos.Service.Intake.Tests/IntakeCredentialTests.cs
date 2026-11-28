@@ -29,7 +29,7 @@ public class IntakeCredentialTests
          + "'project':{'name':'Willow Bend Regeneration'},"
          + "'contact':{'name':'Ana Ferreira','emailAddress':'" + AnasAddress + "'},"
          + "'site':{'name':'Willow Bend','population':320},"
-         + "'parcel':{'boundarySource':'generated-from-stated-area','boundary':["
+         + "'parcel':{'boundarySource':'" + WillowBend.Word("generated-from-stated-area") + "','boundary':["
          + "{'latitude':39.4988,'longitude':-8.4168},{'latitude':39.5036,'longitude':-8.4168},"
          + "{'latitude':39.5036,'longitude':-8.4106},{'latitude':39.4988,'longitude':-8.4106}]}}")
         .Replace('\'', '"');

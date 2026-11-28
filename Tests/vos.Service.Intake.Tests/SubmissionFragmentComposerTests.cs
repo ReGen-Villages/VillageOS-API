@@ -202,7 +202,10 @@ public class SubmissionFragmentComposerTests
     {
         var submission = WillowBend.Submission();
 
-        var composed = Compose(submission with { Parcel = submission.Parcel! with { BoundarySource = "imported-from-file" } });
+        var composed = Compose(submission with
+        {
+            Parcel = submission.Parcel! with { BoundarySource = WillowBend.Word("imported-from-file") },
+        });
 
         Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
             WillowBend.TermId("imported-from-file")).Should().BeTrue();
@@ -234,31 +237,6 @@ public class SubmissionFragmentComposerTests
             .NotContain(WillowBend.ObtainedByPredicateId);
     }
 
-    // Two terms a submitted word cannot be told apart by is a model nothing can resolve against, and picking
-    // either would send two submissions naming one word to two different Things.
-    [Fact]
-    public void A_model_declaring_two_terms_that_differ_only_in_case_is_refused()
-    {
-        var vocabulary = WillowBend.KnownVocabulary with
-        {
-            AllocationCategories = new DeclaredTerms(
-                WillowBend.KnownVocabulary.AllocationCategories.Predicate,
-                [
-                    new DeclaredTerm("residential", WillowBend.TermId("residential")),
-                    new DeclaredTerm("Residential", WillowBend.TermId("Residential")),
-                ]),
-        };
-
-        var refusal = Assert.Throws<ModelNotSeededError>(() => Compose(
-            WillowBend.Submission() with
-            {
-                Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =100 }],
-            },
-            vocabulary));
-
-        refusal.Message.Should().Contain("residential").And.Contain("Residential");
-    }
-
     [Fact]
     public void An_allocation_writes_the_properties_its_archetype_declares()
     {
@@ -276,7 +254,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =22 }],
+            Allocations = [new SubmittedAllocation { Category = WillowBend.Word("residential"), SharePercent =22 }],
         });
 
         AllocationFor(composed, "residential").Properties.Keys.Should().Equal("sharePercent");
@@ -289,7 +267,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =12 }],
+            Allocations = [new SubmittedAllocation { Category = WillowBend.Word("residential"), SharePercent =12 }],
         });
 
         Allocations(composed).Single().Properties["sharePercent"].Value.Should().Be(12.0);
@@ -311,7 +289,7 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(
             WillowBend.Submission() with
             {
-                Allocations = [new SubmittedAllocation { Category = "silvopasture", SharePercent =100 }],
+                Allocations = [new SubmittedAllocation { Category = WillowBend.Word("silvopasture"), SharePercent =100 }],
             },
             vocabulary);
 
@@ -323,47 +301,60 @@ public class SubmissionFragmentComposerTests
     // A word no term matches is refused by naming what the model declares, so a planner is corrected by the
     // vocabulary the analysis will read rather than by a list this service was compiled with.
     [Fact]
-    public void A_category_the_model_does_not_declare_is_refused_by_naming_what_it_does()
+    public void A_category_the_model_does_not_declare_is_refused_naming_each_declared_term()
     {
         var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePercent =100 }],
+            Allocations = [new SubmittedAllocation { Category = WillowBend.Word("silvopasture"), SharePercent =100 }],
         }));
 
-        refusal.Message.Should().Contain("Silvopasture").And.Contain("food-and-agriculture");
+        refusal.Message.Should().Contain("allocation.category").And.Contain(WillowBend.Word("silvopasture"));
+        foreach (var declared in WillowBend.AllocationCategoryNames)
+            refusal.Message.Should().Contain(WillowBend.Word(declared)).And.Contain(declared);
     }
 
-    // A term is named as the model spells it, and case and surrounding space are not part of what a planner
-    // meant by it.
-    [Fact]
-    public void A_category_typed_with_stray_case_and_space_resolves_to_the_term_the_model_declares()
+    [Theory]
+    [InlineData("allocation.category")]
+    [InlineData("hazard.hazardType")]
+    [InlineData("hazard.reportedLevel")]
+    [InlineData("parcel.boundarySource")]
+    public void A_word_sent_by_its_name_is_refused(string field)
     {
-        var composed = Compose(WillowBend.Submission() with
+        var submission = WillowBend.Submission();
+        var byName = field switch
         {
-            Allocations = [new SubmittedAllocation { Category = "  Food-And-Agriculture ", SharePercent =100 }],
-        });
+            "allocation.category" => submission with
+            {
+                Allocations = [new SubmittedAllocation { Category = "residential", SharePercent = 100 }],
+            },
+            "hazard.hazardType" => submission with { Hazards = [new SubmittedHazard { HazardType = "river-flood" }] },
+            "hazard.reportedLevel" => submission with
+            {
+                Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("river-flood"), ReportedLevel = "high" }],
+            },
+            _ => submission with { Parcel = submission.Parcel! with { BoundarySource = "drawn-by-hand" } },
+        };
 
-        var allocation = Allocations(composed).Single();
-        Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId,
-            WillowBend.TermId("food-and-agriculture")).Should().BeTrue();
-        allocation.Name.Should().Be("Willow Bend food-and-agriculture");
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(byName));
+
+        refusal.AsRefusal().Code.Should().Be(RefusalCode.TermUnknown);
+        refusal.Message.Should().Contain(field);
     }
 
-    // Two shares of one category disagree about it and nothing here can say which was meant. They are one
-    // category because they resolve to one term, not because they were spelled alike.
     [Fact]
-    public void Two_allocations_naming_one_category_are_refused()
+    public void Two_allocations_naming_one_category_are_refused_naming_the_category()
     {
         var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
         {
             Allocations =
             [
-                new SubmittedAllocation { Category = "Residential", SharePercent =22 },
-                new SubmittedAllocation { Category = " residential ", SharePercent =30 },
+                new SubmittedAllocation { Category = WillowBend.Word("residential"), SharePercent =22 },
+                new SubmittedAllocation { Category = WillowBend.Word("residential"), SharePercent =30 },
             ],
         }));
 
-        refusal.Message.Should().Contain("Residential").And.Contain("residential");
+        refusal.AsRefusal().Code.Should().Be(RefusalCode.SharesDisagree);
+        refusal.Message.Should().Contain("'residential'");
     }
 
     // Identity comes from the category, not from a position in the list, so a wizard that reorders them
@@ -398,9 +389,8 @@ public class SubmissionFragmentComposerTests
         composed.Fragment.Things.Where(thing =>
             IsEdgeTo(composed, thing.Id, WillowBend.HazardAssessmentArchetypeId));
 
-    private static FragmentThing HazardOf(ComposedSubmission composed, string hazardType) =>
-        Hazards(composed).Single(thing =>
-            Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(hazardType)));
+    private static FragmentThing HazardOf(ComposedSubmission composed, Guid hazardType) =>
+        Hazards(composed).Single(thing => Relates(composed, thing.Id, WillowBend.AssessesPredicateId, hazardType));
 
     // The discovery run grades one hazard per assessment the site has, so a site with none is graded on
     // nothing — which is what every submitted site was, because no form asks about hazards and a
@@ -413,7 +403,7 @@ public class SubmissionFragmentComposerTests
 
         Hazards(composed).Should().HaveCount(WillowBend.HazardTypeNames.Length);
         foreach (var hazardType in WillowBend.HazardTypeNames)
-            HazardOf(composed, hazardType).Should().NotBeNull();
+            HazardOf(composed, WillowBend.TermId(hazardType)).Should().NotBeNull();
     }
 
     // A hazard the submitter raised and one nobody mentioned are the same assessment of the same land, so
@@ -434,10 +424,10 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Hazards = [new SubmittedHazard { HazardType = "river-flood", ReportedLevel = "high" }],
+            Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("river-flood"), ReportedLevel = WillowBend.Word("high") }],
         });
 
-        var flood = HazardOf(composed, "river-flood");
+        var flood = HazardOf(composed, WillowBend.TermId("river-flood"));
         flood.Properties["reportedLevel"].Value.Should().Be("high");
         flood.Properties.Should().NotContainKey("hazardLevel",
             "what the portal grades is an observation this producer may not write");
@@ -452,10 +442,10 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Hazards = [new SubmittedHazard { HazardType = "river-flood" }],
+            Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("river-flood") }],
         });
 
-        HazardOf(composed, "river-flood").Properties.Should().NotContainKey("reportedLevel");
+        HazardOf(composed, WillowBend.TermId("river-flood")).Properties.Should().NotContainKey("reportedLevel");
         composed.Fragment.Relationships.Should()
             .NotContain(edge => edge.Predicate == WillowBend.ReportedAsPredicateId);
     }
@@ -467,7 +457,7 @@ public class SubmissionFragmentComposerTests
     {
         var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
         {
-            Hazards = [new SubmittedHazard { HazardType = "river-flood", ReportedLevel = "catastrophic" }],
+            Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("river-flood"), ReportedLevel = WillowBend.Word("catastrophic") }],
         }));
 
         refusal.Message.Should().Contain("hazard.reportedLevel");
@@ -481,7 +471,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var flood = HazardOf(composed, "river-flood");
+        var flood = HazardOf(composed, WillowBend.TermId("river-flood"));
 
         flood.Properties.Should().NotContainKey("hazardType",
             "a word beside the edge can be read but not walked from, and the two can come to disagree");
@@ -505,10 +495,10 @@ public class SubmissionFragmentComposerTests
     {
         var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
         {
-            Hazards = [new SubmittedHazard { HazardType = "volcano" }],
+            Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("volcano") }],
         }));
 
-        refusal.Message.Should().Contain("hazard.hazardType").And.Contain("volcano");
+        refusal.Message.Should().Contain("hazard.hazardType").And.Contain(WillowBend.Word("volcano"));
         foreach (var declared in WillowBend.HazardTypeNames)
             refusal.Message.Should().Contain(declared);
     }
@@ -677,11 +667,11 @@ public class SubmissionFragmentComposerTests
         };
 
         var composed = SubmissionFragmentComposer.Compose(
-            WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = "volcano" }] },
+            WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("volcano") }] },
             WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt,
             elevation: null);
 
-        Relates(composed, HazardOf(composed, "volcano").Id, WillowBend.AssessesPredicateId,
+        Relates(composed, HazardOf(composed, WillowBend.TermId("volcano")).Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("volcano")).Should().BeTrue();
     }
 
@@ -693,7 +683,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var flood = HazardOf(composed, "river-flood");
+        var flood = HazardOf(composed, WillowBend.TermId("river-flood"));
         var source = Named(composed, "National flood portal");
 
         Holds(composed, flood.Id, source.Id).Should().BeTrue();
@@ -710,8 +700,8 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(WillowBend.Submission());
 
         composed.Fragment.Things.Where(thing => thing.Name == "National flood portal").Should().HaveCount(1);
-        var named = WillowBend.Submission().Hazards!.Select(hazard => hazard.HazardType!);
-        foreach (var hazardType in named)
+        var cited = WillowBend.Submission().Hazards!.Select(hazard => Guid.Parse(hazard.HazardType!));
+        foreach (var hazardType in cited)
             Holds(composed, HazardOf(composed, hazardType).Id, Named(composed, "National flood portal").Id)
                 .Should().BeTrue();
     }
@@ -746,12 +736,13 @@ public class SubmissionFragmentComposerTests
         {
             Hazards =
             [
-                new SubmittedHazard { HazardType = "river-flood" },
-                new SubmittedHazard { HazardType = " River-Flood " },
+                new SubmittedHazard { HazardType = WillowBend.Word("river-flood") },
+                new SubmittedHazard { HazardType = WillowBend.Word("river-flood") },
             ],
         }));
 
-        refusal.Message.Should().Contain("river-flood").And.Contain("River-Flood");
+        refusal.AsRefusal().Code.Should().Be(RefusalCode.HazardsDisagree);
+        refusal.Message.Should().Contain("'river-flood'");
     }
 
     // One source is one Thing, so a second description has nowhere to land. Keeping the first silently would
@@ -766,12 +757,12 @@ public class SubmissionFragmentComposerTests
             [
                 new SubmittedHazard
                 {
-                    HazardType = "river-flood",
+                    HazardType = WillowBend.Word("river-flood"),
                     Source = new SubmittedDataSource { Name = "Portal", CoverageDescription = "Rivers." },
                 },
                 new SubmittedHazard
                 {
-                    HazardType = "wildfire",
+                    HazardType = WillowBend.Word("wildfire"),
                     Source = new SubmittedDataSource { Name = "Portal", CoverageDescription = "Forests." },
                 },
             ],
@@ -795,10 +786,10 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Hazards = [new SubmittedHazard { HazardType = "landslide" }],
+            Hazards = [new SubmittedHazard { HazardType = WillowBend.Word("landslide") }],
         });
 
-        Relates(composed, HazardOf(composed, "landslide").Id, WillowBend.AssessesPredicateId,
+        Relates(composed, HazardOf(composed, WillowBend.TermId("landslide")).Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("landslide")).Should().BeTrue();
         composed.Fragment.Relationships.Should()
             .NotContain(edge => edge.Target == WillowBend.SubmittedSourceArchetypeId);
@@ -1120,9 +1111,9 @@ public class SubmissionFragmentComposerTests
     {
         var submission = WillowBend.Submission();
 
-        var refusal = Refusal(submission with { Parcel = submission.Parcel! with { BoundarySource = "drawn" } });
+        var refusal = Refusal(submission with { Parcel = submission.Parcel! with { BoundarySource = WillowBend.Word("drawn") } });
 
-        refusal.Message.Should().Contain("drawn-by-hand",
+        refusal.Message.Should().Contain(WillowBend.Word("drawn-by-hand"),
             "the message has to name what would have been accepted, or a typo reads as provenance");
     }
 

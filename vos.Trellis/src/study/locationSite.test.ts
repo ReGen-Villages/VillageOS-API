@@ -9,6 +9,7 @@ import {
   siteDocument,
   siteFound,
 } from './locationSite';
+import { WordNotHeldError } from '../intake/submissionDraft';
 import { borderAreaHectares } from '../utils/borderArea';
 import type { BoundaryPoint } from '../utils/parcelGeometry';
 
@@ -138,30 +139,42 @@ describe('confirming the site', () => {
   it('posts the border with how it was got, the email as the contact and the parcel name as the site', () => {
     const imported = borderImported(SITE, { name: 'North field', boundary: NEARBY_BORDER, hectares: 10.1 });
 
-    expect(siteDocument(imported, SESSION, 'submission-1')).toEqual({
+    expect(siteDocument(imported, SESSION, 'submission-1', SOURCES)).toEqual({
       submissionId: 'submission-1',
       project: { name: 'Oasis' },
       contact: { name: 'planner@example.org', emailAddress: 'planner@example.org' },
       site: { name: 'North field', latitude: 25.150467, longitude: 55.551533 },
-      parcel: { boundarySource: 'imported-from-file', boundary: NEARBY_BORDER },
+      parcel: { boundarySource: 'source-imported', boundary: NEARBY_BORDER },
     });
   });
 
   it('names the site after the address where there is no parcel name, and after the project where there is neither', () => {
-    expect(siteDocument(borderDrawn(SITE, NEARBY_BORDER), SESSION, 'submission-1')).toMatchObject({
+    expect(siteDocument(borderDrawn(SITE, NEARBY_BORDER), SESSION, 'submission-1', SOURCES)).toMatchObject({
       site: { name: 'Al Awir 2, Dubai' },
-      parcel: { boundarySource: 'drawn-by-hand' },
+      parcel: { boundarySource: 'source-drawn' },
     });
     const unnamed = borderImported(null, { name: null, boundary: NEARBY_BORDER, hectares: 10.1 });
-    expect(siteDocument(unnamed, SESSION, 'submission-1').site.name).toBe('Oasis');
+    expect(siteDocument(unnamed, SESSION, 'submission-1', SOURCES).site.name).toBe('Oasis');
   });
 
   it('says a register plot was fetched from the register, and names the site after the plot', () => {
     const plot = plotChosen(SITE, { boundary: NEARBY_BORDER, identifier: 'Plot 7', areaHectares: 9 });
 
-    expect(siteDocument(plot, SESSION, 'submission-1')).toMatchObject({
+    expect(siteDocument(plot, SESSION, 'submission-1', SOURCES)).toMatchObject({
       site: { name: 'Plot 7' },
-      parcel: { boundarySource: 'fetched-from-register' },
+      parcel: { boundarySource: 'source-register' },
     });
   });
+
+  it('posts nothing where the model binds no source to the way the border was got', () => {
+    const plot = plotChosen(SITE, { boundary: NEARBY_BORDER, identifier: 'Plot 7', areaHectares: 9 });
+
+    expect(() => siteDocument(plot, SESSION, 'submission-1', { boundarySources: { drawn: 'source-drawn' } })).toThrow(
+      WordNotHeldError,
+    );
+  });
 });
+
+const SOURCES = {
+  boundarySources: { drawn: 'source-drawn', imported: 'source-imported', register: 'source-register' },
+} as const;

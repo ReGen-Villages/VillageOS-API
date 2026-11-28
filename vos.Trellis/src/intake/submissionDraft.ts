@@ -8,6 +8,7 @@
  * that is not a figure is absent rather than zero.
  */
 
+import i18n from '../i18n';
 import { onEarth } from '../utils/mapLink';
 import { draftSquareAround, enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 import { everyFigureReads, figuresFrom } from './typedFigure';
@@ -24,17 +25,53 @@ export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel', '
 
 export type StepId = (typeof STEPS)[number];
 
-/**
- * How a boundary came to be, in the words the land-intake template declares and the intake service
- * resolves against the model. The wizard states this itself rather than asking — it knows whether it
- * generated the square — so these are the declared terms it can truthfully submit.
- */
-export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
-export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';
+/** How a boundary came to be. The page states this itself rather than asking, and posts the identifier of the
+ *  boundary source the model binds to that way's role. */
+export type BoundaryWay = 'drawn' | 'imported' | 'register' | 'generated';
 
-type BoundaryObtainedBy =
-  | typeof BOUNDARY_DRAWN_BY_HAND
-  | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
+export const BOUNDARY_DRAWN_BY_HAND = 'drawn';
+export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated';
+
+type BoundaryObtainedBy = typeof BOUNDARY_DRAWN_BY_HAND | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
+
+export interface Term {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** The terms a page offered, each with the identifier a submission sends in place of its name. */
+export interface SubmissionWords {
+  readonly categories: readonly Term[];
+  readonly hazardTypes: readonly Term[];
+  readonly hazardLevels: readonly Term[];
+  readonly boundarySources: Readonly<Partial<Record<BoundaryWay, string>>>;
+}
+
+export const NO_WORDS: SubmissionWords = { categories: [], hazardTypes: [], hazardLevels: [], boundarySources: {} };
+
+export class WordNotHeldError extends Error {
+  readonly field: string;
+  readonly word: string;
+
+  constructor(field: string, word: string) {
+    super(i18n.t('refusal.termUnknown', { field, value: word }));
+    this.name = 'WordNotHeldError';
+    this.field = field;
+    this.word = word;
+  }
+}
+
+function identifierOf(terms: readonly Term[], field: string, name: string): string {
+  const matching = terms.filter((term) => term.name === name);
+  if (matching.length !== 1) throw new WordNotHeldError(field, name);
+  return matching[0].id;
+}
+
+export function boundarySourceOf(words: Pick<SubmissionWords, 'boundarySources'>, way: BoundaryWay): string {
+  const identifier = words.boundarySources[way];
+  if (identifier === undefined) throw new WordNotHeldError('parcel.boundarySource', way);
+  return identifier;
+}
 
 /** The share of the parcel each chosen category takes, by the category's own name in the model. */
 export type ProgrammeShares = Readonly<Record<string, number>>;
@@ -293,23 +330,31 @@ export function withHazardReported<Held extends { readonly reportedHazards: Repo
 /** Rebuilt corner by corner, so a corner carrying anything beyond its coordinates does not post it. Below
  *  three corners a boundary encloses nothing and is not a parcel. */
 function parcelFrom(
-  boundarySource: string | null,
+  words: SubmissionWords,
+  boundarySource: BoundaryObtainedBy | null,
   boundary: readonly BoundaryPoint[],
 ): Pick<SubmissionDocument, 'parcel'> {
   if (boundary.length < 3 || boundarySource === null) return {};
   return {
     parcel: {
-      boundarySource,
+      boundarySource: boundarySourceOf(words, boundarySource),
       boundary: boundary.map((corner) => ({ latitude: corner.latitude, longitude: corner.longitude })),
     },
   };
 }
 
-export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
-  const allocations = Object.entries(draft.shares).map(([category, sharePercent]) => ({ category, sharePercent }));
+/** Throws a WordNotHeldError rather than post a name, because the intake service takes only identifiers. */
+export function documentFrom(draft: SubmissionDraft, words: SubmissionWords): SubmissionDocument {
+  const allocations = Object.entries(draft.shares).map(([category, sharePercent]) => ({
+    category: identifierOf(words.categories, 'allocation.category', category),
+    sharePercent,
+  }));
   const hazards = Object.entries(draft.reportedHazards)
     .filter(([, reportedLevel]) => reportedLevel.length > 0)
-    .map(([hazardType, reportedLevel]) => ({ hazardType, reportedLevel }));
+    .map(([hazardType, reportedLevel]) => ({
+      hazardType: identifierOf(words.hazardTypes, 'hazard.hazardType', hazardType),
+      reportedLevel: identifierOf(words.hazardLevels, 'hazard.reportedLevel', reportedLevel),
+    }));
 
   return {
     submissionId: draft.submissionId,
@@ -336,7 +381,7 @@ export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
       ...defined('statedAreaHectares', statedAreaHectares(draft)),
       ...figuresFrom(draft),
     },
-    ...parcelFrom(draft.boundarySource, draft.boundary),
+    ...parcelFrom(words, draft.boundarySource, draft.boundary),
     ...(allocations.length > 0 && { allocations }),
     ...(hazards.length > 0 && { hazards }),
   };

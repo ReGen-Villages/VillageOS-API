@@ -17,14 +17,14 @@ namespace vos.Service.Intake.Tests;
 
 public class SubmissionIntakeServiceTests
 {
-    private const string DocumentText = $$"""
+    private static readonly string DocumentText = $$"""
         {
           "submissionId": "{{WillowBend.SubmissionId}}",
           "project": { "name": "Willow Bend Regeneration" },
           "contact": { "name": "Ana Ferreira", "emailAddress": "ana.ferreira@example.pt" },
           "site": { "name": "Willow Bend", "statedAreaHectares": 24.0, "population": 320 },
           "parcel": {
-            "boundarySource": "generated-from-stated-area",
+            "boundarySource": "{{WillowBend.Word("generated-from-stated-area")}}",
             "boundary": [
               { "latitude": 39.4988, "longitude": -8.4168 },
               { "latitude": 39.5036, "longitude": -8.4168 },
