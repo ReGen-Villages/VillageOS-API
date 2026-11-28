@@ -9,9 +9,17 @@ found through the role that binds it, except `has`, which no role binds yet and 
 **The height grid** covers the border's box plus 30 % on each side, at least 400 m a side, with cells of at least 30 m
 and at most 28 points along a side. Its points run row by row from the south-west. The heights come from the source
 the `borderElevation` role binds, asked through the platform's fetcher at most 100 points a call and one second apart,
-because the free provider allows one call a second for the whole platform. A point the provider holds no height for
-is open water at 0 m. A grid whose layout is the one the site already holds reuses the stored heights and asks for
-none, so an unchanged border makes no call.
+because the free provider allows one call a second. Every ground step in one Watershed process shares that one line
+of calls. A point the provider holds no height for is open water at 0 m. A grid whose layout is the one the site
+already holds reuses the stored heights and asks for none, so an unchanged border makes no call.
+
+**A line too long to wait in.** Before it joins the line, a step works out how long its calls would take behind those
+ahead of it. Each call costs the one-second gap plus the time the last call took, or the gap alone before any call
+has been timed. If that would pass the time left of `--passedOnRequestLimitSeconds`, less the 2 s the answer needs,
+the step makes no call and answers at once that it can be tried again after the calls ahead are done, for example
+"The height line is full: 27 calls are ahead of this step's 9, about 36 s at 1 s a call, past the 24 s left of the
+time the broker allows, so the ground is worked out after 27 s." A step with nothing ahead of it always joins, and
+with no limit given every step joins.
 
 **From the grid** it works out slope by the Horn kernel, aspect where the slope is 1 % or more, drainage area by
 priority flood and steepest descent, and hollows filled by half a metre or more. It reads the figures over the cells

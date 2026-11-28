@@ -82,7 +82,7 @@ public sealed class WatershedNode : DagNodeService
             {
                 List<(Guid Thing, string Property, double Value)> written = [];
                 if (ground.HeightsSource is { } source)
-                    written.AddRange(await WorkOutAsync(ground, border, source, times, cancellationToken));
+                    written.AddRange(await WorkOutAsync(ground, border, source, times, context.Deadline, cancellationToken));
                 if (ground.LandCoverTileAddress is { } tileAddress && ground.LandCoverClasses.Count > 0)
                     written.AddRange(await CoverLandAsync(ground, border, tileAddress, times, cancellationToken));
                 written.AddRange(await CoverSiteLayersAsync(ground.LayerFeatures, border, times, cancellationToken));
@@ -116,18 +116,28 @@ public sealed class WatershedNode : DagNodeService
     private static long Milliseconds(TimeSpan taken) => (long)Math.Round(taken.TotalMilliseconds);
 
     private async Task<IReadOnlyList<(Guid Thing, string Property, double Value)>> WorkOutAsync(
-        GroundReading ground, IReadOnlyList<Position> border, string source, GroundStepTimes times, CancellationToken cancellationToken)
+        GroundReading ground, IReadOnlyList<Position> border, string source, GroundStepTimes times, PassedOnRequestDeadline deadline,
+        CancellationToken cancellationToken)
     {
         var layout = HeightGridLayout.Over(border);
         var (westToEast, southToNorth) = ProfileLines.Through(border);
+        IReadOnlyList<Position> profilePoints = [.. westToEast.Points, .. southToNorth.Points];
 
-        var heights = StoredGrid.Read(ground.Site!, HeightGrid) is { } stored && stored.LaidOutAs(layout)
-            ? stored.Values
-            : await times.TimeAsync(HeightCallsPart, () => _heights.HeightsAtAsync(source, layout.PointsRowByRowFromTheSouthWest, cancellationToken));
-        IReadOnlyList<double> profileHeights = StoredGrid.Read(ground.Site!, WestToEastProfile) is { } storedWestToEast && storedWestToEast.LaidOutAs(westToEast, 1)
-                             && StoredGrid.Read(ground.Site!, SouthToNorthProfile) is { } storedSouthToNorth && storedSouthToNorth.LaidOutAs(southToNorth, ProfileLines.PointsAlongALine)
-            ? [.. storedWestToEast.Values, .. storedSouthToNorth.Values]
-            : await times.TimeAsync(HeightCallsPart, () => _heights.HeightsAtAsync(source, [.. westToEast.Points, .. southToNorth.Points], cancellationToken));
+        var storedHeights = StoredGrid.Read(ground.Site!, HeightGrid) is { } stored && stored.LaidOutAs(layout) ? stored.Values : null;
+        IReadOnlyList<double>? storedProfileHeights =
+            StoredGrid.Read(ground.Site!, WestToEastProfile) is { } storedWestToEast && storedWestToEast.LaidOutAs(westToEast, 1)
+            && StoredGrid.Read(ground.Site!, SouthToNorthProfile) is { } storedSouthToNorth && storedSouthToNorth.LaidOutAs(southToNorth, ProfileLines.PointsAlongALine)
+                ? [.. storedWestToEast.Values, .. storedSouthToNorth.Values]
+                : null;
+
+        using var place = _heights.Join(
+            (storedHeights is null ? GroundHeightReader.CallsFor(layout.PointsRowByRowFromTheSouthWest.Count) : 0)
+            + (storedProfileHeights is null ? GroundHeightReader.CallsFor(profilePoints.Count) : 0),
+            deadline.TimeLeft);
+        var heights = storedHeights
+            ?? await times.TimeAsync(HeightCallsPart, () => _heights.HeightsAtAsync(place, source, layout.PointsRowByRowFromTheSouthWest, cancellationToken));
+        var profileHeights = storedProfileHeights
+            ?? await times.TimeAsync(HeightCallsPart, () => _heights.HeightsAtAsync(place, source, profilePoints, cancellationToken));
 
         var surface = new TerrainSurface(layout.Columns, layout.Rows, layout.CellSizeMetres, heights, layout.Inside);
         var analysed = TerrainAnalysis.Of(surface);

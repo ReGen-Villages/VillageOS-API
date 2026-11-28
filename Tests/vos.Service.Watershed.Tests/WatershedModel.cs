@@ -106,6 +106,8 @@ public sealed class WatershedModel
 
     public HttpStatusCode SnapshotStatus { get; set; } = HttpStatusCode.OK;
 
+    public Action OnSnapshot { get; set; } = () => { };
+
     public HttpStatusCode HeightsStatus { get; set; } = HttpStatusCode.OK;
 
     public HttpStatusCode ObservationsStatus { get; set; } = HttpStatusCode.OK;
@@ -287,6 +289,7 @@ public sealed class WatershedModel
         if (path == "/api/snapshots")
         {
             Asked.Add("snapshot");
+            OnSnapshot();
             return SnapshotStatus == HttpStatusCode.OK ? Json(Snapshot()) : new HttpResponseMessage(SnapshotStatus);
         }
         if (path == $"/api/endpoints/{OutsideCalls.FetcherSubdomain}")
