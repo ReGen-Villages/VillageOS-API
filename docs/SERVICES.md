@@ -317,8 +317,10 @@ sequenceDiagram
 ```
 
 The service serves while it asks. Phloem runs its start-up recovery once its registration is
-accepted or refused for good. The Python host (`vos_service/hosting.py`) asks the same way, in a task
-of its own that stops when the service shuts down.
+accepted or refused for good. A run begins only once the recovery has listed the runs it carries on,
+so the recovery never carries on a run this orchestrator began. The Python host
+(`vos_service/hosting.py`) asks the same way, in a task of its own that stops when the service shuts
+down.
 
 The registration may carry `logFilePrefix` — lowercase letters, digits and hyphens, the prefix of the
 file the service writes its own log under — so the broker's log routes can find that log by the

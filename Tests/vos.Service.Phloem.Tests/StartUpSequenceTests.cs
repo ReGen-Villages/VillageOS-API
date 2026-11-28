@@ -33,10 +33,12 @@ public class StartUpSequenceTests
             stillStarting.Headers.Add("Retry-After", "5");
             return stillStarting;
         });
+        var queued = Guid.NewGuid();
+        await start.Model.CreateRunAsync(queued, start.PipelineId, CancellationToken.None, queueNumber: 1);
 
         await start.Sequence.RunAsync(stopping.Token);
 
-        start.Model.Listed.IsCompleted.Should().BeFalse("an orchestrator that is stopping recovers nothing");
+        start.Model.RunStatusOf(queued).Should().Be(RunStatus.Queued, "an orchestrator that is stopping recovers nothing");
         start.ErrorLines.Should().BeEmpty();
     }
 

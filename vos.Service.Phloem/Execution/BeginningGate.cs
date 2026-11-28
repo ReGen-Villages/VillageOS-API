@@ -17,5 +17,5 @@ public sealed class BeginningGate
     public void Stop() => _settled.TrySetResult(false);
 
     // False once the orchestrator is stopping, so a beginning that waited records nothing.
-    public Task<bool> UntilSettledAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<bool> UntilSettledAsync(CancellationToken cancellationToken) => _settled.Task.WaitAsync(cancellationToken);
 }

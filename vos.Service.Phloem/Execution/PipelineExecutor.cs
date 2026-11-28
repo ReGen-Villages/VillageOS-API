@@ -33,6 +33,9 @@ public sealed class PipelineExecutor
     private readonly Func<TimeSpan, Task> _pause;
     private readonly TaskCompletionSource _shuttingDown = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TimeProvider _real;
+    private readonly BeginningGate _beginnings;
+
+    private const string Stopping = "The orchestrator is stopping, so the run was not begun.";
 
     // A limit of their own, so a caller that went away never cancels them and a broker that does not answer cannot hold the run's turn for long.
     private static readonly TimeSpan EndingWritesLimit = TimeSpan.FromSeconds(30);
@@ -53,6 +56,7 @@ public sealed class PipelineExecutor
         _maxConcurrency = Math.Max(1, maxConcurrency);
         _clock = clock;
         _real = real ?? TimeProvider.System;
+        _beginnings = beginnings ?? BeginningGate.Open();
         _pause = pause ?? (length => Task.Delay(length));
         _reports = new CallReporter(gateway, logger, _pause);
         lifetime?.ApplicationStopping.Register(() => _shuttingDown.TrySetResult());
@@ -70,6 +74,7 @@ public sealed class PipelineExecutor
         Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false, Guid? callRecordId = null, bool waitsForItsPlace = false)
     {
         var rid = runId ?? Guid.NewGuid();
+        if (!await _beginnings.UntilSettledAsync(cancellationToken)) return PipelineRunResult.Failed(rid, pipelineId, Stopping);
         if (subject is not null) runParams = WithSubject(runParams, subject);
 
         var handedOver = waitsForItsPlace ? new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) : null;
@@ -238,9 +243,9 @@ public sealed class PipelineExecutor
     }
 
     // On start, once the runs that had begun are carried on, so those hold their places first.
-    public async Task<int> RecoverQueuedAsync(HeldRunsListing listing, CancellationToken cancellationToken)
+    public async Task<int> RecoverQueuedAsync(HeldRunsListing listing)
     {
-        var queued = (await _gateway.ListHeldRunsAsync(cancellationToken)).Queued;
+        var queued = listing.Queued;
         foreach (var run in queued)
             _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber,
                 () => BeginInBackground(run.RunId, run.PipelineId, run.CallRecordId, HeldModelToken.None));
@@ -257,8 +262,7 @@ public sealed class PipelineExecutor
 
     public Task<HeldRunsListing> ListHeldRunsAsync(CancellationToken cancellationToken) => _gateway.ListHeldRunsAsync(cancellationToken);
 
-    public async Task<int> SendOwedReportsAsync(HeldRunsListing listing, CancellationToken cancellationToken) =>
-        _reports.SendOwed((await _gateway.ListHeldRunsAsync(cancellationToken)).Owed);
+    public int SendOwedReports(HeldRunsListing listing) => _reports.SendOwed(listing.Owed);
 
     public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
         _gateway.IsStopAsync(relationshipId, cancellationToken);
@@ -348,8 +352,10 @@ public sealed class PipelineExecutor
 
     public int WaitsHeldWithATimeLimit => _deadlines.Count;
 
+    // A wait left because the orchestrator is stopping stays in the model, where the next start's recovery finds it.
     private async Task<ResumeOutcome> EndWaitAsync(Guid runId, Guid nodeId, bool expired, CancellationToken cancellationToken)
     {
+        if (!await _beginnings.UntilSettledAsync(cancellationToken)) return ResumeOutcome.NothingWaiting;
         using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !record.Nodes.TryGetValue(nodeId, out var held) || held.Status != RunStatus.Waiting)
@@ -446,7 +452,7 @@ public sealed class PipelineExecutor
     {
         var resumed = 0;
         var watchedAgain = 0;
-        foreach (var wait in (await _gateway.ListHeldRunsAsync(cancellationToken)).Waits)
+        foreach (var wait in listing.Waits)
         {
             if (wait.Answer == WaitAnswer.Done)
             {
@@ -519,7 +525,7 @@ public sealed class PipelineExecutor
     {
         var carriedOn = 0;
         var seen = new HashSet<Guid>();
-        foreach (var trying in (await _gateway.ListHeldRunsAsync(cancellationToken)).Unfinished)
+        foreach (var trying in listing.Unfinished)
         {
             if (!seen.Add(trying.RunId)) continue;
             using var turn = await _turns.TakeAsync(trying.RunId, cancellationToken);
@@ -559,6 +565,7 @@ public sealed class PipelineExecutor
     // why the run cannot be carried on, or nothing once it is carrying on.
     public async Task<string?> CarryOnAsync(Guid runId, CancellationToken cancellationToken)
     {
+        if (!await _beginnings.UntilSettledAsync(cancellationToken)) return Stopping;
         using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !StoppedByARestart(record)) return NotStoppedByARestart(runId);
@@ -584,6 +591,7 @@ public sealed class PipelineExecutor
     // The fresh run is recorded under the run's turn before the person is answered, so a second ask finds it and is refused.
     public async Task<(Guid? RunId, string? Refusal)> StartAgainAsync(Guid runId, CancellationToken cancellationToken)
     {
+        if (!await _beginnings.UntilSettledAsync(cancellationToken)) return (null, Stopping);
         using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !StoppedByARestart(record)) return (null, NotStoppedByARestart(runId));

@@ -6,7 +6,7 @@ namespace vos.Service.Phloem.Tests;
 internal static class RecoveringFromAListing
 {
     public static async Task<int> SendOwedReportsAsync(this PipelineExecutor executor) =>
-        await executor.SendOwedReportsAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None);
+        executor.SendOwedReports(await executor.ListHeldRunsAsync(CancellationToken.None));
 
     public static async Task<RecoveredWaits> RecoverWaitsAsync(this PipelineExecutor executor) =>
         await executor.RecoverWaitsAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None);
@@ -15,5 +15,5 @@ internal static class RecoveringFromAListing
         await executor.RecoverUnfinishedAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None);
 
     public static async Task<int> RecoverQueuedAsync(this PipelineExecutor executor) =>
-        await executor.RecoverQueuedAsync(await executor.ListHeldRunsAsync(CancellationToken.None), CancellationToken.None);
+        await executor.RecoverQueuedAsync(await executor.ListHeldRunsAsync(CancellationToken.None));
 }
