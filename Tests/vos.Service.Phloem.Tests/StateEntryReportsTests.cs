@@ -160,7 +160,7 @@ public class StateEntryReportsTests
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the rainfall service was away")]);
         var restarted = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
 
-        (await restarted.RecoverUnfinishedAsync(CancellationToken.None)).Should().Be(1);
+        (await restarted.RecoverUnfinishedAsync()).Should().Be(1);
         await ReportedItsEndAsync(gateway, runId);
 
         gateway.ReportsSentSoFar().Should().Equal((OutOfDateRecord, CallReport.Completed));
@@ -177,7 +177,7 @@ public class StateEntryReportsTests
         await Settle.UntilAsync(() => gateway.ReportsSentSoFar().Count == 1, "the start reaches the broker");
         gateway.Answers[(run.RunId, waiting.Review.Id)] = WaitAnswer.Done;
 
-        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        var recovered = await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
         await ReportedItsEndAsync(gateway, run.RunId);
 
         recovered.Resumed.Should().Be(1);
@@ -191,7 +191,7 @@ public class StateEntryReportsTests
         var ended = Guid.NewGuid();
         gateway.Owed.Add(new OwedReport(ended, OutOfDateRecord, RunStatus.Succeeded, null));
 
-        (await executor.SendOwedReportsAsync(CancellationToken.None)).Should().Be(1);
+        (await executor.SendOwedReportsAsync()).Should().Be(1);
         await ReportedItsEndAsync(gateway, ended);
 
         gateway.ReportsSentSoFar().Should().Equal((OutOfDateRecord, CallReport.Completed));

@@ -100,7 +100,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     }
 
     private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
-        (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
+        (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Waits.SingleOrDefault(held => held.RunId == runId);
 
     private async Task<HeldWait> AnsweredWaitOfAsync(Guid runId)
     {
@@ -322,7 +322,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         var (waitingRun, waitingNode) = await AWaitingNodeRunAsync(gateway, village);
         var transport = new RecordingTransport(_engine.Transport);
 
-        var waits = await Gateway(transport).WaitingNodeRunsAsync(CancellationToken.None);
+        var waits = (await Gateway(transport).ListHeldRunsAsync(CancellationToken.None)).Waits;
 
         waits.Should().ContainSingle(wait => wait.RunId == waitingRun).Which.NodeId.Should().Be(waitingNode);
         var read = transport.SnapshotBodies.Should().ContainSingle().Subject;

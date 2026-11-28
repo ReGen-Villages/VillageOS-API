@@ -18,16 +18,21 @@ public class StartUpRecoveryTests
     {
         var asks = 0;
         var taken = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var gateway = new FakeGateway(TestGraphs.DemoPipeline().Fixture.Build());
+        var (drawing, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(drawing.Build());
+        var queued = Guid.NewGuid();
+        await gateway.CreateRunAsync(queued, pipelineId, CancellationToken.None, queueNumber: 1);
         await using var phloem = new PhloemOver(gateway, request =>
             Interlocked.Increment(ref asks) == 1 ? Task.FromResult(StillStarting()) : taken.Task);
 
         phloem.StartServer();
         await Settle.UntilAsync(() => Volatile.Read(ref asks) == 2, "the orchestrator asks again after the broker's 503");
-        gateway.QueuedRunsListed.IsCompleted.Should().BeFalse("the broker has not taken the registration yet");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(300));
+        gateway.RunStatusOf(queued).Should().Be(RunStatus.Queued, "the broker has not taken the registration yet");
 
         taken.SetResult(new HttpResponseMessage(HttpStatusCode.OK));
-        await Settle.ForAsync(gateway.QueuedRunsListed, "the recovery runs once the broker has taken the registration");
+        await Settle.UntilAsync(() => gateway.RunStatusOf(queued) != RunStatus.Queued,
+            "the recovery begins the queued run once the broker has taken the registration");
     }
 
     private static HttpResponseMessage StillStarting()

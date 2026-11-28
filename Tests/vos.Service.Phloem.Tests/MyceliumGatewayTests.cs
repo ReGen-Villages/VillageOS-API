@@ -633,7 +633,7 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task OwedReportsAsync_ReadsEachHeldRunCarryingACallRecord_WithItsStatusAndError()
+    public async Task ListHeldRunsAsync_ListsAReportOwedByEachHeldRunCarryingACallRecord_WithItsStatusAndError()
     {
         var binds = Guid.NewGuid();
         var has = Guid.NewGuid();
@@ -667,7 +667,7 @@ public class MyceliumGatewayTests
         });
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
 
-        var owed = await gateway.OwedReportsAsync(CancellationToken.None);
+        var owed = (await gateway.ListHeldRunsAsync(CancellationToken.None)).Owed;
 
         owed.Should().Equal(new OwedReport(stateEntryRun, callRecord, RunStatus.Failed, "'Estimate' failed, and no fail wire leaves it."));
     }
@@ -712,7 +712,7 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task QueuedRunsAsync_ReadsEachQueuedRunTheOrchestratorHolds_WithItsNumberAndThePipelineItNames()
+    public async Task ListHeldRunsAsync_ListsEachQueuedRunTheOrchestratorHolds_WithItsNumberAndThePipelineItNames()
     {
         var binds = Guid.NewGuid();
         var has = Guid.NewGuid();
@@ -747,22 +747,22 @@ public class MyceliumGatewayTests
         });
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
 
-        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().Equal(new QueuedRun(queuedRun, pipelineId, 42, callRecord));
+        (await gateway.ListHeldRunsAsync(CancellationToken.None)).Queued.Should().Equal(new QueuedRun(queuedRun, pipelineId, 42, callRecord));
     }
 
     [Fact]
-    public async Task QueuedRunsAsync_WhereTheModelBindsNoOrchestrator_ReadsNone()
+    public async Task ListHeldRunsAsync_WhereTheModelBindsNoOrchestrator_ListsNoQueuedRun()
     {
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}"""));
 
-        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().BeEmpty();
+        (await gateway.ListHeldRunsAsync(CancellationToken.None)).Queued.Should().BeEmpty();
     }
 
     [Theory]
     [InlineData(ModelNames.PipelineId, null)]
     [InlineData(ModelNames.QueueNumber, null)]
     [InlineData(ModelNames.QueueNumber, "next")]
-    public async Task QueuedRunsAsync_LeavesOutAQueuedRunThatNamesNoPipelineOrNoNumber(string name, string? written)
+    public async Task ListHeldRunsAsync_LeavesOutAQueuedRunThatNamesNoPipelineOrNoNumber(string name, string? written)
     {
         var (binds, has, queuedRun) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         static object Text(string value) => new { value, typeInfo = "vos.String" };
@@ -788,7 +788,7 @@ public class MyceliumGatewayTests
         });
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
 
-        (await gateway.QueuedRunsAsync(CancellationToken.None)).Should().BeEmpty();
+        (await gateway.ListHeldRunsAsync(CancellationToken.None)).Queued.Should().BeEmpty();
     }
 
     [Theory]
@@ -813,18 +813,17 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task WaitingAndUnfinishedNodeRunsAreReadFromWhatTheOrchestratorHolds()
+    public async Task TheHeldRunsAreListedInOneReadOfWhatTheOrchestratorHolds()
     {
         var (gateway, handler) = NewGateway(request =>
             request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
-        await gateway.WaitingNodeRunsAsync(CancellationToken.None);
-        await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
+        await gateway.ListHeldRunsAsync(CancellationToken.None);
 
         var selectors = await Task.WhenAll(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Select(ReadJson));
-        selectors.Should().HaveCount(2);
+        selectors.Should().ContainSingle();
         foreach (var selector in selectors)
         {
             selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every node run ever recorded is not what a restart needs");
@@ -1619,7 +1618,7 @@ public class MyceliumGatewayTests
     [InlineData("Pending", WaitAnswer.Underway)]
     [InlineData("Failed", WaitAnswer.Underway)]
     [InlineData(null, WaitAnswer.None)]
-    public async Task WaitingNodeRunsAsync_ReadsEachWaitingNodeRunsWatchAndHowFarThePlatformsAnswerGot(string? callState, WaitAnswer answer)
+    public async Task ListHeldRunsAsync_ListsEachWaitingNodeRunsWatchAndHowFarThePlatformsAnswerGot(string? callState, WaitAnswer answer)
     {
         var until = new DateTimeOffset(2030, 6, 1, 13, 30, 0, TimeSpan.Zero);
         var run = Guid.NewGuid();
@@ -1675,7 +1674,7 @@ public class MyceliumGatewayTests
         });
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
 
-        var waits = await gateway.WaitingNodeRunsAsync(CancellationToken.None);
+        var waits = (await gateway.ListHeldRunsAsync(CancellationToken.None)).Waits;
 
         waits.Should().Equal(new HeldWait(run, node, new Watch(plot, decided, until), answer));
     }

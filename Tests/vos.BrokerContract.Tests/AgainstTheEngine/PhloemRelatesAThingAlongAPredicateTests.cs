@@ -127,7 +127,7 @@ public sealed class PhloemRelatesAThingAlongAPredicateTests : IClassFixture<TheE
         (await Gateway().ReachedAlongAsync(study, drawing.Predicate, CancellationToken.None)).Select(reached => reached.Id).ToList();
 
     private async Task<HeldWait?> WaitOfAsync(Guid runId) =>
-        (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).SingleOrDefault(held => held.RunId == runId);
+        (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Waits.SingleOrDefault(held => held.RunId == runId);
 
     private async Task<Guid> AStudyAsync(Drawing drawing)
     {

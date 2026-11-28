@@ -108,7 +108,7 @@ public class RunTokenTests
         _gateway.Runs[recovered] = (_pipelineId, default);
         _gateway.QueueNumbers[recovered] = 1;
         _gateway.RunStatuses[recovered] = RunStatus.Queued;
-        await _executor.RecoverQueuedAsync(CancellationToken.None);
+        await _executor.RecoverQueuedAsync();
 
         await FinishAsync(first);
         await FinishAsync(recovered);
@@ -257,7 +257,7 @@ public class RunTokenTests
     {
         await using var service = new AuthenticatedPhloem(new ExchangeAnswering(null));
         var recoveryLetGo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        service.Gateway.WaitsListingHeldUntil = recoveryLetGo.Task;
+        service.Gateway.ListingHeldUntil = recoveryLetGo.Task;
         var arranged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         service.Gateway.OnCallAsync = (subdomain, envelope) =>
         {
@@ -375,7 +375,7 @@ public class RunTokenTests
         {
             StartServer();
             _waitsForTheRecovery.TrySetResult();
-            await Settle.ForAsync(_gateway.QueuedRunsListed, "the recovery at start lists the queued runs");
+            await Settle.ForAsync(_gateway.Listed, "the recovery at start lists the runs it holds");
         }
 
         public async Task<HttpResponseMessage> PostAsync(object body)

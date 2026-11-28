@@ -353,7 +353,7 @@ public class RetryTests
         gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")]);
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Succeeded), "the run carries on to its end");
@@ -375,7 +375,7 @@ public class RetryTests
         gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")]);
 
-        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync();
 
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Rehearsed), "the rehearsal carries on to its end");
         gateway.Envelopes.Single().Envelope.GetProperty(ModelNames.Rehearsal).GetBoolean().Should().BeTrue();
@@ -413,7 +413,7 @@ public class RetryTests
         gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
 
-        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync();
 
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
         gateway.Records[(runId, retry.Echo.Id)].Error.Should().Be("Fan-out failed: north is dry");
@@ -430,7 +430,7 @@ public class RetryTests
     {
         var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Trying);
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
@@ -463,7 +463,7 @@ public class RetryTests
         gateway.RecordItem(runId, check, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
 
-        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync();
 
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
         List<string> Called(string subdomain)
@@ -481,7 +481,7 @@ public class RetryTests
         var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
         gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(), Number: new ItemNumber(2, 3)));
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(0);
         gateway.Called.Should().BeEmpty();
@@ -495,7 +495,7 @@ public class RetryTests
         var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
         MayBeCalledAgain(retry, gateway);
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
@@ -524,7 +524,7 @@ public class RetryTests
     {
         var (_, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(0);
         gateway.Called.Should().BeEmpty();
@@ -539,7 +539,7 @@ public class RetryTests
         var (retry, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
         MayBeCalledAgain(retry, gateway);
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
@@ -554,7 +554,7 @@ public class RetryTests
         MayBeCalledAgain(retry, gateway);
         gateway.RunStatuses[runId] = RunStatus.Succeeded;
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(0);
         gateway.Called.Should().BeEmpty();
@@ -569,7 +569,7 @@ public class RetryTests
         gateway.Runs[runId] = (retry.PipelineId, Seed());
         gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
@@ -592,7 +592,7 @@ public class RetryTests
         gateway.Records[(runId, Named("Echo"))] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["echo"] = world["seed"] });
         gateway.Records[(runId, Named(TestGraphs.TellNode))] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
 
-        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync();
 
         carriedOn.Should().Be(0);
         gateway.MessagesSent.Should().BeEmpty();
@@ -615,7 +615,7 @@ public class RetryTests
     private static async Task<(TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor, Guid RunId)> ARunARestartStoppedAsync()
     {
         var (retry, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
-        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync();
         return (retry, gateway, executor, runId);
     }
 
@@ -646,7 +646,7 @@ public class RetryTests
     public async Task A_person_carrying_on_a_run_a_restart_stopped_part_way_through_its_items_calls_only_the_items_not_answered()
     {
         var (_, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
-        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync();
 
         (await executor.CarryOnAsync(runId, CancellationToken.None)).Should().BeNull();
 

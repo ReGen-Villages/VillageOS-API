@@ -47,6 +47,7 @@ try
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddServiceTokenExchange(myceliumUrl);
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
+    builder.Services.AddSingleton<BeginningGate>();
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
     builder.Services.AddHostedService<CadenceKeeper>();
@@ -66,6 +67,7 @@ try
     app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(() => new StartUpSequence(
         app.Services.GetRequiredService<MyceliumGateway>(),
         app.Services.GetRequiredService<PipelineExecutor>(),
+        app.Services.GetRequiredService<BeginningGate>(),
         app.Services.GetRequiredService<ILogger<StartUpSequence>>(),
         servicePort).RunAsync(app.Lifetime.ApplicationStopping)));
 

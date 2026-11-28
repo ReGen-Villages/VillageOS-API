@@ -140,7 +140,7 @@ public class PhloemReadsBackARunWhoseKindsKeepNoHistoryTests : IClassFixture<The
             watch: new Watch(null, null, until));
         await gateway.SetNodeRunStatusAsync(runId, running, "Echo", RunStatus.Running, null, CancellationToken.None);
 
-        var waits = (await Gateway().WaitingNodeRunsAsync(CancellationToken.None)).Where(wait => wait.RunId == runId).ToList();
+        var waits = (await Gateway().ListHeldRunsAsync(CancellationToken.None)).Waits.Where(wait => wait.RunId == runId).ToList();
 
         waits.Should().ContainSingle().Which.NodeId.Should().Be(waiting);
         waits[0].Watching.Until.Should().Be(until);

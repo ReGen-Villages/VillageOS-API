@@ -49,8 +49,8 @@ public interface IMyceliumGateway
 
     Task BeginQueuedRunAsync(Guid runId, CancellationToken cancellationToken);
 
-    // Each queued run the orchestrator holds, its pipeline named whether or not the model still holds it.
-    Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken cancellationToken);
+    // One read of the runs the orchestrator holds; a queued run's pipeline is named whether or not the model still holds it.
+    Task<HeldRunsListing> ListHeldRunsAsync(CancellationToken cancellationToken);
 
     // Upsert a NodeRun Thing and set its status — running before its service is called, then the terminal
     // status — on one Thing per key (deterministic id) so the live view sees a property change, not duplicate
@@ -81,8 +81,6 @@ public interface IMyceliumGateway
 
     Task ReportCallAsync(Guid callRecordId, CallReport report, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken cancellationToken);
-
     // Store the pipeline's published result (the Output boundary node's collected inputs) on the
     // PipelineRun Thing, so it persists in the model and reaches the change stream like any other property.
     Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
@@ -108,13 +106,8 @@ public interface IMyceliumGateway
     // also tells the gateway they exist, so a later status is written to the same Thing after a restart.
     Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken);
 
-    // Each waiting node run with the watch it holds and the state of the platform's call record answering it.
-    Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken);
-
     // An attempt is a Thing the node run holds, and the node run's attempts count moves to the attempt's number.
     Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken cancellationToken);
 
     // Every Thing of the archetype the cadence role binds, none when the model binds nothing to it.
     Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken);

@@ -135,19 +135,27 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model) RunStatuses[runId] = RunStatus.Running;
     }
 
-    private readonly TaskCompletionSource _queuedRunsListed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public Task QueuedRunsListed => _queuedRunsListed.Task;
+    private readonly TaskCompletionSource _listed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task Listed => _listed.Task;
 
-    public Task<IReadOnlyList<QueuedRun>> QueuedRunsAsync(CancellationToken ct)
+    // Read, then held here, so a test can act while the caller does not yet have the listing.
+    public Task ListingHeldUntil { get; set; } = Task.CompletedTask;
+
+    private int _listingsRead;
+    public int ListingsRead => Volatile.Read(ref _listingsRead);
+
+    public async Task<HeldRunsListing> ListHeldRunsAsync(CancellationToken ct)
     {
+        Interlocked.Increment(ref _listingsRead);
+        HeldRunsListing listing;
         lock (_model)
-        {
-            IReadOnlyList<QueuedRun> queued = RunStatuses.Where(run => run.Value == RunStatus.Queued)
-                .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key],
-                    CallRecordsOfRuns.TryGetValue(run.Key, out var callRecord) ? callRecord : null)).ToList();
-            _queuedRunsListed.TrySetResult();
-            return Task.FromResult(queued);
-        }
+            listing = new HeldRunsListing(Owed.ToList(), WaitingNodeRuns(), UnfinishedNodeRuns(),
+                RunStatuses.Where(run => run.Value == RunStatus.Queued)
+                    .Select(run => new QueuedRun(run.Key, Runs[run.Key].PipelineId, QueueNumbers[run.Key],
+                        CallRecordsOfRuns.TryGetValue(run.Key, out var callRecord) ? callRecord : null)).ToList());
+        _listed.TrySetResult();
+        await ListingHeldUntil;
+        return listing;
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
@@ -294,13 +302,10 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken ct)
-    {
-        lock (_model)
-            return Task.FromResult<IReadOnlyList<UnfinishedNodeRun>>(Records.Where(record => Unfinished(record.Value)).Select(record => record.Key)
-                .Concat(_itemRecords.Where(items => items.Value.Values.Any(Unfinished)).Select(items => items.Key))
-                .Select(key => new UnfinishedNodeRun(key.RunId, key.NodeId)).ToList());
-    }
+    private List<UnfinishedNodeRun> UnfinishedNodeRuns() =>
+        Records.Where(record => Unfinished(record.Value)).Select(record => record.Key)
+            .Concat(_itemRecords.Where(items => items.Value.Values.Any(Unfinished)).Select(items => items.Key))
+            .Select(key => new UnfinishedNodeRun(key.RunId, key.NodeId)).ToList();
 
     private static bool Unfinished(NodeRecord record) => record.Status is RunStatus.Trying or RunStatus.Running;
 
@@ -411,17 +416,11 @@ internal sealed class FakeGateway : IMyceliumGateway
         }
     }
 
-    public Task WaitsListingHeldUntil { get; set; } = Task.CompletedTask;
-
-    public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken ct)
-    {
-        await WaitsListingHeldUntil;
-        lock (_model)
-            return Records.Where(record => record.Value.Status == RunStatus.Waiting)
-                .Select(record => new HeldWait(record.Key.RunId, record.Key.NodeId,
-                    Watches.GetValueOrDefault(record.Key) ?? new Watch(null, null), Answers.GetValueOrDefault(record.Key)))
-                .ToList();
-    }
+    private List<HeldWait> WaitingNodeRuns() =>
+        Records.Where(record => record.Value.Status == RunStatus.Waiting)
+            .Select(record => new HeldWait(record.Key.RunId, record.Key.NodeId,
+                Watches.GetValueOrDefault(record.Key) ?? new Watch(null, null), Answers.GetValueOrDefault(record.Key)))
+            .ToList();
 
     public List<(Guid NodeId, int? Index, IReadOnlyList<Guid> Things)> Produced { get; } = new();
 
@@ -480,8 +479,6 @@ internal sealed class FakeGateway : IMyceliumGateway
     }
 
     public List<OwedReport> Owed { get; } = new();
-
-    public Task<IReadOnlyList<OwedReport>> OwedReportsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<OwedReport>>(Owed.ToList());
 
     public string? RunStatusOf(Guid runId)
     {

@@ -45,7 +45,8 @@ public sealed class PipelineExecutor
         int maxConcurrency = 4,
         Func<TimeSpan, Task>? pause = null,
         IHostApplicationLifetime? lifetime = null,
-        TimeProvider? real = null)
+        TimeProvider? real = null,
+        BeginningGate? beginnings = null)
     {
         _gateway = gateway;
         _logger = logger;
@@ -237,9 +238,9 @@ public sealed class PipelineExecutor
     }
 
     // On start, once the runs that had begun are carried on, so those hold their places first.
-    public async Task<int> RecoverQueuedAsync(CancellationToken cancellationToken)
+    public async Task<int> RecoverQueuedAsync(HeldRunsListing listing, CancellationToken cancellationToken)
     {
-        var queued = await _gateway.QueuedRunsAsync(cancellationToken);
+        var queued = (await _gateway.ListHeldRunsAsync(cancellationToken)).Queued;
         foreach (var run in queued)
             _places.JoinAgain(run.PipelineId, run.RunId, run.QueueNumber,
                 () => BeginInBackground(run.RunId, run.PipelineId, run.CallRecordId, HeldModelToken.None));
@@ -254,7 +255,10 @@ public sealed class PipelineExecutor
             _ = _reports.SendAsync(runId, callRecord, CallReporter.ReportFor(status, error));
     }
 
-    public Task<int> SendOwedReportsAsync(CancellationToken cancellationToken) => _reports.SendOwedAsync(cancellationToken);
+    public Task<HeldRunsListing> ListHeldRunsAsync(CancellationToken cancellationToken) => _gateway.ListHeldRunsAsync(cancellationToken);
+
+    public async Task<int> SendOwedReportsAsync(HeldRunsListing listing, CancellationToken cancellationToken) =>
+        _reports.SendOwed((await _gateway.ListHeldRunsAsync(cancellationToken)).Owed);
 
     public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
         _gateway.IsStopAsync(relationshipId, cancellationToken);
@@ -438,11 +442,11 @@ public sealed class PipelineExecutor
 
     // On start: a wait the platform answered while this orchestrator was away resumes its run, one the platform is still
     // answering is left to it, and one whose watch lost a relationship is watched again.
-    public async Task<RecoveredWaits> RecoverWaitsAsync(CancellationToken cancellationToken)
+    public async Task<RecoveredWaits> RecoverWaitsAsync(HeldRunsListing listing, CancellationToken cancellationToken)
     {
         var resumed = 0;
         var watchedAgain = 0;
-        foreach (var wait in await _gateway.WaitingNodeRunsAsync(cancellationToken))
+        foreach (var wait in (await _gateway.ListHeldRunsAsync(cancellationToken)).Waits)
         {
             if (wait.Answer == WaitAnswer.Done)
             {
@@ -511,11 +515,11 @@ public sealed class PipelineExecutor
     // On start: a run with a node or item paused between attempts, or caught in the middle of a call, carries on from its
     // record, its next attempt numbered after the ones made, or is failed with the reason it cannot. Answers how many runs
     // were carried on.
-    public async Task<int> RecoverUnfinishedAsync(CancellationToken cancellationToken)
+    public async Task<int> RecoverUnfinishedAsync(HeldRunsListing listing, CancellationToken cancellationToken)
     {
         var carriedOn = 0;
         var seen = new HashSet<Guid>();
-        foreach (var trying in await _gateway.UnfinishedNodeRunsAsync(cancellationToken))
+        foreach (var trying in (await _gateway.ListHeldRunsAsync(cancellationToken)).Unfinished)
         {
             if (!seen.Add(trying.RunId)) continue;
             using var turn = await _turns.TakeAsync(trying.RunId, cancellationToken);

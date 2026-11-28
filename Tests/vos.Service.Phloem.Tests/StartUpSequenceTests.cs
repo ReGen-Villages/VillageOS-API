@@ -18,7 +18,7 @@ public class StartUpSequenceTests
 
         await start.Sequence.RunAsync(CancellationToken.None);
 
-        start.Model.QueuedRunsListed.IsCompleted.Should().BeTrue("the recovery runs although the broker will never take the registration");
+        start.Model.Listed.IsCompleted.Should().BeTrue("the recovery runs although the broker will never take the registration");
         start.ErrorLines.Should().ContainSingle().Which.Should().Contain("Forbidden");
     }
 
@@ -36,7 +36,7 @@ public class StartUpSequenceTests
 
         await start.Sequence.RunAsync(stopping.Token);
 
-        start.Model.QueuedRunsListed.IsCompleted.Should().BeFalse("an orchestrator that is stopping recovers nothing");
+        start.Model.Listed.IsCompleted.Should().BeFalse("an orchestrator that is stopping recovers nothing");
         start.ErrorLines.Should().BeEmpty();
     }
 
@@ -44,7 +44,7 @@ public class StartUpSequenceTests
     public async Task A_recovery_that_throws_is_one_error_and_the_sequence_ends()
     {
         var start = new Start(_ => new HttpResponseMessage(HttpStatusCode.OK));
-        start.Model.WaitsListingHeldUntil = Task.FromException(new IOException("the model could not be read"));
+        start.Model.ListingHeldUntil = Task.FromException(new IOException("the model could not be read"));
 
         await start.Sequence.RunAsync(CancellationToken.None);
 
@@ -78,10 +78,12 @@ public class StartUpSequenceTests
                 new PerCallHttpClientFactory(new MockHttpMessageHandler(answerRegistration)),
                 _gatewayLog, "http://localhost:7243", new ModelClock(), new LaunchToken("svc-token"));
             Sequence = new StartUpSequence(
-                broker, new PipelineExecutor(Model, NullLogger<PipelineExecutor>.Instance, new ModelClock()), _sequenceLog, port: 7300);
+                broker, new PipelineExecutor(Model, NullLogger<PipelineExecutor>.Instance, new ModelClock(), beginnings: Beginnings), Beginnings,
+                _sequenceLog, port: 7300);
         }
 
         public FakeGateway Model { get; }
+        public BeginningGate Beginnings { get; } = new();
         public Guid PipelineId { get; }
         public StartUpSequence Sequence { get; }
         public IReadOnlyList<string> SequenceLines => _sequenceLog.Lines;

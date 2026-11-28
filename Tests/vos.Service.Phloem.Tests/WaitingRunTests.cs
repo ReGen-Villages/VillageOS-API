@@ -304,7 +304,7 @@ public class WaitingRunTests
         var start = waiting.Fixture.Get("A submission arrives");
         gateway.Records[(runId, start.Id)] = gateway.Records[(runId, start.Id)] with { Outputs = new Dictionary<string, JsonElement>() };
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
@@ -336,7 +336,7 @@ public class WaitingRunTests
         waiting.Fixture.Unrelate(waiting.Review, waiting.AwaitsThrough, waiting.Submission);
         gateway.Graph = waiting.Fixture.Build();
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("'Review' no longer waits for a state, so nothing could resume it.");
@@ -351,7 +351,7 @@ public class WaitingRunTests
         gateway.Watches[(runId, waiting.Review.Id)] = new Watch(Plot.Id, null);
         gateway.LoadFailure = new PipelineModelException("Node 'Review' chose two Things for its port 'submission'.");
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("Node 'Review' chose two Things for its port 'submission'.");
@@ -490,7 +490,7 @@ public class WaitingRunTests
         var runId = await WaitingRunAsync(waiting, executor);
         gateway.Answers[(runId, waiting.Review.Id)] = WaitAnswer.Done;
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Called.Should().Equal("review", "publish");
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Succeeded);
@@ -505,7 +505,7 @@ public class WaitingRunTests
         gateway.Answers[(runId, waiting.Review.Id)] = WaitAnswer.Underway;
         var writesBefore = gateway.NodeRunsPersisted.Count;
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Called.Should().Equal("review");
         gateway.NodeRunsPersisted.Should().HaveCount(writesBefore);
@@ -519,7 +519,7 @@ public class WaitingRunTests
         await WaitingRunAsync(waiting, executor);
         var writesBefore = gateway.NodeRunsPersisted.Count;
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.NodeRunsPersisted.Should().HaveCount(writesBefore);
     }
@@ -535,7 +535,7 @@ public class WaitingRunTests
         var runId = await WaitingRunAsync(waiting, executor);
         gateway.Watches[(runId, waiting.Review.Id)] = new Watch(keepsAwaits ? Plot.Id : null, keepsWatches ? waiting.Decided.Id : null);
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Watches[(runId, waiting.Review.Id)].Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
         gateway.WatchWrites.Last().Should().Be(("Review", RunStatus.Waiting, new Watch(Plot.Id, waiting.Decided.Id)));
@@ -555,7 +555,7 @@ public class WaitingRunTests
         waiting.Fixture.State(waiting.Fixture.WireInto(waiting.Review), ModelNames.ListTransform, "$error('the wire no longer reads')");
         gateway.Graph = waiting.Fixture.Build();
 
-        await new PipelineExecutor(gateway, log, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, log, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Records[(broken, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.Records[(broken, waiting.Review.Id)].Error.Should().Be("'Review' waited for a Thing the model no longer names, so nothing could resume it.");
@@ -571,7 +571,7 @@ public class WaitingRunTests
         gateway.Watches[(runId, waiting.Review.Id)] = new Watch(null, waiting.Decided.Id);
         gateway.WatchRefusal = "No Thing 'Plot 7' in the model";
 
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync();
 
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("'Review' cannot wait: No Thing 'Plot 7' in the model");
