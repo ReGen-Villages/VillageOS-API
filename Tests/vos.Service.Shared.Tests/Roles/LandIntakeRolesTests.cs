@@ -38,6 +38,8 @@ public class LandIntakeRolesTests
     [InlineData("aspectDirection", "ee170eb3-5323-5601-88be-9c764477c447")]
     [InlineData("aspectShare", "eaff61c7-9ed9-5c26-9040-42c88f5d8f99")]
     [InlineData("landCoverRaster", "e04416cd-ece6-5a3b-895f-5a550f4a1065")]
+    [InlineData("licence", "bfb62f83-4059-5c4d-93bb-2f2cee7a4e6f")]
+    [InlineData("holding", "d04c93e4-ff1c-50f8-92bb-facbf2c208ff")]
     public void The_derivation_agrees_with_the_identifiers_the_templates_declare(string word, string declared)
     {
         RoleIdentity.Of(word).Should().Be(Guid.Parse(declared));

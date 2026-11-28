@@ -469,6 +469,37 @@ provider's words undisturbed.
 outbound call. A registration naming its own in the `headers` map wins over it, so a
 provider that issues per-caller identifiers is served from the model with no change here.
 
+## A provider's request budgets
+
+A provider that limits how often it may be called says so in the model: its licence holds one
+`RequestBudget` for each limit, stating `requestCount` calls in `windowSeconds`. Open Topo Data's licence
+holds two: one call a second, and 1,000 calls a day. Tributary finds them in the read it already makes for
+each call: from the registration and its templates through the `licence` role to the licences they need,
+then through the `holding` role to what each licence holds. It names neither predicate.
+
+**One count for the platform.** Tributary keeps one count per budget, keyed by the budget's identifier,
+for its one process. Every registration and every model that reaches a budget spends the same count, so
+the intake's border read and Watershed's height calls share one line to the provider. Slots are handed out
+in the order they are asked for.
+
+**Wait or try again.** Every request that leaves for the provider takes a slot first: each page of a paged
+walk, and the second ask to a provider that answered as unavailable. A cached answer takes none. When the
+next slot falls inside the request's time left (see *The deadline* above), the call waits for it. With no
+deadline the wait is bounded by the endpoint's `timeout`. Otherwise nothing is spent: Tributary answers
+`429` with `Retry-After` in whole seconds and words naming the budgets, and the step answers it as try again
+after that wait, as it does any 429. A request cut off while waiting gives its slot back.
+
+**Kept across a restart.** A budget whose window is longer than a minute is written to
+`request-budgets/<budget identifier>.json` under `CacheDirectory`, the times of its calls in the window, so a
+restart does not hand out another day's calls. Shorter windows live in memory only. The file is written
+after the count is taken, never while other calls wait to take theirs.
+
+**A budget that cannot be read** — a held Thing stating a count or a window that is not a whole number
+above nothing — refuses the call with 502, rather than calling out past the provider's limits. A held Thing
+stating neither is not a budget.
+
+Behaviour is pinned by `ProviderBudgetLedgerTests`, `ProviderBudgetsTests` and `RequestBudgetHandleTests`.
+
 ## Fetch-and-shape, not derive — the Metabolism boundary
 
 Tributary's contract is **fetch-and-shape**:

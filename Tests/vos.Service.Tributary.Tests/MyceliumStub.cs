@@ -129,9 +129,13 @@ internal static class MyceliumStub
         ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
     ];
 
+    // The identifier is the test's own, not made per read, so one test's calls spend one count.
+    internal readonly record struct Budget(Guid Id, string Name, string RequestCount, string WindowSeconds);
+
     internal static HttpResponseMessage? RouteKindsFromProperties(
         HttpRequestMessage request, Guid endpointId, string effectiveProperties,
-        IReadOnlyCollection<Guid>? alreadyObserved = null, bool historySource = false)
+        IReadOnlyCollection<Guid>? alreadyObserved = null, bool historySource = false,
+        IReadOnlyList<Budget>? budgets = null)
     {
         var kinds = new List<Kind>();
         foreach (var (key, word, role, kind) in DerivedKinds)
@@ -142,17 +146,21 @@ internal static class MyceliumStub
             if (declared.Success && string.Equals(declared.Groups[1].Value.Trim(), word, StringComparison.OrdinalIgnoreCase))
                 kinds.Add(new Kind(role, kind));
         }
-        return RouteKindsAndObserved(request, endpointId, alreadyObserved ?? [], historySource, [.. kinds]);
+        return RouteKindsAndObserved(request, endpointId, alreadyObserved ?? [], historySource, budgets ?? [], [.. kinds]);
     }
 
     internal static HttpResponseMessage? RouteKinds(HttpRequestMessage request, Guid endpointId, params Kind[] kinds) =>
-        RouteKindsAndObserved(request, endpointId, [], historySource: false, kinds);
+        RouteKindsAndObserved(request, endpointId, [], historySource: false, [], kinds);
+
+    internal static HttpResponseMessage? RouteKindsAndBudgets(
+        HttpRequestMessage request, Guid endpointId, IReadOnlyList<Budget> budgets, params Kind[] kinds) =>
+        RouteKindsAndObserved(request, endpointId, [], historySource: false, budgets, kinds);
 
     // The same snapshot, with the `observed` relationships the endpoint already carries — what a real read
     // returns on every run after the first, and what stops a second one writing a parallel relationship.
     private static HttpResponseMessage? RouteKindsAndObserved(
         HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, bool historySource,
-        params Kind[] kinds)
+        IReadOnlyList<Budget> budgets, params Kind[] kinds)
     {
         if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/snapshots")
             return null;
@@ -186,6 +194,25 @@ internal static class MyceliumStub
         foreach (var observed in alreadyObserved)
             edges.Add(Edge(endpointId, ObservedPredicateId, observed));
 
+        if (budgets.Count > 0)
+        {
+            var needs = Guid.NewGuid();
+            var has = Guid.NewGuid();
+            var licence = Guid.NewGuid();
+            things.AddRange([
+                Thing(needs, "needs"), Thing(has, "has"), Thing(licence, "Licence"),
+                Thing(LandIntakeRoles.Licence.Id, "Licence"), Thing(LandIntakeRoles.Holding.Id, "Holding")]);
+            edges.AddRange([
+                Edge(LandIntakeRoles.Licence.Id, bindsId, needs), Edge(LandIntakeRoles.Holding.Id, bindsId, has),
+                Edge(endpointId, needs, licence)]);
+            foreach (var budget in budgets)
+            {
+                things.Add(ThingStating(budget.Id, budget.Name,
+                    ("requestCount", budget.RequestCount), ("windowSeconds", budget.WindowSeconds)));
+                edges.Add(Edge(licence, has, budget.Id));
+            }
+        }
+
         return Json("{\"watermark\":0,\"snapshot\":{"
             + "\"watermark\":0,\"things\":[" + string.Join(",", things) + "],"
             + "\"relationships\":[" + string.Join(",", edges) + "]}}");
@@ -195,6 +222,15 @@ internal static class MyceliumStub
         "{\"id\":\"" + Guid.NewGuid() + "\",\"name\":null,\"subjectId\":\"" + subjectId
         + "\",\"predicateId\":\"" + predicateId + "\",\"targetId\":\"" + targetId
         + "\",\"properties\":{},\"inheritedProperties\":{},\"states\":[]}";
+
+    private static string ThingStating(Guid id, string name, params (string Name, string Json)[] stated)
+    {
+        var values = stated.Select(value =>
+            "\"" + value.Name + "\":{\"value\":" + value.Json + ",\"typeInfo\":\"vos.LongInteger\",\"mode\":null}");
+        return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"isArchetype\":false,"
+            + "\"properties\":{" + string.Join(",", values) + "},"
+            + "\"inheritedProperties\":{},\"states\":[],\"relationships\":[]}";
+    }
 
     private static string Thing(Guid id, string name, params string[] declaredProperties)
     {
